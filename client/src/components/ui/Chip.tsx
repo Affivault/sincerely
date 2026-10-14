@@ -27,7 +27,7 @@ export function Chip({
         'inline-flex items-center gap-1.5 rounded-full font-medium border transition-colors whitespace-nowrap',
         size === 'sm' ? 'h-7 px-2.5 text-caption' : 'h-8 px-3 text-body',
         active
-          ? 'border-[rgba(91,91,245,0.4)] bg-[var(--indigo-subtle)] text-[var(--indigo)]'
+          ? 'border-[var(--text-primary)] bg-[var(--text-primary)] text-[var(--bg-surface)]'
           : 'border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
         className,
       )}

@@ -333,7 +333,7 @@ export function DealModal({ deal, onClose, onDeleted }: { deal: Partial<Deal> | 
             follows; leave them all blank and the plain figure below is
             used exactly as it always was. */}
         <div className="rounded-xl border border-[var(--border-subtle)] p-3">
-          <p className="mb-2.5 text-caption font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+          <p className="mb-2.5 text-caption font-medium text-[var(--text-tertiary)]">
             Commercial shape
           </p>
           <div className="grid grid-cols-3 gap-3">

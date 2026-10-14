@@ -415,7 +415,7 @@ export function DealTimeline({
       {tab !== 'changes' && pinned.length > 0 && (
         <div className="space-y-1.5">
           {pinned.map((n) => (
-            <div key={n.id} className="flex gap-2 rounded-xl border border-amber-500/25 bg-amber-500/[0.06] p-2.5">
+            <div key={n.id} className="flex gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-2.5 shadow-[inset_3px_0_0_theme(colors.amber.500)]">
               <Pin className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-amber-500" />
               <p className="min-w-0 flex-1 whitespace-pre-wrap text-body leading-relaxed text-[var(--text-primary)]">{n.body}</p>
               <button type="button" onClick={() => pinNote.mutate(n)} className="icon-btn h-6 w-6 flex-shrink-0" title="Unpin">
@@ -441,7 +441,7 @@ export function DealTimeline({
         <div className="panel divide-y divide-[var(--border-subtle)]">
           {groups.map((g) => (
             <div key={g.day} className="px-3.5 py-3">
-              <p className="mb-2 text-micro font-semibold uppercase tracking-wider text-[var(--text-muted)]">{g.day}</p>
+              <p className="mb-2 text-caption font-medium text-[var(--text-tertiary)]">{g.day}</p>
               <div className="space-y-2">
                 {g.items.map((e) => {
                   const Icon = e.icon;

@@ -54,7 +54,7 @@ function Section({ icon: Icon, title, action, children }: { icon: typeof Send; t
     <section className="px-5 py-4 border-b border-[var(--border-subtle)] last:border-0">
       <div className="mb-2.5 flex items-center gap-2">
         <Icon className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
-        <h3 className="flex-1 text-caption font-semibold uppercase tracking-wider text-[var(--text-muted)]">{title}</h3>
+        <h3 className="flex-1 text-caption font-medium text-[var(--text-tertiary)]">{title}</h3>
         {action}
       </div>
       {children}
@@ -242,15 +242,15 @@ export function MailboxDrawer({
 
             <div className="mt-3 grid grid-cols-3 gap-2">
               <div className="rounded-xl border border-[var(--border-subtle)] px-3 py-2.5">
-                <p className="text-micro font-semibold uppercase tracking-wider text-[var(--text-muted)]">Today</p>
+                <p className="text-caption font-medium text-[var(--text-tertiary)]">Today</p>
                 <p className="mt-0.5 text-strong font-semibold tabular text-[var(--text-primary)]">{account.sends_today}<span className="text-body font-normal text-[var(--text-tertiary)]">/{formatDailyLimit(allowance)}</span></p>
               </div>
               <div className="rounded-xl border border-[var(--border-subtle)] px-3 py-2.5">
-                <p className="text-micro font-semibold uppercase tracking-wider text-[var(--text-muted)]">Health</p>
+                <p className="text-caption font-medium text-[var(--text-tertiary)]">Health</p>
                 <p className={cn('mt-0.5 text-strong font-semibold tabular', score === null ? 'text-[var(--text-muted)]' : score >= 80 ? 'text-[var(--text-primary)]' : 'text-amber-600 dark:text-amber-400')}>{score === null ? '—' : `${score}%`}</p>
               </div>
               <div className="rounded-xl border border-[var(--border-subtle)] px-3 py-2.5">
-                <p className="text-micro font-semibold uppercase tracking-wider text-[var(--text-muted)]">Sent all-time</p>
+                <p className="text-caption font-medium text-[var(--text-tertiary)]">Sent all-time</p>
                 <p className="mt-0.5 text-strong font-semibold tabular text-[var(--text-primary)]">{account.total_sent.toLocaleString()}</p>
               </div>
             </div>

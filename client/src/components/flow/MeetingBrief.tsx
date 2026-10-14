@@ -29,7 +29,7 @@ function money(v: number, currency: string): string {
 function Section({ icon: Icon, title, children }: { icon: typeof Briefcase; title: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="mb-1.5 flex items-center gap-1.5 text-micro font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+      <p className="mb-1.5 flex items-center gap-1.5 text-caption font-medium text-[var(--text-tertiary)]">
         <Icon className="h-3 w-3" />{title}
       </p>
       {children}
@@ -118,7 +118,7 @@ export function MeetingBrief({ eventId }: { eventId: string }) {
           <Section icon={AlertTriangle} title="What they pushed back on">
             <ul className="space-y-1.5">
               {b.objections.map((o, i) => (
-                <li key={i} className="rounded-lg border border-amber-500/20 bg-amber-500/[0.06] px-2.5 py-1.5 text-caption text-[var(--text-secondary)]">
+                <li key={i} className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2.5 py-1.5 text-caption text-[var(--text-secondary)] shadow-[inset_3px_0_0_theme(colors.amber.500)]">
                   "{o.snippet}"
                 </li>
               ))}

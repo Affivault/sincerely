@@ -354,12 +354,12 @@ export function DealInsightsPage() {
                 <table className="w-full min-w-[520px] border-collapse">
                   <thead>
                     <tr className="border-b border-[var(--border-subtle)]">
-                      <th className="px-2 py-1.5 text-left text-micro font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">Source</th>
-                      <th className="px-2 py-1.5 text-right text-micro font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">Open</th>
-                      <th className="px-2 py-1.5 text-right text-micro font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">Won</th>
-                      <th className="px-2 py-1.5 text-right text-micro font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">Lost</th>
-                      <th className="px-2 py-1.5 text-right text-micro font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">Win rate</th>
-                      <th className="px-2 py-1.5 text-right text-micro font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">Won value</th>
+                      <th className="px-2 py-1.5 text-left text-caption font-medium text-[var(--text-tertiary)]">Source</th>
+                      <th className="px-2 py-1.5 text-right text-caption font-medium text-[var(--text-tertiary)]">Open</th>
+                      <th className="px-2 py-1.5 text-right text-caption font-medium text-[var(--text-tertiary)]">Won</th>
+                      <th className="px-2 py-1.5 text-right text-caption font-medium text-[var(--text-tertiary)]">Lost</th>
+                      <th className="px-2 py-1.5 text-right text-caption font-medium text-[var(--text-tertiary)]">Win rate</th>
+                      <th className="px-2 py-1.5 text-right text-caption font-medium text-[var(--text-tertiary)]">Won value</th>
                     </tr>
                   </thead>
                   <tbody>

@@ -22,7 +22,7 @@ function UsageMeter({ icon: Icon, label, used, limit }: {
   const unlimited = isUnlimited(limit);
   const pct = unlimited ? 0 : Math.min(100, limit > 0 ? (used / limit) * 100 : 0);
   // Restrained by default; the meter only warms as a functional signal near the cap.
-  const color = pct >= 90 ? '#EF4444' : pct >= 75 ? '#F59E0B' : 'var(--indigo)';
+  const color = pct >= 90 ? '#BE4A3B' : pct >= 75 ? '#B88124' : 'var(--indigo)';
   const remaining = unlimited ? null : Math.max(0, limit - used);
 
   return (
@@ -214,12 +214,12 @@ export function BillingPage() {
               key={id}
               className={cn(
                 'relative panel p-5 flex flex-col gap-5',
-                featured && 'ring-1 ring-[var(--indigo)] shadow-[0_8px_30px_-12px_rgba(91,91,245,0.35)]',
+                featured && 'ring-1 ring-[var(--indigo)] shadow-[0_8px_30px_-12px_rgba(47, 63, 156,0.35)]',
                 isCurrent && !featured && 'border-[var(--indigo)]'
               )}
             >
               {featured && !isCurrent && (
-                <span className="absolute -top-2.5 left-5 text-micro font-semibold tracking-wide uppercase px-2 py-0.5 rounded-full bg-[var(--indigo)] text-white shadow-sm">
+                <span className="absolute -top-2.5 left-5 text-caption font-medium px-2 py-0.5 rounded-full bg-[var(--indigo)] text-white shadow-sm">
                   Most popular
                 </span>
               )}

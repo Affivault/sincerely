@@ -21,7 +21,7 @@ function CopyField({ label, value }: { label: string; value: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <div className="min-w-0">
-      <p className="text-micro font-semibold uppercase tracking-wider text-[var(--text-tertiary)] mb-1">
+      <p className="text-caption font-medium text-[var(--text-tertiary)] mb-1">
         {label}
       </p>
       <button

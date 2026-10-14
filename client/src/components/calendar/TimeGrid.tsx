@@ -394,7 +394,7 @@ export function TimeGrid({
           return (
             <div key={day.toISOString()} className="flex-1 min-w-0 border-l border-[var(--border-subtle)]">
               <div className="px-2 py-1.5 text-center">
-                <p className="text-micro font-medium uppercase tracking-wide text-[var(--text-tertiary)]">
+                <p className="text-caption font-medium text-[var(--text-tertiary)]">
                   {formatWeekdayShort(day)}
                 </p>
                 <p className={cn(

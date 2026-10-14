@@ -68,14 +68,16 @@ export function PageHeader({
           // sm:px-6 / lg:px-8, py-5 / lg:py-7 in AppLayout). They were a fixed
           // -mx-6 against a px-8 page, which left the band floating 8px in from
           // both edges on desktop and hanging off the side on a phone.
-          : 'relative -mx-4 -mt-5 sm:-mx-6 lg:-mx-8 lg:-mt-7 mb-5 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden',
+          // The title is the top of the sheet, not a banded strip across it:
+          // no rule underneath, so the page reads as one surface.
+          : 'relative -mx-4 -mt-5 sm:-mx-6 lg:-mx-8 lg:-mt-7 mb-2 overflow-hidden',
         className
       )}
     >
       {/* `decorate` retained for API compatibility; the glow wash was removed to
           keep headers calm and consistent across the app. */}
 
-      <div className={cn('relative', inset ? '' : 'px-4 sm:px-6 lg:px-8 pt-5 pb-4')}>
+      <div className={cn('relative', inset ? '' : 'px-4 sm:px-6 lg:px-8 pt-7 pb-5')}>
         <div className={contentClassName}>
         {/* Breadcrumbs */}
         {breadcrumbs && breadcrumbs.length > 0 && (
@@ -101,18 +103,20 @@ export function PageHeader({
         )}
 
         <div className="flex flex-wrap items-start gap-x-4 gap-y-3">
-          {(Icon || leading) && (
-            <div className="flex-shrink-0 mt-1">
-              {Icon ? <PageIcon icon={Icon} /> : leading}
-            </div>
+          {/* A page's icon is already in the tab bar above it; a second,
+              bigger copy beside the title was a badge saying where you are
+              twice. `icon` is accepted and left unrendered. A `leading`
+              element (a person, a company) is content, and stays. */}
+          {!Icon && leading && (
+            <div className="flex-shrink-0 mt-0.5">{leading}</div>
           )}
 
           <div className="flex-1 min-w-[min(100%,16rem)]">
-            <h1 className="text-display font-semibold text-[var(--text-primary)] leading-[1.15] tracking-[-0.02em]">
+            <h1 className="page-title">
               {title}
             </h1>
             {description && (
-              <p className="mt-1 text-strong text-[var(--text-secondary)] leading-snug max-w-2xl">
+              <p className="mt-1.5 text-strong text-[var(--text-secondary)] leading-snug max-w-2xl">
                 {description}
               </p>
             )}
@@ -143,8 +147,8 @@ export function PageHeader({
 /** The standard page icon chip. Exported for the few headers that draw their own title. */
 export function PageIcon({ icon: Icon, className }: { icon: LucideIcon; className?: string }) {
   return (
-    <span className={cn('flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)]', className)}>
-      <Icon className="h-4 w-4 text-[var(--indigo)]" strokeWidth={1.9} />
+    <span className={cn('flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)]', className)}>
+      <Icon className="h-4 w-4 text-[var(--text-secondary)]" strokeWidth={1.75} />
     </span>
   );
 }

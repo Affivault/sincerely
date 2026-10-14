@@ -21,8 +21,8 @@ interface StatCardProps {
 
 /* Restrained single-tone accents — used only for the small icon */
 const ACCENT_HEX: Record<string, string> = {
-  indigo: '#6366F1', violet: '#8B5CF6', cyan: '#06B6D4', blue: '#3B82F6',
-  emerald: '#10B981', amber: '#F59E0B', rose: '#F43F5E', slate: '#64748B',
+  indigo: 'var(--c-indigo)', violet: 'var(--c-violet)', cyan: 'var(--c-cyan)', blue: 'var(--c-blue)',
+  emerald: 'var(--c-emerald)', amber: 'var(--c-amber)', rose: 'var(--c-rose)', slate: 'var(--text-tertiary)',
 };
 
 /**
@@ -51,7 +51,7 @@ export function StatCard({
       className={cn('panel p-4', onClick && 'panel-hover cursor-pointer', className)}
     >
       <div className="flex items-center gap-2 text-[var(--text-tertiary)]">
-        {Icon && <Icon className="h-4 w-4 flex-shrink-0" strokeWidth={1.75} style={{ color }} />}
+        {Icon && <Icon className="h-3.5 w-3.5 flex-shrink-0 opacity-80" strokeWidth={1.75} style={{ color }} />}
         <span className="text-body font-medium truncate">{label}</span>
         {delta != null && (
           <span className={cn(
@@ -64,7 +64,7 @@ export function StatCard({
         )}
       </div>
 
-      <div className="mt-3 text-hero font-semibold text-[var(--text-primary)] tabular leading-none tracking-[-0.03em]">
+      <div className="mt-3 text-hero font-medium text-[var(--text-primary)] tabular leading-none tracking-[-0.025em]">
         {value}
       </div>
       {hint && <div className="mt-2 text-body text-[var(--text-tertiary)] truncate">{hint}</div>}

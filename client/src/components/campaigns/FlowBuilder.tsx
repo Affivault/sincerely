@@ -12,9 +12,6 @@ import {
   EyeOff,
   MousePointerClick,
   MessageSquare,
-  Sparkles,
-  Flag,
-  SkipForward,
   GitBranch,
   Webhook,
   ShieldCheck,
@@ -145,148 +142,125 @@ interface AddStepMenuProps {
   showAbove?: boolean;
 }
 
-function AddStepMenu({ onAdd, showAbove }: AddStepMenuProps) {
+function AddStepMenu({ onAdd, showAbove, last }: AddStepMenuProps & { last?: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
 
+  const groups: Array<Array<{ type: StepType; icon: typeof Mail; label: string; desc: string }>> = [
+    [
+      { type: StepType.Email, icon: Mail, label: 'Email', desc: 'A message in the thread' },
+      { type: StepType.Delay, icon: Clock, label: 'Wait', desc: 'Pause before the next step' },
+    ],
+    [
+      { type: StepType.LinkedinConnect, icon: Linkedin, label: 'LinkedIn invite', desc: 'Connection request, with a note' },
+      { type: StepType.LinkedinMessage, icon: Linkedin, label: 'LinkedIn message', desc: 'Message someone you know' },
+      { type: StepType.LinkedinVisit, icon: Linkedin, label: 'Profile visit', desc: 'Show up in their notifications' },
+    ],
+    [
+      { type: StepType.Condition, icon: GitBranch, label: 'Condition', desc: 'Go one way or another' },
+      { type: StepType.WebhookWait, icon: Webhook, label: 'Wait for a webhook', desc: 'Hold until another system says so' },
+    ],
+  ];
+
   return (
-    <div className="relative flex justify-center">
-      {/* Connector spine */}
-      <div className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-px bg-[var(--border-default)]" />
+    <div className={cn('group/add relative grid grid-cols-[64px_1fr] gap-4', last ? 'pt-3' : 'h-7')}>
+      <span />
+      <div className="relative flex items-center">
+        {/* Between steps the control waits for a pointer, so the document
+            reads as writing and not as a diagram of plus signs. At the end
+            it is always there: that is where the next step goes. */}
+        <button
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
+          title="Add a step here"
+          aria-expanded={isOpen}
+          className={cn(
+            'inline-flex items-center gap-1.5 rounded-md text-caption font-medium transition-[opacity,color,background-color]',
+            last
+              ? 'h-8 px-2.5 -ml-2.5 text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
+              : cn('h-6 px-2 -ml-2 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] focus-visible:opacity-100', isOpen ? 'opacity-100' : 'opacity-0 group-hover/add:opacity-100'),
+          )}
+        >
+          <Plus className="h-3.5 w-3.5" strokeWidth={2} />
+          {last ? 'Add a step' : 'Insert a step'}
+        </button>
 
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        title="Add a step here"
-        className="group relative z-10 flex h-6 w-6 items-center justify-center rounded-full bg-[var(--bg-surface)] border border-dashed border-[var(--border-strong)] text-[var(--text-tertiary)] hover:border-[var(--indigo)] hover:text-[var(--indigo)] hover:bg-[var(--indigo-subtle)] hover:scale-110 transition-all my-2.5"
-      >
-        <Plus className="h-3.5 w-3.5" strokeWidth={2.2} />
-      </button>
-
-      {isOpen && (
-        <>
-          <div className="fixed inset-0 z-20" onClick={() => setIsOpen(false)} />
-          <div className={cn(
-            "absolute z-30 w-52 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-default)] shadow-xl py-1 animate-fade-in",
-            showAbove ? "bottom-full mb-2" : "top-full mt-2"
-          )}>
-            <p className="px-3 pb-1.5 pt-1.5 text-micro font-bold text-[var(--text-tertiary)] uppercase tracking-[0.08em]">
-              Add step
-            </p>
-            {[
-              { type: StepType.Email, icon: Mail, label: 'Email Step', desc: 'Send a personalised email', accent: 'bg-[var(--indigo-subtle)] text-[var(--indigo)] border-[rgba(91,91,245,0.18)]' },
-              { type: StepType.Delay, icon: Clock, label: 'Wait / Delay', desc: 'Wait before the next step', accent: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' },
-            ].map(({ type, icon: Icon, label, desc, accent }) => (
-              <button
-                key={type}
-                type="button"
-                onClick={() => { onAdd(type); setIsOpen(false); }}
-                className="w-full flex items-center gap-2.5 px-2.5 py-2 hover:bg-[var(--bg-hover)] transition-colors text-left"
-              >
-                <div className={cn('flex h-7 w-7 items-center justify-center rounded-md border flex-shrink-0', accent)}>
-                  <Icon className="h-3.5 w-3.5" strokeWidth={1.75} />
+        {isOpen && (
+          <>
+            <div className="fixed inset-0 z-20" onClick={() => setIsOpen(false)} />
+            <div className={cn(
+              'absolute left-0 z-30 w-60 rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-1 shadow-[var(--shadow-xl)] animate-fade-in',
+              showAbove ? 'bottom-full mb-1.5' : 'top-full mt-1',
+            )}>
+              {groups.map((g, gi) => (
+                <div key={gi} className={cn(gi > 0 && 'mt-1 pt-1 border-t border-[var(--border-subtle)]')}>
+                  {g.map(({ type, icon: Icon, label, desc }) => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => { onAdd(type); setIsOpen(false); }}
+                      className="w-full flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left transition-colors hover:bg-[var(--bg-hover)]"
+                    >
+                      <Icon className="h-4 w-4 flex-shrink-0 text-[var(--text-tertiary)]" strokeWidth={1.7} />
+                      <span className="min-w-0">
+                        <span className="block text-body font-medium text-[var(--text-primary)]">{label}</span>
+                        <span className="block text-caption text-[var(--text-tertiary)] leading-tight">{desc}</span>
+                      </span>
+                    </button>
+                  ))}
                 </div>
-                <div className="min-w-0">
-                  <p className="text-body font-semibold text-[var(--text-primary)]">{label}</p>
-                  <p className="text-micro text-[var(--text-tertiary)] leading-tight">{desc}</p>
-                </div>
-              </button>
-            ))}
-            <div className="border-t border-[var(--border-subtle)] my-1" />
-            {[
-              { type: StepType.LinkedinConnect, icon: Linkedin, label: 'LinkedIn invite', desc: 'Connection request, with a note', accent: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20' },
-              { type: StepType.LinkedinMessage, icon: Linkedin, label: 'LinkedIn message', desc: 'Message someone you know', accent: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20' },
-              { type: StepType.LinkedinVisit, icon: Linkedin, label: 'Profile visit', desc: 'Show up in their notifications', accent: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20' },
-            ].map(({ type, icon: Icon, label, desc, accent }) => (
-              <button
-                key={type}
-                type="button"
-                onClick={() => { onAdd(type); setIsOpen(false); }}
-                className="w-full flex items-center gap-2.5 px-2.5 py-2 hover:bg-[var(--bg-hover)] transition-colors text-left"
-              >
-                <div className={cn('flex h-7 w-7 items-center justify-center rounded-md border flex-shrink-0', accent)}>
-                  <Icon className="h-3.5 w-3.5" strokeWidth={1.75} />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-body font-semibold text-[var(--text-primary)]">{label}</p>
-                  <p className="text-micro text-[var(--text-tertiary)] leading-tight">{desc}</p>
-                </div>
-              </button>
-            ))}
-            <div className="border-t border-[var(--border-subtle)] my-1" />
-            {[
-              { type: StepType.Condition, icon: GitBranch, label: 'Condition', desc: 'If/else branch logic', accent: 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20' },
-              { type: StepType.WebhookWait, icon: Webhook, label: 'Webhook Wait', desc: 'Wait for external event', accent: 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20' },
-            ].map(({ type, icon: Icon, label, desc, accent }) => (
-              <button
-                key={type}
-                type="button"
-                onClick={() => { onAdd(type); setIsOpen(false); }}
-                className="w-full flex items-center gap-2.5 px-2.5 py-2 hover:bg-[var(--bg-hover)] transition-colors text-left"
-              >
-                <div className={cn('flex h-7 w-7 items-center justify-center rounded-md border flex-shrink-0', accent)}>
-                  <Icon className="h-3.5 w-3.5" strokeWidth={1.75} />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-body font-semibold text-[var(--text-primary)]">{label}</p>
-                  <p className="text-micro text-[var(--text-tertiary)] leading-tight">{desc}</p>
-                </div>
-              </button>
-            ))}
-          </div>
-        </>
-      )}
+              ))}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
+}
+
+/** Plain text of an email body, for the opening lines shown in the outline. */
+function bodyText(html: string | undefined | null): string {
+  if (!html) return '';
+  return html
+    .replace(/<\s*br\s*\/?>/gi, ' ')
+    .replace(/<\/(p|div|li|h\d)>/gi, ' ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Text with its {{merge fields}} drawn as quiet tokens, so they read as slots. */
+function WithFields({ text }: { text: string }) {
+  const parts = text.split(/(\{\{[^}]+\}\})/g);
+  return (
+    <>
+      {parts.map((part, i) =>
+        /^\{\{[^}]+\}\}$/.test(part) ? (
+          <span key={i} className="rounded bg-[var(--bg-elevated)] px-1 py-px font-mono text-[0.86em] text-[var(--text-secondary)]">
+            {part.slice(2, -2).trim()}
+          </span>
+        ) : (
+          <span key={i}>{part}</span>
+        ),
+      )}
+    </>
+  );
+}
+
+/** When a step fires, in the words someone would use. */
+function dayLabel(dayOffset: number, index: number): string {
+  if (dayOffset === 0) return index === 0 ? 'Day 1' : 'Same day';
+  return `Day ${dayOffset + 1}`;
 }
 
 /** Total delay of a single delay step, expressed in (fractional) days. */
 const stepDelayInDays = (step: FlowStep): number =>
   (step.delay_days || 0) + (step.delay_hours || 0) / 24 + (step.delay_minutes || 0) / 1440;
-
-const getStepColors = (stepType: string) => {
-  switch (stepType) {
-    case 'email':
-      return {
-        iconBg: 'bg-[var(--indigo-subtle)] text-[var(--indigo)] border border-[rgba(91,91,245,0.18)]',
-        borderColor: 'border-l-[3px] border-l-[var(--indigo)]',
-        badgeBg: 'bg-[var(--indigo)] text-white',
-      };
-    case 'delay':
-      return {
-        iconBg: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20',
-        borderColor: 'border-l-[3px] border-l-amber-500',
-        badgeBg: 'bg-amber-500 text-white',
-      };
-    case 'condition':
-      return {
-        iconBg: 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20',
-        borderColor: 'border-l-[3px] border-l-violet-500',
-        badgeBg: 'bg-violet-500 text-white',
-      };
-    case 'webhook_wait':
-      return {
-        iconBg: 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20',
-        borderColor: 'border-l-[3px] border-l-cyan-500',
-        badgeBg: 'bg-cyan-500 text-white',
-      };
-    // LinkedIn's own blue, so a channel switch is visible at a glance down
-    // the flow rather than needing the label read.
-    case 'linkedin_connect':
-    case 'linkedin_message':
-    case 'linkedin_visit':
-      return {
-        iconBg: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20',
-        borderColor: 'border-l-[3px] border-l-sky-500',
-        badgeBg: 'bg-sky-500 text-white',
-      };
-    default:
-      return {
-        iconBg: 'bg-slate-500/10 text-slate-600 dark:text-slate-300 border border-slate-500/20',
-        borderColor: 'border-l-[3px] border-l-slate-400',
-        badgeBg: 'bg-slate-500 text-white',
-      };
-  }
-};
 
 function FlowNode({
   step,
@@ -319,7 +293,6 @@ function FlowNode({
   const [showHtmlPreview, setShowHtmlPreview] = useState(false);
   const config = stepTypeConfig[step.step_type] || stepTypeConfig.email;
   const Icon = config.icon;
-  const stepColors = getStepColors(step.step_type);
 
   const getStepSummary = () => {
     if (step.step_type === 'email') {
@@ -357,72 +330,75 @@ function FlowNode({
     (step.step_type === 'condition' && (!step.condition_field || !step.condition_operator)) ||
     (step.step_type === 'webhook_wait' && !step.webhook_event);
 
+  const editable = step.step_type === 'email' || step.step_type === 'condition' || step.step_type === 'webhook_wait' || isLinkedinStep(step.step_type);
+  const opening = step.step_type === 'email' ? bodyText(step.body_html) : '';
+
   return (
-    <div className="relative pt-2.5">
-      {/* Node Card */}
+    /*
+     * One step, set like a passage in a document: when it happens sits in
+     * the margin on the timeline, what it says is the body. The step's
+     * number is its position on the page; it does not need a badge.
+     */
+    <div className="group relative grid grid-cols-[64px_1fr] gap-4">
+      <div className="relative pt-[18px] text-right">
+        <span className="text-caption font-medium tabular text-[var(--text-secondary)]" title="When this step goes out, counted from the day someone is enrolled">
+          {dayLabel(dayOffset, index)}
+        </span>
+        <span aria-hidden className={cn(
+          'absolute -right-[11.5px] top-[22px] h-[7px] w-[7px] rounded-full ring-[3px] ring-[var(--bg-surface)]',
+          isEditing ? 'bg-[var(--indigo)]' : isUnconfigured ? 'bg-amber-500' : 'bg-[var(--border-strong)]',
+        )} />
+      </div>
       <div
+        onClick={editable && !isEditing ? onEdit : undefined}
         className={cn(
-          'group relative mx-auto max-w-xl rounded-xl border bg-[var(--bg-surface)] transition-all duration-200',
-          stepColors.borderColor,
+          'relative min-w-0 rounded-lg border bg-[var(--bg-surface)] transition-[border-color,box-shadow] duration-150',
+          editable && !isEditing && 'cursor-pointer',
           isEditing
-            ? 'border-[var(--indigo-subtle)] shadow-[0_0_0_2px_var(--indigo-subtle),0_4px_12px_rgba(91,91,245,0.12)]'
-            : 'border-[var(--border-subtle)] hover:border-[var(--border-default)] hover:shadow-[0_2px_8px_rgba(15,15,25,0.06)]'
+            ? 'border-[var(--border-strong)] shadow-[var(--shadow-md)]'
+            : 'border-[var(--border-subtle)] hover:border-[var(--border-default)]',
         )}
       >
-        {/* Step Number Badge */}
-        <div className={cn(
-          'absolute -top-2.5 left-5 flex items-center gap-1 px-2 py-0.5 rounded-full text-micro font-bold shadow-sm',
-          stepColors.badgeBg
-        )}>
-          <span>Step {index + 1}</span>
-          <span className="opacity-70">/ {totalSteps}</span>
-        </div>
-
-        {/* Timeline badge — when this step fires relative to enrollment */}
-        <div
-          className="absolute -top-2.5 right-5 flex items-center gap-1 px-2 py-0.5 rounded-full text-micro font-semibold bg-[var(--bg-elevated)] text-[var(--text-tertiary)] border border-[var(--border-subtle)] shadow-sm"
-          title="When this step fires after a contact is enrolled"
-        >
-          <Clock className="h-2.5 w-2.5" strokeWidth={2.2} />
-          <span>{dayOffset === 0 ? (index === 0 ? 'At launch' : 'Immediately') : `Day ${dayOffset}`}</span>
-        </div>
-
-        <div className="p-4 pt-5">
+        {isEditing && <span aria-hidden className="absolute left-0 top-3 bottom-3 w-[2px] rounded-r bg-[var(--indigo)]" />}
+        <div className="px-5 py-4">
           <div className="flex items-start gap-3">
-            {/* Icon */}
-            <div className={cn('flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg', stepColors.iconBg)}>
-              <Icon className="h-4 w-4" strokeWidth={1.75} />
-            </div>
-
             {/* Content */}
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5 mb-0.5">
-                <h3 className="text-strong font-semibold text-[var(--text-primary)]">{config.label}</h3>
+              <div className="flex items-center gap-1.5 text-caption text-[var(--text-tertiary)]">
+                <Icon className="h-3.5 w-3.5 flex-shrink-0" strokeWidth={1.7} />
+                <span className="font-medium">{config.label}</span>
                 {step.step_type === 'email' && step.skip_if_replied !== false && (
-                  <span className="inline-flex items-center gap-0.5 px-1.5 py-px rounded text-micro font-semibold bg-[var(--bg-elevated)] text-[var(--text-secondary)] border border-[var(--border-subtle)]">
-                    <SkipForward className="h-2.5 w-2.5" />
-                    Skip if replied
-                  </span>
-                )}
-                {step.step_type === 'condition' && (
-                  <span className="inline-flex items-center gap-0.5 px-1.5 py-px rounded text-micro font-semibold bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20">
-                    <GitBranch className="h-2.5 w-2.5" />
-                    If/Else
-                  </span>
+                  <span title="Anyone who has replied by then does not get this one">- skipped if they have replied</span>
                 )}
                 {isUnconfigured && (
                   <span
-                    className="inline-flex items-center gap-0.5 px-1.5 py-px rounded text-micro font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
-                    title="This step won't do anything until it's configured — it'll block launch."
+                    className="ml-1 inline-flex items-center gap-1 font-medium text-amber-700 dark:text-amber-400"
+                    title="This step won't do anything until it's configured - it'll block launch."
                   >
-                    <AlertTriangle className="h-2.5 w-2.5" />
+                    <AlertTriangle className="h-3 w-3" />
                     Needs setup
                   </span>
                 )}
               </div>
-              <p className={cn('text-body truncate', isUnconfigured ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--text-secondary)]')}>
-                {getStepSummary()}
-              </p>
+              {step.step_type === 'email' ? (
+                <>
+                  <p className={cn('mt-1.5 text-heading font-semibold leading-snug tracking-[-0.01em] break-words', step.subject ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)]')}>
+                    {step.subject ? <WithFields text={step.subject} /> : 'No subject yet'}
+                  </p>
+                  {step.subject_b && (
+                    <p className="mt-0.5 text-body text-[var(--text-tertiary)] break-words">
+                      <span className="font-medium text-[var(--text-secondary)]">or, for half: </span><WithFields text={step.subject_b} />
+                    </p>
+                  )}
+                  <p className={cn('mt-1.5 line-clamp-3 max-w-[68ch] text-body leading-relaxed', opening ? 'text-[var(--text-secondary)]' : 'text-[var(--text-tertiary)] italic')}>
+                    {opening ? <WithFields text={opening} /> : 'Nothing written yet - open it to write the email.'}
+                  </p>
+                </>
+              ) : (
+                <p className={cn('mt-1.5 text-strong break-words', isUnconfigured ? 'text-amber-700 dark:text-amber-400' : 'text-[var(--text-primary)]')}>
+                  {getStepSummary()}
+                </p>
+              )}
 
               {/* Built-in send timing — lives on the email itself, no separate
                   delay node needed. First email always goes out at launch, and
@@ -431,15 +407,15 @@ function FlowNode({
                   after an explicit delay). */}
               {step.step_type === 'email' && index > 0 && !timedByDelayNode && (
                 <div
-                  className="mt-2.5 inline-flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/60 pl-2.5 pr-2.5 h-8"
+                  className="mt-3 inline-flex items-center gap-2"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <Clock className="h-3 w-3 text-[var(--indigo)] flex-shrink-0" strokeWidth={2.2} />
-                  <span className="text-caption font-medium text-[var(--text-secondary)]">Sends</span>
+                  <Clock className="h-3 w-3 text-[var(--text-tertiary)] flex-shrink-0" strokeWidth={2} />
+                  <span className="text-caption text-[var(--text-secondary)]">Sends</span>
                   <DelayUnit value={step.delay_days || 0} unit="d" onChange={(v) => onUpdate({ delay_days: v })} />
                   <DelayUnit value={step.delay_hours || 0} unit="h" onChange={(v) => onUpdate({ delay_hours: v })} />
                   <span className="text-caption text-[var(--text-tertiary)] whitespace-nowrap">
-                    {stepDelayInDays(step) > 0 ? 'after the previous step' : '— immediately after previous'}
+                    {stepDelayInDays(step) > 0 ? 'after the previous step' : 'straight after the previous step'}
                   </span>
                 </div>
               )}
@@ -448,15 +424,15 @@ function FlowNode({
                   change how you set the wait. */}
               {isLinkedinStep(step.step_type) && index > 0 && !timedByDelayNode && (
                 <div
-                  className="mt-2.5 inline-flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/60 pl-2.5 pr-2.5 h-8"
+                  className="mt-3 inline-flex items-center gap-2"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <Clock className="h-3 w-3 text-sky-500 flex-shrink-0" strokeWidth={2.2} />
-                  <span className="text-caption font-medium text-[var(--text-secondary)]">Do this</span>
+                  <Clock className="h-3 w-3 text-[var(--text-tertiary)] flex-shrink-0" strokeWidth={2} />
+                  <span className="text-caption text-[var(--text-secondary)]">Do this</span>
                   <DelayUnit value={step.delay_days || 0} unit="d" onChange={(v) => onUpdate({ delay_days: v })} />
                   <DelayUnit value={step.delay_hours || 0} unit="h" onChange={(v) => onUpdate({ delay_hours: v })} />
                   <span className="text-caption text-[var(--text-tertiary)] whitespace-nowrap">
-                    {stepDelayInDays(step) > 0 ? 'after the previous step' : '— immediately after previous'}
+                    {stepDelayInDays(step) > 0 ? 'after the previous step' : 'straight after the previous step'}
                   </span>
                 </div>
               )}
@@ -529,14 +505,14 @@ function FlowNode({
 
               {/* Email preview */}
               {step.step_type === 'email' && step.body_html && (
-                <div className="mt-3">
+                <div className="mt-2.5">
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); setShowHtmlPreview((v) => !v); }}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] transition-colors"
+                    className="inline-flex items-center gap-1.5 text-caption font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
                   >
                     {showHtmlPreview ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                    {showHtmlPreview ? 'Hide preview' : 'Preview email'}
+                    {showHtmlPreview ? 'Hide the email' : 'See it as they will'}
                   </button>
                   {showHtmlPreview && (
                     <div className="mt-2 rounded-lg border border-[var(--border-subtle)] overflow-hidden bg-white">
@@ -650,7 +626,7 @@ function FlowNode({
             </div>
 
             {/* Actions */}
-            <div className="flex items-center gap-px opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className={cn('flex items-center gap-px transition-opacity focus-within:opacity-100', isEditing ? 'opacity-100' : 'opacity-0 group-hover:opacity-100')} onClick={(e) => e.stopPropagation()}>
               <button
                 type="button"
                 onClick={onMoveUp}
@@ -667,18 +643,18 @@ function FlowNode({
               >
                 <ChevronDown className="h-3.5 w-3.5" />
               </button>
-              {(step.step_type === 'email' || step.step_type === 'condition' || step.step_type === 'webhook_wait') && (
+              {editable && (
                 <button
                   type="button"
                   onClick={onEdit}
                   className={cn(
                     'px-2 py-1 rounded text-caption font-semibold transition-colors',
                     isEditing
-                      ? 'bg-[var(--indigo)] text-white'
+                      ? 'bg-[var(--bg-active)] text-[var(--text-primary)]'
                       : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
                   )}
                 >
-                  {isEditing ? 'Close' : 'Edit'}
+                  {isEditing ? 'Done' : 'Edit'}
                 </button>
               )}
               <button
@@ -707,7 +683,7 @@ function DelayUnit({ value, unit, onChange }: { value: number; unit: string; onC
         value={value || 0}
         onChange={(e) => onChange(Math.max(0, Math.min(999, parseInt(e.target.value) || 0)))}
         onClick={(e) => e.stopPropagation()}
-        className="font-data w-10 h-7 text-center rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] text-body font-medium text-[var(--text-primary)] tabular focus:border-amber-500 focus:ring-2 focus:ring-amber-500/15 outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+        className="w-9 h-7 text-center rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-body font-medium text-[var(--text-primary)] tabular hover:border-[var(--border-default)] focus:border-[var(--indigo)] focus:shadow-[var(--ring-focus)] outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
       />
       <span className="text-caption font-medium text-[var(--text-tertiary)]">{unit}</span>
     </span>
@@ -726,14 +702,14 @@ function DelayChip({ step, onUpdate, onRemove, onMoveUp, onMoveDown, isFirst, is
 }) {
   const empty = !step.delay_days && !step.delay_hours && !step.delay_minutes;
   return (
-    <div className="relative flex justify-center">
-      {/* spine passes through */}
-      <div className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-px bg-[var(--border-default)]" />
+    <div className="grid grid-cols-[64px_1fr] gap-4">
+      <span />
+      {/* A wait is a pause in the text, not a box: one line on the timeline. */}
       <div className={cn(
-        'group/chip relative z-10 my-1 inline-flex items-center gap-2.5 rounded-full border bg-[var(--bg-surface)] pl-3 pr-1.5 h-9 shadow-[var(--shadow-sm)] transition-colors',
-        empty ? 'border-amber-500/40' : 'border-amber-500/25'
+        'group/chip relative inline-flex w-fit items-center gap-2.5 rounded-md py-1.5 pl-0 pr-1.5',
+        empty && 'text-amber-700 dark:text-amber-400',
       )}>
-        <Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 flex-shrink-0" strokeWidth={2} />
+        <Clock className="h-3.5 w-3.5 text-[var(--text-tertiary)] flex-shrink-0" strokeWidth={1.8} />
         <span className="text-body font-medium text-[var(--text-secondary)]">Wait</span>
         <DelayUnit value={step.delay_days || 0} unit="d" onChange={(v) => onUpdate({ delay_days: v })} />
         <DelayUnit value={step.delay_hours || 0} unit="h" onChange={(v) => onUpdate({ delay_hours: v })} />
@@ -870,35 +846,26 @@ export function FlowBuilder({ steps, onStepsChange, onEditStep, editingStep, cam
 
   if (steps.length === 0) {
     return (
-      <div className="flex flex-col items-center py-10">
-        {/* Start node */}
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)] mb-3">
-          <Sparkles className="h-6 w-6 text-[var(--indigo)]" strokeWidth={1.5} />
-        </div>
-        <p className="text-heading font-semibold text-[var(--text-primary)] mb-1">Campaign start</p>
-        <p className="text-body text-[var(--text-tertiary)] mb-5">Add your first step to begin building the sequence</p>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 max-w-2xl">
-          {[
-            { type: StepType.Email, icon: Mail, label: 'Add Email', desc: 'Send a personalised message', accent: 'bg-[var(--indigo-subtle)] text-[var(--indigo)] border-[rgba(91,91,245,0.18)]' },
-            { type: StepType.Delay, icon: Clock, label: 'Add Delay', desc: 'Wait before next step', accent: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' },
-            { type: StepType.Condition, icon: GitBranch, label: 'Add Condition', desc: 'If / else branching', accent: 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20' },
-          ].map(({ type, icon: Icon, label, desc, accent }) => (
+      <div className="py-10 grid grid-cols-[64px_1fr] gap-4">
+        <span className="pt-0.5 text-right text-caption font-medium text-[var(--text-tertiary)]">Day 1</span>
+        {/* A blank page with a first line to write - not a menu of node types. */}
+        <div className="max-w-md">
+          <p className="text-heading font-semibold text-[var(--text-primary)]">Start with the first email</p>
+          <p className="mt-1 text-body text-[var(--text-secondary)]">
+            It goes out the day someone is added. Follow-ups, waits and LinkedIn steps come after it.
+          </p>
+          <div className="mt-4 flex flex-wrap items-center gap-2">
             <button
-              key={type}
               type="button"
-              onClick={() => addStep(type)}
-              className="flex items-center gap-2.5 px-3.5 py-3 bg-[var(--bg-surface)] rounded-xl border border-dashed border-[var(--border-default)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-hover)] transition-all group text-left"
+              onClick={() => addStep(StepType.Email)}
+              className="btn-primary"
             >
-              <div className={cn('flex h-9 w-9 items-center justify-center rounded-lg flex-shrink-0 border', accent)}>
-                <Icon className="h-4 w-4" strokeWidth={1.75} />
-              </div>
-              <div className="min-w-0">
-                <p className="text-body font-semibold text-[var(--text-primary)]">{label}</p>
-                <p className="text-micro text-[var(--text-tertiary)] leading-tight">{desc}</p>
-              </div>
+              <Mail className="h-3.5 w-3.5" /> Write the first email
             </button>
-          ))}
+            <button type="button" onClick={() => addStep(StepType.LinkedinConnect)} className="btn-ghost">
+              <Linkedin className="h-3.5 w-3.5" /> Start on LinkedIn
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -928,20 +895,18 @@ export function FlowBuilder({ steps, onStepsChange, onEditStep, editingStep, cam
   const totalDays = Math.round(cumulative);
 
   return (
-    <div className="relative py-4">
-      {/* Start Node */}
-      <div className="flex flex-col items-center gap-1.5 mb-1">
-        <div className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[var(--indigo)] text-white text-caption font-bold shadow-[0_2px_6px_rgba(91,91,245,0.3)]">
-          <Sparkles className="h-3 w-3" />
-          Campaign start
-        </div>
-        {emailCount > 0 && (
+    <div className="relative py-2">
+      {/* The timeline: one rule down the margin, between the days and the words. */}
+      <span aria-hidden className="pointer-events-none absolute left-[72px] top-6 bottom-14 w-px bg-[var(--border-subtle)]" />
+      {emailCount > 0 && (
+        <div className="grid grid-cols-[64px_1fr] gap-4 pb-3">
+          <span />
           <p className="text-caption text-[var(--text-tertiary)]">
             {emailCount} email{emailCount !== 1 ? 's' : ''}
-            {totalDays > 0 && <> · spans ~{totalDays} day{totalDays !== 1 ? 's' : ''}</>}
+            {totalDays > 0 && <> over {totalDays + 1} days</>}, stopping for anyone who replies.
           </p>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Steps */}
       {steps.map((step, index) => (
@@ -980,15 +945,7 @@ export function FlowBuilder({ steps, onStepsChange, onEditStep, editingStep, cam
       ))}
 
       {/* Add step at end */}
-      <AddStepMenu onAdd={(type) => addStep(type)} showAbove />
-
-      {/* End Node */}
-      <div className="flex justify-center mt-1">
-        <div className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[var(--bg-elevated)] text-[var(--text-tertiary)] text-caption font-bold border border-[var(--border-subtle)]">
-          <Flag className="h-3 w-3" />
-          Campaign end
-        </div>
-      </div>
+      <AddStepMenu onAdd={(type) => addStep(type)} showAbove last />
     </div>
   );
 }

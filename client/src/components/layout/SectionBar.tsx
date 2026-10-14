@@ -39,13 +39,17 @@ export function SectionBar({ section, active }: { section: Section; active: Sect
   return (
     <nav
       aria-label={section.name}
-      className="sticky top-[56px] z-30 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)]/85 backdrop-blur-xl"
-      style={{ height: SECTION_BAR_H }}
+      className="sticky z-30 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)]/85 backdrop-blur-xl"
+      style={{ height: SECTION_BAR_H, top: 'var(--frame-top, 56px)' }}
     >
       <div ref={strip} className="h-full max-w-[1760px] mx-auto flex items-stretch gap-1 px-2 sm:px-4 lg:px-6 overflow-x-auto scrollbar-none">
-        <span className="hidden md:flex items-center pr-3 mr-1 text-body font-semibold text-[var(--text-primary)] border-r border-[var(--border-subtle)] my-2.5 flex-shrink-0">
-          {section.name}
-        </span>
+        {/* The place's name, unless its first tab already says it -
+            "Campaigns | Campaigns" read as a stutter. */}
+        {!section.tabs.some((t) => t.label === section.name) && (
+          <span className="hidden md:flex items-center pr-4 mr-1.5 text-strong font-semibold text-[var(--text-primary)] border-r border-[var(--border-subtle)] my-2.5 flex-shrink-0">
+            {section.name}
+          </span>
+        )}
         {section.tabs.filter((tab) => !tab.hidden || active?.href === tab.href).map((tab) => {
           const on = active?.href === tab.href;
           return (
@@ -58,7 +62,7 @@ export function SectionBar({ section, active }: { section: Section; active: Sect
                 on ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]',
               )}
             >
-              <tab.icon className={cn('h-3.5 w-3.5', on ? 'text-[var(--indigo)]' : 'opacity-70')} strokeWidth={1.8} />
+              <tab.icon className={cn('h-3.5 w-3.5', on ? 'opacity-90' : 'opacity-60')} strokeWidth={1.8} />
               {tab.label}
               {tab.href === '/moments' && momentsCount > 0 && (
                 <span
@@ -71,8 +75,8 @@ export function SectionBar({ section, active }: { section: Section; active: Sect
               <span
                 aria-hidden
                 className={cn(
-                  'absolute left-2 right-2 bottom-0 h-[2px] rounded-t-full transition-opacity duration-150',
-                  on ? 'bg-[var(--indigo)] opacity-100' : 'opacity-0',
+                  'absolute left-2.5 right-2.5 bottom-0 h-[1.5px] transition-opacity duration-150',
+                  on ? 'bg-[var(--text-primary)] opacity-100' : 'opacity-0',
                 )}
               />
             </Link>

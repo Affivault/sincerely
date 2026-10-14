@@ -86,7 +86,7 @@ const STATUS_TABS = [
   { label: 'Cancelled', value: 'cancelled' },
 ];
 
-const FOLDER_COLORS = ['#6366F1', '#10B981', '#F59E0B', '#EC4899', '#06B6D4', '#8B5CF6', '#EF4444', '#84CC16'];
+const FOLDER_COLORS = ['#3B4AA3', '#3F8763', '#B88124', '#A3507A', '#3D7F89', '#6E4E8E', '#BE4A3B', '#84CC16'];
 
 export function CampaignsListPage() {
   const navigate = useNavigate();
@@ -291,11 +291,7 @@ export function CampaignsListPage() {
             >
               <FolderOpen className="h-4 w-4" style={{ color: activeFolder.color }} />
             </span>
-          ) : (
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)]">
-              <Megaphone className="h-4 w-4 text-[var(--indigo)]" />
-            </span>
-          )
+          ) : undefined
         }
         title={
           activeFolderId === 'all' ? 'All campaigns'
@@ -309,21 +305,11 @@ export function CampaignsListPage() {
               ? 'Campaigns not yet assigned to a folder.'
               : `${visibleCampaigns.length} campaign${visibleCampaigns.length === 1 ? '' : 's'} in this folder.`
         }
-        meta={
-          sentTotal > 0 ? (
-            <>
-              <span className="tabular">{sentTotal.toLocaleString()} sent</span>
-              <span className="text-[var(--text-muted)]">·</span>
-              <span className="tabular">{aggregateStats.replied.toLocaleString()} replies</span>
-              <span className="text-[var(--text-muted)]">·</span>
-              <span className="tabular" title={replyAgg.hint}>
-                {replyAgg.isRate ? `${replyAgg.label} reply rate` : 'too early for a reply rate'}
-              </span>
-            </>
-          ) : (
-            <span>{visibleCampaigns.length} campaign{visibleCampaigns.length === 1 ? '' : 's'}</span>
-          )
-        }
+        /* The totals are the ledger right below; repeating them here
+           said the same three numbers twice in one glance. */
+        meta={sentTotal > 0 ? undefined : (
+          <span>{visibleCampaigns.length} campaign{visibleCampaigns.length === 1 ? '' : 's'}</span>
+        )}
         actions={
           <>
             {activeFolderId && activeFolderId !== 'all' && activeFolderId !== null && (
@@ -340,7 +326,9 @@ export function CampaignsListPage() {
 
       {/* ── Aggregate metrics strip ── */}
       {sentTotal > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-5">
+        /* One ledger, not five cards: the figures are one account of the
+           same sends, so they share a sheet and a baseline. */
+        <div className="panel mb-5 grid grid-cols-2 sm:grid-cols-5 gap-px overflow-hidden !bg-[var(--border-subtle)] [&>*]:bg-[var(--bg-surface)] max-sm:[&>*:last-child]:col-span-2">
           <MetricChip icon={Send}              label="Sent"    value={aggregateStats.sent}    tone="indigo" />
           <MetricChip icon={Mail}              label="Opens"   value={aggregateStats.opened}  tone="violet"  readout={openAgg} />
           <MetricChip icon={MousePointerClick} label="Clicks"  value={aggregateStats.clicked} tone="cyan"    readout={clickAgg} />
@@ -353,7 +341,7 @@ export function CampaignsListPage() {
       <div className="grid grid-cols-1 md:grid-cols-[200px,1fr] gap-3">
         {/* Folder rail. Not on a phone, where it would sit above the list
             and push every campaign below the fold. */}
-        <aside className="hidden md:block panel-inset p-1.5 self-start sticky top-[calc(var(--chrome-h,56px)+8px)] max-h-[calc(100vh-var(--chrome-h,56px)-16px)] overflow-y-auto">
+        <aside className="hidden md:block self-start sticky top-[calc(var(--chrome-h,56px)+8px)] max-h-[calc(100vh-var(--chrome-h,56px)-16px)] overflow-y-auto">
           <div className="px-2 pt-1 pb-1.5 flex items-center justify-between">
             <span className="text-micro font-semibold text-[var(--text-tertiary)]">Folders</span>
             <button
@@ -371,7 +359,7 @@ export function CampaignsListPage() {
             count={allStatusesCampaigns.length}
             active={activeFolderId === 'all'}
             onClick={() => setActiveFolderId('all')}
-            color="#5B5BF5"
+            color="#2F3F9C"
           />
           <FolderRow
             label="Uncategorised"
@@ -439,7 +427,7 @@ export function CampaignsListPage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search…"
-                className="h-7 pl-8 pr-7 text-body rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[rgba(91,91,245,0.4)] focus:bg-[var(--bg-surface)] transition-colors w-40"
+                className="h-7 pl-8 pr-7 text-body rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[rgba(47, 63, 156,0.4)] focus:bg-[var(--bg-surface)] transition-colors w-40"
               />
               {searchQuery && (
                 <button
@@ -669,7 +657,7 @@ function FolderRow({ label, icon: Icon, count, active, onClick, onEdit, onAnalyt
           'w-full flex items-center gap-2 px-2 h-7 rounded-md text-body text-left transition-colors',
           indent && 'pl-6',
           active
-            ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[0_0_0_1px_var(--border-subtle),0_1px_2px_rgba(15,15,25,0.04)] font-medium'
+            ? 'bg-[var(--bg-active)] text-[var(--text-primary)] font-medium'
             : 'text-[var(--text-secondary)] hover:bg-[var(--bg-surface)]/60 hover:text-[var(--text-primary)]'
         )}
       >
@@ -709,22 +697,21 @@ function FolderRow({ label, icon: Icon, count, active, onClick, onEdit, onAnalyt
   );
 }
 
-function MetricChip({ icon: Icon, label, value, readout }: {
+function MetricChip({ label, value, readout }: {
   icon: any; label: string; value: number; readout?: ReturnType<typeof rateReadout>; tone?: string;
 }) {
   return (
-    <div className="panel p-4" title={readout?.hint}>
-      <div className="flex items-center gap-2 text-[var(--text-tertiary)]">
-        <Icon className="h-4 w-4 flex-shrink-0" strokeWidth={1.75} />
-        <span className="text-body font-medium">{label}</span>
-        {/* The count below is always true. The rate beside it only appears
-            once it is, and the chip is not empty without it. */}
+    <div className="px-5 py-4" title={readout?.hint}>
+      <div className="text-body font-medium text-[var(--text-tertiary)]">{label}</div>
+      <div className="mt-2 flex items-baseline gap-2">
+        <span className="text-hero font-medium text-[var(--text-primary)] tabular tracking-[-0.025em] leading-none">
+          {value.toLocaleString()}
+        </span>
+        {/* The count is always true. The rate beside it only appears once
+            it is, and the cell is not empty without it. */}
         {readout?.isRate && (
-          <span className="ml-auto text-body tabular font-semibold text-[var(--text-secondary)]">{readout.label}</span>
+          <span className="text-body tabular font-medium text-[var(--text-secondary)]">{readout.label}</span>
         )}
-      </div>
-      <div className="mt-2.5 text-hero font-semibold text-[var(--text-primary)] tabular tracking-[-0.03em] leading-none">
-        {value.toLocaleString()}
       </div>
     </div>
   );
@@ -777,20 +764,19 @@ function CampaignRow({ campaign, revenue, expanded, onToggleSnapshot, onOpen, on
           r.isRate ? 'text-strong' : 'text-body text-[var(--text-tertiary)]',
           r.isRate && (warn ? 'font-semibold text-rose-500' : strong ? 'font-semibold text-[var(--text-primary)]' : 'font-medium text-[var(--text-secondary)]'),
         )} data-rate-cell>{r.label}</span>
-        {/* No bar below the sample: a short bar reads as "doing badly"
-            where the truth is "we do not know yet". */}
-        {width != null && (
-          <div className="mt-1 h-[3px] rounded-full bg-[var(--bg-elevated)] overflow-hidden ml-auto">
+        {/* One bar, under the reply rate only - the figure the row is
+            judged by. A bar under every rate turned five numbers into
+            five charts and made none of them easier to read. No bar below
+            the sample either: a short bar reads as "doing badly" where
+            the truth is "we do not know yet". */}
+        {width != null && (strong ? (
+          <div className="mt-1 h-[2px] rounded-full bg-[var(--bg-elevated)] overflow-hidden ml-auto">
             <div
               className="h-full rounded-full transition-all duration-500 ml-auto"
-              style={{
-                width: `${width}%`,
-                background: warn ? '#F43F5E' : 'var(--indigo)',
-                opacity: strong ? 1 : 0.55,
-              }}
+              style={{ width: `${width}%`, background: 'var(--indigo)' }}
             />
           </div>
-        )}
+        ) : null)}
       </div>
     );
   };
@@ -823,7 +809,7 @@ function CampaignRow({ campaign, revenue, expanded, onToggleSnapshot, onOpen, on
         </div>
       </div>
 
-      {/* Metrics — rates carry micro-bars so the column scans like a chart */}
+      {/* Metrics */}
       {metric(total ? total.toLocaleString() : '—', true)}
       {rateCell(openR, 60)}
       {rateCell(clickR, 15)}
@@ -862,12 +848,19 @@ function CampaignRow({ campaign, revenue, expanded, onToggleSnapshot, onOpen, on
         </div>
       </div>
 
-      {/* Actions */}
-      <div className="flex items-center justify-end gap-0.5" onClick={(e) => e.stopPropagation()}>
+      {/* Actions - there when the row is pointed at or focused, so twenty
+          rows are not twenty rows of icons. On a touch screen, always. */}
+      <div
+        className={cn(
+          'flex items-center justify-end gap-0.5 transition-opacity [@media(hover:hover)]:focus-within:opacity-100',
+          !expanded && '[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100',
+        )}
+        onClick={(e) => e.stopPropagation()}
+      >
         <button
           onClick={onToggleSnapshot}
           title={expanded ? 'Hide snapshot' : 'Show snapshot'}
-          className={cn('icon-btn transition-transform', expanded ? '!text-[var(--indigo)] !bg-[var(--indigo-subtle)] rotate-180' : '')}
+          className={cn('icon-btn transition-transform', expanded ? '!text-[var(--text-primary)] !bg-[var(--bg-active)] rotate-180' : '')}
         >
           <ChevronDown className="h-3.5 w-3.5" />
         </button>
@@ -880,7 +873,7 @@ function CampaignRow({ campaign, revenue, expanded, onToggleSnapshot, onOpen, on
         {campaign.status === 'paused' && (
           <button onClick={onResume} disabled={resumeBusy} title="Resume" className="icon-btn !text-[var(--indigo)] hover:!bg-[var(--indigo-subtle)] disabled:opacity-50 disabled:pointer-events-none"><Play className="h-3.5 w-3.5" /></button>
         )}
-        <button onClick={onEdit} title="Edit" className="icon-btn opacity-0 group-hover:opacity-100 transition-opacity"><Pencil className="h-3.5 w-3.5" /></button>
+        <button onClick={onEdit} title="Edit" className="icon-btn"><Pencil className="h-3.5 w-3.5" /></button>
         <button onClick={(e) => { e.stopPropagation(); onContextMenu(e); }} title="More" className="icon-btn"><MoreVertical className="h-3.5 w-3.5" /></button>
       </div>
     </div>
@@ -947,10 +940,10 @@ function CampaignSnapshot({ campaign: c, onOpenReport }: { campaign: any; onOpen
             {sent === 0 && <span className="text-micro text-[var(--text-tertiary)]">No emails sent yet</span>}
           </div>
           <div className="space-y-2">
-            <FunnelRow icon={Send}              label="Sent"    value={sent}    pct={sent ? 100 : 0} tone="#6366F1" />
-            <FunnelRow icon={Mail}              label="Opened"  value={opened}  pct={pct(opened)}    tone="#8B5CF6" />
-            <FunnelRow icon={MousePointerClick} label="Clicked" value={clicked} pct={pct(clicked)}   tone="#06B6D4" />
-            <FunnelRow icon={MessageSquare}     label="Replied" value={replied} pct={pct(replied)}   tone="#10B981" />
+            <FunnelRow icon={Send}              label="Sent"    value={sent}    pct={sent ? 100 : 0} tone="#3B4AA3" />
+            <FunnelRow icon={Mail}              label="Opened"  value={opened}  pct={pct(opened)}    tone="#6E4E8E" />
+            <FunnelRow icon={MousePointerClick} label="Clicked" value={clicked} pct={pct(clicked)}   tone="#3D7F89" />
+            <FunnelRow icon={MessageSquare}     label="Replied" value={replied} pct={pct(replied)}   tone="#3F8763" />
           </div>
 
           {/* Delivery health */}
@@ -980,14 +973,14 @@ function CampaignSnapshot({ campaign: c, onOpenReport }: { campaign: any; onOpen
               <span className="text-caption text-[var(--text-tertiary)] tabular">{totalContacts.toLocaleString()} contacts</span>
             </div>
             <div className="flex h-2.5 rounded-full bg-[var(--bg-elevated)] overflow-hidden">
-              {seg(completed, '#6366F1', `${completed} completed`)}
-              {seg(active, '#10B981', `${active} active`)}
-              {seg(bounced, '#F43F5E', `${bounced} bounced`)}
+              {seg(completed, '#3B4AA3', `${completed} completed`)}
+              {seg(active, '#3F8763', `${active} active`)}
+              {seg(bounced, '#B54B53', `${bounced} bounced`)}
               {seg(remaining, 'var(--border-strong)', `${remaining} not started`)}
             </div>
             <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
-              <LegendDot color="#10B981" icon={Users}        label="Active"    value={active} />
-              <LegendDot color="#6366F1" icon={CheckCircle2} label="Completed" value={completed} />
+              <LegendDot color="#3F8763" icon={Users}        label="Active"    value={active} />
+              <LegendDot color="#3B4AA3" icon={CheckCircle2} label="Completed" value={completed} />
               {remaining > 0 && <LegendDot color="var(--border-strong)" label="Pending" value={remaining} />}
             </div>
           </div>
@@ -1237,7 +1230,7 @@ function StartCampaignModal({ onClose }: { onClose: () => void }) {
       {/* Templates */}
       <div className="mt-4">
         <div className="flex items-center gap-2 mb-2">
-          <p className="text-caption font-semibold uppercase tracking-wider text-[var(--text-muted)]">Or use a template</p>
+          <p className="text-caption font-medium text-[var(--text-tertiary)]">Or use a template</p>
           <span className="flex-1" />
           {hasTemplates && (
             <div className="relative">

@@ -1132,7 +1132,7 @@ export function SmtpAccountModal({
   );
 
   const mismatchWarning = (
-    <div className="rounded-lg border border-amber-500/30 bg-amber-500/8 px-3 py-2.5" data-sender-mismatch>
+    <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2.5 shadow-[inset_3px_0_0_theme(colors.amber.500)]" data-sender-mismatch>
       <p className="text-body font-medium text-[var(--text-primary)] flex items-center gap-1.5">
         <AlertTriangle className="h-3.5 w-3.5 text-amber-500 flex-shrink-0" />
         This mailbox signs in as a different address
@@ -1463,7 +1463,7 @@ export function SmtpAccountModal({
 
   const doneStep = (
     <div className="space-y-4">
-      <div className="flex items-center gap-3 rounded-2xl border border-emerald-500/25 bg-emerald-500/[0.06] px-4 py-3.5">
+      <div className="flex items-center gap-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-3.5 shadow-[inset_3px_0_0_theme(colors.emerald.500)]">
         <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white">
           <Check className="h-5 w-5" strokeWidth={3} />
         </span>
@@ -1512,7 +1512,7 @@ export function SmtpAccountModal({
           <Link
             to={`/email-accounts?tab=domains${domainRow ? `&domain=${domainRow.id}` : `&add=${encodeURIComponent(domain)}`}`}
             onClick={onClose}
-            className="flex items-center gap-3 rounded-xl border border-amber-500/25 bg-amber-500/[0.05] px-3.5 py-3 transition-colors hover:bg-amber-500/[0.09]"
+            className="flex items-center gap-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3.5 py-3 transition-colors hover:bg-[var(--bg-hover)] shadow-[inset_3px_0_0_theme(colors.amber.500)]"
           >
             <Globe className="h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />
             <span className="min-w-0 flex-1 text-caption text-[var(--text-secondary)]">

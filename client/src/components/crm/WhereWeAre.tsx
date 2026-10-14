@@ -52,7 +52,7 @@ export function WhereWeAre({ contactId, emails, activity, onBookMeeting, onNewDe
         </div>
       )}
       {w.quiet_days !== null && (
-        <div className="flex items-center gap-2 rounded-xl border border-amber-500/25 bg-amber-500/8 px-3.5 py-2.5 text-body text-amber-800 dark:text-amber-300">
+        <div className="flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3.5 py-2.5 text-body text-amber-800 shadow-[inset_3px_0_0_theme(colors.amber.500)]">
           <Hourglass className="h-4 w-4 flex-shrink-0" />
           <span>
             They replied {w.quiet_days} days ago and nothing has happened since - no answer, no meeting, no next step.

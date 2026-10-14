@@ -20,36 +20,48 @@
 
 @layer base {
   :root {
-    /* Warm paper neutrals — the Attio/Folk canvas: content lives on white,
-       chrome on a barely-warm off-white, separated by hairlines not shadows. */
-    --bg-app: #F9F8F7;
+    /*
+     * Paper and ink.
+     *
+     * Sincerely is a tool for writing letters to strangers, so the canvas
+     * borrows from correspondence rather than from a dashboard kit: a cool
+     * bond-paper rail, white sheets for the work, graphite for chrome, and
+     * one blue-black ink - the colour of a fountain pen - for anything you
+     * can act on. There is no second brand colour. Status hues are pigment,
+     * not neon: moss, ochre, brick.
+     */
+    --bg-app: #F6F6F3;
     --bg-surface: #FFFFFF;
-    --bg-elevated: #F3F2F0;
-    --bg-hover: #EFEDEA;
-    --bg-active: #E7E5E1;
-    --bg-muted: #FBFAF9;
-    --bg-inset: #F3F2F0;
+    --bg-elevated: #F1F1ED;
+    --bg-hover: #EDEDE9;
+    --bg-active: #E5E5E0;
+    --bg-muted: #FAFAF8;
+    --bg-inset: #F1F1ED;
 
-    --border-subtle: #ECEAE6;
-    --border-default: #E0DDD8;
-    --border-strong: #C9C5BE;
+    --border-subtle: #E7E6E1;
+    --border-default: #DBDAD4;
+    --border-strong: #C3C1BA;
 
-    --text-primary: #1B1B1F;
-    --text-secondary: #61606A;
-    --text-tertiary: #8F8E97;
-    --text-muted: #BCBAC2;
+    --text-primary: #18191D;
+    --text-secondary: #5B5C64;
+    --text-tertiary: #898A92;
+    --text-muted: #B7B8BE;
 
-    --accent: #1B1B1F;
-    --accent-hover: #2A2A2F;
-    --accent-muted: #61606A;
-    --accent-subtle: #F3F2F0;
+    --accent: #18191D;
+    --accent-hover: #2A2B30;
+    --accent-muted: #5B5C64;
+    --accent-subtle: #F1F1ED;
 
-    --indigo: #5B5BF5;
-    --indigo-hover: #4646E5;
-    --indigo-subtle: rgba(91, 91, 245, 0.08);
-    /* Primary button — calm single-hue indigo with a subtle vertical sheen */
-    --indigo-grad: linear-gradient(180deg, #6E6EF8 0%, #5B5BF5 100%);
-    --indigo-grad-hover: linear-gradient(180deg, #5A5AF0 0%, #4646E5 100%);
+    /*
+     * The ink. Still called --indigo because eleven hundred places read it
+     * by that name; what it holds is a blue-black, not a screen indigo.
+     */
+    --indigo: #2F3F9C;
+    --indigo-hover: #25327F;
+    --indigo-subtle: rgba(47, 63, 156, 0.07);
+    /* Flat. A sheen on a button is what a stock button looks like. */
+    --indigo-grad: #2F3F9C;
+    --indigo-grad-hover: #25327F;
 
     /*
      * The focus ring, and the lift under a primary button.
@@ -60,67 +72,68 @@
      * thing it was focusing. Tokens, so there is one of each and it
      * follows the theme like everything else.
      */
-    --ring-focus: 0 0 0 3px rgba(91, 91, 245, 0.12);
+    --ring-focus: 0 0 0 3px rgba(47, 63, 156, 0.14);
     /* The same ring around a field that is wrong. It was inline too, and
        in one colour for both themes. */
-    --ring-error: 0 0 0 3px rgba(239, 68, 68, 0.12);
-    --glow-indigo: 0 1px 3px rgba(91, 91, 245, 0.4);
+    --ring-error: 0 0 0 3px rgba(178, 58, 48, 0.12);
+    --glow-indigo: 0 1px 2px rgba(24, 25, 29, 0.12);
 
-    /* Category accent colours — used across nav, stat cards, chips, tiles */
-    --c-indigo: #6366F1;
-    --c-violet: #8B5CF6;
-    --c-fuchsia: #D946EF;
-    --c-cyan: #06B6D4;
-    --c-blue: #3B82F6;
-    --c-emerald: #10B981;
-    --c-amber: #F59E0B;
-    --c-rose: #F43F5E;
+    /* Category hues - pigments, for the few places a thing needs a colour
+       of its own (a stage, a channel). Never decoration. */
+    --c-indigo: #3B4AA3;
+    --c-violet: #6E4E8E;
+    --c-fuchsia: #8E4A80;
+    --c-cyan: #326772;
+    --c-blue: #3D5694;
+    --c-emerald: #2F6E50;
+    --c-amber: #99671A;
+    --c-rose: #993A42;
 
-    /* Status — refined */
-    --success: #10B981;
-    --success-bg: #ECFDF5;
-    --success-border: #D1FAE5;
-    --warning: #F59E0B;
-    --warning-bg: #FFFBEB;
-    --warning-border: #FDE68A;
-    --error: #EF4444;
-    --error-bg: #FEF2F2;
-    --error-border: #FEE2E2;
-    --info: #5A5A66;
-    --info-bg: #F4F4F6;
-    --info-border: #ECECEF;
+    /* Status */
+    --success: #2F6E50;
+    --success-bg: #F1F7F3;
+    --success-border: #DDEDE3;
+    --warning: #8F5F14;
+    --warning-bg: #FBF6EC;
+    --warning-border: #F0E0BC;
+    --error: #B23A30;
+    --error-bg: #FCF3F1;
+    --error-border: #F5DDD7;
+    --info: #5B5C64;
+    --info-bg: #F3F3F0;
+    --info-border: #E7E6E1;
 
-    /* Hairline material — depth comes from 1px lines and barely-there contact
-       shadows, never from glow. Popovers alone get real elevation. */
-    --shadow-sm: 0 1px 2px rgba(27, 27, 31, 0.04);
-    --shadow-md: 0 1px 2px rgba(27, 27, 31, 0.04), 0 3px 8px -2px rgba(27, 27, 31, 0.06);
-    --shadow-lg: 0 1px 2px rgba(27, 27, 31, 0.04), 0 8px 20px -6px rgba(27, 27, 31, 0.10);
-    --shadow-xl: 0 2px 4px -1px rgba(27, 27, 31, 0.05), 0 16px 36px -8px rgba(27, 27, 31, 0.14);
-    --shadow-card: 0 1px 2px rgba(27, 27, 31, 0.04);
-    --shadow-card-hover: 0 1px 2px rgba(27, 27, 31, 0.04), 0 6px 16px -6px rgba(27, 27, 31, 0.08);
-    --shadow-glow: 0 0 0 1px rgba(91, 91, 245, 0.14), 0 2px 8px rgba(91, 91, 245, 0.08);
-    --shadow-glow-sm: 0 0 0 1px rgba(91, 91, 245, 0.10), 0 1px 4px rgba(91, 91, 245, 0.06);
+    /* Hairline material - depth from 1px rules and contact shadows.
+       Popovers alone get real elevation. */
+    --shadow-sm: 0 1px 1px rgba(24, 25, 29, 0.03);
+    --shadow-md: 0 1px 2px rgba(24, 25, 29, 0.04), 0 4px 10px -4px rgba(24, 25, 29, 0.06);
+    --shadow-lg: 0 1px 2px rgba(24, 25, 29, 0.04), 0 10px 24px -8px rgba(24, 25, 29, 0.10);
+    --shadow-xl: 0 0 0 1px rgba(24, 25, 29, 0.04), 0 2px 4px -1px rgba(24, 25, 29, 0.05), 0 18px 40px -12px rgba(24, 25, 29, 0.18);
+    --shadow-card: 0 1px 1px rgba(24, 25, 29, 0.03);
+    --shadow-card-hover: 0 1px 2px rgba(24, 25, 29, 0.04), 0 6px 16px -8px rgba(24, 25, 29, 0.08);
+    --shadow-glow: 0 0 0 1px rgba(47, 63, 156, 0.16);
+    --shadow-glow-sm: 0 0 0 1px rgba(47, 63, 156, 0.12);
 
-    --gradient-brand: linear-gradient(135deg, #5B5BF5 0%, #8B5CF6 100%);
-    --gradient-brand-soft: linear-gradient(135deg, rgba(91,91,245,0.12) 0%, rgba(139,92,246,0.08) 100%);
-    --gradient-success: linear-gradient(135deg, #10B981 0%, #059669 100%);
-    --gradient-warning: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
-    --gradient-danger: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
-    --gradient-info: linear-gradient(135deg, #06B6D4 0%, #0284C7 100%);
-    --gradient-amber: linear-gradient(135deg, #F59E0B 0%, #EF4444 100%);
-    --gradient-violet: linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%);
+    /* The gradients survive as names only; each is its own flat colour now. */
+    --gradient-brand: #2F3F9C;
+    --gradient-brand-soft: rgba(47, 63, 156, 0.06);
+    --gradient-success: #2F6E50;
+    --gradient-warning: #99671A;
+    --gradient-danger: #B23A30;
+    --gradient-info: #3D5694;
+    --gradient-amber: #99671A;
+    --gradient-violet: #6E4E8E;
 
-    /* Flat canvas — the Attio/Folk look has no ambient wash at all */
     --gradient-page: none;
 
-    --radius-xs: 4px;
-    --radius-sm: 6px;
-    --radius-md: 8px;
-    --radius-lg: 10px;
-    --radius-xl: 14px;
-    --radius-2xl: 18px;
+    --radius-xs: 3px;
+    --radius-sm: 5px;
+    --radius-md: 7px;
+    --radius-lg: 9px;
+    --radius-xl: 12px;
+    --radius-2xl: 16px;
 
-    /* Motion system — a single, consistent easing language across the app */
+    /* Motion system - a single, consistent easing language across the app */
     --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
     --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
     --ease-spring: cubic-bezier(0.34, 1.4, 0.5, 1);
@@ -128,93 +141,95 @@
     --dur-base: 180ms;
     --dur-slow: 280ms;
 
-    /* Material — glass overlays only; the grain texture is retired (flat canvas) */
-    --glass-bg: rgba(255, 255, 255, 0.85);
-    --glass-border: rgba(27, 27, 31, 0.08);
+    --glass-bg: rgba(255, 255, 255, 0.88);
+    --glass-border: rgba(24, 25, 29, 0.08);
     --noise: none;
 
-    /* Data-accent type — mono for timestamps, labels, kbd (Vercel/Linear DNA) */
-    --font-data: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+    --font-ui: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-display: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-data: 'Geist Mono', 'SF Mono', Consolas, monospace;
 
     color-scheme: light;
   }
 
   .dark {
-    --bg-app: #121212;
-    --bg-surface: #191919;
-    --bg-elevated: #202020;
-    --bg-hover: #242424;
-    --bg-active: #2C2C2C;
-    --bg-muted: #161616;
-    --bg-inset: #101010;
+    /* The same desk after dark: graphite with a trace of the ink in it. */
+    --bg-app: #131417;
+    --bg-surface: #1A1B1F;
+    --bg-elevated: #212226;
+    --bg-hover: #25262B;
+    --bg-active: #2D2E34;
+    --bg-muted: #16171A;
+    --bg-inset: #0F1012;
 
-    --border-subtle: #262626;
-    --border-default: #2E2E2E;
-    --border-strong: #444444;
+    --border-subtle: #26272C;
+    --border-default: #303136;
+    --border-strong: #46474E;
 
-    --text-primary: #F4F4F3;
-    --text-secondary: #A19FA6;
-    --text-tertiary: #737179;
-    --text-muted: #454348;
+    --text-primary: #EDEDEA;
+    --text-secondary: #A4A5AC;
+    --text-tertiary: #75767E;
+    --text-muted: #494A51;
 
-    --accent: #FAFAFB;
-    --accent-hover: #E4E4E7;
-    --accent-muted: #9B9BA5;
-    --accent-subtle: #16161A;
+    --accent: #EDEDEA;
+    --accent-hover: #DADAD6;
+    --accent-muted: #A4A5AC;
+    --accent-subtle: #17181B;
 
-    --indigo: #6366F1;
-    --indigo-hover: #4F46E5;
-    --indigo-subtle: rgba(99, 102, 241, 0.14);
-    --indigo-grad: linear-gradient(180deg, #7274F5 0%, #6366F1 100%);
-    --indigo-grad-hover: linear-gradient(180deg, #6164F2 0%, #4F46E5 100%);
+    --indigo: #5A6BD4;
+    --indigo-hover: #4B5BC2;
+    --indigo-subtle: rgba(110, 126, 220, 0.13);
+    --indigo-grad: #5A6BD4;
+    --indigo-grad-hover: #4B5BC2;
 
-    --ring-focus: 0 0 0 3px rgba(99, 102, 241, 0.18);
-    --ring-error: 0 0 0 3px rgba(248, 113, 113, 0.18);
-    --glow-indigo: 0 1px 3px rgba(99, 102, 241, 0.45);
+    --ring-focus: 0 0 0 3px rgba(110, 126, 220, 0.22);
+    --ring-error: 0 0 0 3px rgba(210, 107, 92, 0.2);
+    --glow-indigo: 0 1px 2px rgba(0, 0, 0, 0.4);
 
-    --c-indigo: #818CF8;
-    --c-violet: #A78BFA;
-    --c-fuchsia: #E879F9;
-    --c-cyan: #22D3EE;
-    --c-blue: #60A5FA;
-    --c-emerald: #34D399;
-    --c-amber: #FBBF24;
-    --c-rose: #FB7185;
+    --c-indigo: #8F9BE0;
+    --c-violet: #B39AD0;
+    --c-fuchsia: #C58CB8;
+    --c-cyan: #7DB3BB;
+    --c-blue: #8CA6D6;
+    --c-emerald: #7DB896;
+    --c-amber: #D9AE5E;
+    --c-rose: #D88A90;
 
-    --success: #4ADE80;
-    --success-bg: rgba(34, 197, 94, 0.08);
-    --success-border: rgba(34, 197, 94, 0.15);
-    --warning: #FACC15;
-    --warning-bg: rgba(234, 179, 8, 0.08);
-    --warning-border: rgba(234, 179, 8, 0.15);
-    --error: #F87171;
-    --error-bg: rgba(239, 68, 68, 0.08);
-    --error-border: rgba(239, 68, 68, 0.15);
-    --info: #9B9BA5;
-    --info-bg: rgba(155, 155, 165, 0.08);
-    --info-border: rgba(155, 155, 165, 0.15);
+    --success: #7DB896;
+    --success-bg: rgba(95, 161, 126, 0.10);
+    --success-border: rgba(95, 161, 126, 0.18);
+    --warning: #D9AE5E;
+    --warning-bg: rgba(205, 154, 63, 0.10);
+    --warning-border: rgba(205, 154, 63, 0.18);
+    --error: #E08A7D;
+    --error-bg: rgba(210, 107, 92, 0.10);
+    --error-border: rgba(210, 107, 92, 0.18);
+    --info: #A4A5AC;
+    --info-bg: rgba(164, 165, 172, 0.08);
+    --info-border: rgba(164, 165, 172, 0.15);
 
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
-    --shadow-md: 0 1px 2px rgba(0, 0, 0, 0.35), 0 4px 10px -2px rgba(0, 0, 0, 0.4);
-    --shadow-lg: 0 2px 4px -1px rgba(0, 0, 0, 0.35), 0 12px 24px -6px rgba(0, 0, 0, 0.45);
-    --shadow-xl: 0 4px 8px -2px rgba(0, 0, 0, 0.4), 0 24px 48px -10px rgba(0, 0, 0, 0.55);
-    --shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.02), 0 1px 2px rgba(0, 0, 0, 0.35);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 10px -2px rgba(0, 0, 0, 0.35);
+    --shadow-lg: 0 2px 4px -1px rgba(0, 0, 0, 0.3), 0 12px 24px -6px rgba(0, 0, 0, 0.45);
+    --shadow-xl: 0 0 0 1px rgba(255, 255, 255, 0.04), 0 4px 8px -2px rgba(0, 0, 0, 0.4), 0 24px 48px -10px rgba(0, 0, 0, 0.55);
+    --shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.015), 0 1px 2px rgba(0, 0, 0, 0.3);
     --shadow-card-hover: 0 0 0 1px rgba(255, 255, 255, 0.03), 0 6px 18px -6px rgba(0, 0, 0, 0.5);
-    --shadow-glow: 0 0 0 1px rgba(99, 102, 241, 0.16), 0 2px 8px rgba(99, 102, 241, 0.12);
-    --shadow-glow-sm: 0 0 0 1px rgba(99, 102, 241, 0.12), 0 1px 4px rgba(99, 102, 241, 0.08);
+    --shadow-glow: 0 0 0 1px rgba(110, 126, 220, 0.2);
+    --shadow-glow-sm: 0 0 0 1px rgba(110, 126, 220, 0.14);
 
-    --gradient-brand: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
-    --gradient-success: linear-gradient(135deg, #10B981 0%, #059669 100%);
-    --gradient-warning: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
-    --gradient-danger: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
-    --gradient-info: linear-gradient(135deg, #06B6D4 0%, #0284C7 100%);
-    --gradient-amber: linear-gradient(135deg, #F59E0B 0%, #EF4444 100%);
-    --gradient-violet: linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%);
+    --gradient-brand: #5A6BD4;
+    --gradient-brand-soft: rgba(110, 126, 220, 0.10);
+    --gradient-success: #5FA17E;
+    --gradient-warning: #CD9A3F;
+    --gradient-danger: #D26B5C;
+    --gradient-info: #6B89C6;
+    --gradient-amber: #CD9A3F;
+    --gradient-violet: #9F7DBF;
 
     --gradient-page: none;
 
-    --glass-bg: rgba(24, 24, 24, 0.82);
-    --glass-border: rgba(255, 255, 255, 0.08);
+    --glass-bg: rgba(26, 27, 31, 0.86);
+    --glass-border: rgba(255, 255, 255, 0.07);
 
     color-scheme: dark;
   }
@@ -225,20 +240,22 @@
 
   body {
     @apply antialiased;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-family: var(--font-ui);
     background: var(--bg-app);
     color: var(--text-primary);
     font-size: 13.5px;
     line-height: 1.55;
-    letter-spacing: -0.005em;
+    letter-spacing: -0.003em;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11', 'ss01';
+    font-optical-sizing: auto;
   }
 
+  h1, h2, h3 { letter-spacing: -0.012em; }
+
   ::selection {
-    background: var(--accent);
-    color: var(--bg-app);
+    background: color-mix(in srgb, var(--indigo) 22%, transparent);
+    color: inherit;
   }
 
   ::-webkit-scrollbar {
@@ -258,8 +275,8 @@
 
   *:focus-visible {
     outline: none;
-    box-shadow: 0 0 0 2px var(--bg-app), 0 0 0 4px rgba(99, 102, 241, 0.4);
-    border-radius: 6px;
+    box-shadow: 0 0 0 2px var(--bg-app), 0 0 0 3.5px var(--indigo);
+    border-radius: 5px;
   }
   /* Inputs already have their own focus ring */
   input:focus-visible,
@@ -297,7 +314,7 @@
 
   /* Status left border utilities */
   .border-l-status-draft { border-left: 3px solid #94A3B8; }
-  .border-l-status-running { border-left: 3px solid #5B5BF5; }
+  .border-l-status-running { border-left: 3px solid var(--indigo); }
   .border-l-status-paused { border-left: 3px solid #F59E0B; }
   .border-l-status-completed { border-left: 3px solid #10B981; }
   .border-l-status-cancelled { border-left: 3px solid #EF4444; }
@@ -357,7 +374,7 @@
   .btn-brand {
     background: var(--indigo);
     color: #ffffff;
-    box-shadow: 0 1px 2px rgba(15, 15, 25, 0.08);
+    box-shadow: var(--glow-indigo);
   }
   .btn-primary:hover,
   .btn-brand:hover {
@@ -398,15 +415,10 @@
   .btn-danger {
     background: var(--error);
     color: white;
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.12),
-      0 1px 2px rgba(220, 38, 38, 0.3);
+    box-shadow: var(--glow-indigo);
   }
   .btn-danger:hover {
-    background: #DC2626;
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.14),
-      0 2px 6px rgba(220, 38, 38, 0.4);
+    background: color-mix(in srgb, var(--error) 88%, black);
   }
 
   /* ── Card primitives ──
@@ -441,7 +453,7 @@
   .card-premium {
     background:
       linear-gradient(var(--bg-surface), var(--bg-surface)) padding-box,
-      linear-gradient(135deg, rgba(91, 91, 245, 0.35), rgba(139, 92, 246, 0.18) 35%, var(--border-subtle) 65%) border-box;
+      linear-gradient(var(--border-default), var(--border-default)) border-box;
     border: 1px solid transparent;
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-card);
@@ -483,7 +495,7 @@
 
   .input-field {
     @apply w-full px-2.5 h-8 text-[13px] transition-[border-color,box-shadow] duration-150 ease-out;
-    background: var(--bg-app);
+    background: var(--bg-surface);
     color: var(--text-primary);
     border: 1px solid var(--border-default);
     border-radius: var(--radius-sm);
@@ -497,7 +509,7 @@
   .input-field:focus {
     outline: none;
     border-color: var(--indigo);
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+    box-shadow: var(--ring-focus);
   }
   /* Allow textarea + multi-line input-field to grow naturally */
   textarea.input-field {
@@ -506,6 +518,7 @@
 
   .badge {
     @apply inline-flex items-center gap-1 px-1.5 py-0.5 text-[11px] font-medium leading-none;
+    letter-spacing: 0.005em;
     background: var(--bg-elevated);
     color: var(--text-secondary);
     border-radius: var(--radius-sm);
@@ -631,7 +644,7 @@
     border-top-right-radius: var(--radius-sm);
   }
   .tab-item.active {
-    border-color: var(--indigo);
+    border-color: var(--text-primary);
     color: var(--text-primary);
   }
 
@@ -670,16 +683,15 @@
   .tile {
     @apply inline-flex items-center justify-center flex-shrink-0;
     border-radius: var(--radius-md);
-    box-shadow: inset 0 0 0 1px rgba(27, 27, 31, 0.05);
   }
-  .tile-indigo  { background: rgba(99,102,241,0.10);  color: #5B5BF5; }
-  .tile-violet  { background: rgba(139,92,246,0.10);  color: #7C4DDC; }
-  .tile-fuchsia { background: rgba(217,70,239,0.10);  color: #C026D3; }
-  .tile-cyan    { background: rgba(6,182,212,0.10);   color: #0891B2; }
-  .tile-blue    { background: rgba(59,130,246,0.10);  color: #2563EB; }
-  .tile-emerald { background: rgba(16,185,129,0.10);  color: #059669; }
-  .tile-amber   { background: rgba(245,158,11,0.12);  color: #B45309; }
-  .tile-rose    { background: rgba(244,63,94,0.10);   color: #E11D48; }
+  .tile-indigo { background: color-mix(in srgb, var(--c-indigo) 9%, transparent); color: var(--c-indigo); }
+  .tile-violet { background: color-mix(in srgb, var(--c-violet) 9%, transparent); color: var(--c-violet); }
+  .tile-fuchsia { background: color-mix(in srgb, var(--c-fuchsia) 9%, transparent); color: var(--c-fuchsia); }
+  .tile-cyan { background: color-mix(in srgb, var(--c-cyan) 9%, transparent); color: var(--c-cyan); }
+  .tile-blue { background: color-mix(in srgb, var(--c-blue) 9%, transparent); color: var(--c-blue); }
+  .tile-emerald { background: color-mix(in srgb, var(--c-emerald) 9%, transparent); color: var(--c-emerald); }
+  .tile-amber { background: color-mix(in srgb, var(--c-amber) 9%, transparent); color: var(--c-amber); }
+  .tile-rose { background: color-mix(in srgb, var(--c-rose) 9%, transparent); color: var(--c-rose); }
 
   /* ── Tinted surfaces — coloured cards that still feel light and clean ── */
   .tint {
@@ -689,12 +701,12 @@
                 box-shadow var(--dur-base) var(--ease-out),
                 transform var(--dur-base) var(--ease-out);
   }
-  .tint-indigo  { background: rgba(99,102,241,0.06);  border-color: rgba(99,102,241,0.14); }
-  .tint-violet  { background: rgba(139,92,246,0.06);  border-color: rgba(139,92,246,0.14); }
-  .tint-cyan    { background: rgba(6,182,212,0.06);   border-color: rgba(6,182,212,0.14); }
-  .tint-emerald { background: rgba(16,185,129,0.06);  border-color: rgba(16,185,129,0.14); }
-  .tint-amber   { background: rgba(245,158,11,0.07);  border-color: rgba(245,158,11,0.16); }
-  .tint-rose    { background: rgba(244,63,94,0.06);   border-color: rgba(244,63,94,0.14); }
+  .tint-indigo { background: color-mix(in srgb, var(--c-indigo) 5%, var(--bg-surface)); border-color: color-mix(in srgb, var(--c-indigo) 14%, transparent); }
+  .tint-violet { background: color-mix(in srgb, var(--c-violet) 5%, var(--bg-surface)); border-color: color-mix(in srgb, var(--c-violet) 14%, transparent); }
+  .tint-cyan { background: color-mix(in srgb, var(--c-cyan) 5%, var(--bg-surface)); border-color: color-mix(in srgb, var(--c-cyan) 14%, transparent); }
+  .tint-emerald { background: color-mix(in srgb, var(--c-emerald) 5%, var(--bg-surface)); border-color: color-mix(in srgb, var(--c-emerald) 14%, transparent); }
+  .tint-amber { background: color-mix(in srgb, var(--c-amber) 5%, var(--bg-surface)); border-color: color-mix(in srgb, var(--c-amber) 14%, transparent); }
+  .tint-rose { background: color-mix(in srgb, var(--c-rose) 5%, var(--bg-surface)); border-color: color-mix(in srgb, var(--c-rose) 14%, transparent); }
   a.tint:hover, button.tint:hover, .tint-hover:hover {
     box-shadow: var(--shadow-card-hover);
   }
@@ -707,26 +719,36 @@
   /* ── Colourful chips ── */
   .chip {
     @apply inline-flex items-center gap-1 h-[20px] px-2 text-[11px] font-semibold leading-none;
-    border-radius: 100px;
+    border-radius: var(--radius-sm);
     border: 1px solid transparent;
   }
-  .chip-indigo  { background: rgba(99,102,241,0.12);  color: var(--c-indigo);  border-color: rgba(99,102,241,0.22); }
-  .chip-violet  { background: rgba(139,92,246,0.12);  color: var(--c-violet);  border-color: rgba(139,92,246,0.22); }
-  .chip-cyan    { background: rgba(6,182,212,0.12);   color: var(--c-cyan);    border-color: rgba(6,182,212,0.22); }
-  .chip-emerald { background: rgba(16,185,129,0.12);  color: var(--c-emerald); border-color: rgba(16,185,129,0.22); }
-  .chip-amber   { background: rgba(245,158,11,0.14);  color: var(--c-amber);   border-color: rgba(245,158,11,0.24); }
-  .chip-rose    { background: rgba(244,63,94,0.12);   color: var(--c-rose);    border-color: rgba(244,63,94,0.22); }
+  .chip-indigo { background: color-mix(in srgb, var(--c-indigo) 9%, transparent); color: var(--c-indigo); border-color: color-mix(in srgb, var(--c-indigo) 18%, transparent); }
+  .chip-violet { background: color-mix(in srgb, var(--c-violet) 9%, transparent); color: var(--c-violet); border-color: color-mix(in srgb, var(--c-violet) 18%, transparent); }
+  .chip-cyan { background: color-mix(in srgb, var(--c-cyan) 9%, transparent); color: var(--c-cyan); border-color: color-mix(in srgb, var(--c-cyan) 18%, transparent); }
+  .chip-emerald { background: color-mix(in srgb, var(--c-emerald) 9%, transparent); color: var(--c-emerald); border-color: color-mix(in srgb, var(--c-emerald) 18%, transparent); }
+  .chip-amber { background: color-mix(in srgb, var(--c-amber) 9%, transparent); color: var(--c-amber); border-color: color-mix(in srgb, var(--c-amber) 18%, transparent); }
+  .chip-rose { background: color-mix(in srgb, var(--c-rose) 9%, transparent); color: var(--c-rose); border-color: color-mix(in srgb, var(--c-rose) 18%, transparent); }
 
   /* ── Former gradient text — now solid ink; typography carries the weight ── */
   .gradient-text-brand {
     color: var(--text-primary);
   }
 
-  /* Section eyebrow label — quiet uppercase micro-label */
+  /* A quiet label over a group. Sentence case: shouting caps over every
+     block is a template's habit, and the label is rarely the point. */
   .eyebrow {
-    @apply text-[10.5px] font-semibold uppercase leading-none;
-    letter-spacing: 0.08em;
-    color: var(--text-muted);
+    @apply text-[11.5px] font-medium leading-none;
+    color: var(--text-tertiary);
+  }
+
+  /* The title of a page: one size, one weight, everywhere. */
+  .page-title {
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: -0.022em;
+    color: var(--text-primary);
   }
 
   /* Animated live dot */
@@ -951,7 +973,7 @@
   pointer-events: none;
   z-index: -1;
 }
-.spotlight:hover::before { opacity: 1; }
+.spotlight:hover::before { opacity: 0; }
 
 .page-enter {
   opacity: 0;
@@ -1017,7 +1039,7 @@
   color: var(--text-secondary);
 }
 .tiptap a {
-  color: #1a73e8;
+  color: var(--indigo);
   text-decoration: underline;
   cursor: pointer;
 }

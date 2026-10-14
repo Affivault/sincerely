@@ -141,7 +141,7 @@ export function UpgradeNag() {
       {/* Persistent banner — always there for free users. */}
       {!onBilling && (
         <div className="mb-5 flex items-center justify-between gap-3 rounded-xl px-4 py-2.5 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.14)]"
-          style={{ background: 'linear-gradient(100deg,#5B5BF5,#8B5CF6)' }}>
+          style={{ background: 'var(--indigo)' }}>
           <div className="flex items-center gap-2 text-strong">
             <Lock className="h-4 w-4 flex-shrink-0" />
             <span><strong>You're on the Free plan</strong> — 1 inbox, {PLANS.free.emailsPerMonth} emails/mo. Upgrade to send at scale and unlock Relay + A/B.</span>
@@ -170,12 +170,12 @@ export function UpgradeNag() {
             style={{ animation: 'cmdkIn 200ms var(--ease-out) both' }}
           >
             {/* Brand hairline */}
-            <span className="absolute inset-x-0 top-0 h-[2.5px] [background:linear-gradient(90deg,#5B5BF5,#8B5CF6,#5B5BF5)]" />
+            <span className="absolute inset-x-0 top-0 h-[2.5px] bg-[var(--indigo)]" />
 
             {/* Header */}
             <div className="px-6 pt-5 pb-4 border-b border-[var(--border-subtle)]">
               <div className="flex items-start gap-3.5">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)] flex-shrink-0 mt-0.5">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(47, 63, 156,0.18)] flex-shrink-0 mt-0.5">
                   <Sparkles className="h-[18px] w-[18px] text-[var(--indigo)]" />
                 </span>
                 <div className="flex-1 min-w-0">
@@ -202,7 +202,7 @@ export function UpgradeNag() {
 
               {/* Why the modal opened (limit hit) */}
               {reason && (
-                <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-body text-amber-700 dark:text-amber-400">
+                <div className="mt-3 flex items-start gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2 text-body text-[var(--text-primary)] shadow-[inset_3px_0_0_theme(colors.amber.500)]">
                   <Lock className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
                   <span>{reason}</span>
                 </div>
@@ -212,7 +212,7 @@ export function UpgradeNag() {
             <div className="px-6 py-5">
               {/* Billing interval */}
               <div className="flex items-center justify-between mb-4">
-                <p className="text-caption font-semibold uppercase tracking-wider text-[var(--text-muted)]">Choose a plan</p>
+                <p className="text-caption font-medium text-[var(--text-tertiary)]">Choose a plan</p>
                 <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)]">
                   {(['monthly', 'annual'] as Interval[]).map((i) => (
                     <button
@@ -248,12 +248,12 @@ export function UpgradeNag() {
                       className={cn(
                         'relative rounded-xl border p-4 flex flex-col bg-[var(--bg-surface)]',
                         popular
-                          ? 'border-[rgba(91,91,245,0.45)] ring-1 ring-[rgba(91,91,245,0.25)] shadow-[0_10px_30px_-12px_rgba(91,91,245,0.4)]'
+                          ? 'border-[rgba(47, 63, 156,0.45)] ring-1 ring-[rgba(47, 63, 156,0.25)] shadow-[0_10px_30px_-12px_rgba(47, 63, 156,0.4)]'
                           : 'border-[var(--border-subtle)] shadow-[var(--shadow-sm)]'
                       )}
                     >
                       {popular && (
-                        <span className="absolute -top-2.5 left-4 inline-flex items-center gap-1 px-2 h-[19px] rounded-full text-micro font-semibold text-white [background:var(--indigo-grad)] shadow-[0_2px_6px_rgba(91,91,245,0.4)]">
+                        <span className="absolute -top-2.5 left-4 inline-flex items-center gap-1 px-2 h-[19px] rounded-full text-micro font-semibold text-white [background:var(--indigo-grad)] shadow-[0_2px_6px_rgba(47, 63, 156,0.4)]">
                           <Zap className="h-2.5 w-2.5" /> MOST POPULAR
                         </span>
                       )}
@@ -261,7 +261,7 @@ export function UpgradeNag() {
                       <div className="flex items-center gap-2.5 mb-3">
                         <span className={cn(
                           'flex h-8 w-8 items-center justify-center rounded-lg flex-shrink-0',
-                          popular ? 'bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)]' : 'bg-[var(--bg-elevated)] border border-[var(--border-subtle)]'
+                          popular ? 'bg-[var(--indigo-subtle)] border border-[rgba(47, 63, 156,0.18)]' : 'bg-[var(--bg-elevated)] border border-[var(--border-subtle)]'
                         )}>
                           <Icon className={cn('h-4 w-4', popular ? 'text-[var(--indigo)]' : 'text-[var(--text-secondary)]')} />
                         </span>

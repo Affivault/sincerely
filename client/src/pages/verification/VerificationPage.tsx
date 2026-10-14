@@ -77,7 +77,7 @@ function HealthGauge({ score, size = 160 }: { score: number; size?: number }) {
   const r = size / 2 - 14;
   const c = 2 * Math.PI * r;
   const offset = c - (score / 100) * c;
-  const stroke = score >= 80 ? '#10B981' : score >= 50 ? '#F59E0B' : '#F43F5E';
+  const stroke = score >= 80 ? '#3F8763' : score >= 50 ? '#B88124' : '#B54B53';
 
   return (
     <div className="relative" style={{ width: size, height: size }}>
@@ -186,7 +186,7 @@ export function VerificationPage() {
           run, and a score of 60 is the ceiling. Better here than left to be
           inferred from a column of identical numbers. */}
       {stats?.smtp?.available === false && (
-        <div className="flex items-start gap-2.5 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3">
+        <div className="flex items-start gap-2.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-3 shadow-[inset_3px_0_0_theme(colors.amber.500)]">
           <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />
           <div className="text-strong leading-relaxed text-[var(--text-secondary)]">
             <span className="font-medium text-[var(--text-primary)]">

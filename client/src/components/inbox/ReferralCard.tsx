@@ -47,7 +47,7 @@ export function ReferralCard({ msg, ownAddresses, campaignName }: {
         const who = [r.first_name, r.last_name].filter(Boolean).join(' ') || r.email;
         const contactId = done[r.email];
         return (
-          <div key={r.email} className="flex flex-wrap items-center gap-3 rounded-2xl border border-emerald-500/25 bg-emerald-500/8 px-4 py-3">
+          <div key={r.email} className="flex flex-wrap items-center gap-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-3 shadow-[inset_3px_0_0_theme(colors.emerald.500)]">
             <UserPlus className="h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" />
             <div className="min-w-[12rem] flex-1">
               <p className="text-body font-medium text-[var(--text-primary)]">

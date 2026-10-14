@@ -39,8 +39,8 @@ function Version({ label, e, which }: { label: string; e: Experiment; which: 'or
   const other = which === 'challenger' ? e.original : e.challenger;
   if (e.element === 'subject') {
     return (
-      <div className={cn('min-w-0 rounded-xl border px-3 py-2.5', which === 'challenger' ? 'border-[rgba(91,91,245,0.35)] bg-[var(--indigo-subtle)]' : 'border-[var(--border-subtle)] bg-[var(--bg-app)]')}>
-        <p className="text-micro font-semibold uppercase tracking-wider text-[var(--text-muted)]">{label}</p>
+      <div className={cn('min-w-0 rounded-xl border px-3 py-2.5', which === 'challenger' ? 'border-[rgba(47, 63, 156,0.35)] bg-[var(--indigo-subtle)]' : 'border-[var(--border-subtle)] bg-[var(--bg-app)]')}>
+        <p className="text-caption font-medium text-[var(--text-tertiary)]">{label}</p>
         <p className="mt-1 text-body font-medium text-[var(--text-primary)]">{v.subject || e.original.subject}</p>
       </div>
     );
@@ -49,8 +49,8 @@ function Version({ label, e, which }: { label: string; e: Experiment; which: 'or
   const fresh = which === 'challenger' ? changedSentences(plain(other.body_html), text) : new Set<string>();
   const changedBefore = which === 'original' ? changedSentences(plain(e.challenger.body_html), text) : new Set<string>();
   return (
-    <div className={cn('min-w-0 rounded-xl border px-3 py-2.5', which === 'challenger' ? 'border-[rgba(91,91,245,0.35)] bg-[var(--indigo-subtle)]' : 'border-[var(--border-subtle)] bg-[var(--bg-app)]')}>
-      <p className="text-micro font-semibold uppercase tracking-wider text-[var(--text-muted)]">{label}</p>
+    <div className={cn('min-w-0 rounded-xl border px-3 py-2.5', which === 'challenger' ? 'border-[rgba(47, 63, 156,0.35)] bg-[var(--indigo-subtle)]' : 'border-[var(--border-subtle)] bg-[var(--bg-app)]')}>
+      <p className="text-caption font-medium text-[var(--text-tertiary)]">{label}</p>
       <div className="mt-1 max-h-56 overflow-y-auto whitespace-pre-wrap text-caption leading-relaxed text-[var(--text-secondary)]">
         {text.split(/(?<=[.!?])\s+|(\n+)/).filter((x) => x !== undefined && x !== '').map((part, i) => {
           if (/^\n+$/.test(part)) return <span key={i}>{part}</span>;
@@ -134,7 +134,7 @@ export function ImproveCard({ campaignId }: { campaignId: string }) {
 
       {data.history.length > 0 && (
         <div className="border-t border-[var(--border-subtle)]" data-improve-history>
-          <p className="px-4 pt-3 text-caption font-semibold uppercase tracking-wider text-[var(--text-muted)]">What Relay has learned</p>
+          <p className="px-4 pt-3 text-caption font-medium text-[var(--text-tertiary)]">What Relay has learned</p>
           <ul className="divide-y divide-[var(--border-subtle)]">
             {data.history.filter((h) => h.summary || h.status === 'skipped').slice(0, 8).map((h) => (
               <li key={h.id} className="flex items-start gap-2.5 px-4 py-2.5">

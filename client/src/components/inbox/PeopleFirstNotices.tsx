@@ -1,3 +1,4 @@
+import { Notice, NoticeAction } from '../ui/Notice';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Newspaper, ShieldAlert, UserCheck, Sparkles } from 'lucide-react';
@@ -72,13 +73,14 @@ function RelayReviewBanner() {
   if (!review.length) return null;
   return (
     <>
-      <div className="flex flex-wrap items-center gap-2 px-4 py-2 border-b border-[var(--border-subtle)] bg-[var(--amber-subtle,rgba(245,158,11,0.08))]">
-        <ShieldAlert className="h-3.5 w-3.5 text-amber-600 flex-shrink-0" />
-        <span className="text-body text-[var(--text-primary)]">
-          Relay unsubscribed {review.length === 1 ? '1 person' : `${review.length} people`} on a reading it no longer agrees with.
-        </span>
-        <button onClick={() => setOpen(true)} className="text-body font-semibold text-[var(--indigo)] hover:underline">Review</button>
-      </div>
+      <Notice
+        variant="band"
+        tone="attention"
+        icon={ShieldAlert}
+        action={<NoticeAction onClick={() => setOpen(true)}>Review</NoticeAction>}
+      >
+        Relay unsubscribed {review.length === 1 ? '1 person' : `${review.length} people`} on a reading it no longer agrees with.
+      </Notice>
       <Modal
         isOpen={open}
         onClose={() => setOpen(false)}

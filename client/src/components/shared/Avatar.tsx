@@ -7,7 +7,7 @@ interface AvatarProps {
   email?: string | null;
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
   className?: string;
-  /** Force a specific gradient instead of deriving from name */
+  /** Force specific tone classes instead of deriving them from the name */
   gradient?: string;
 }
 
@@ -19,16 +19,21 @@ const sizeMap = {
   xl: 'h-12 w-12 text-heading',
 };
 
-/* Eight stable gradient pairings — chosen for the Sincerely palette */
-const GRADIENTS = [
-  'from-[#5B5BF5] to-[#8B5CF6]',
-  'from-[#8B5CF6] to-[#EC4899]',
-  'from-[#06B6D4] to-[#5B5BF5]',
-  'from-[#10B981] to-[#06B6D4]',
-  'from-[#F59E0B] to-[#EF4444]',
-  'from-[#EF4444] to-[#EC4899]',
-  'from-[#5B5BF5] to-[#06B6D4]',
-  'from-[#8B5CF6] to-[#5B5BF5]',
+/*
+ * Eight stable tones - a pale pigment ground with the initials in the same
+ * pigment, darker. Gradient discs were the most "generated" thing in the
+ * app: a candy-coloured circle per person turns a list of names into
+ * confetti. These read as a set and let the name stay the loud part.
+ */
+const TONES = [
+  'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/60 dark:text-indigo-200',
+  'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200',
+  'bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200',
+  'bg-violet-100 text-violet-800 dark:bg-violet-900/60 dark:text-violet-200',
+  'bg-sky-100 text-sky-800 dark:bg-sky-900/60 dark:text-sky-200',
+  'bg-rose-100 text-rose-800 dark:bg-rose-900/60 dark:text-rose-200',
+  'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/60 dark:text-cyan-200',
+  'bg-stone-200 text-stone-700 dark:bg-stone-700/60 dark:text-stone-200',
 ];
 
 function hashCode(s: string): number {
@@ -49,13 +54,13 @@ function initials(name?: string | null, email?: string | null): string {
 
 export function Avatar({ name, email, size = 'md', className, gradient }: AvatarProps) {
   const seed = (name || email || '?').toLowerCase();
-  const grad = gradient || GRADIENTS[hashCode(seed) % GRADIENTS.length];
+  const tone = gradient || TONES[hashCode(seed) % TONES.length];
 
   return (
     <span
       className={cn(
-        'inline-flex items-center justify-center rounded-full font-bold text-white flex-shrink-0 bg-gradient-to-br shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]',
-        grad,
+        'inline-flex items-center justify-center rounded-full font-semibold flex-shrink-0 tracking-[0.01em]',
+        tone,
         sizeMap[size],
         className
       )}

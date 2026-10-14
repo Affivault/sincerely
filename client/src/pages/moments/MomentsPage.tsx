@@ -77,12 +77,12 @@ export function MomentsPage() {
         {isLoading ? (
           <PageSkeleton variant="panels" bleed={false} />
         ) : isError || !data ? (
-          <div className="flex items-center gap-3 rounded-2xl border border-rose-500/25 bg-rose-500/10 px-4 py-3.5 text-body text-rose-700 dark:text-rose-400">
+          <div className="flex items-center gap-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-3.5 text-body text-[var(--text-primary)] shadow-[inset_3px_0_0_theme(colors.rose.500)]">
             <span className="flex-1">Moments could not be loaded just now.</span>
             <Button size="sm" variant="secondary" onClick={() => refetch()}>Try again</Button>
           </div>
         ) : !data.settings.ready ? (
-          <div className="rounded-2xl border border-amber-500/25 bg-amber-500/10 px-4 py-3.5 text-body text-amber-800 dark:text-amber-300" data-moments-migration>
+          <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-3.5 text-body text-amber-800 shadow-[inset_3px_0_0_theme(colors.amber.500)]" data-moments-migration>
             Moments need database migration 083 before they can be saved. Once it has run, this page fills in on its own.
           </div>
         ) : (
@@ -152,7 +152,7 @@ function MomentCard({ moment: m, onWrite, onAdd, onDismiss }: {
         </span>
         <div className="min-w-0 flex-1">
           <div className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-caption text-[var(--text-tertiary)]">
-            <span className="font-semibold uppercase tracking-wide">{SIGNAL_KIND_LABELS[m.kind]}</span>
+            <span className="font-medium">{SIGNAL_KIND_LABELS[m.kind]}</span>
             <span className={`rounded-full px-2 py-0.5 font-medium ${strength.cls}`}>{strength.label}</span>
             <span>{formatRelativeTime(m.occurred_at)}</span>
             {m.company && (

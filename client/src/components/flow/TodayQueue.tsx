@@ -41,6 +41,7 @@ import { MeetingBrief, MeetingOutcome } from './MeetingBrief';
 import { AwayCard } from './AwayCard';
 import { acceptsShortcut } from '../../lib/keyboard';
 import { cn, formatRelativeTime, formatTimeUntil } from '../../lib/utils';
+import { Avatar } from '../shared/Avatar';
 
 /* ─── "Not now": hidden until tomorrow morning, per browser ────────────── */
 
@@ -66,12 +67,12 @@ function writeSnoozed(map: Record<string, number>) {
 }
 
 const KIND_META: Record<FlowKind, { label: string; icon: typeof Inbox; tint: string }> = {
-  mailbox: { label: 'Mailboxes', icon: MailWarning, tint: 'text-rose-500' },
-  meeting: { label: 'Meetings', icon: CalendarClock, tint: 'text-sky-500' },
+  mailbox: { label: 'Mailboxes', icon: MailWarning, tint: 'text-rose-600 dark:text-rose-400' },
+  meeting: { label: 'Meetings', icon: CalendarClock, tint: 'text-sky-600 dark:text-sky-400' },
   reply:   { label: 'Replies',  icon: MessageSquareReply, tint: 'text-[var(--indigo)]' },
-  deal:    { label: 'Deals',    icon: Handshake, tint: 'text-amber-500' },
-  task:    { label: 'Tasks',    icon: ListChecks, tint: 'text-emerald-500' },
-  moment:  { label: 'Moments',  icon: Zap, tint: 'text-violet-500' },
+  deal:    { label: 'Deals',    icon: Handshake, tint: 'text-amber-600 dark:text-amber-400' },
+  task:    { label: 'Tasks',    icon: ListChecks, tint: 'text-emerald-600 dark:text-emerald-400' },
+  moment:  { label: 'Moments',  icon: Zap, tint: 'text-violet-600 dark:text-violet-400' },
 };
 
 /** How many rows Home shows before "Show all". */
@@ -281,11 +282,11 @@ export function TodayQueue({ mode }: { mode: 'home' | 'focus' }) {
               'inline-flex items-center gap-1.5 rounded-full border font-medium transition-colors',
               mode === 'home' ? 'h-7 px-2.5 text-caption' : 'h-8 px-3 text-body',
               filter === k
-                ? 'border-[var(--indigo)] bg-[var(--indigo-subtle)] text-[var(--indigo)]'
-                : 'border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
+                ? 'border-[var(--text-primary)] bg-[var(--text-primary)] text-[var(--bg-surface)]'
+                : 'border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:border-[var(--border-default)] hover:text-[var(--text-primary)]',
             )}
           >
-            <Icon className={cn('h-3.5 w-3.5', k !== 'all' && filter !== k && KIND_META[k].tint)} />
+            <Icon className={cn('h-3.5 w-3.5', filter === k ? 'opacity-80' : 'opacity-60')} />
             {k === 'all' ? 'Everything' : KIND_META[k].label}
             <span className="tabular text-caption opacity-70">{n}</span>
           </button>
@@ -295,8 +296,13 @@ export function TodayQueue({ mode }: { mode: 'home' | 'focus' }) {
   );
 
   const body = isLoading ? (
-    <div className="space-y-2" aria-busy="true">
-      {[0, 1, 2].map((i) => <div key={i} className="h-[62px] animate-pulse rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]" />)}
+    <div className="overflow-hidden rounded-xl border border-[var(--border-subtle)] divide-y divide-[var(--border-subtle)]" aria-busy="true">
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="flex items-center gap-3 px-4 py-4">
+          <div className="skeleton h-8 w-8 rounded-full" />
+          <div className="flex-1 space-y-2"><div className="skeleton h-3 w-1/3 rounded" /><div className="skeleton h-3 w-2/3 rounded" /></div>
+        </div>
+      ))}
     </div>
   ) : isError ? (
     <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-8 text-center">
@@ -305,8 +311,8 @@ export function TodayQueue({ mode }: { mode: 'home' | 'focus' }) {
     </div>
   ) : items.length === 0 ? (
     <div className={cn('flex flex-col items-center rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-6 text-center', mode === 'home' ? 'py-10' : 'py-16')} data-today-clear>
-      <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/10">
-        <Sun className="h-6 w-6 text-emerald-500" />
+      <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-full border border-[var(--border-subtle)] bg-[var(--bg-muted)]">
+        <Sun className="h-5 w-5 text-amber-600 dark:text-amber-400" strokeWidth={1.7} />
       </span>
       <p className="text-strong font-semibold text-[var(--text-primary)]">
         {filter === 'all' ? "You're done for today." : `No ${KIND_META[filter].label.toLowerCase()} need you.`}
@@ -320,7 +326,9 @@ export function TodayQueue({ mode }: { mode: 'home' | 'focus' }) {
       </div>
     </div>
   ) : (
-    <div ref={listRef} className="space-y-2">
+    // One list, not a pile of cards: rows share a sheet and are told apart
+    // by a hairline, the way an inbox is - which is what this is.
+    <div ref={listRef} className="overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] divide-y divide-[var(--border-subtle)]">
       {visible.map((item, i) => (
         <FlowCard
           key={item.key}
@@ -344,7 +352,7 @@ export function TodayQueue({ mode }: { mode: 'home' | 'focus' }) {
       {mode === 'home' && items.length > HOME_ROWS && (
         <button
           onClick={() => setShowAll((v) => !v)}
-          className="w-full rounded-xl border border-dashed border-[var(--border-default)] py-2.5 text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+          className="w-full py-2.5 text-caption font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-muted)] hover:text-[var(--text-primary)] transition-colors"
           data-today-more
         >
           {showAll ? 'Show fewer' : `Show all ${items.length}`}
@@ -388,7 +396,7 @@ export function TodayQueue({ mode }: { mode: 'home' | 'focus' }) {
       <section className="space-y-3" data-today>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h2 className="text-strong font-semibold text-[var(--text-primary)]">Today</h2>
+            <h2 className="text-heading font-semibold text-[var(--text-primary)]">Today</h2>
             <p className="text-caption text-[var(--text-tertiary)]">{summary}</p>
           </div>
           <Link to="/flow" className="inline-flex items-center gap-1.5 text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]" title="The same list, full screen, by keyboard">
@@ -528,27 +536,34 @@ function FlowCard({
       data-key={item.key}
       onClick={onSelect}
       className={cn(
-        'group rounded-xl border bg-[var(--bg-surface)] transition-all',
-        selected
-          ? 'border-[var(--indigo)] shadow-[var(--shadow-md)] ring-2 ring-[var(--indigo-subtle)]'
-          : 'border-[var(--border-subtle)] hover:border-[var(--border-default)]',
+        'group relative transition-colors duration-100',
+        selected ? 'bg-[var(--bg-muted)]' : 'hover:bg-[var(--bg-muted)]',
       )}
     >
-      <div className="flex items-start gap-3 p-3.5">
-        <span className={cn('mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--bg-elevated)]', meta.tint)}>
-          <Icon className="h-4 w-4" />
-        </span>
+      <div className="flex items-start gap-3.5 px-4 py-3.5">
+        {/* The selected row is marked in the margin, the way a reader
+            marks the line they are on - an ink rule, not a glowing ring. */}
+        {selected && <span aria-hidden className="absolute left-0 top-0 bottom-0 w-[2px] bg-[var(--indigo)]" />}
+        {/* A reply is a person, so it leads with them; everything else
+            leads with what kind of thing it is. */}
+        {item.reply ? (
+          <Avatar name={item.reply.contact_name} email={item.reply.from_email} size="lg" className="mt-px" />
+        ) : (
+          <span className={cn('mt-px flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-[var(--bg-elevated)]', meta.tint)}>
+            <Icon className="h-4 w-4" strokeWidth={1.8} />
+          </span>
+        )}
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="truncate text-body font-semibold text-[var(--text-primary)]">{title}</span>
             {item.reply?.intent && (
-              <span className="rounded-full bg-[var(--indigo-subtle)] px-1.5 py-0.5 text-micro font-semibold text-[var(--indigo)]">
+              <span className="rounded border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-1.5 py-0.5 text-micro font-medium text-[var(--text-secondary)]">
                 {replyIntentLabel(item.reply.intent)}
               </span>
             )}
             {item.deal && <DealHealthDot health={item.deal.health} withScore />}
             {item.reply && (
-              <span className={cn('inline-flex items-center gap-1 text-micro', urgent ? 'font-semibold text-rose-500' : 'text-[var(--text-tertiary)]')}>
+              <span className={cn('inline-flex items-center gap-1 text-micro', urgent ? 'font-semibold text-rose-600 dark:text-rose-400' : 'text-[var(--text-tertiary)]')}>
                 <Clock className="h-3 w-3" />{waited(item.reply.waited_ms)}
               </span>
             )}
@@ -564,7 +579,7 @@ function FlowCard({
               </a>
             )}
           </div>
-          <p className="mt-0.5 line-clamp-2 text-caption text-[var(--text-tertiary)]">{sub}</p>
+          <p className="mt-1 line-clamp-2 max-w-[62ch] text-body leading-relaxed text-[var(--text-secondary)]">{sub}</p>
         </div>
         <div className="flex flex-shrink-0 items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
           <button
@@ -586,7 +601,15 @@ function FlowCard({
           <button
             onClick={onPrimary}
             disabled={sending}
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[var(--indigo)] px-3 text-caption font-semibold text-white hover:opacity-90 disabled:opacity-60"
+            className={cn(
+              'inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-caption font-semibold transition-colors disabled:opacity-60',
+              // One filled action on the list at a time: the row you are on.
+              // Six identical blue buttons stacked down a page is a wall,
+              // and it says every row is the most important one.
+              selected
+                ? 'bg-[var(--indigo)] text-white shadow-[var(--glow-indigo)] hover:bg-[var(--indigo-hover)]'
+                : 'border border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-primary)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-hover)]',
+            )}
           >
             {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PrimaryIcon className="h-3.5 w-3.5" />}
             {primaryLabel}<Kbd on={selected}>enter</Kbd>
@@ -596,9 +619,9 @@ function FlowCard({
 
       {item.reply && expanded && (
         <div className="border-t border-[var(--border-subtle)] px-3.5 pb-3.5 pt-3" onClick={(e) => e.stopPropagation()}>
-          <p className="mb-1.5 flex items-center gap-1.5 text-micro font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+          <p className="mb-1.5 flex items-center gap-1.5 text-caption font-medium text-[var(--text-tertiary)]">
             <Sparkles className="h-3 w-3" /> Relay's draft
-            <span className="font-normal normal-case tracking-normal">- edit, then send</span>
+            <span className="font-normal">- edit, then send</span>
           </p>
           <textarea
             value={draft}

@@ -231,7 +231,7 @@ export function CompanyDetailPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3.5 min-w-0">
-          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--indigo-subtle)] border border-[rgba(99,102,241,0.18)] flex-shrink-0">
+          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--indigo-subtle)] border border-[rgba(47, 63, 156,0.18)] flex-shrink-0">
             <Building2 className="h-5 w-5 text-[var(--indigo)]" />
           </span>
           <div className="min-w-0">

@@ -21,7 +21,7 @@ export function BuyingCommitteeStrip({ contacts, messages }: {
 
   return (
     <div className="border-b border-[var(--border-subtle)] px-4 py-3">
-      <p className="mb-2 flex items-center gap-1.5 text-micro font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+      <p className="mb-2 flex items-center gap-1.5 text-caption font-medium text-[var(--text-tertiary)]">
         <Users className="h-3 w-3" /> Buying committee
       </p>
       {c.gap && (

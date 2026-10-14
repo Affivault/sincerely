@@ -18,7 +18,7 @@ import { ADMIN_EMAILS, PLANS, type AdminUserRow, type PlanId, formatDate } from 
 import { keepPrevious } from '../../lib/listQuery';
 
 const PLAN_BADGE: Record<string, string> = {
-  lifetime: 'bg-[var(--indigo-subtle)] text-[var(--indigo)] border border-[rgba(91,91,245,0.3)]',
+  lifetime: 'bg-[var(--indigo-subtle)] text-[var(--indigo)] border border-[rgba(47, 63, 156,0.3)]',
   growth: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
   starter: 'bg-sky-500/10 text-sky-700 dark:text-sky-400',
   scale: 'bg-violet-500/10 text-violet-700 dark:text-violet-400',
@@ -102,7 +102,7 @@ export function AdminPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4 mb-5 flex-wrap">
         <div className="flex items-center gap-3">
-          <span className="relative flex h-10 w-10 items-center justify-center rounded-xl [background:var(--indigo-grad)] shadow-[0_4px_14px_-4px_rgba(91,91,245,0.5)]">
+          <span className="relative flex h-10 w-10 items-center justify-center rounded-xl [background:var(--indigo-grad)] shadow-[0_4px_14px_-4px_rgba(47, 63, 156,0.5)]">
             <ShieldCheck className="h-5 w-5 text-white" />
           </span>
           <div>
@@ -143,8 +143,8 @@ export function AdminPage() {
       </div>
 
       {/* Grant lifetime access */}
-      <div className="relative rounded-xl border border-[rgba(91,91,245,0.3)] bg-[var(--bg-surface)] overflow-hidden mb-5">
-        <span className="absolute inset-x-0 top-0 h-[2.5px] [background:linear-gradient(90deg,#5B5BF5,#8B5CF6,#5B5BF5)]" />
+      <div className="relative rounded-xl border border-[rgba(47, 63, 156,0.3)] bg-[var(--bg-surface)] overflow-hidden mb-5">
+        <span className="absolute inset-x-0 top-0 h-[2.5px] bg-[var(--indigo)]" />
         <div className="p-4">
           <div className="flex items-center gap-2.5 mb-1">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--indigo-subtle)]">
@@ -198,7 +198,7 @@ export function AdminPage() {
           <div className="overflow-x-auto">
             <table className="w-full min-w-[760px] text-left">
               <thead>
-                <tr className="border-b border-[var(--border-subtle)] text-micro font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                <tr className="border-b border-[var(--border-subtle)] text-caption font-medium text-[var(--text-tertiary)]">
                   <th className="py-2.5 pl-4 pr-3">User</th>
                   <th className="py-2.5 px-3">Plan</th>
                   <th className="py-2.5 px-3">Confirmed</th>

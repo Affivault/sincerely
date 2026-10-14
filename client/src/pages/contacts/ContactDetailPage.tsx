@@ -512,7 +512,7 @@ export function ContactDetailPage() {
                   ['Contact lists', crmLists, 'Cold campaigns can never send to these.'],
                 ] as [string, any[], string][]).filter(([, ls]) => ls.length > 0).map(([label, ls, hint]) => (
                   <div key={label} className="pt-1 first:pt-0">
-                    <p className="px-0.5 pb-1 text-micro font-semibold uppercase tracking-wide text-[var(--text-tertiary)]" title={hint}>
+                    <p className="px-0.5 pb-1 text-caption font-medium text-[var(--text-tertiary)]" title={hint}>
                       {label}
                     </p>
                     <div className="space-y-1">

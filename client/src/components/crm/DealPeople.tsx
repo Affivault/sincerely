@@ -347,7 +347,7 @@ export function DealPeople({
   return (
     <div className="panel p-3.5">
       <div className="mb-2 flex items-center gap-2">
-        <p className="text-caption font-semibold uppercase tracking-wider text-[var(--text-muted)]">People</p>
+        <p className="text-caption font-medium text-[var(--text-tertiary)]">People</p>
         {total > 0 && <span className="text-caption font-medium tabular-nums text-[var(--text-tertiary)]">{total}</span>}
         <span className="flex-1" />
         {!adding && (

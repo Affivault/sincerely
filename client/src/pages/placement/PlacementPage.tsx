@@ -407,7 +407,7 @@ function SeedPanel({ seeds }: { seeds: PlacementSeed[] }) {
         <div className="divide-y divide-[var(--border-subtle)]">
           {seeds.map((seed) => (
             <div key={seed.id} className="flex items-center gap-3 px-4 py-2.5">
-              <span className="w-16 shrink-0 text-caption font-semibold uppercase tracking-wide text-[var(--text-tertiary)]">
+              <span className="w-16 shrink-0 text-caption font-medium text-[var(--text-tertiary)]">
                 {PROVIDER_LABELS[seed.provider]}
               </span>
               <span className="min-w-0 flex-1 truncate text-body text-[var(--text-primary)]">{seed.email_address}</span>

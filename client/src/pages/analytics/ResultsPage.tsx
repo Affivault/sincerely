@@ -59,7 +59,7 @@ export function ResultsPage() {
         {isLoading ? (
           <PageSkeleton variant="panels" bleed={false} />
         ) : isError || !data ? (
-          <div className="flex items-center gap-3 rounded-2xl border border-rose-500/25 bg-rose-500/10 px-4 py-3.5 text-body text-rose-700 dark:text-rose-400">
+          <div className="flex items-center gap-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-3.5 text-body text-[var(--text-primary)] shadow-[inset_3px_0_0_theme(colors.rose.500)]">
             <span className="flex-1">The results could not be worked out just now.</span>
             <Button size="sm" variant="secondary" onClick={() => refetch()}>Try again</Button>
           </div>

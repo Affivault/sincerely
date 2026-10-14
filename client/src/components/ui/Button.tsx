@@ -34,15 +34,15 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     const gate = blockedProps(blockedBy, onClick);
     const variants = {
       primary:
-        '[background:var(--indigo-grad)] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_1px_2px_rgba(67,56,202,0.35)] hover:[background:var(--indigo-grad-hover)] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.2),0_2px_8px_rgba(67,56,202,0.45)] active:translate-y-[0.5px]',
+        'bg-[var(--indigo)] text-white shadow-[var(--glow-indigo)] hover:bg-[var(--indigo-hover)] active:translate-y-[0.5px]',
       brand:
-        '[background:var(--indigo-grad)] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_1px_2px_rgba(67,56,202,0.35)] hover:[background:var(--indigo-grad-hover)] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.2),0_2px_8px_rgba(67,56,202,0.45)] active:translate-y-[0.5px]',
+        'bg-[var(--indigo)] text-white shadow-[var(--glow-indigo)] hover:bg-[var(--indigo-hover)] active:translate-y-[0.5px]',
       secondary:
-        'bg-[var(--bg-surface)] border border-[var(--border-default)] text-[var(--text-primary)] shadow-[0_1px_0_rgba(0,0,0,0.015)] hover:bg-[var(--bg-hover)] hover:border-[var(--border-strong)] active:bg-[var(--bg-active)]',
+        'bg-[var(--bg-surface)] border border-[var(--border-default)] text-[var(--text-primary)] shadow-[var(--shadow-sm)] hover:bg-[var(--bg-hover)] hover:border-[var(--border-strong)] active:bg-[var(--bg-active)]',
       ghost:
         'bg-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] active:bg-[var(--bg-active)]',
       danger:
-        'bg-[var(--error)] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_1px_2px_rgba(220,38,38,0.3)] hover:bg-[var(--error)] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_2px_6px_rgba(220,38,38,0.4)] active:translate-y-[0.5px]',
+        'bg-[var(--error)] text-white shadow-[var(--glow-indigo)] hover:brightness-95 active:translate-y-[0.5px]',
     };
 
     const sizes = {

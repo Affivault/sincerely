@@ -1,3 +1,6 @@
+import { Notice } from '../../components/ui/Notice';
+import { TONE, tonePill, type Tone } from '../../components/ui/tone';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -333,9 +336,9 @@ function humanizeMs(ms: number): string {
  * should be visible at a glance when you scan back over what you cleared.
  */
 const TRIAGE_PILL: Record<TriageDecision, { label: string; cls: string }> = {
-  interested: { label: 'Lead', cls: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' },
-  later: { label: 'Later', cls: 'bg-slate-500/10 text-slate-600 dark:text-slate-400' },
-  not_interested: { label: 'Passed', cls: 'bg-rose-500/10 text-rose-600 dark:text-rose-400' },
+  interested: { label: 'Lead', cls: tonePill('positive') },
+  later: { label: 'Later', cls: tonePill('neutral') },
+  not_interested: { label: 'Passed', cls: tonePill('negative') },
 };
 
 /** What Relay recommends doing with a reply, as a sentence. */
@@ -347,26 +350,24 @@ const RELAY_ACTION_TEXT: Record<string, string> = {
   escalate: 'Relay flagged this one for a person to look at.',
 };
 
-const INTENT_COLORS: Record<string, { bg: string; text: string; label: string }> = {
-  interested: { bg: 'bg-emerald-500/10', text: 'text-emerald-600 dark:text-emerald-400', label: REPLY_INTENT_LABELS.interested.label },
-  meeting: { bg: 'bg-blue-500/10', text: 'text-blue-600 dark:text-blue-400', label: REPLY_INTENT_LABELS.meeting.label },
-  objection: { bg: 'bg-amber-500/10', text: 'text-amber-600 dark:text-amber-400', label: REPLY_INTENT_LABELS.objection.label },
-  not_now: { bg: 'bg-slate-500/10', text: 'text-slate-500', label: REPLY_INTENT_LABELS.not_now.label },
-  unsubscribe: { bg: 'bg-red-500/10', text: 'text-red-500', label: REPLY_INTENT_LABELS.unsubscribe.label },
-  out_of_office: { bg: 'bg-purple-500/10', text: 'text-purple-500', label: REPLY_INTENT_LABELS.out_of_office.label },
-  bounce: { bg: 'bg-red-500/10', text: 'text-red-500', label: REPLY_INTENT_LABELS.bounce.label },
-  other: { bg: 'bg-slate-500/10', text: 'text-slate-500', label: REPLY_INTENT_LABELS.other.label },
+/* Each intent in the shared status language (see ui/tone). */
+const INTENT_TONE: Record<string, Tone> = {
+  interested: 'positive', meeting: 'brand', objection: 'attention', not_now: 'neutral',
+  unsubscribe: 'negative', out_of_office: 'neutral', bounce: 'negative', other: 'neutral',
 };
+const INTENT_COLORS: Record<string, { bg: string; text: string; label: string }> = Object.fromEntries(
+  Object.entries(INTENT_TONE).map(([k, t]) => [k, { bg: TONE[t].bg, text: TONE[t].text, label: REPLY_INTENT_LABELS[k as keyof typeof REPLY_INTENT_LABELS].label }]),
+);
 
 /** Solid hex per intent — used for sidebar dots where Tailwind classes don't fit. */
 const INTENT_HEX: Record<string, string> = {
-  interested: '#10B981',
-  meeting: '#3B82F6',
-  objection: '#F59E0B',
+  interested: '#3F8763',
+  meeting: '#4D6BB0',
+  objection: '#B88124',
   not_now: '#64748B',
-  unsubscribe: '#EF4444',
-  out_of_office: '#8B5CF6',
-  bounce: '#EF4444',
+  unsubscribe: '#BE4A3B',
+  out_of_office: '#6E4E8E',
+  bounce: '#BE4A3B',
   other: '#64748B',
 };
 
@@ -378,13 +379,13 @@ const TAG_OPTIONS = [
 
 /* Dot colors for the intent rows in the mail-nav rail */
 const INTENT_DOTS: Record<string, string> = {
-  interested: '#10B981',
-  meeting: '#3B82F6',
+  interested: '#3F8763',
+  meeting: '#4D6BB0',
   not_now: '#64748B',
-  objection: '#F59E0B',
-  out_of_office: '#8B5CF6',
-  unsubscribe: '#EF4444',
-  bounce: '#F43F5E',
+  objection: '#B88124',
+  out_of_office: '#6E4E8E',
+  unsubscribe: '#BE4A3B',
+  bounce: '#B54B53',
   other: '#94A3B8',
 };
 
@@ -546,7 +547,7 @@ function ComposeModal({ onClose, onSend, onSchedule, sending, smtpAccounts, temp
                 disabled={!canSend}
                 className={`flex items-center gap-1.5 h-9 px-3 rounded-lg text-strong font-medium transition-all disabled:opacity-40 ${
                   showSchedule
-                    ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)] border border-[rgba(91,91,245,0.25)]'
+                    ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)] border border-[rgba(47, 63, 156,0.25)]'
                     : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] border border-[var(--border-default)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
                 }`}
                 title="Schedule send"
@@ -565,7 +566,7 @@ function ComposeModal({ onClose, onSend, onSchedule, sending, smtpAccounts, temp
                 }
               }}
               disabled={!canSend}
-              className="flex items-center gap-2 h-9 px-4 rounded-lg bg-[var(--indigo)] text-white text-strong font-semibold hover:bg-[var(--indigo-hover)] transition-colors disabled:opacity-40 shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_2px_rgba(67,56,202,0.35)]"
+              className="flex items-center gap-2 h-9 px-4 rounded-lg bg-[var(--indigo)] text-white text-strong font-semibold hover:bg-[var(--indigo-hover)] transition-colors disabled:opacity-40 shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_2px_rgba(24, 25, 29,0.35)]"
             >
               <Send className="h-3.5 w-3.5" />
               {sending ? 'Sending…' : 'Send'}
@@ -1001,7 +1002,7 @@ function ScheduleSendPicker({ onSchedule, onClose }: { onSchedule: (date: string
           <CustomTimePicker value={selectedTime} onChange={setSelectedTime} />
           <button
             onClick={handleConfirmSchedule}
-            className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-[var(--indigo)] text-white text-strong font-semibold hover:bg-[var(--indigo-hover)] transition-colors shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_2px_rgba(67,56,202,0.35)]"
+            className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-[var(--indigo)] text-white text-strong font-semibold hover:bg-[var(--indigo-hover)] transition-colors shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_2px_rgba(24, 25, 29,0.35)]"
           >
             <CalendarClock className="h-3.5 w-3.5" />
             Schedule for {selectedDateLabel} · {selectedTimeLabel}
@@ -1055,7 +1056,7 @@ function FolderSelector({ folders, active, onChange }: {
                 key={f.id}
                 onClick={() => { onChange(f.id); setOpen(false); }}
                 className={`w-full text-left px-3 py-2.5 text-body font-medium transition-colors flex items-center gap-2.5 ${
-                  isActive ? 'bg-[rgba(99,102,241,0.08)] text-[var(--indigo)]' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
+                  isActive ? 'bg-[rgba(47, 63, 156,0.08)] text-[var(--indigo)]' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
                 }`}
               >
                 <FolderIcon className={`h-3.5 w-3.5 ${isActive ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)]'}`} />
@@ -1164,7 +1165,7 @@ function TimelineMessage({ msg, threadSubject, isCurrent, expanded, onToggle }: 
       {/* Rail node — avatar for the contact, indigo send-node for you */}
       <div className="relative z-10 w-9 flex-shrink-0 flex justify-center pt-2">
         {isOutbound ? (
-          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--indigo)] text-white ring-4 ring-[var(--bg-app)] shadow-[0_2px_8px_-2px_rgba(91,91,245,0.55)]">
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--indigo)] text-white ring-4 ring-[var(--bg-app)] shadow-[0_2px_8px_-2px_rgba(47, 63, 156,0.55)]">
             <SendHorizontal className="h-3.5 w-3.5" />
           </span>
         ) : (
@@ -1177,8 +1178,8 @@ function TimelineMessage({ msg, threadSubject, isCurrent, expanded, onToggle }: 
       {/* Card */}
       <div className={cn(
         'flex-1 min-w-0 panel overflow-hidden transition-shadow',
-        isOutbound && 'border-[rgba(91,91,245,0.28)]',
-        isCurrent && 'ring-2 ring-[rgba(91,91,245,0.22)]'
+        isOutbound && 'border-[rgba(47, 63, 156,0.28)]',
+        isCurrent && 'ring-2 ring-[rgba(47, 63, 156,0.22)]'
       )}>
         <button
           type="button"
@@ -1187,7 +1188,7 @@ function TimelineMessage({ msg, threadSubject, isCurrent, expanded, onToggle }: 
             'w-full text-left px-4 py-2.5 transition-colors',
             expanded
               ? cn('border-b', isOutbound
-                  ? 'bg-[var(--indigo-subtle)] border-[rgba(91,91,245,0.15)] hover:bg-[rgba(91,91,245,0.12)]'
+                  ? 'bg-[var(--indigo-subtle)] border-[rgba(47, 63, 156,0.15)] hover:bg-[rgba(47, 63, 156,0.12)]'
                   : 'border-[var(--border-subtle)] hover:bg-[var(--bg-hover)]/60')
               : 'hover:bg-[var(--bg-hover)]/60'
           )}
@@ -1472,7 +1473,7 @@ function ThreadDealPanel({ msg }: { msg: Message }) {
   return (
     <div className="px-3.5 pb-3.5">
       <div className="flex items-center justify-between mb-2 px-1">
-        <p className="text-micro font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+        <p className="text-caption font-medium text-[var(--text-tertiary)]">
           {deals.length > 0 ? `Deals · ${deals.length}` : 'Deal'}
         </p>
         {!open && (
@@ -1665,7 +1666,7 @@ function ContactContextPanel({ msg, stats, onCopyEmail }: {
     <aside className="hidden xl:flex w-[280px] flex-shrink-0 border-l border-[var(--border-subtle)] bg-[var(--bg-surface)] flex-col overflow-y-auto">
       {/* ── Prospect card — the person, linked to their lead record ── */}
       <div className="px-3.5 pt-4 pb-3.5">
-        <p className="text-micro font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-2 px-1">Prospect</p>
+        <p className="text-caption font-medium text-[var(--text-tertiary)] mb-2 px-1">Prospect</p>
         <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50 p-3.5">
           <div className="flex items-start gap-3">
             <Avatar name={name} email={email} size="md" />
@@ -1735,7 +1736,7 @@ function ContactContextPanel({ msg, stats, onCopyEmail }: {
       {/* ── Campaign card — which sequence this thread belongs to ── */}
       {(msg.campaign_name || sendingInbox) && (
         <div className="px-3.5 pb-3.5">
-          <p className="text-micro font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-2 px-1">Campaign</p>
+          <p className="text-caption font-medium text-[var(--text-tertiary)] mb-2 px-1">Campaign</p>
           <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50 p-3.5">
             {msg.campaign_name ? (
               <div className="flex items-start gap-2.5">
@@ -1780,7 +1781,7 @@ function ContactContextPanel({ msg, stats, onCopyEmail }: {
 
       {/* ── Engagement ── */}
       <div className="px-3.5 pb-3.5">
-        <p className="text-micro font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-2 px-1">Engagement</p>
+        <p className="text-caption font-medium text-[var(--text-tertiary)] mb-2 px-1">Engagement</p>
         <div className="grid grid-cols-2 gap-2">
           <div className="panel-inset px-2.5 py-1.5">
             <div className="flex items-center gap-1.5 text-[var(--text-tertiary)]">
@@ -1810,7 +1811,7 @@ function ContactContextPanel({ msg, stats, onCopyEmail }: {
 
       {/* ── Details ── */}
       <div className="px-3.5 pb-4">
-        <p className="text-micro font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-1.5 px-1">Details</p>
+        <p className="text-caption font-medium text-[var(--text-tertiary)] mb-1.5 px-1">Details</p>
         <div className="px-1">
           <DetailRow label="Intent">
             {intent ? (
@@ -2100,9 +2101,9 @@ function SaraCopilot({ msg, onUseDraft }: { msg: Message; onUseDraft: () => void
   if (!intent && !hasDraft && !msg.sara_action) return null;
 
   return (
-    <div className="mb-5 rounded-2xl border border-[rgba(91,91,245,0.22)] bg-[var(--indigo-subtle)] overflow-hidden">
+    <div className="mb-5 rounded-2xl border border-[rgba(47, 63, 156,0.22)] bg-[var(--indigo-subtle)] overflow-hidden">
       <div className="flex items-start gap-3 p-4">
-        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--indigo)] text-white flex-shrink-0 shadow-[0_2px_8px_-2px_rgba(91,91,245,0.6)]">
+        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--indigo)] text-white flex-shrink-0 shadow-[0_2px_8px_-2px_rgba(47, 63, 156,0.6)]">
           <Sparkles className="h-4 w-4" />
         </span>
         <div className="flex-1 min-w-0">
@@ -2145,7 +2146,7 @@ function SaraCopilot({ msg, onUseDraft }: { msg: Message; onUseDraft: () => void
         </div>
       </div>
       {hasDraft && (
-        <div className="flex items-center gap-2.5 px-4 py-2.5 border-t border-[rgba(91,91,245,0.18)] bg-[var(--bg-surface)]">
+        <div className="flex items-center gap-2.5 px-4 py-2.5 border-t border-[rgba(47, 63, 156,0.18)] bg-[var(--bg-surface)]">
           <button
             onClick={onUseDraft}
             className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold hover:bg-[var(--indigo-hover)] transition-colors shadow-[inset_0_1px_0_rgba(255,255,255,0.15)]"
@@ -2170,6 +2171,9 @@ export function InboxPage() {
   const [mailKindFilter, setMailKindFilter] = useState<'all' | Exclude<MailKind, 'person'>>('all');
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [showContext, setShowContext] = useState(true);
+  /* Room for the list beside the thread, and for the contact rail beside both. */
+  const wide = useMediaQuery('(min-width: 1200px)');
+  const roomy = useMediaQuery('(min-width: 1600px)');
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
   // How many messages to fetch for the current folder/filter/search — grows via
@@ -2180,6 +2184,11 @@ export function InboxPage() {
     setMessageLimit(50);
   }, [folder, tagFilter, search, mailKindFilter]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Moving with J/K keeps the open conversation in view in the list beside it.
+  useEffect(() => {
+    if (!wide || !selectedId) return;
+    document.querySelector(`[data-inbox-row="${CSS.escape(selectedId)}"]`)?.scrollIntoView({ block: 'nearest' });
+  }, [wide, selectedId]);
 
   /*
    * Opened from somewhere else, by id.
@@ -2963,21 +2972,25 @@ export function InboxPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewParam]);
 
-  return (
-    <div className="overflow-hidden" style={{ height: 'calc(100vh - var(--chrome-h, 56px))' }}>
-      <div className="h-full flex flex-col bg-[var(--bg-app)]">
+  const split = wide && folder !== 'scheduled';
 
-        {currentMsg && folder !== 'scheduled' ? (
-          <>
+  /* The open conversation: toolbar, thread, composer and contact rail. */
+  const focusView = currentMsg ? (
+    <>
             {/* ── Focus toolbar: back + position + actions ── */}
             <div className="flex items-center gap-2 px-3 h-[50px] border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] flex-shrink-0">
-              <button
-                onClick={() => { setSelectedId(null); setReplyMode(null); }}
-                className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-body font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] transition-colors"
-              >
-                <ArrowLeft className="h-3.5 w-3.5" /> {foldersList.find(f => f.id === folder)?.label || 'Inbox'}
-              </button>
-              <span className="h-4 w-px bg-[var(--border-subtle)]" />
+              {/* With the list beside it there is nothing to go back to. */}
+              {!split && (
+                <>
+                  <button
+                    onClick={() => { setSelectedId(null); setReplyMode(null); }}
+                    className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-body font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] transition-colors"
+                  >
+                    <ArrowLeft className="h-3.5 w-3.5" /> {foldersList.find(f => f.id === folder)?.label || 'Inbox'}
+                  </button>
+                  <span className="h-4 w-px bg-[var(--border-subtle)]" />
+                </>
+              )}
               <span className="text-body text-[var(--text-tertiary)] tabular">
                 {Math.max(1, visibleConversations.findIndex(c => c.latestMessage.id === selectedId) + 1)} of {visibleConversations.length}
               </span>
@@ -2988,7 +3001,7 @@ export function InboxPage() {
               <div className="flex-1" />
               <button
                 onClick={() => { setShowCompose(false); setReplyMode('reply'); setReplySenderId(currentMsg.smtp_account_id || smtpAccounts[0]?.id || ''); }}
-                className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[var(--indigo-subtle)] text-[var(--indigo)] text-body font-semibold hover:bg-[rgba(91,91,245,0.14)] transition-colors"
+                className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[var(--indigo-subtle)] text-[var(--indigo)] text-body font-semibold hover:bg-[rgba(47, 63, 156,0.14)] transition-colors"
               >
                 <Reply className="h-3.5 w-3.5" /> Reply
               </button>
@@ -3012,7 +3025,7 @@ export function InboxPage() {
               <button
                 onClick={() => setShowContext(v => !v)}
                 title={showContext ? 'Hide contact details' : 'Show contact details'}
-                className={cn('icon-btn h-8 w-8 hidden xl:inline-flex', showContext && 'bg-[var(--indigo-subtle)] text-[var(--indigo)]')}
+                className={cn('icon-btn h-8 w-8 hidden xl:inline-flex', split && !roomy && '!hidden', showContext && 'bg-[var(--bg-active)] text-[var(--text-primary)]')}
               >
                 {showContext ? <PanelRightClose className="h-4 w-4" /> : <PanelRight className="h-4 w-4" />}
               </button>
@@ -3289,7 +3302,7 @@ export function InboxPage() {
                                 disabled={replyEditor.isEmpty || replyMut.isPending}
                                 className={`flex items-center gap-1.5 h-9 px-3 rounded-lg text-strong font-medium transition-all disabled:opacity-40 ${
                                   showReplySchedule
-                                    ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)] border border-[rgba(91,91,245,0.25)]'
+                                    ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)] border border-[rgba(47, 63, 156,0.25)]'
                                     : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] border border-[var(--border-default)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
                                 }`}
                                 title="Schedule send"
@@ -3325,7 +3338,7 @@ export function InboxPage() {
                             disabled={
                               (replyMode === 'reply' ? replyEditor.isEmpty || replyMut.isPending : !forwardTo.trim() || forwardMut.isPending)
                             }
-                            className="flex items-center gap-2 h-9 px-3 sm:px-4 rounded-lg bg-[var(--indigo)] text-white text-strong font-semibold whitespace-nowrap hover:bg-[var(--indigo-hover)] transition-colors disabled:opacity-40 shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_2px_rgba(67,56,202,0.35)]"
+                            className="flex items-center gap-2 h-9 px-3 sm:px-4 rounded-lg bg-[var(--indigo)] text-white text-strong font-semibold whitespace-nowrap hover:bg-[var(--indigo-hover)] transition-colors disabled:opacity-40 shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_2px_rgba(24, 25, 29,0.35)]"
                           >
                             <Send className="h-3.5 w-3.5" />
                             {replyMut.isPending || forwardMut.isPending ? 'Sending…' : replyMode === 'reply' ? 'Send reply' : 'Forward'}
@@ -3339,7 +3352,7 @@ export function InboxPage() {
                       <Avatar name={threadContactName || undefined} email={threadContactEmail || undefined} size="md" />
                       <button
                         onClick={() => { setShowCompose(false); setReplyMode('reply'); setReplySenderId(currentMsg.smtp_account_id || smtpAccounts[0]?.id || ''); }}
-                        className="flex-1 h-10 px-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/60 text-left text-strong text-[var(--text-tertiary)] hover:border-[rgba(91,91,245,0.45)] hover:bg-[var(--bg-surface)] transition-colors"
+                        className="flex-1 h-10 px-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/60 text-left text-strong text-[var(--text-tertiary)] hover:border-[rgba(47, 63, 156,0.45)] hover:bg-[var(--bg-surface)] transition-colors"
                       >
                         Reply to {threadContactName || 'this conversation'}…
                       </button>
@@ -3358,13 +3371,17 @@ export function InboxPage() {
               </div>
 
               {/* Contact context rail */}
-              {showContext && (
+              {/* Beside a list and a thread, only where there is room for a third column. */}
+              {showContext && (!split || roomy) && (
                 <ContactContextPanel msg={currentMsg} stats={threadStats} onCopyEmail={copyContactEmail} />
               )}
             </div>
-          </>
-        ) : (
-          <>
+    </>
+  ) : null;
+
+  /* Above the list: view tabs, filters, search, and the banners about them. */
+  const listChrome = (
+    <>
         {/* ── Command bar: view tabs + intent filter + search + actions ── */}
         {/* On a phone the tabs take their own row; the controls sit under them. */}
         <div className="flex flex-wrap sm:flex-nowrap items-center gap-1 px-3 sm:px-4 pb-2 sm:pb-0 sm:h-[50px] border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] flex-shrink-0">
@@ -3469,7 +3486,7 @@ export function InboxPage() {
             className={cn(
               'hidden md:block h-8 px-2 rounded-lg border text-body font-medium outline-none cursor-pointer transition-colors flex-shrink-0',
               tagFilter !== 'all'
-                ? 'border-[rgba(91,91,245,0.4)] bg-[var(--indigo-subtle)] text-[var(--indigo)]'
+                ? 'border-[rgba(47, 63, 156,0.4)] bg-[var(--indigo-subtle)] text-[var(--indigo)]'
                 : 'border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[var(--text-secondary)]'
             )}
           >
@@ -3530,7 +3547,7 @@ export function InboxPage() {
           </button>
           <button
             onClick={() => { setReplyMode(null); setShowCompose(true); }}
-            className="ml-1 flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold hover:bg-[var(--indigo-hover)] transition-colors flex-shrink-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_2px_rgba(91,91,245,0.35)]"
+            className="ml-1 flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold hover:bg-[var(--indigo-hover)] transition-colors flex-shrink-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_2px_rgba(47, 63, 156,0.35)]"
           >
             <Pencil className="h-3.5 w-3.5" /> Compose
           </button>
@@ -3544,17 +3561,17 @@ export function InboxPage() {
 
         {/* Connection error banner — only when sync hit errors */}
         {syncErrors.length > 0 && (
-          <div className="px-4 py-2 bg-amber-500/10 border-b border-amber-500/30 flex items-start gap-2 flex-shrink-0">
-            <div className="flex-1 min-w-0">
-              <p className="text-caption font-semibold text-amber-700 dark:text-amber-400 mb-0.5">Mail server issue — showing cached emails</p>
-              <p className="text-micro text-amber-700 dark:text-amber-400/80 truncate" title={syncErrors.join(' · ')}>
-                {syncErrors[0]}{syncErrors.length > 1 ? ` (+${syncErrors.length - 1} more)` : ''}
-              </p>
-            </div>
-            <button onClick={() => setSyncErrors([])} className="p-0.5 hover:bg-amber-500/10 rounded flex-shrink-0" title="Dismiss">
-              <X className="h-3 w-3 text-amber-600 dark:text-amber-400" />
-            </button>
-          </div>
+          <Notice
+            variant="band"
+            tone="attention"
+            icon={AlertTriangle}
+            title="The mail server did not answer - showing the mail already here"
+            onDismiss={() => setSyncErrors([])}
+          >
+            <span className="block truncate" title={syncErrors.join(' - ')}>
+              {syncErrors[0]}{syncErrors.length > 1 ? ` (+${syncErrors.length - 1} more)` : ''}
+            </span>
+          </Notice>
         )}
 
         {/* ══ Bulk triage bar — deciding about a stack of replies at once ══
@@ -3637,6 +3654,12 @@ export function InboxPage() {
           </div>
         )}
 
+    </>
+  );
+
+  /* The conversations themselves. */
+  const listBody = (
+    <>
         {/* ── Full-width conversation table ── */}
         <InboxNotices
           folder={folder}
@@ -3655,7 +3678,7 @@ export function InboxPage() {
         ) : (
           <div className="flex-1 overflow-y-auto overflow-x-hidden bg-[var(--bg-surface)]">
             {/* Sticky column header — the grid identity */}
-            <div className="sticky top-0 z-[2] hidden sm:flex items-center gap-3 px-4 h-[30px] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] text-caption font-medium text-[var(--text-tertiary)]">
+            <div className={cn('sticky top-0 z-[2] hidden items-center gap-3 px-4 h-[30px] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] text-caption font-medium text-[var(--text-tertiary)]', !split && 'sm:flex')}>
               {inTriageQueue && (
                 <input
                   type="checkbox"
@@ -3727,6 +3750,87 @@ export function InboxPage() {
                   const avatarSeed = isOutbound ? (msg.to_email || '') : (conv.contactName || senderName(msg) || msg.from_email || '');
                   const snippet = msgSnippet(msg);
                   const isPicked = picked.has(msg.id);
+                  /* Beside the thread: who and when, then what they said, then
+                     what Relay made of it. Columns do not fit 380px, and an
+                     inbox list reads top to bottom anyway. */
+                  if (split) {
+                    const said = (msg.relay_summary && !isMail(msg) ? msg.relay_summary : snippet) || msg.subject || '(no subject)';
+                    return (
+                      <div
+                        key={msg.id}
+                        role="button"
+                        tabIndex={0}
+                        aria-current={isSelected ? 'true' : undefined}
+                        onClick={() => selectMessage(msg)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectMessage(msg); } }}
+                        data-inbox-row={msg.id}
+                        className={cn(
+                          'relative flex gap-3 px-4 py-3 border-b border-[var(--border-subtle)] cursor-pointer transition-colors',
+                          isSelected ? 'bg-[var(--bg-active)]' : isPicked ? 'bg-[var(--bg-hover)]' : 'hover:bg-[var(--bg-muted)]',
+                        )}
+                      >
+                        {isSelected && <span aria-hidden className="absolute left-0 inset-y-0 w-[2px] bg-[var(--indigo)]" />}
+                        {inTriageQueue && (
+                          <input
+                            type="checkbox"
+                            checked={isPicked}
+                            aria-label={`Select reply from ${displayName}`}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => togglePick(msg.id, e.currentTarget.checked, visibleConversations)}
+                            className="mt-1 h-3.5 w-3.5 flex-shrink-0 accent-[var(--indigo)] cursor-pointer"
+                          />
+                        )}
+                        <span className="relative flex-shrink-0 mt-0.5">
+                          {isOutbound ? (
+                            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--bg-elevated)] text-[var(--text-tertiary)]">
+                              <SendHorizontal className="h-3 w-3" />
+                            </span>
+                          ) : (
+                            <Avatar name={avatarSeed} email={msg.from_email} size="md" />
+                          )}
+                          {conv.hasUnread && !isOutbound && (
+                            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[var(--indigo)] ring-2 ring-[var(--bg-surface)]" />
+                          )}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-baseline gap-2">
+                            <span className={cn('truncate text-strong', conv.hasUnread ? 'font-semibold text-[var(--text-primary)]' : 'font-medium text-[var(--text-secondary)]')}>
+                              {displayName}
+                            </span>
+                            {conv.messageCount > 1 && <span className="text-caption text-[var(--text-tertiary)] tabular flex-shrink-0">{conv.messageCount}</span>}
+                            {conv.isStarred && <Star className="h-3 w-3 text-amber-500 fill-amber-500 flex-shrink-0 self-center" />}
+                            <span className="ml-auto flex-shrink-0 text-caption text-[var(--text-tertiary)] tabular">{timeAgo(msg.received_at)}</span>
+                          </span>
+                          <span className={cn('mt-0.5 block line-clamp-2 text-body leading-snug', conv.hasUnread ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]')}>
+                            {msg.relay_summary && !isMail(msg) && <Sparkles className="inline h-3 w-3 -mt-0.5 mr-1 text-[var(--indigo)]" />}
+                            {said}
+                          </span>
+                          {(msg.triage_decision || intent || isMail(msg) || msg.auto_reply_kind || msg.campaign_name) && (
+                            <span className="mt-1.5 flex items-center gap-2 min-w-0">
+                              {msg.triage_decision ? (
+                                <span className={cn('inline-flex items-center gap-1 text-micro font-semibold px-1.5 py-0.5 rounded-md flex-shrink-0', TRIAGE_PILL[msg.triage_decision].cls)}>
+                                  <Check className="h-2.5 w-2.5" />{TRIAGE_PILL[msg.triage_decision].label}
+                                </span>
+                              ) : isMail(msg) ? (
+                                <span className="inline-flex items-center text-micro font-semibold px-1.5 py-0.5 rounded-md bg-[var(--bg-elevated)] text-[var(--text-tertiary)] flex-shrink-0">
+                                  {MAIL_KIND_LABELS[msg.mail_kind as Exclude<MailKind, 'person'>] || 'Mail'}
+                                </span>
+                              ) : msg.auto_reply_kind ? (
+                                <span className="inline-flex items-center gap-1 text-micro font-semibold px-1.5 py-0.5 rounded-md bg-[var(--bg-elevated)] text-[var(--text-tertiary)] flex-shrink-0">
+                                  <BotIcon className="h-2.5 w-2.5" />{msg.auto_reply_kind === 'out_of_office' ? 'Away' : 'Auto'}
+                                </span>
+                              ) : intent ? (
+                                <span className={cn('inline-flex items-center gap-1 text-micro font-semibold px-1.5 py-0.5 rounded-md flex-shrink-0', intent.bg, intent.text)}>
+                                  <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />{intent.label}
+                                </span>
+                              ) : null}
+                              {msg.campaign_name && <span className="truncate text-caption text-[var(--text-tertiary)]">{msg.campaign_name}</span>}
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    );
+                  }
                   return (
                     <div
                       key={msg.id}
@@ -3915,6 +4019,43 @@ export function InboxPage() {
             )}
           </div>
         )}
+    </>
+  );
+
+  return (
+    <div className="overflow-hidden" style={{ height: 'calc(100vh - var(--chrome-h, 56px))' }}>
+      <div className="h-full flex flex-col bg-[var(--bg-app)]">
+
+        {/*
+          * Wide screens: the list and the open conversation side by side, so
+          * moving through replies never loses your place and there is no
+          * "back" to press. Below that the list and the thread take turns
+          * on the full width, as before. Scheduled mail is its own table.
+          */}
+        {split ? (
+          <>
+            {listChrome}
+            <div className="flex-1 min-h-0 flex">
+              <div className="w-[380px] 2xl:w-[420px] flex-shrink-0 flex flex-col min-h-0 border-r border-[var(--border-subtle)] bg-[var(--bg-surface)]">
+                {listBody}
+              </div>
+              <div className="flex-1 min-w-0 flex flex-col min-h-0">
+                {focusView ?? (
+                  <div className="flex-1 flex flex-col items-center justify-center gap-3 bg-[var(--bg-app)] px-6 text-center">
+                    <MailOpen className="h-6 w-6 text-[var(--text-muted)]" strokeWidth={1.5} />
+                    <p className="text-strong font-medium text-[var(--text-secondary)]">Choose a conversation to read it here</p>
+                    <p className="flex items-center gap-1.5 text-caption text-[var(--text-tertiary)]">
+                      <kbd className="kbd">J</kbd><kbd className="kbd">K</kbd> to move, <kbd className="kbd">R</kbd> to reply, <kbd className="kbd">E</kbd> when it is done
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        ) : focusView && folder !== 'scheduled' ? focusView : (
+          <>
+            {listChrome}
+            {listBody}
           </>
         )}
       </div>

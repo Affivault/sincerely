@@ -85,7 +85,7 @@ export function SystemStatusPage() {
         {isLoading ? (
           <PageSkeleton variant="panels" bleed={false} />
         ) : isError || !data ? (
-          <div className="flex items-center gap-3 rounded-2xl border border-rose-500/25 bg-rose-500/10 px-4 py-3.5 text-body text-rose-700 dark:text-rose-400">
+          <div className="flex items-center gap-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-3.5 text-body text-[var(--text-primary)] shadow-[inset_3px_0_0_theme(colors.rose.500)]">
             <XCircle className="h-5 w-5 flex-shrink-0" />
             <span className="flex-1">The server did not answer. If this keeps happening, it may be down or restarting.</span>
             <Button size="sm" variant="secondary" onClick={() => refetch()}>Try again</Button>

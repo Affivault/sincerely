@@ -392,7 +392,7 @@ export function DealDetailPage() {
             />
           )}
           <div className="panel p-3.5">
-            <p className="mb-1 text-caption font-semibold uppercase tracking-wider text-[var(--text-muted)]">Summary</p>
+            <p className="mb-1 text-caption font-medium text-[var(--text-tertiary)]">Summary</p>
             <div className="divide-y divide-[var(--border-subtle)]">
               <Field label="Value" value={money(deal.value, deal.currency)} />
               {/* The parts, when somebody has described them. A total on its
@@ -454,13 +454,13 @@ export function DealDetailPage() {
           <DealPeople deal={deal} participants={participants} onEmail={(email, name) => setWriteTo({ email, name })} />
 
           <div className="panel p-3.5">
-            <p className="mb-2 text-caption font-semibold uppercase tracking-wider text-[var(--text-muted)]">Journey</p>
+            <p className="mb-2 text-caption font-medium text-[var(--text-tertiary)]">Journey</p>
             <DealJourney deal={deal} events={history} />
           </div>
 
           {deal.notes?.trim() && (
             <div className="panel p-3.5">
-              <p className="mb-1.5 text-caption font-semibold uppercase tracking-wider text-[var(--text-muted)]">Deal notes</p>
+              <p className="mb-1.5 text-caption font-medium text-[var(--text-tertiary)]">Deal notes</p>
               <p className="whitespace-pre-wrap text-body leading-relaxed text-[var(--text-secondary)]">{deal.notes}</p>
             </div>
           )}

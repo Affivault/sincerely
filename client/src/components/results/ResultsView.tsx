@@ -85,7 +85,7 @@ export function ResultsView({ report, linkCampaigns = true }: { report: ResultsR
   return (
     <div className="space-y-4" data-results>
       <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-5 py-4">
-        <p className="text-caption font-medium uppercase tracking-wider text-[var(--text-muted)]">
+        <p className="text-caption font-medium text-[var(--text-tertiary)]">
           {r.period.label}{r.period.partial ? ' so far' : ''}
         </p>
         <p className="mt-1.5 text-[1.375rem] font-semibold leading-snug text-[var(--text-primary)]" data-results-headline>{r.headline}</p>
@@ -104,7 +104,7 @@ export function ResultsView({ report, linkCampaigns = true }: { report: ResultsR
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] text-left">
               <thead>
-                <tr className="border-b border-[var(--border-subtle)] text-micro font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                <tr className="border-b border-[var(--border-subtle)] text-caption font-medium text-[var(--text-tertiary)]">
                   <th className="py-2 pl-4 pr-3">Campaign</th>
                   <th className="px-3 py-2 text-right">Sent</th>
                   <th className="px-3 py-2 text-right">Replies</th>
