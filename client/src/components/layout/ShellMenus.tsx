@@ -40,13 +40,15 @@ function useDismiss(open: boolean, setOpen: (o: boolean) => void) {
   }, [open, setOpen]);
 }
 
-type Placement = 'below-right' | 'below-left' | 'above-left' | 'right-start';
+type Placement = 'below-right' | 'below-left' | 'above-left' | 'right-start' | 'right-end';
 
 const PLACEMENT: Record<Placement, string> = {
   'below-right': 'right-0 top-full mt-1.5',
   'below-left': 'left-0 top-full mt-1.5',
   'above-left': 'left-0 bottom-full mb-1.5',
   'right-start': 'left-full top-0 ml-2',
+  // Beside a trigger at the foot of the screen, growing upward from it.
+  'right-end': 'left-full bottom-0 ml-2',
 };
 
 function Popover({ open, onClose, placement, width, children }: {

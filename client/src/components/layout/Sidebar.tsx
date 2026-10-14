@@ -235,7 +235,7 @@ export function Sidebar({ onShortcuts }: { onShortcuts?: () => void }) {
       {/* You - and everything about the account, behind one click. */}
       <div className={cn('flex-shrink-0 p-2', collapsed ? 'px-2.5' : 'px-3 pb-3')}>
         <AccountMenu
-          placement={collapsed ? 'right-start' : 'above-left'}
+          placement={collapsed ? 'right-end' : 'above-left'}
           onShortcuts={onShortcuts}
           trigger={(t, open) => (
             <button

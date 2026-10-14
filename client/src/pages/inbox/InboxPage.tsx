@@ -3710,7 +3710,20 @@ export function InboxPage() {
             </div>
 
             <Refreshing active={stale}>
-              {isLoading ? (
+              {isLoading && split ? (
+                // The list beside the thread loads in the shape it will have.
+                <div>
+                  {Array.from({ length: 9 }).map((_, i) => (
+                    <div key={i} className="flex gap-3 px-4 py-3 border-b border-[var(--border-subtle)]">
+                      <Skeleton className="h-7 w-7 rounded-full flex-shrink-0" />
+                      <div className="flex-1 space-y-2 pt-0.5">
+                        <Skeleton className="h-3 w-1/2" />
+                        <Skeleton className="h-3 w-5/6" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : isLoading ? (
                 <div>
                   {Array.from({ length: 14 }).map((_, i) => (
                     <div key={i} className="flex items-center gap-3 px-4 h-[40px] border-b border-[var(--border-subtle)]">
