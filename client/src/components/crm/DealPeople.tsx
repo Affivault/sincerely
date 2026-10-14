@@ -345,7 +345,7 @@ export function DealPeople({
   const total = (primaryId || primaryName ? 1 : 0) + participants.length;
 
   return (
-    <div className="panel p-3.5">
+    <div className="record-section">
       <div className="mb-2 flex items-center gap-2">
         <p className="text-caption font-medium text-[var(--text-tertiary)]">People</p>
         {total > 0 && <span className="text-caption font-medium tabular-nums text-[var(--text-tertiary)]">{total}</span>}

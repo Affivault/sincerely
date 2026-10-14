@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 import { AlertTriangle } from 'lucide-react';
-import { AuthShell, BrandMetrics, BrandQuote } from '../../components/AuthShell';
+import { AuthShell, BrandPreview } from '../../components/AuthShell';
 import '../sincerely-landing.css';
 
 export function ResetPasswordPage() {
@@ -88,18 +88,18 @@ export function ResetPasswordPage() {
     <>
       <h1 className="md-auth__headline">
         Almost<br />
-        <em>there</em>.
+        there.
       </h1>
       <p className="md-auth__lede">
         Choose a new password and we'll sign you straight back into your
         workspace — right where you left off.
       </p>
-      <BrandMetrics />
+      <BrandPreview />
     </>
   );
 
   return (
-    <AuthShell brand={brand} brandFooter={<BrandQuote />}>
+    <AuthShell brand={brand}>
       {invalid ? (
         <div style={{ textAlign: 'center' }}>
           <div className="md-auth__badge md-auth__badge--warn">

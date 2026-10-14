@@ -60,7 +60,7 @@ export function DealHealthPanel({ health, onAction }: { health?: DealHealth | nu
   const s = GRADE_STYLE[health.grade];
   const ActionIcon = ACTION_ICON[health.next_action];
   return (
-    <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4">
+    <div className="record-section">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <HeartPulse className={cn('h-4 w-4', s.text)} />

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 import { ArrowLeft, Mail } from 'lucide-react';
-import { AuthShell, BrandMetrics, BrandQuote } from '../../components/AuthShell';
+import { AuthShell, BrandPreview } from '../../components/AuthShell';
 import '../sincerely-landing.css';
 
 export function ForgotPasswordPage() {
@@ -33,18 +33,18 @@ export function ForgotPasswordPage() {
     <>
       <h1 className="md-auth__headline">
         Locked out?<br />
-        Let's <em>fix that</em>.
+        Let's fix that.
       </h1>
       <p className="md-auth__lede">
         Enter the email on your account and we'll send a secure link to get you
         back into your workspace in seconds.
       </p>
-      <BrandMetrics />
+      <BrandPreview />
     </>
   );
 
   return (
-    <AuthShell brand={brand} brandFooter={<BrandQuote />}>
+    <AuthShell brand={brand}>
       {sent ? (
         <div style={{ textAlign: 'center' }}>
           <div className="md-auth__badge md-auth__badge--ok">

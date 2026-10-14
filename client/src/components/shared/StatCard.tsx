@@ -17,6 +17,8 @@ interface StatCardProps {
   sparkline?: number[];
   className?: string;
   onClick?: () => void;
+  /** A cell in a .fact-strip ledger rather than a card of its own. */
+  inStrip?: boolean;
 }
 
 /* Restrained single-tone accents — used only for the small icon */
@@ -40,6 +42,7 @@ export function StatCard({
   accent = 'indigo',
   className,
   onClick,
+  inStrip,
 }: StatCardProps) {
   const color = ACCENT_HEX[accent] ?? ACCENT_HEX.indigo;
   const deltaGood = delta != null ? (deltaInverted ? delta < 0 : delta > 0) : null;
@@ -48,7 +51,7 @@ export function StatCard({
   return (
     <div
       onClick={onClick}
-      className={cn('panel p-4', onClick && 'panel-hover cursor-pointer', className)}
+      className={cn(inStrip ? 'px-5 py-4' : 'panel p-4', onClick && (inStrip ? 'cursor-pointer hover:bg-[var(--bg-muted)]' : 'panel-hover cursor-pointer'), className)}
     >
       <div className="flex items-center gap-2 text-[var(--text-tertiary)]">
         {Icon && <Icon className="h-3.5 w-3.5 flex-shrink-0 opacity-80" strokeWidth={1.75} style={{ color }} />}

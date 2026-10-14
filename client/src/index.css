@@ -576,6 +576,31 @@
     color: var(--text-primary);
   }
 
+  /*
+   * Record pages (a person, a deal, an account).
+   *
+   * .fact-strip - the few facts a record is about, as one ledger: cells on
+   * a shared sheet split by hairlines, not a row of identical cards.
+   * .record-section - a block of the details column. Plain, with a rule
+   * between blocks, so the column reads as one set of notes about the
+   * record instead of a stack of boxes.
+   */
+  .fact-strip {
+    display: grid;
+    gap: 1px;
+    overflow: hidden;
+    background: var(--border-subtle);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+  }
+  .fact-strip > * { background: var(--bg-surface); }
+  .record-section {
+    padding: 16px 2px;
+    border-top: 1px solid var(--border-subtle);
+  }
+  .record-section:first-child { border-top: 0; padding-top: 2px; }
+
   .divider {
     height: 1px;
     background: var(--border-subtle);

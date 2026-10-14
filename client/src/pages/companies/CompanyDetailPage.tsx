@@ -51,9 +51,9 @@ const KIND_META: Record<StreamItem['kind'], { icon: typeof Mail; tone: string; l
 
 function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="card px-3.5 py-3">
+    <div className="px-4 py-3.5">
       <p className="text-caption font-medium text-[var(--text-tertiary)]">{label}</p>
-      <p className="mt-1 text-title font-semibold text-[var(--text-primary)] tabular leading-none truncate">{value}</p>
+      <p className="mt-1.5 text-title font-medium text-[var(--text-primary)] tabular leading-none truncate">{value}</p>
       {sub && <p className="mt-1.5 text-caption text-[var(--text-muted)]">{sub}</p>}
     </div>
   );
@@ -230,17 +230,16 @@ export function CompanyDetailPage() {
 
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
-        <div className="flex items-center gap-3.5 min-w-0">
-          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--indigo-subtle)] border border-[rgba(47, 63, 156,0.18)] flex-shrink-0">
-            <Building2 className="h-5 w-5 text-[var(--indigo)]" />
-          </span>
+        <div className="flex flex-1 items-center gap-3.5 min-w-0">
+          {/* The account's monogram, in the same tones as the people in it. */}
+          <Avatar name={company.name} size="xl" className="!rounded-xl" />
           <div className="min-w-0">
             <InlineEdit
               value={company.name}
               placeholder="Unnamed company"
               ariaLabel="company name"
-              textClassName="text-title font-semibold text-[var(--text-primary)]"
-              inputClassName="text-title font-semibold"
+              textClassName="page-title"
+              inputClassName="page-title"
               onSave={(next) => save({ name: next })}
             />
             <p className="text-body text-[var(--text-secondary)] truncate">
@@ -264,7 +263,7 @@ export function CompanyDetailPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="fact-strip grid-cols-2 lg:grid-cols-4">
         <Stat label="People" value={String(contacts.length)} sub={contacts.length === 1 ? 'contact' : 'contacts'} />
         <Stat label="Open pipeline" value={money(open.reduce((s: number, d: any) => s + (Number(d.value) || 0), 0))} sub={`${open.length} open`} />
         <Stat label="Won" value={money(won.reduce((s: number, d: any) => s + (Number(d.value) || 0), 0))} sub={`${won.length} closed`} />
@@ -273,8 +272,8 @@ export function CompanyDetailPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Left rail */}
-        <div className="space-y-3">
-          <div className="card p-4">
+        <div>
+          <div className="record-section">
             <h2 className="text-caption font-bold text-[var(--text-tertiary)] mb-3">Company info</h2>
             <div className="space-y-2.5">
               <InfoRow icon={Globe} label="Domain" value={company.domain} onSave={field('domain')} href={website} />
@@ -301,7 +300,7 @@ export function CompanyDetailPage() {
             </div>
           </div>
 
-          <div className="card p-4">
+          <div className="record-section">
             <h2 className="text-caption font-bold text-[var(--text-tertiary)] mb-2">Notes</h2>
             <InlineEdit
               value={company.notes}

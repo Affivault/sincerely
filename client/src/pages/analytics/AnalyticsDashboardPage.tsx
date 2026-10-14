@@ -466,9 +466,9 @@ function DeliverabilitySection({
   const suppressionTotal = (deliverability?.suppression_by_reason || []).reduce((s, r) => s + r.value, 0);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-0 lg:divide-x lg:divide-[var(--border-subtle)] [&>*]:lg:px-6 [&>*:first-child]:lg:pl-0 [&>*:last-child]:lg:pr-0">
       {/* DCS Gauge */}
-      <div className="flex flex-col items-center gap-4 p-5 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)]">
+      <div className="flex flex-col items-center gap-4">
         <svg width="88" height="88" viewBox="0 0 88 88">
           <circle cx="44" cy="44" r="36" fill="none" stroke="var(--border-subtle)" strokeWidth="9" />
           <circle
@@ -511,7 +511,7 @@ function DeliverabilitySection({
       </div>
 
       {/* DCS Distribution */}
-      <div className="p-5 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)]">
+      <div className="min-w-0">
         <h4 className="text-body font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-1.5">
           <TrendingUp className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
           DCS Distribution
@@ -540,7 +540,7 @@ function DeliverabilitySection({
       </div>
 
       {/* Suppression breakdown */}
-      <div className="p-5 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)]">
+      <div className="min-w-0">
         <h4 className="text-body font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-1.5">
           <ShieldOff className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
           Suppression breakdown
@@ -958,21 +958,7 @@ export function AnalyticsDashboardPage() {
         decorate
         icon={BarChart3}
         title="Analytics"
-        description="Deep performance intelligence across every campaign, contact, and sequence step."
-        meta={
-          <>
-            <Calendar className="h-3 w-3" />
-            <span className="tabular">Last {days} days</span>
-            {overview && (
-              <>
-                <span className="sep-dot" />
-                <span className="tabular">{fmtNum(overview.total_sent)} sent</span>
-                <span className="sep-dot" />
-                <span className="tabular">{fmtPct(overview.avg_open_rate)} open · {fmtPct(overview.avg_reply_rate)} reply</span>
-              </>
-            )}
-          </>
-        }
+        description="How your campaigns are landing: sends, opens, replies and deliverability."
         actions={
           <>
             <div className="inline-flex items-center rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-0.5">
@@ -1038,64 +1024,25 @@ export function AnalyticsDashboardPage() {
       {/* ── OVERVIEW MODE ────────────────────────────────────────────────── */}
       {mode === 'overview' && (
         <>
-          {/* Editorial hero — headline-number moment */}
+          {/* The four figures, as one ledger. A hero card repeating the
+              first of them sat above this row; the chart below carries the
+              trend it was decorating. */}
           {overview && (
-            <section className="panel relative overflow-hidden">
-              <div className="absolute inset-y-0 right-0 w-[62%] opacity-[0.5] pointer-events-none" aria-hidden>
-                {formattedTrend.length > 1 && (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={formattedTrend} margin={{ top: 20, right: 0, left: 0, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="ana-hero" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#3B4AA3" stopOpacity={0.22} />
-                          <stop offset="100%" stopColor="#3B4AA3" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <Area type="monotone" dataKey="sent" stroke="#3B4AA3" strokeWidth={2} fill="url(#ana-hero)" dot={false} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
-              <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(90deg, var(--bg-surface) 30%, transparent 78%)' }} aria-hidden />
-              <div className="relative px-6 py-6">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="eyebrow">Emails sent</span>
-                  <span className="text-micro text-[var(--text-muted)]">last {days} days</span>
-                </div>
-                <div className="flex items-end gap-3 flex-wrap">
-                  <span className="text-[clamp(40px,6vw,60px)] font-semibold text-[var(--text-primary)] tabular-nums leading-[0.95] tracking-[-0.04em]">
-                    <CountUp value={overview.total_sent} format={fmtNum} />
-                  </span>
-                  <div className="mb-2.5"><ChangeChip change={overview.sent_change} /></div>
-                </div>
-                <p className="mt-2.5 text-strong text-[var(--text-secondary)]">
-                  <span className="font-semibold text-[var(--text-primary)]">{fmtNum(overview.total_opened)}</span> opens
-                  <span className="mx-2 text-[var(--border-strong)]">·</span>
-                  <span className="font-semibold text-[var(--text-primary)]">{fmtNum(overview.total_clicked)}</span> clicks
-                  <span className="mx-2 text-[var(--border-strong)]">·</span>
-                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">{fmtNum(overview.total_replied)}</span> replies
-                </p>
-              </div>
-            </section>
-          )}
-
-          {/* KPI row */}
-          {overview && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <StatCard label="Emails sent" value={fmtNum(overview.total_sent)} icon={Send} accent="indigo"
+            <div className="fact-strip grid-cols-2 sm:grid-cols-4">
+              <StatCard inStrip label="Emails sent" value={fmtNum(overview.total_sent)} icon={Send} accent="indigo"
                 delta={overview.sent_change ?? undefined} sparkline={trendSpark('sent')} hint={`${fmtNum(overview.total_sent)} total`} />
-              <StatCard label="Open rate" value={fmtPct(overview.avg_open_rate)} icon={Mail} accent="violet"
+              <StatCard inStrip label="Open rate" value={fmtPct(overview.avg_open_rate)} icon={Mail} accent="violet"
                 delta={overview.opened_change ?? undefined} sparkline={trendSpark('opened')} hint={`${fmtNum(overview.total_opened)} opens`} />
-              <StatCard label="Click rate" value={fmtPct(overview.avg_click_rate)} icon={MousePointerClick} accent="cyan"
+              <StatCard inStrip label="Click rate" value={fmtPct(overview.avg_click_rate)} icon={MousePointerClick} accent="cyan"
                 delta={overview.clicked_change ?? undefined} sparkline={trendSpark('clicked')} hint={`${fmtNum(overview.total_clicked)} clicks`} />
-              <StatCard label="Reply rate" value={fmtPct(overview.avg_reply_rate)} icon={MessageSquare} accent="emerald"
+              <StatCard inStrip label="Reply rate" value={fmtPct(overview.avg_reply_rate)} icon={MessageSquare} accent="emerald"
                 delta={overview.replied_change ?? undefined} sparkline={trendSpark('replied')} hint={`${fmtNum(overview.total_replied)} replies`} />
             </div>
           )}
 
           {/* Trend + Donut */}
-          <div className="grid grid-cols-3 gap-3">
-            <div className="col-span-2 p-5 panel">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+            <div className="lg:col-span-2 p-5 panel min-w-0">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-strong font-semibold text-[var(--text-primary)]">Performance over time</h3>
@@ -1194,12 +1141,9 @@ export function AnalyticsDashboardPage() {
             <div className="px-5 py-3.5 border-b border-[var(--border-subtle)] flex items-center justify-between">
               <div>
                 <h3 className="text-strong font-semibold text-[var(--text-primary)] flex items-center gap-2">
-                  <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[var(--indigo-subtle)]">
-                    <Activity className="h-3 w-3 text-[var(--indigo)]" />
-                  </span>
                   Deliverability health
                 </h3>
-                <p className="text-caption text-[var(--text-secondary)] mt-0.5">DCS scores, contact quality and suppression breakdown</p>
+                <p className="text-caption text-[var(--text-secondary)] mt-0.5">How sendable your contacts are, and who can no longer be emailed.</p>
               </div>
             </div>
             <div className="p-5">

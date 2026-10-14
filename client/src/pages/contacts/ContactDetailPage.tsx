@@ -259,15 +259,18 @@ export function ContactDetailPage() {
 
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex items-center gap-3.5 min-w-0">
+        {/* flex-1: the name gets the free width in the row, not just what
+            is left after the buttons - it was truncating to "Maud Grevst..."
+            with half the header empty. */}
+        <div className="flex flex-1 items-center gap-3.5 min-w-0">
           <Avatar name={fullName || contact.email} email={contact.email} size="xl" />
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <InlineEdit
               value={fullName}
               placeholder={contact.email}
               ariaLabel="name"
-              textClassName="text-title font-semibold text-[var(--text-primary)]"
-              inputClassName="text-title font-semibold"
+              textClassName="page-title"
+              inputClassName="page-title"
               onSave={(next) => {
                 // First token is the given name, the remainder the surname, so
                 // "van der Berg" stays in one piece.
@@ -362,7 +365,7 @@ export function ContactDetailPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Contact Info */}
-        <div className="space-y-3">
+        <div>
           {/*
             Where this person stands, and whether you may pitch them.
 
@@ -371,7 +374,7 @@ export function ContactDetailPage() {
             campaign could reach somebody was not stated anywhere at all -
             you found out by enrolling them and reading the skips.
           */}
-          <div className="card p-4">
+          <div className="record-section">
             <div className="flex items-center justify-between gap-2 mb-2.5">
               <h2 className="text-caption font-bold text-[var(--text-tertiary)]">Stage</h2>
               <span
@@ -407,7 +410,7 @@ export function ContactDetailPage() {
             </div>
           </div>
 
-          <div className="card p-4">
+          <div className="record-section">
             <h2 className="text-caption font-bold text-[var(--text-tertiary)] mb-3">Contact info</h2>
             <div className="space-y-2.5">
               {/* Every field renders whether or not it's filled — you can't type
@@ -460,7 +463,7 @@ export function ContactDetailPage() {
           </div>
 
           {/* Lists Section */}
-          <div className="card p-4">
+          <div className="record-section">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-caption font-bold text-[var(--text-tertiary)]">Lists</h2>
               <div className="relative">
@@ -555,7 +558,7 @@ export function ContactDetailPage() {
           </div>
 
           {/* Deals — this lead's CRM pipeline */}
-          <div className="card p-4">
+          <div className="record-section">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-caption font-bold text-[var(--text-tertiary)]">Deals</h2>
               <div className="flex items-center gap-1">

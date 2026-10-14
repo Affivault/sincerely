@@ -54,21 +54,20 @@ export function SignupPage() {
   };
 
   const steps = [
-    { n: '01', t: 'Connect your mailbox', d: 'SMTP or Google in two clicks' },
-    { n: '02', t: 'Import your leads', d: 'CSV upload with smart mapping' },
-    { n: '03', t: 'Launch & watch replies', d: 'AI sorts every response by intent' },
+    { n: '1', t: 'Connect your mailbox', d: 'Google, Microsoft or any SMTP server' },
+    { n: '2', t: 'Bring your leads', d: 'Upload a CSV - the columns are matched for you' },
+    { n: '3', t: 'Launch, then read the replies', d: 'Relay sorts each one by what the person wants' },
   ];
 
   const brand = (
     <>
-      <p className="md-auth__eyebrow">Free to start</p>
       <h1 className="md-auth__headline">
-        Start closing deals<br />
-        <em>on autopilot</em>.
+        Your first campaign,<br />
+        this afternoon.
       </h1>
       <p className="md-auth__lede">
-        Launch your first campaign in minutes and watch the replies roll in.
-        No credit card required.
+        Three steps from an empty account to replies arriving. Free to start,
+        no credit card.
       </p>
       <ol className="md-auth__steps">
         {steps.map((s) => (
@@ -84,21 +83,9 @@ export function SignupPage() {
     </>
   );
 
-  const brandFooter = (
-    <div className="md-auth__quote">
-      <p>"We onboarded our entire SDR team in a single afternoon. The templates and AI suggestions made it effortless to get started."</p>
-      <div className="md-auth__quote-author">
-        <div className="md-auth__quote-av">MK</div>
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 600 }}>Marcus Kim</div>
-          <div style={{ fontSize: 11.5, color: 'rgba(246,246,247,0.45)' }}>Head of Growth, ScaleUp.io</div>
-        </div>
-      </div>
-    </div>
-  );
 
   return (
-    <AuthShell brand={brand} brandFooter={brandFooter}>
+    <AuthShell brand={brand}>
       <h1 className="md-auth__form-h1">Create your account</h1>
       <p className="md-auth__form-sub">Get started for free — no credit card required</p>
 

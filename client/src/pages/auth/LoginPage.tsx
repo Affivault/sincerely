@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
-import { AuthShell, BrandMetrics, BrandQuote, GoogleIcon } from '../../components/AuthShell';
+import { AuthShell, BrandPreview, GoogleIcon } from '../../components/AuthShell';
 import '../sincerely-landing.css';
 
 export function LoginPage() {
@@ -34,18 +34,18 @@ export function LoginPage() {
     <>
       <h1 className="md-auth__headline">
         Cold email that<br />
-        books the <em>meeting</em>.
+        books the meeting.
       </h1>
       <p className="md-auth__lede">
-        The deliverability-first outbound platform thousands of teams use to run
-        personalized campaigns at scale — with an AI co-pilot in every inbox.
+        Send from your own mailboxes, read every reply in one place, and let
+        Relay draft the answer while you decide what to say.
       </p>
-      <BrandMetrics />
+      <BrandPreview />
     </>
   );
 
   return (
-    <AuthShell brand={brand} brandFooter={<BrandQuote />}>
+    <AuthShell brand={brand}>
       <h1 className="md-auth__form-h1">Welcome back</h1>
       <p className="md-auth__form-sub">Sign in to your workspace to continue</p>
 
