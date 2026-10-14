@@ -19,6 +19,11 @@ interface StatusBadgeProps {
 }
 
 export function StatusBadge({ status, type = 'campaign' }: StatusBadgeProps) {
+  // A row from an older API, or one mid-migration, can arrive without a
+  // status. That used to throw on .charAt and take the whole page down
+  // through the error boundary; a missing badge is the honest rendering.
+  if (!status) return null;
+  const label = status.replace(/_/g, ' ');
   const tone = (type === 'campaign' ? campaignTone : contactTone)[status] || 'neutral';
   const pill = `${TONE[tone].bg} ${TONE[tone].text}`;
   const dot = TONE[tone].solid;
@@ -26,7 +31,7 @@ export function StatusBadge({ status, type = 'campaign' }: StatusBadgeProps) {
   return (
     <span className={cn('inline-flex items-center h-[18px] rounded px-1.5 text-caption font-medium leading-none whitespace-nowrap', pill)}>
       <span className={cn(DOT, dot)} />
-      {status.charAt(0).toUpperCase() + status.slice(1)}
+      {label.charAt(0).toUpperCase() + label.slice(1)}
     </span>
   );
 }

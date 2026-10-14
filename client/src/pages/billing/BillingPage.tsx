@@ -214,7 +214,7 @@ export function BillingPage() {
               key={id}
               className={cn(
                 'relative panel p-5 flex flex-col gap-5',
-                featured && 'ring-1 ring-[var(--indigo)] shadow-[0_8px_30px_-12px_rgba(47, 63, 156,0.35)]',
+                featured && 'ring-1 ring-[var(--indigo)] shadow-[0_8px_30px_-12px_rgba(47,63,156,0.35)]',
                 isCurrent && !featured && 'border-[var(--indigo)]'
               )}
             >

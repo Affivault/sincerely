@@ -237,7 +237,7 @@ export function SaraQueuePage() {
                   className={cn(
                     'inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-body font-medium border transition-all',
                     isActive
-                      ? 'bg-[rgba(47, 63, 156,0.1)] border-[rgba(47, 63, 156,0.3)] text-[var(--indigo)]'
+                      ? 'bg-[rgba(47,63,156,0.1)] border-[rgba(47,63,156,0.3)] text-[var(--indigo)]'
                       : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-default)] hover:text-[var(--text-primary)]'
                   )}
                 >

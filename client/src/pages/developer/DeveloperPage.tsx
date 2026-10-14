@@ -395,7 +395,7 @@ export function DeveloperPage() {
                             onClick={() => toggleEvent(event)}
                             className={cn(
                               'rounded border px-2.5 py-1 text-body transition-all',
-                              webhookEvents.includes(event) ? 'bg-[rgba(47, 63, 156,0.1)] border-[var(--indigo)] text-[var(--indigo)]' : 'bg-[var(--bg-elevated)] border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                              webhookEvents.includes(event) ? 'bg-[rgba(47,63,156,0.1)] border-[var(--indigo)] text-[var(--indigo)]' : 'bg-[var(--bg-elevated)] border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                             )}
                           >
                             {event}

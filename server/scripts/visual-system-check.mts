@@ -202,5 +202,25 @@ console.log('\nthe focus ring is one ring');
      'the tokens exist and nothing references them');
 }
 
+/* -- Arbitrary values ---------------------------------------------------
+
+   Tailwind reads a class up to the first space. `bg-[rgba(47, 63, 156,0.1)]`
+   is therefore three tokens, none of them a class, and it generates no CSS
+   at all - no error, no warning, just a missing tint. A colour-wide find
+   and replace once wrote 44 of these at a stroke, and every ink border,
+   selected chip and step badge they drew quietly went flat. */
+
+console.log('\nan arbitrary value is one token');
+{
+  const spaced: string[] = [];
+  for (const f of files) {
+    for (const m of code(f.text).matchAll(/\b[a-z][\w:-]*-\[[^\]\s"'`]*\([^)"'`\]]* [^)"'`\]]*\)[^\]"'`]*\]/g)) {
+      spaced.push(`${f.path}: ${m[0]}`);
+    }
+  }
+  is('no class has a space inside its brackets', spaced.length === 0,
+     spaced.slice(0, 8).join('\n         '));
+}
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 assert.equal(fail, 0, `${fail} visual system check(s) failed`);

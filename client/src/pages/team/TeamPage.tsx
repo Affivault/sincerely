@@ -30,7 +30,7 @@ import { useAuth } from '../../context/AuthContext';
 
 const ROLE_CONFIG: Record<string, { label: string; icon: any; color: string }> = {
   owner:  { label: 'Owner',  icon: Crown,  color: 'text-amber-700 dark:text-amber-400 bg-amber-500/10 border-amber-500/20' },
-  admin:  { label: 'Admin',  icon: Shield, color: 'text-[var(--indigo)] bg-[var(--indigo-subtle)] border-[rgba(47, 63, 156,0.2)]' },
+  admin:  { label: 'Admin',  icon: Shield, color: 'text-[var(--indigo)] bg-[var(--indigo-subtle)] border-[rgba(47,63,156,0.2)]' },
   member: { label: 'Member', icon: User,   color: 'text-slate-600 dark:text-slate-400 bg-slate-500/10 border-slate-500/20' },
 };
 
@@ -198,7 +198,7 @@ export function TeamPage() {
                 type="text"
                 value={editOrgName}
                 onChange={(e) => setEditOrgName(e.target.value)}
-                className="h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2.5 text-heading focus:border-[rgba(47, 63, 156,0.4)] focus:shadow-[var(--ring-focus)] outline-none"
+                className="h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2.5 text-heading focus:border-[rgba(47,63,156,0.4)] focus:shadow-[var(--ring-focus)] outline-none"
                 autoFocus
               />
               <button
@@ -255,7 +255,7 @@ export function TeamPage() {
                       <select
                         value={member.role}
                         onChange={(e) => updateRoleMut.mutate({ memberId: member.id, role: e.target.value })}
-                        className="h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2.5 text-body font-medium text-[var(--text-secondary)] focus:border-[rgba(47, 63, 156,0.4)] outline-none cursor-pointer hover:bg-[var(--bg-hover)] transition-colors"
+                        className="h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2.5 text-body font-medium text-[var(--text-secondary)] focus:border-[rgba(47,63,156,0.4)] outline-none cursor-pointer hover:bg-[var(--bg-hover)] transition-colors"
                       >
                         <option value="member">Member</option>
                         <option value="admin">Admin</option>

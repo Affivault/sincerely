@@ -427,7 +427,7 @@ export function CampaignsListPage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search…"
-                className="h-7 pl-8 pr-7 text-body rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[rgba(47, 63, 156,0.4)] focus:bg-[var(--bg-surface)] transition-colors w-40"
+                className="h-7 pl-8 pr-7 text-body rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[rgba(47,63,156,0.4)] focus:bg-[var(--bg-surface)] transition-colors w-40"
               />
               {searchQuery && (
                 <button

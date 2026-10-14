@@ -376,7 +376,7 @@ export function ProspectorPage() {
                     onClick={() => setSeniorities(on ? seniorities.filter((x) => x !== s.value) : [...seniorities, s.value])}
                     className={cn(
                       'h-6 px-2 rounded-md text-caption font-medium border transition-colors',
-                      on ? 'bg-[var(--indigo-subtle)] border-[rgba(47, 63, 156,0.3)] text-[var(--indigo)]' : 'border-[var(--border-subtle)] text-[var(--text-tertiary)] hover:border-[var(--border-default)] hover:text-[var(--text-secondary)]'
+                      on ? 'bg-[var(--indigo-subtle)] border-[rgba(47,63,156,0.3)] text-[var(--indigo)]' : 'border-[var(--border-subtle)] text-[var(--text-tertiary)] hover:border-[var(--border-default)] hover:text-[var(--text-secondary)]'
                     )}
                   >
                     {s.label}
@@ -399,7 +399,7 @@ export function ProspectorPage() {
                     onClick={() => setCompanySizes(on ? companySizes.filter((x) => x !== s) : [...companySizes, s])}
                     className={cn(
                       'h-6 px-2 rounded-md text-caption font-medium border tabular transition-colors',
-                      on ? 'bg-[var(--indigo-subtle)] border-[rgba(47, 63, 156,0.3)] text-[var(--indigo)]' : 'border-[var(--border-subtle)] text-[var(--text-tertiary)] hover:border-[var(--border-default)] hover:text-[var(--text-secondary)]'
+                      on ? 'bg-[var(--indigo-subtle)] border-[rgba(47,63,156,0.3)] text-[var(--indigo)]' : 'border-[var(--border-subtle)] text-[var(--text-tertiary)] hover:border-[var(--border-default)] hover:text-[var(--text-secondary)]'
                     )}
                   >
                     {s}

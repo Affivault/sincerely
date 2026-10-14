@@ -22,6 +22,7 @@ import { useLaunchPreflight } from '../../components/campaigns/LaunchPreflight';
 import { SequenceStepsPanel } from '../../components/analytics/SequenceStepsPanel';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { StatCard } from '../../components/shared/StatCard';
+import { Notice } from '../../components/ui/Notice';
 import { Avatar } from '../../components/shared/Avatar';
 import { formatTimeUntil, cn } from '../../lib/utils';
 import {
@@ -31,9 +32,7 @@ import {
   Square,
   Pencil,
   Trash2,
-  Send,
   Mail,
-  MousePointerClick,
   MessageSquare,
   AlertTriangle,
   ShieldAlert,
@@ -45,15 +44,6 @@ import {
   X,
   RefreshCw,
 } from 'lucide-react';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from 'recharts';
 import toast from 'react-hot-toast';
 import type { CampaignStep } from '@lemlist/shared';
 
@@ -143,15 +133,25 @@ export function CampaignDetailPage() {
     enabled: !!id && activeTab === 'contacts',
   });
 
+  /*
+   * Everything on this page that a change of state moves. Pausing used to
+   * refresh the campaign but not the health line under its name, which
+   * polls once a minute - so "Resume" left "Paused" on screen for up to a
+   * minute, under a campaign that said it was running.
+   */
+  const refreshCampaign = () => {
+    queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+    queryClient.invalidateQueries({ queryKey: ['campaign-health', id] });
+    queryClient.invalidateQueries({ queryKey: ['analytics', 'campaign', id] });
+  };
+
   // Same preflight as the list and the builder: three ways in, one gate.
-  const preflight = useLaunchPreflight({
-    onLaunched: () => queryClient.invalidateQueries({ queryKey: ['campaign', id] }),
-  });
+  const preflight = useLaunchPreflight({ onLaunched: refreshCampaign });
 
   const pauseMutation = useMutation({
     mutationFn: () => campaignsApi.pause(id!),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      refreshCampaign();
       toast.success('Campaign paused');
     },
     onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to pause campaign'),
@@ -160,7 +160,7 @@ export function CampaignDetailPage() {
   const resumeMutation = useMutation({
     mutationFn: () => campaignsApi.resume(id!),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      refreshCampaign();
       toast.success('Campaign resumed');
     },
     onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to resume campaign'),
@@ -169,7 +169,7 @@ export function CampaignDetailPage() {
   const cancelMutation = useMutation({
     mutationFn: () => campaignsApi.cancel(id!),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      refreshCampaign();
       toast.success('Campaign cancelled');
     },
     onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to cancel campaign'),
@@ -247,23 +247,19 @@ export function CampaignDetailPage() {
   if (isLoading) return <PageSkeleton variant="detail" bleed={false} />;
 
   if (!campaign) {
-    return <div className="text-center text-secondary">Campaign not found</div>;
+    return (
+      <div className="py-16 text-center">
+        <p className="text-strong font-medium text-[var(--text-primary)]">This campaign is not here any more</p>
+        <p className="mt-1 text-body text-[var(--text-tertiary)]">It may have been deleted, or the link is from another workspace.</p>
+        <button onClick={() => navigate('/campaigns')} className="btn-secondary mt-4">Back to campaigns</button>
+      </div>
+    );
   }
 
-  const chartData = analytics
-    ? [
-        { name: 'Sent', value: analytics.sent, fill: '#3B4AA3' },
-        { name: 'Opened', value: analytics.opened, fill: '#7380C7' },
-        { name: 'Clicked', value: analytics.clicked, fill: '#A5B4FC' },
-        { name: 'Replied', value: analytics.replied, fill: '#3B4AA3' },
-        { name: 'Bounced', value: analytics.bounced, fill: '#BE4A3B' },
-      ]
-    : [];
-
-  const tabs: { id: TabId; label: string }[] = [
+  const tabs: { id: TabId; label: string; count?: number }[] = [
     { id: 'overview', label: 'Overview' },
-    { id: 'sequence', label: `Sequence (${campaign.steps?.length || 0})` },
-    { id: 'contacts', label: `Contacts (${campaign.contacts_count || 0})` },
+    { id: 'sequence', label: 'Sequence', count: campaign.steps?.length || 0 },
+    { id: 'contacts', label: 'Contacts', count: campaign.contacts_count || 0 },
   ];
 
   return (
@@ -287,13 +283,12 @@ export function CampaignDetailPage() {
               <InlineEdit
                 value={campaign.name}
                 ariaLabel="Campaign name"
-                textClassName="text-title font-semibold text-[var(--text-primary)] !overflow-visible !whitespace-normal break-words"
-                inputClassName="text-title font-semibold"
+                textClassName="page-title !overflow-visible !whitespace-normal break-words"
+                inputClassName="page-title"
                 onSave={async (next) => {
                   if (!next.trim()) throw new Error('empty');
                   await campaignsApi.update(id!, { name: next.trim() } as any);
                   queryClient.invalidateQueries({ queryKey: ['campaigns'] });
-                  queryClient.invalidateQueries({ queryKey: ['campaign', id] });
                 }}
               />
             </h1>
@@ -328,10 +323,10 @@ export function CampaignDetailPage() {
               was to wait for it to send. */}
           {(campaign.status === 'running' || campaign.status === 'scheduled') && (
             <>
-              <button onClick={() => pauseMutation.mutate()} disabled={pauseMutation.isPending} className="btn-secondary text-body h-8 px-3 rounded-lg gap-1.5 disabled:opacity-50 disabled:pointer-events-none">
+              <button onClick={() => pauseMutation.mutate()} disabled={pauseMutation.isPending} className="btn-secondary disabled:opacity-50 disabled:pointer-events-none">
                 <Pause className="h-3.5 w-3.5" /> Pause
               </button>
-              <button onClick={confirmCancel} disabled={cancelMutation.isPending} className="btn-secondary text-body h-8 px-3 rounded-lg gap-1.5 hover:text-rose-500 hover:border-rose-500/30 disabled:opacity-50 disabled:pointer-events-none">
+              <button onClick={confirmCancel} disabled={cancelMutation.isPending} className="btn-secondary hover:text-rose-500 hover:border-rose-500/30 disabled:opacity-50 disabled:pointer-events-none">
                 <Square className="h-3.5 w-3.5" /> Cancel
               </button>
             </>
@@ -371,57 +366,48 @@ export function CampaignDetailPage() {
           nothing happening is the most common question this product
           generates, and the answer was already in the logs. */}
       {campaign.paused_reason && (
-        <div className="flex items-start gap-3 rounded-xl border border-[var(--error)]/30 bg-[var(--error-bg)] px-4 py-3">
-          <ShieldAlert className="h-4 w-4 flex-shrink-0 mt-0.5 text-[var(--error)]" />
-          <div className="min-w-0 flex-1">
-            <p className="text-body font-semibold text-[var(--text-primary)]">
-              Sending stopped
-            </p>
-            <p className="text-body text-[var(--text-secondary)] leading-relaxed mt-0.5">
-              {campaign.paused_reason}
-            </p>
-            <p className="text-caption text-[var(--text-tertiary)] mt-1.5">
-              Clean the list — remove or re-verify the addresses that bounced — before you resume.
-              Resuming clears this message.
-            </p>
-          </div>
-        </div>
+        <Notice tone="negative" icon={ShieldAlert} title="Sending stopped">
+          {campaign.paused_reason}
+          <span className="block mt-1 text-[var(--text-tertiary)]">
+            Clean the list - remove or re-verify the addresses that bounced - before you resume.
+            Resuming clears this message.
+          </span>
+        </Notice>
       )}
 
       {!campaign.paused_reason && campaign.stall_reason && campaign.status === 'running' && (
-        <div className="flex items-start gap-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-3 shadow-[inset_3px_0_0_theme(colors.amber.500)]">
-          <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5 text-amber-500" />
-          <div className="min-w-0 flex-1">
-            <p className="text-body font-semibold text-[var(--text-primary)]">
-              Running, but nothing is going out
-              {campaign.stall_since && (
-                <span className="font-normal text-[var(--text-tertiary)]">
-                  {' '}&mdash; since {formatDateTime(campaign.stall_since)}
-                </span>
-              )}
-            </p>
-            <p className="text-body text-[var(--text-secondary)] leading-relaxed mt-0.5">
-              {campaign.stall_reason}
-            </p>
-          </div>
-        </div>
+        <Notice
+          tone="attention"
+          icon={AlertTriangle}
+          title={<>
+            Running, but nothing is going out
+            {campaign.stall_since && (
+              <span className="font-normal text-[var(--text-tertiary)]"> - since {formatDateTime(campaign.stall_since)}</span>
+            )}
+          </>}
+        >
+          {campaign.stall_reason}
+        </Notice>
       )}
 
       {/* Tabs, right under the name: editing the sequence used to mean
           scrolling past two charts first. */}
-      <div className="inline-flex items-center gap-0.5 p-0.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)]">
+      <div role="tablist" className="flex items-center gap-1 border-b border-[var(--border-subtle)] max-w-full overflow-x-auto scrollbar-none">
         {tabs.map((tab) => (
           <button
             key={tab.id}
+            role="tab"
+            aria-selected={activeTab === tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={cn(
-              'px-3.5 h-7 rounded-md text-body font-medium transition-all',
+              'relative -mb-px flex items-center gap-1.5 h-9 px-2.5 border-b-[1.5px] text-strong font-medium whitespace-nowrap transition-colors',
               activeTab === tab.id
-                ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]'
-                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                ? 'border-[var(--text-primary)] text-[var(--text-primary)]'
+                : 'border-transparent text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
             )}
           >
             {tab.label}
+            {tab.count != null && <span className="text-caption tabular text-[var(--text-tertiary)]">{tab.count.toLocaleString()}</span>}
           </button>
         ))}
       </div>
@@ -429,6 +415,19 @@ export function CampaignDetailPage() {
       {/* Overview Tab */}
       {activeTab === 'overview' && (
         <div className="space-y-4">
+          {/* The five numbers, once. A bar chart of these same five sat
+              under them - each figure drawn a second time, with Replied
+              in Sent's colour - and said nothing the row did not. */}
+          {analytics && analytics.sent > 0 && (
+            <div className="fact-strip grid-cols-2 sm:grid-cols-5" data-campaign-metrics>
+              <StatCard inStrip label="Sent" value={analytics.sent.toLocaleString()} />
+              <StatCard inStrip label="Opened" value={analytics.opened.toLocaleString()} hint={`${analytics.open_rate}% open rate`} />
+              <StatCard inStrip label="Clicked" value={analytics.clicked.toLocaleString()} hint={`${analytics.click_rate}% click rate`} />
+              <StatCard inStrip label="Replied" value={analytics.replied.toLocaleString()} hint={`${analytics.reply_rate}% reply rate`} />
+              <StatCard inStrip className="col-span-2 sm:col-span-1" label="Bounced" value={analytics.bounced.toLocaleString()} hint={`${analytics.bounce_rate}% bounce rate`} />
+            </div>
+          )}
+
           {/* Before launch, and while it runs: when it will finish and what it should return. */}
           {['draft', 'scheduled', 'running', 'paused'].includes(campaign.status) && (
             <ForecastPanel campaignId={id!} title={campaign.status === 'draft' ? 'If you launch now' : 'What happens next'} />
@@ -437,63 +436,30 @@ export function CampaignDetailPage() {
 
           {/* Relay testing and keeping what gets more replies. */}
           {id && <ImproveCard campaignId={id} />}
-          {analytics && (
-            <>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-                <StatCard icon={Send} label="Sent" value={analytics.sent} accent="indigo" />
-                <StatCard icon={Mail} label="Opened" value={analytics.opened} hint={`${analytics.open_rate}% open rate`} accent="violet" />
-                <StatCard icon={MousePointerClick} label="Clicked" value={analytics.clicked} hint={`${analytics.click_rate}% click rate`} accent="cyan" />
-                <StatCard icon={MessageSquare} label="Replied" value={analytics.replied} hint={`${analytics.reply_rate}% reply rate`} accent="emerald" />
-                <StatCard icon={AlertTriangle} label="Bounced" value={analytics.bounced} hint={`${analytics.bounce_rate}% bounce rate`} accent="rose" />
-              </div>
-
-              {chartData.some((d) => d.value > 0) && (
-                <div className="panel p-4">
-                  <h3 className="mb-4 text-strong font-semibold text-[var(--text-primary)] tracking-[-0.01em]">Performance</h3>
-                  <div className="h-56">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={chartData}>
-                        <CartesianGrid strokeDasharray="2 6" stroke="var(--border-subtle)" vertical={false} />
-                        <XAxis dataKey="name" tick={{ fill: 'var(--text-tertiary)', fontSize: 11 }} axisLine={false} tickLine={false} dy={4} />
-                        <YAxis tick={{ fill: 'var(--text-tertiary)', fontSize: 11 }} axisLine={false} tickLine={false} width={36} />
-                        <Tooltip
-                          contentStyle={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: '10px', color: 'var(--text-primary)', fontSize: '12px', boxShadow: 'var(--shadow-lg)' }}
-                          cursor={{ fill: 'var(--bg-hover)' }}
-                        />
-                        <Bar dataKey="value" radius={[5, 5, 0, 0]} maxBarSize={64} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-
           <ContactProgressCard campaign={campaign} />
 
-          <div className="panel overflow-hidden">
-            <div className="px-5 py-3.5 border-b border-[var(--border-subtle)]">
-              <h3 className="text-strong font-semibold text-[var(--text-primary)] tracking-[-0.005em]">Campaign settings</h3>
-            </div>
-            <dl className="divide-y divide-[var(--border-subtle)]">
+          {/* How it sends, as a record rather than a nine-row table. */}
+          <section>
+            <h3 className="mb-2 text-strong font-semibold text-[var(--text-primary)]">How it sends</h3>
+            <dl className="fact-strip grid-cols-1 sm:grid-cols-3">
               {[
                 { label: 'Timezone', value: campaign.timezone },
-                { label: 'Send Window', value: `${campaign.send_window_start || '—'} – ${campaign.send_window_end || '—'}` },
-                { label: 'Send Days', value: campaign.send_days?.join(', ') || 'Weekdays' },
-                { label: 'Total Contacts', value: String(campaign.contacts_count || campaign.total_contacts || 0) },
-                { label: 'Daily Limit', value: String(campaign.daily_limit || 'Unlimited') },
-                { label: 'Delay Between Emails', value: `${campaign.delay_between_emails_min ?? campaign.delay_between_emails ?? 50}s – ${campaign.delay_between_emails_max ?? campaign.delay_between_emails ?? 200}s` },
-                { label: 'Stop on Reply', value: campaign.stop_on_reply !== false ? 'Yes' : 'No' },
+                { label: 'Send window', value: `${campaign.send_window_start || '—'} – ${campaign.send_window_end || '—'}` },
+                { label: 'Send days', value: campaign.send_days?.map((d: string) => d.charAt(0).toUpperCase() + d.slice(1)).join(', ') || 'Weekdays' },
+                { label: 'Contacts', value: String(campaign.contacts_count || campaign.total_contacts || 0) },
+                { label: 'Daily limit', value: String(campaign.daily_limit || 'Unlimited') },
+                { label: 'Gap between emails', value: `${campaign.delay_between_emails_min ?? campaign.delay_between_emails ?? 50}s – ${campaign.delay_between_emails_max ?? campaign.delay_between_emails ?? 200}s` },
+                { label: 'Stops on reply', value: campaign.stop_on_reply !== false ? 'Yes' : 'No' },
                 { label: 'Tracking', value: [campaign.track_opens !== false && 'Opens', campaign.track_clicks !== false && 'Clicks'].filter(Boolean).join(', ') || 'None' },
-                { label: 'Unsubscribe Link', value: campaign.include_unsubscribe ? 'Included' : 'Not included' },
+                { label: 'Unsubscribe link', value: campaign.include_unsubscribe ? 'Included' : 'Not included' },
               ].map(({ label, value }) => (
-                <div key={label} className="flex items-center justify-between px-5 py-3">
-                  <dt className="text-body text-[var(--text-secondary)]">{label}</dt>
-                  <dd className="text-body font-medium text-[var(--text-primary)] text-right">{value}</dd>
+                <div key={label} className="px-4 py-3 min-w-0">
+                  <dt className="text-caption text-[var(--text-tertiary)]">{label}</dt>
+                  <dd className="mt-0.5 text-body font-medium text-[var(--text-primary)] truncate" title={value}>{value}</dd>
                 </div>
               ))}
             </dl>
-          </div>
+          </section>
         </div>
       )}
 
@@ -601,7 +567,7 @@ export function CampaignDetailPage() {
                 <button
                   onClick={() => retryErrorsMutation.mutate()}
                   disabled={retryErrorsMutation.isPending}
-                  className="ml-auto flex items-center gap-1.5 h-8 px-3 rounded-lg border border-amber-300 bg-amber-50 text-amber-700 text-body font-medium hover:bg-amber-100 disabled:opacity-50 transition-colors dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-400 dark:hover:bg-amber-950/60"
+                  className="btn-secondary ml-auto disabled:opacity-50"
                 >
                   <RefreshCw className={`h-3.5 w-3.5 ${retryErrorsMutation.isPending ? 'animate-spin' : ''}`} />
                   Retry {campaignContacts.data.filter((cc: any) => cc.status === 'error').length} errored
@@ -774,8 +740,9 @@ function ContactProgressCard({ campaign }: { campaign: any }) {
       </div>
 
       {/* Legend */}
+      {/* Only what is there: "Error 0" and "Suppressed 0" are noise. */}
       <div className="flex flex-wrap gap-x-5 gap-y-2">
-        {segments.map((seg) => (
+        {segments.filter((seg) => seg.count > 0).map((seg) => (
           <div key={seg.label} className="flex items-center gap-1.5">
             <span className={`inline-block h-2.5 w-2.5 rounded-full ${seg.color}`} />
             <span className="text-body text-secondary">{seg.label}</span>
@@ -803,7 +770,7 @@ function formatDelay(days: number, hours: number, minutes: number): string {
 }
 
 const STEP_CFG: Record<string, { accent: string; iconColor: string; iconBg: string }> = {
-  email:       { accent: 'bg-[var(--indigo)]',   iconColor: 'text-[var(--indigo)]',   iconBg: 'bg-[rgba(47, 63, 156,0.1)]'  },
+  email:       { accent: 'bg-[var(--indigo)]',   iconColor: 'text-[var(--indigo)]',   iconBg: 'bg-[rgba(47,63,156,0.1)]'  },
   delay:       { accent: 'bg-amber-500',    iconColor: 'text-amber-500',   iconBg: 'bg-amber-500/10'            },
   condition:   { accent: 'bg-blue-500',     iconColor: 'text-blue-500',    iconBg: 'bg-blue-500/10'             },
   webhook_wait:{ accent: 'bg-emerald-500',  iconColor: 'text-emerald-500', iconBg: 'bg-emerald-500/10'          },
@@ -841,7 +808,7 @@ function SequenceStepCard({ step, index, ab, onEditWording }: {
                     'inline-flex shrink-0 items-center px-1.5 h-[18px] rounded text-micro font-semibold',
                     ab?.tone === 'ready'
                       ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                      : 'bg-[rgba(47, 63, 156,0.08)] text-[var(--indigo)]',
+                      : 'bg-[rgba(47,63,156,0.08)] text-[var(--indigo)]',
                   )}
                   data-ab-chip
                 >

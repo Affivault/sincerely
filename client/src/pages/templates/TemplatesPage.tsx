@@ -517,7 +517,7 @@ function SequenceEditorModal({
                   onClick={() => setActiveStep(idx)}
                   className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left text-body transition-colors ${
                     activeStep === idx
-                      ? 'bg-[rgba(47, 63, 156,0.08)] text-[var(--indigo)] font-medium'
+                      ? 'bg-[rgba(47,63,156,0.08)] text-[var(--indigo)] font-medium'
                       : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
                   }`}
                 >
