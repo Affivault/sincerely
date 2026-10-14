@@ -210,7 +210,7 @@ export function WarmupPanel({ onAddMailbox }: { onAddMailbox?: () => void }) {
         */}
       {data.total_warming > 0 && data.pool_quality !== 'mixed' && (
         <div
-          className="mb-3 rounded-xl border border-amber-500/25 bg-amber-500/[0.06] px-4 py-3"
+          className="mb-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-3 shadow-[inset_3px_0_0_theme(colors.amber.500)]"
           data-pool-quality={data.pool_quality}
         >
           <p className="text-body font-medium text-[var(--text-primary)]">

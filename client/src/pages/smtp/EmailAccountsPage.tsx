@@ -383,7 +383,7 @@ export function EmailAccountsPage() {
       {/* Fetch failures render the same "connect your first mailbox"/"add a domain" empty
           states as a genuinely empty account below — surface the real cause instead. */}
       {(accountsError || domainsError) && (
-        <div className="w-full mb-4 flex items-center gap-2.5 rounded-xl border border-red-500/25 bg-red-500/5 px-4 py-2.5">
+        <div className="w-full mb-4 flex items-center gap-2.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-2.5 shadow-[inset_3px_0_0_theme(colors.red.500)]">
           <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400 flex-shrink-0" />
           <span className="text-body text-[var(--text-secondary)] flex-1">
             Couldn't load your {accountsError && domainsError ? 'mailboxes or domains' : accountsError ? 'mailboxes' : 'domains'} — this isn't necessarily empty, something went wrong fetching it.
@@ -405,7 +405,7 @@ export function EmailAccountsPage() {
       {setupComplete && unauthedMailboxes > 0 && (
         <button
           onClick={() => setTab('domains')}
-          className="w-full mb-4 flex items-center gap-2.5 rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-2.5 text-left hover:bg-amber-500/10 transition-colors"
+          className="w-full mb-4 flex items-center gap-2.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-2.5 text-left hover:bg-[var(--bg-hover)] transition-colors shadow-[inset_3px_0_0_theme(colors.amber.500)]"
         >
           <ShieldAlert className="h-4 w-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
           <span className="text-body text-[var(--text-secondary)]">

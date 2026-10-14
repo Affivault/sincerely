@@ -764,20 +764,19 @@ function CampaignRow({ campaign, revenue, expanded, onToggleSnapshot, onOpen, on
           r.isRate ? 'text-strong' : 'text-body text-[var(--text-tertiary)]',
           r.isRate && (warn ? 'font-semibold text-rose-500' : strong ? 'font-semibold text-[var(--text-primary)]' : 'font-medium text-[var(--text-secondary)]'),
         )} data-rate-cell>{r.label}</span>
-        {/* No bar below the sample: a short bar reads as "doing badly"
-            where the truth is "we do not know yet". */}
-        {width != null && (
-          <div className="mt-1 h-[3px] rounded-full bg-[var(--bg-elevated)] overflow-hidden ml-auto">
+        {/* One bar, under the reply rate only - the figure the row is
+            judged by. A bar under every rate turned five numbers into
+            five charts and made none of them easier to read. No bar below
+            the sample either: a short bar reads as "doing badly" where
+            the truth is "we do not know yet". */}
+        {width != null && (strong ? (
+          <div className="mt-1 h-[2px] rounded-full bg-[var(--bg-elevated)] overflow-hidden ml-auto">
             <div
               className="h-full rounded-full transition-all duration-500 ml-auto"
-              style={{
-                width: `${width}%`,
-                background: warn ? '#B54B53' : 'var(--indigo)',
-                opacity: strong ? 1 : 0.55,
-              }}
+              style={{ width: `${width}%`, background: 'var(--indigo)' }}
             />
           </div>
-        )}
+        ) : null)}
       </div>
     );
   };
@@ -810,7 +809,7 @@ function CampaignRow({ campaign, revenue, expanded, onToggleSnapshot, onOpen, on
         </div>
       </div>
 
-      {/* Metrics — rates carry micro-bars so the column scans like a chart */}
+      {/* Metrics */}
       {metric(total ? total.toLocaleString() : '—', true)}
       {rateCell(openR, 60)}
       {rateCell(clickR, 15)}
@@ -849,12 +848,19 @@ function CampaignRow({ campaign, revenue, expanded, onToggleSnapshot, onOpen, on
         </div>
       </div>
 
-      {/* Actions */}
-      <div className="flex items-center justify-end gap-0.5" onClick={(e) => e.stopPropagation()}>
+      {/* Actions - there when the row is pointed at or focused, so twenty
+          rows are not twenty rows of icons. On a touch screen, always. */}
+      <div
+        className={cn(
+          'flex items-center justify-end gap-0.5 transition-opacity [@media(hover:hover)]:focus-within:opacity-100',
+          !expanded && '[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100',
+        )}
+        onClick={(e) => e.stopPropagation()}
+      >
         <button
           onClick={onToggleSnapshot}
           title={expanded ? 'Hide snapshot' : 'Show snapshot'}
-          className={cn('icon-btn transition-transform', expanded ? '!text-[var(--indigo)] !bg-[var(--indigo-subtle)] rotate-180' : '')}
+          className={cn('icon-btn transition-transform', expanded ? '!text-[var(--text-primary)] !bg-[var(--bg-active)] rotate-180' : '')}
         >
           <ChevronDown className="h-3.5 w-3.5" />
         </button>
@@ -867,7 +873,7 @@ function CampaignRow({ campaign, revenue, expanded, onToggleSnapshot, onOpen, on
         {campaign.status === 'paused' && (
           <button onClick={onResume} disabled={resumeBusy} title="Resume" className="icon-btn !text-[var(--indigo)] hover:!bg-[var(--indigo-subtle)] disabled:opacity-50 disabled:pointer-events-none"><Play className="h-3.5 w-3.5" /></button>
         )}
-        <button onClick={onEdit} title="Edit" className="icon-btn opacity-0 group-hover:opacity-100 transition-opacity"><Pencil className="h-3.5 w-3.5" /></button>
+        <button onClick={onEdit} title="Edit" className="icon-btn"><Pencil className="h-3.5 w-3.5" /></button>
         <button onClick={(e) => { e.stopPropagation(); onContextMenu(e); }} title="More" className="icon-btn"><MoreVertical className="h-3.5 w-3.5" /></button>
       </div>
     </div>

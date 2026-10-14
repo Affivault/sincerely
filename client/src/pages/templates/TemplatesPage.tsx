@@ -330,7 +330,7 @@ function EmailEditorModal({
     <Modal isOpen={isOpen} onClose={onClose} title="Email Template Editor" size="2xl">
       {draft.offer && (
         <div
-          className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-amber-500/25 bg-amber-500/[0.07] px-3 py-2"
+          className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2 shadow-[inset_3px_0_0_theme(colors.amber.500)]"
           data-draft-offer
         >
           <History className="h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />

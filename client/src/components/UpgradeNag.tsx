@@ -202,7 +202,7 @@ export function UpgradeNag() {
 
               {/* Why the modal opened (limit hit) */}
               {reason && (
-                <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-body text-amber-700 dark:text-amber-400">
+                <div className="mt-3 flex items-start gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2 text-body text-[var(--text-primary)] shadow-[inset_3px_0_0_theme(colors.amber.500)]">
                   <Lock className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
                   <span>{reason}</span>
                 </div>

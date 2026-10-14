@@ -1005,6 +1005,7 @@ export function CampaignCreatePage() {
 
   // ── Validation ──
   const emailSteps = steps.filter((s) => s.step_type === 'email');
+  const editingEmail = editingStep !== null && steps[editingStep]?.step_type === 'email';
   const conditionSteps = steps.filter((s) => s.step_type === 'condition');
   const webhookWaitSteps = steps.filter((s) => s.step_type === 'webhook_wait');
   const sectionIssues: Record<number, string[]> = {
@@ -1624,43 +1625,34 @@ export function CampaignCreatePage() {
               {/* One way in, inside the builder: "Let Relay write the first
                   draft", or the Template button beside it. Two more cards up
                   here and a third in the sidebar said the same thing. */}
+              {/* The sequence reads as one document, centred, until a step is
+                  opened - then the editor comes in beside it. An empty
+                  "Step editor" column waiting to be used took a third of
+                  the page and squeezed the writing into the rest. */}
               <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
                 {/* Flow Canvas */}
-                <div className="lg:col-span-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden flex flex-col">
-                  <div className="px-5 py-3.5 border-b border-[var(--border-subtle)] flex items-center gap-3">
-                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--indigo-subtle)] border border-[rgba(47, 63, 156,0.18)]">
-                      <Layers className="h-3.5 w-3.5 text-[var(--indigo)]" strokeWidth={1.75} />
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-strong font-semibold text-[var(--text-primary)]">Sequence builder</h3>
-                      <p className="text-caption text-[var(--text-tertiary)] mt-0.5">Build the email flow your contacts will experience</p>
-                    </div>
-                    <div className="flex items-center gap-3 text-caption text-[var(--text-tertiary)]">
+                <div className={cn('rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden flex flex-col', editingEmail ? 'lg:col-span-3' : 'lg:col-span-5')}>
+                  <div className="px-5 h-12 border-b border-[var(--border-subtle)] flex items-center gap-3">
+                    <h3 className="flex-1 min-w-0 text-strong font-semibold text-[var(--text-primary)]">Sequence</h3>
+                    <div className="flex items-center gap-1">
                       <button
                         onClick={() => setShowWriter(true)}
-                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-[var(--indigo-subtle)] text-[var(--indigo)] font-semibold hover:bg-[var(--indigo)] hover:text-white transition-colors"
+                        className="btn-ghost h-7 px-2 text-caption"
                       >
-                        <Sparkles className="h-3 w-3" /> Write with Relay
+                        <Sparkles className="h-3.5 w-3.5 text-[var(--indigo)]" /> Write with Relay
                       </button>
                       {sequenceTemplates.length > 0 && (
                         <button
                           onClick={() => setShowTemplatePicker(true)}
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:text-[var(--indigo)] transition-colors"
+                          className="btn-ghost h-7 px-2 text-caption"
                         >
-                          <FolderOpen className="h-3 w-3" /> Template
+                          <FolderOpen className="h-3.5 w-3.5" /> From a template
                         </button>
                       )}
-                      <span className="flex items-center gap-1 font-medium">
-                        <Mail className="h-3 w-3" />
-                        {emailSteps.length}
-                      </span>
-                      <span className="flex items-center gap-1 font-medium">
-                        <Clock className="h-3 w-3" />
-                        {steps.filter((s) => s.step_type === 'delay').length}
-                      </span>
                     </div>
                   </div>
-                  <div className="flex-1 p-4 min-h-[420px] overflow-y-auto bg-[var(--bg-app)]/40">
+                  <div className="flex-1 px-4 py-5 sm:px-6 min-h-[420px] overflow-y-auto">
+                    <div className={cn(!editingEmail && 'max-w-3xl mx-auto')}>
                     {/* An empty sequence is where first campaigns stall - offer
                         the draft before the blank canvas. */}
                     {emailSteps.length === 0 && (
@@ -1682,12 +1674,14 @@ export function CampaignCreatePage() {
                       editingStep={editingStep}
                       campaignId={isEdit ? id : undefined}
                     />
+                    </div>
                   </div>
                 </div>
 
-                {/* Editor Panel */}
+                {/* Editor Panel - only while an email is open */}
+                {editingEmail && editingStep !== null && (
                 <div className="lg:col-span-2">
-                  {editingStep !== null && steps[editingStep]?.step_type === 'email' ? (
+                  {steps[editingStep]?.step_type === 'email' ? (
                     <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] sticky top-4 overflow-hidden">
                       <div className="px-4 py-3 border-b border-[var(--border-subtle)] flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0">
@@ -1956,18 +1950,9 @@ export function CampaignCreatePage() {
                         </div>
                       </div>
                     </div>
-                  ) : (
-                    <div className="rounded-xl border border-dashed border-[var(--border-subtle)] bg-[var(--bg-elevated)]/30 p-8 text-center sticky top-4 flex flex-col items-center justify-center min-h-[280px]">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] mb-3">
-                        <FileText className="h-5 w-5 text-[var(--text-tertiary)]" strokeWidth={1.5} />
-                      </div>
-                      <h3 className="text-strong font-semibold text-[var(--text-primary)] mb-1">Step editor</h3>
-                      <p className="text-caption text-[var(--text-tertiary)] max-w-[200px] leading-snug">
-                        Select any step in the sequence to configure its content and behaviour here.
-                      </p>
-                    </div>
-                  )}
+                  ) : null}
                 </div>
+                )}
               </div>
 
               <div className="flex justify-end">
@@ -2016,7 +2001,7 @@ export function CampaignCreatePage() {
                 ) : (
                   <div className="space-y-3">
                     {audienceDiff && (
-                      <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-caption text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                      <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2 text-caption text-[var(--text-primary)] flex items-center gap-1.5 shadow-[inset_3px_0_0_theme(colors.amber.500)]">
                         <span className="font-semibold">Unsaved audience changes:</span>
                         {audienceDiff.added > 0 && <span>+{audienceDiff.added} to add</span>}
                         {audienceDiff.added > 0 && audienceDiff.removed > 0 && <span>·</span>}

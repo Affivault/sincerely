@@ -389,7 +389,7 @@ export function CampaignDetailPage() {
       )}
 
       {!campaign.paused_reason && campaign.stall_reason && campaign.status === 'running' && (
-        <div className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3">
+        <div className="flex items-start gap-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-3 shadow-[inset_3px_0_0_theme(colors.amber.500)]">
           <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5 text-amber-500" />
           <div className="min-w-0 flex-1">
             <p className="text-body font-semibold text-[var(--text-primary)]">

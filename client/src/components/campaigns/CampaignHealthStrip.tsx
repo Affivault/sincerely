@@ -1,3 +1,4 @@
+import { TONE, type Tone } from '../ui/tone';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { campaignsApi } from '../../api/campaigns.api';
@@ -19,25 +20,10 @@ import { Activity, AlertTriangle, ArrowRight, CheckCircle2, OctagonAlert } from 
    ═══════════════════════════════════════════════════════════════════════ */
 
 const LEVEL = {
-  ok: {
-    Icon: CheckCircle2,
-    ring: 'border-emerald-500/25',
-    bg: 'bg-emerald-500/[0.06]',
-    text: 'text-emerald-600 dark:text-emerald-400',
-  },
-  attention: {
-    Icon: AlertTriangle,
-    ring: 'border-amber-500/30',
-    bg: 'bg-amber-500/[0.07]',
-    text: 'text-amber-600 dark:text-amber-400',
-  },
-  stalled: {
-    Icon: OctagonAlert,
-    ring: 'border-red-500/30',
-    bg: 'bg-red-500/[0.07]',
-    text: 'text-red-600 dark:text-red-400',
-  },
-} as const;
+  ok: { Icon: CheckCircle2, tone: 'positive' },
+  attention: { Icon: AlertTriangle, tone: 'attention' },
+  stalled: { Icon: OctagonAlert, tone: 'negative' },
+} as const satisfies Record<string, { Icon: unknown; tone: Tone }>;
 
 function IssueRow({ issue }: { issue: CampaignIssue }) {
   return (
@@ -86,11 +72,13 @@ export function CampaignHealthStrip({ campaignId, status }: { campaignId: string
   const style = LEVEL[data.level];
 
   return (
-    <div className={cn('overflow-hidden rounded-xl border', style.ring, style.bg)}>
-      <div className="flex items-start gap-2.5 px-4 py-3">
-        <style.Icon className={cn('mt-px h-4 w-4 flex-shrink-0', style.text)} />
+    // Drawn as a notice (see ui/Notice): white, the state in the rule and the icon.
+    <div className="relative overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-[var(--shadow-sm)]">
+      <span aria-hidden className={cn('absolute left-0 inset-y-0 w-[3px]', TONE[style.tone].solid)} />
+      <div className="flex items-start gap-2.5 pl-4 pr-4 py-3">
+        <style.Icon className={cn('mt-[3px] h-3.5 w-3.5 flex-shrink-0', TONE[style.tone].icon)} strokeWidth={2} />
         <div className="min-w-0 flex-1">
-          <p className={cn('text-body font-semibold leading-snug', style.text)}>{data.summary}</p>
+          <p className="text-body font-semibold leading-snug text-[var(--text-primary)]">{data.summary}</p>
 
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-[var(--text-tertiary)]">
             <span className="inline-flex items-center gap-1">
@@ -109,7 +97,7 @@ export function CampaignHealthStrip({ campaignId, status }: { campaignId: string
               </span>
             )}
             {data.errored > 0 && (
-              <span className="text-amber-600 dark:text-amber-400">
+              <span className={TONE.attention.text}>
                 <span className="font-semibold tabular-nums">{data.errored.toLocaleString()}</span> errored
               </span>
             )}
@@ -126,7 +114,7 @@ export function CampaignHealthStrip({ campaignId, status }: { campaignId: string
       </div>
 
       {data.issues.length > 0 && (
-        <ul className="bg-[var(--bg-surface)]/60">
+        <ul>
           {data.issues.map((issue) => (
             <IssueRow key={issue.id} issue={issue} />
           ))}

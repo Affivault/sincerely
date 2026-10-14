@@ -1,3 +1,4 @@
+import { Notice } from '../ui/Notice';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, XCircle, ShieldCheck, ArrowRight } from 'lucide-react';
@@ -39,16 +40,12 @@ export function StatusLine() {
 
   const Icon = lead?.tone === 'down' ? XCircle : lead ? AlertTriangle : ShieldCheck;
   return (
-    <div
-      className={cn(
-        'flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border px-4 py-2.5',
-        lead?.tone === 'down' ? 'border-rose-500/25 bg-rose-500/10'
-          : lead ? 'border-amber-500/25 bg-amber-500/8'
-            : 'border-[var(--border-subtle)] bg-[var(--bg-surface)]',
-      )}
+    <Notice
+      tone={lead?.tone === 'down' ? 'negative' : lead ? 'attention' : 'positive'}
+      icon={Icon}
       data-status-line={lead?.tone || 'calm'}
     >
-      <Icon className={cn('h-4 w-4 flex-shrink-0', lead?.tone === 'down' ? 'text-rose-500' : lead ? 'text-amber-500' : 'text-emerald-500')} />
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
       {lead && (
         <Link to={lead.to} className="group inline-flex min-w-0 flex-1 items-center gap-1.5 text-body text-[var(--text-primary)] hover:underline">
           <span className="truncate">{lead.text}</span>
@@ -61,9 +58,10 @@ export function StatusLine() {
           className={cn('min-w-0 truncate text-caption text-[var(--text-secondary)] hover:text-[var(--text-primary)]', !lead && 'flex-1 text-body')}
           data-autopilot-note
         >
-          <span className="font-semibold text-[var(--text-primary)]">Autopilot</span> {pilot.join(' · ')}{lead ? '' : '. Your campaigns keep sending.'}
+          <span className="font-semibold text-[var(--text-primary)]">Autopilot</span> {pilot.join(', ')}{lead ? '' : '. Your campaigns keep sending.'}
         </Link>
       )}
-    </div>
+      </div>
+    </Notice>
   );
 }

@@ -309,7 +309,7 @@ export function ProspectorPage() {
       {/* Status fetch failed — the credits meter and provider banner below silently
           don't render on error, so surface it explicitly instead of looking fine. */}
       {statusError && (
-        <div className="rounded-xl border border-red-500/25 bg-red-500/5 p-4 mb-5 flex items-start gap-3">
+        <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4 mb-5 flex items-start gap-3 shadow-[inset_3px_0_0_theme(colors.red.500)]">
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-500/10 flex-shrink-0">
             <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
           </span>
@@ -323,7 +323,7 @@ export function ProspectorPage() {
 
       {/* Provider not configured */}
       {status && !providerReady && (
-        <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4 mb-5 flex items-start gap-3">
+        <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4 mb-5 flex items-start gap-3 shadow-[inset_3px_0_0_theme(colors.amber.500)]">
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/10 flex-shrink-0">
             <KeyRound className="h-4 w-4 text-amber-600 dark:text-amber-400" />
           </span>
@@ -623,7 +623,7 @@ export function ProspectorPage() {
 
           {/* Out of credits nudge */}
           {credits && credits.allowance >= 0 && credits.remaining === 0 && (
-            <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-2.5 flex-wrap">
+            <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-2.5 flex-wrap shadow-[inset_3px_0_0_theme(colors.amber.500)]">
               <span className="text-body text-[var(--text-secondary)] flex items-center gap-2">
                 <Coins className="h-3.5 w-3.5 text-amber-500" /> You're out of credits. Plan credits reset {formatDayMonth(new Date(credits.resets_at))}.
               </span>

@@ -118,7 +118,7 @@ export function MeetingBrief({ eventId }: { eventId: string }) {
           <Section icon={AlertTriangle} title="What they pushed back on">
             <ul className="space-y-1.5">
               {b.objections.map((o, i) => (
-                <li key={i} className="rounded-lg border border-amber-500/20 bg-amber-500/[0.06] px-2.5 py-1.5 text-caption text-[var(--text-secondary)]">
+                <li key={i} className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2.5 py-1.5 text-caption text-[var(--text-secondary)] shadow-[inset_3px_0_0_theme(colors.amber.500)]">
                   "{o.snippet}"
                 </li>
               ))}

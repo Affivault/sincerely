@@ -234,7 +234,7 @@ export function SegmentsPage() {
           </div>
 
           {report.compared === 0 && report.rows.length > 0 && (
-            <div className="flex items-start gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/8 px-4 py-3">
+            <div className="flex items-start gap-2.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-3 shadow-[inset_3px_0_0_theme(colors.amber.500)]">
               <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0 text-amber-500" />
               <p className="text-caption leading-relaxed text-[var(--text-secondary)]">
                 Nothing here has closed enough to compare yet. The revenue-per-contact column is still

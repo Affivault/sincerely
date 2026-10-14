@@ -567,7 +567,7 @@ export function ContactHistory({
 
       {/* ── Pinned: the standing context ── */}
       {pinned.length > 0 && (
-        <div className="rounded-xl border border-amber-500/25 bg-amber-500/[0.06] p-3 space-y-2">
+        <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-3 space-y-2 shadow-[inset_3px_0_0_theme(colors.amber.500)]">
           {pinned.map((n) => (
             <div key={n.id} className="flex items-start gap-2">
               <Pin className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />

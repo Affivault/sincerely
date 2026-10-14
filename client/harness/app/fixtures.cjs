@@ -401,7 +401,7 @@ function answer(method, path, q) {
     case '/companies': return contacts.map((c, i) => ({ ...base, id: c.company_id, name: c.company, domain: c.email.split('@')[1], industry: 'Financial services', size: '51-200', contact_count: 1 + (i % 3), deal_count: i < 8 ? 1 : 0 }));
     case '/domains': return [{ ...base, id: 'dom1', domain: 'affivault.com', is_verified: !PRE, spf_ok: !PRE, dkim_ok: !PRE, dmarc_ok: false, spf_status: 'verified', dkim_status: 'verified', dmarc_status: 'verified', status: 'verified', last_checked_at: ago(1) }];
   }
-  if (/^\/campaigns\/cmp\d+$/.test(P)) { const c = campaigns.find((x) => x.id === seg[2]); return { ...c, steps: c.status === 'draft' ? [] : steps.map((st) => ({ ...st, campaign_id: c.id })) }; }
+  if (/^\/campaigns\/cmp\d+$/.test(P)) { const c = campaigns.find((x) => x.id === seg[2]); return { ...c, steps: c.status === 'draft' && c.name !== 'APAC expansion' ? [] : steps.map((st) => ({ ...st, campaign_id: c.id, body_html: st.step_order === 1 ? '<p>Hi {{first_name}},</p><p>I run partnerships at AffiVault. We help brokers like {{company}} add a referral channel without building one.</p><p>Worth a 15-minute call next week?</p><p>Alex</p>' : st.body_html })) }; }
   if (/^\/contacts\/c\d+$/.test(P)) {
     const c = contacts.find((x) => x.id === seg[2]);
     // The contact who sent the out-of-office (index 5) is held until they are back.

@@ -266,7 +266,7 @@ function AppContent() {
       {!narrow && (
         <div
           aria-hidden
-          className="pointer-events-none fixed z-[35] rounded-[12px] border border-[var(--border-subtle)] transition-[left] duration-200 ease-out"
+          className="pointer-events-none fixed z-[35] rounded-[var(--radius-xl)] border border-[var(--border-subtle)] transition-[left] duration-200 ease-out"
           style={{
             top: FRAME_GAP, right: FRAME_GAP, bottom: FRAME_GAP, left: sidebarW,
             boxShadow: '0 0 0 100vmax var(--bg-app), 0 1px 2px rgba(0,0,0,0.03)',

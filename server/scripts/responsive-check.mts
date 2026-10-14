@@ -42,7 +42,7 @@ console.log('\nthe sidebar steps aside on a narrow screen');
   is('narrow is the lg breakpoint', /max-width: 1023\.98px/.test(ctx));
   is('the sidebar becomes a drawer, hidden until opened', /narrow && !drawerOpen && 'invisible -translate-x-full/.test(bar));
   is('and closes itself after a navigation', /setDrawerOpen\(false\); \}, \[location\.pathname/.test(bar));
-  is('the page takes the full width', /narrow \? 'pl-0'/.test(layout));
+  is('the page takes the full width', /paddingLeft: narrow \? 0 :/.test(layout));
   is('the header has a menu button', /aria-label=\{drawerOpen \? 'Close menu' : 'Open menu'\}/.test(header));
 }
 
@@ -98,8 +98,9 @@ console.log('\nsmall things');
   const cal = read('pages/crm/CalendarPage.tsx');
   is('Create lands on the form: deals, contacts, meetings',
     [deals, contacts, cal].every((s) => /searchParams\.get\('new'\) !== '1'/.test(s)));
-  const header = read('components/layout/Header.tsx');
-  is('and offers them', /'\/deals\?new=1'/.test(header) && /'\/contacts\?new=1'/.test(header) && /'\/calendar\?new=1'/.test(header));
+  // The Create menu lives in ShellMenus, held by the sidebar (and the phone top bar).
+  const create = read('components/layout/ShellMenus.tsx');
+  is('and offers them', /'\/deals\?new=1'/.test(create) && /'\/contacts\?new=1'/.test(create) && /'\/calendar\?new=1'/.test(create));
   const layout = read('components/layout/AppLayout.tsx');
   is('g f / g p / g o jump to Flow, Deals, Contacts', /f: '\/flow'/.test(layout) && /p: '\/deals'/.test(layout) && /o: '\/contacts'/.test(layout));
 }

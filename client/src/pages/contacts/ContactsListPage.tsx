@@ -343,14 +343,16 @@ function LifecycleCell({ c }: { c: any }) {
   );
 }
 
-/* LinkedIn presence — blue glyph when we have a profile URL, muted when not. */
+/* LinkedIn presence - a link when we have a profile URL, a faint mark when not. */
 function LinkedInGlyph({ url }: { url?: string | null }) {
   const has = !!url;
   const inner = (
     <span
       className={cn(
         'flex h-4 w-4 items-center justify-center rounded flex-shrink-0 transition-colors',
-        has ? 'bg-[#0A66C2] text-white' : 'bg-[var(--bg-elevated)] text-[var(--text-muted)] border border-[var(--border-subtle)]'
+        // A quiet mark that turns LinkedIn blue on hover. A solid blue
+        // tile after every name made the column a row of logos.
+        has ? 'text-[var(--text-tertiary)] hover:text-[#0A66C2]' : 'text-[var(--text-muted)] opacity-60'
       )}
       title={has ? 'Has a LinkedIn profile' : 'No LinkedIn profile on file'}
     >
