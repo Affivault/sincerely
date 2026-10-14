@@ -39,7 +39,7 @@ export function SectionBar({ section, active }: { section: Section; active: Sect
   return (
     <nav
       aria-label={section.name}
-      className="sticky z-30 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)]/85 backdrop-blur-xl"
+      className="sticky z-30 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)]"
       style={{ height: SECTION_BAR_H, top: 'var(--frame-top, 56px)' }}
     >
       <div ref={strip} className="h-full max-w-[1760px] mx-auto flex items-stretch gap-1 px-2 sm:px-4 lg:px-6 overflow-x-auto scrollbar-none">

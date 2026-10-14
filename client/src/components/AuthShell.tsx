@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react';
+import { SAMPLE_PREVIEW_CONTACT } from '@lemlist/shared';
 
 /**
  * Shared chrome for every auth screen (sign in, sign up, forgot / reset
- * password). It renders the dark "md-auth" split layout — a brand showpiece on
- * the left and the form column on the right — so the whole auth family looks
- * and flows like one product instead of four different pages.
+ * password): the product on the left, on the same paper as the app, and the
+ * form on the right - so the first screen someone sees looks like the
+ * product they are signing in to.
  *
  * Pass `brand` for the top of the left panel and `brandFooter` for the block
  * pinned to its bottom (e.g. a testimonial). `children` is the form column.
@@ -44,7 +45,7 @@ export function AuthShell({
       <aside className="md-auth__brand">
         <div className="md-auth__brand-bg" />
         <div className="md-auth__brand-inner">
-          <BrandLogo />
+          <BrandLogo light />
           {brand}
         </div>
         {brandFooter}
@@ -74,37 +75,46 @@ export function GoogleIcon() {
   );
 }
 
-/** Product metrics shown on the brand panel of sign in / password flows. */
-export function BrandMetrics() {
-  const metrics = [
-    { v: '18.4%', l: 'Avg reply rate' },
-    { v: '97%', l: 'Inbox placement' },
-    { v: '4.2M', l: 'Sent this week' },
+/**
+ * What the product looks like on a working morning - a still of the Today
+ * list, labelled as an example.
+ *
+ * This replaced a row of figures ("18.4% avg reply rate", "4.2M sent this
+ * week") and a quoted customer that nothing on the page could stand behind.
+ * A login screen is read by people who are about to use the product; showing
+ * them the product is both more honest and more persuasive.
+ */
+export function BrandPreview() {
+  // The first row is the app's one sample contact (shared, so every preview
+  // agrees); the others are described by role rather than given invented names.
+  const c = SAMPLE_PREVIEW_CONTACT;
+  const rows = [
+    { i: `${c.first_name[0]}${c.last_name[0]}`, who: `${c.first_name} ${c.last_name} at ${c.company}`, tag: 'Wants a meeting', tone: 'brand', said: 'Could we do a call Thursday or Friday afternoon?', when: '2h' },
+    { i: 'H', who: 'Head of Sales at a fintech', tag: 'Interested', tone: 'ok', said: 'What would pricing look like for a team of 12?', when: '3h' },
+    { i: 'F', who: 'Founder at a broker', tag: 'Objection', tone: 'warn', said: 'We are locked in with a provider until March.', when: '4h' },
   ];
   return (
-    <div className="md-auth__metrics">
-      {metrics.map((m) => (
-        <div key={m.l} className="md-auth__metric">
-          <div className="md-auth__metric-v">{m.v}</div>
-          <div className="md-auth__metric-l">{m.l}</div>
+    <figure className="md-auth__preview" aria-label="An example of the Today list">
+      <div className="md-auth__preview-card">
+        <div className="md-auth__preview-head">
+          <span className="md-auth__preview-title">Today</span>
+          <span className="md-auth__preview-sub">3 replies need you, most urgent first</span>
         </div>
-      ))}
-    </div>
-  );
-}
-
-/** Testimonial pinned to the bottom of the brand panel. */
-export function BrandQuote() {
-  return (
-    <div className="md-auth__quote">
-      <p>"We went from 2% to 18% reply rates in two weeks. Sincerely is the first tool that made our outbound feel effortless."</p>
-      <div className="md-auth__quote-author">
-        <div className="md-auth__quote-av">SR</div>
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 600 }}>Sarah Rodriguez</div>
-          <div style={{ fontSize: 11.5, color: 'rgba(246,246,247,0.45)' }}>VP of Sales, TechCorp</div>
-        </div>
+        {rows.map((r, n) => (
+          <div key={r.i} className={`md-auth__preview-row${n === 0 ? ' is-on' : ''}`}>
+            <span className={`md-auth__preview-av md-auth__preview-av--${n}`}>{r.i}</span>
+            <span className="md-auth__preview-body">
+              <span className="md-auth__preview-line">
+                <span className="md-auth__preview-who">{r.who}</span>
+                <span className={`md-auth__preview-tag md-auth__preview-tag--${r.tone}`}>{r.tag}</span>
+                <span className="md-auth__preview-when">{r.when}</span>
+              </span>
+              <span className="md-auth__preview-said">{r.said}</span>
+            </span>
+          </div>
+        ))}
       </div>
-    </div>
+      <figcaption className="md-auth__preview-cap">An example morning: replies sorted by Relay, a draft ready for each.</figcaption>
+    </figure>
   );
 }

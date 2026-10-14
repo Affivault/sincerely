@@ -59,7 +59,7 @@ export function WhereWeAre({ contactId, emails, activity, onBookMeeting, onNewDe
           </span>
         </div>
       )}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="fact-strip grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Fact icon={Clock} label="Last touch">
           {w.last_touch ? (
             <>
@@ -135,9 +135,9 @@ export function WhereWeAre({ contactId, emails, activity, onBookMeeting, onNewDe
 
 function Fact({ icon: Icon, label, children }: { icon: React.ElementType; label: string; children: React.ReactNode }) {
   return (
-    <div className="card px-3.5 py-3 min-w-0">
+    <div className="px-4 py-3.5 min-w-0">
       <p className="flex items-center gap-1.5 text-caption font-medium text-[var(--text-tertiary)]">
-        <Icon className="h-3.5 w-3.5" /> {label}
+        <Icon className="h-3.5 w-3.5 opacity-70" /> {label}
       </p>
       <div className="mt-1.5 min-w-0">{children}</div>
     </div>

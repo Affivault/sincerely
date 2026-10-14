@@ -7,7 +7,6 @@ import { settingsApi, type UserSettings } from '../../api/settings.api';
 import { Button } from '../../components/ui/Button';
 import { Toggle } from '../../components/ui/Toggle';
 import { PageHeader } from '../../components/shared/PageHeader';
-import { Avatar } from '../../components/shared/Avatar';
 import { cn } from '../../lib/utils';
 import toast from 'react-hot-toast';
 import { PLACEHOLDER } from '@lemlist/shared';
@@ -23,7 +22,6 @@ import {
   Globe,
   Palette,
   Save,
-  LogOut,
   CheckCircle,
   AlertCircle,
   Sun,
@@ -309,11 +307,6 @@ export function SettingsPage() {
     deleteAccountMutation.mutate(deleteConfirmation);
   };
 
-  const handleSignOut = async () => {
-    await signOut();
-    toast.success('Signed out');
-  };
-
   // Helper to handle theme change — also marks form as changed
   const handleThemeChange = (value: 'light' | 'dark' | 'system') => {
     setThemeMode(value);
@@ -335,19 +328,10 @@ export function SettingsPage() {
         icon={SettingsIcon}
         title="General"
         description="Your profile, account, notifications and AI preferences."
-        meta={user?.email ? <><Mail className="h-3 w-3" /> <span>{user.email}</span></> : undefined}
-        actions={
-          <button
-            onClick={handleSignOut}
-            className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-body font-medium text-[var(--error)] border border-[var(--border-default)] hover:bg-[var(--error-bg)] transition-colors"
-          >
-            <LogOut className="h-3.5 w-3.5" strokeWidth={1.75} /> Sign out
-          </button>
-        }
       />
 
       {/* Section tabs — horizontal; the settings categories live in the shell rail */}
-      <div className="flex items-center gap-1 p-0.5 rounded-lg bg-[var(--bg-elevated)] w-max max-w-full overflow-x-auto mb-4">
+      <div className="flex items-center gap-1 border-b border-[var(--border-subtle)] max-w-full overflow-x-auto scrollbar-none mb-6">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -356,13 +340,13 @@ export function SettingsPage() {
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                'flex items-center gap-1.5 h-7 px-3 rounded-md text-body font-medium whitespace-nowrap transition-colors',
+                'relative -mb-px flex items-center gap-1.5 h-9 px-2.5 border-b-[1.5px] text-strong font-medium whitespace-nowrap transition-colors',
                 isActive
-                  ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-sm'
-                  : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
+                  ? 'border-[var(--text-primary)] text-[var(--text-primary)]'
+                  : 'border-transparent text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
               )}
             >
-              <Icon className={cn('h-3.5 w-3.5 flex-shrink-0', isActive && 'text-[var(--indigo)]')} strokeWidth={1.75} />
+              <Icon className={cn('h-3.5 w-3.5 flex-shrink-0', isActive ? 'opacity-90' : 'opacity-60')} strokeWidth={1.75} />
               {tab.label}
             </button>
           );
@@ -371,7 +355,9 @@ export function SettingsPage() {
 
       {/* Content */}
       <div className="min-w-0">
-          <div className="card p-5">
+          {/* The form on the page, not in a box on the page; held to a
+              readable width so a name field is not 900px long. */}
+          <div className="max-w-3xl">
             {/* ═══ Profile Tab ═══ */}
             {activeTab === 'profile' && (
               <div className="space-y-4">
@@ -380,21 +366,7 @@ export function SettingsPage() {
                   <p className="text-strong text-[var(--text-secondary)] mt-1">Update your personal details</p>
                 </div>
 
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)]">
-                  <Avatar
-                    name={firstName && lastName ? `${firstName} ${lastName}` : undefined}
-                    email={user?.email}
-                    size="xl"
-                  />
-                  <div className="min-w-0">
-                    <p className="text-strong font-medium text-[var(--text-primary)]">
-                      {firstName && lastName ? `${firstName} ${lastName}` : 'Profile photo'}
-                    </p>
-                    <p className="text-body text-[var(--text-tertiary)] mt-0.5">{user?.email}</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                   <div>
                     <label className="block text-strong font-medium text-[var(--text-secondary)] mb-1.5">First name</label>
                     <input
@@ -417,7 +389,7 @@ export function SettingsPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                   <div>
                     <label className="block text-strong font-medium text-[var(--text-secondary)] mb-1.5">Company</label>
                     <input
@@ -691,7 +663,7 @@ export function SettingsPage() {
                   </p>
                 </div>
 
-                <div className="space-y-3">
+                <div>
                   <ToggleSetting
                     label="Something needs attention"
                     description="A mailbox that cannot send, replies that stopped syncing, every mailbox resting, a spam complaint, or a reply check that failed. One email when it starts, nothing more until something new happens."
@@ -794,11 +766,11 @@ export function SettingsPage() {
                 <div>
                   <h2 className="text-heading font-semibold text-[var(--text-primary)]">AI features</h2>
                   <p className="text-strong text-[var(--text-secondary)] mt-1">
-                    Configure intelligent email tagging and AI-powered reply assistance
+                    How Relay reads your replies and drafts your answers.
                   </p>
                 </div>
 
-                <div className="p-4 rounded-xl border" style={{ background: 'rgba(47, 63, 156,0.05)', borderColor: 'rgba(47, 63, 156,0.2)' }}>
+                <div className="relative overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4 shadow-[inset_3px_0_0_var(--indigo)]">
                   <div className="flex items-start gap-3">
                     <Sparkles className="h-5 w-5 text-[var(--indigo)] mt-0.5 flex-shrink-0" />
                     <div>
@@ -1026,7 +998,9 @@ function ToggleSetting({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 p-4 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] hover:border-[var(--border-default)] transition-colors">
+    // A row in a list of switches, not a box per switch: hairlines between,
+    // and the label and its explanation set as text.
+    <div className="flex items-center justify-between gap-6 py-3.5 border-b border-[var(--border-subtle)] last:border-b-0">
       <div className="min-w-0">
         <p className="text-strong font-medium text-[var(--text-primary)]">{label}</p>
         <p className="text-body text-[var(--text-tertiary)] mt-0.5 leading-snug">{description}</p>

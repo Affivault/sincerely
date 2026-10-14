@@ -203,18 +203,20 @@ export const analyticsService = {
     const reasonCounts = { unsubscribed: reasons[0], bounced: reasons[1], complained: reasons[2], manual: reasons[3] };
 
     return {
+      // The app's pigment palette (moss, ochre, brick, graphite, ink), so these
+      // charts match the status colours everywhere else.
       dcs_distribution: [
-        { label: 'High (≥80)', value: high, color: '#10B981' },
-        { label: 'Medium (50–79)', value: medium, color: '#F59E0B' },
-        { label: 'Low (<50)', value: low, color: '#EF4444' },
-        { label: 'Unscored', value: unscored, color: '#94A3B8' },
+        { label: 'High (≥80)', value: high, color: '#3F8763' },
+        { label: 'Medium (50–79)', value: medium, color: '#B88124' },
+        { label: 'Low (<50)', value: low, color: '#BE4A3B' },
+        { label: 'Unscored', value: unscored, color: '#9A9BA3' },
       ],
       bounced_contacts: bounced,
       suppression_by_reason: [
-        { label: 'Unsubscribed', value: reasonCounts.unsubscribed, color: '#6366F1' },
-        { label: 'Bounced', value: reasonCounts.bounced, color: '#EF4444' },
-        { label: 'Complained', value: reasonCounts.complained, color: '#F59E0B' },
-        { label: 'Manual', value: reasonCounts.manual, color: '#94A3B8' },
+        { label: 'Unsubscribed', value: reasonCounts.unsubscribed, color: '#3B4AA3' },
+        { label: 'Bounced', value: reasonCounts.bounced, color: '#BE4A3B' },
+        { label: 'Complained', value: reasonCounts.complained, color: '#B88124' },
+        { label: 'Manual', value: reasonCounts.manual, color: '#9A9BA3' },
       ],
     };
   },

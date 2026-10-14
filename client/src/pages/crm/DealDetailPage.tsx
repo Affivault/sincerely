@@ -225,15 +225,13 @@ export function DealDetailPage() {
 
       {/* Header */}
       <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div className="flex min-w-0 items-start gap-3">
-          <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-[var(--indigo-subtle)]">
-            <Handshake className="h-5 w-5 text-[var(--indigo)]" />
-          </span>
+        {/* No icon tile: the tab bar above already says this is the pipeline. */}
+        <div className="flex min-w-0 flex-1 items-start gap-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-title font-semibold tracking-[-0.01em] text-[var(--text-primary)]">{deal.title}</h1>
+              <h1 className="page-title">{deal.title}</h1>
               {deal.label && (
-                <span className={cn('rounded-full border px-2 py-0.5 text-micro font-semibold uppercase', LABEL_TONE[deal.label])}>
+                <span className={cn('rounded-full border px-2 py-0.5 text-micro font-semibold capitalize', LABEL_TONE[deal.label])}>
                   {deal.label}
                 </span>
               )}
@@ -374,7 +372,8 @@ export function DealDetailPage() {
           />
         </div>
 
-        <div className="space-y-4">
+        {/* The details column: plain sections split by rules, not a stack of boxes. */}
+        <div>
           {isOpen(deal.stage) && (
             <DealHealthPanel
               health={healthMap?.[deal.id]}
@@ -391,7 +390,7 @@ export function DealDetailPage() {
               }}
             />
           )}
-          <div className="panel p-3.5">
+          <div className="record-section">
             <p className="mb-1 text-caption font-medium text-[var(--text-tertiary)]">Summary</p>
             <div className="divide-y divide-[var(--border-subtle)]">
               <Field label="Value" value={money(deal.value, deal.currency)} />
@@ -453,13 +452,13 @@ export function DealDetailPage() {
           <div id="deal-people" />
           <DealPeople deal={deal} participants={participants} onEmail={(email, name) => setWriteTo({ email, name })} />
 
-          <div className="panel p-3.5">
+          <div className="record-section">
             <p className="mb-2 text-caption font-medium text-[var(--text-tertiary)]">Journey</p>
             <DealJourney deal={deal} events={history} />
           </div>
 
           {deal.notes?.trim() && (
-            <div className="panel p-3.5">
+            <div className="record-section">
               <p className="mb-1.5 text-caption font-medium text-[var(--text-tertiary)]">Deal notes</p>
               <p className="whitespace-pre-wrap text-body leading-relaxed text-[var(--text-secondary)]">{deal.notes}</p>
             </div>
