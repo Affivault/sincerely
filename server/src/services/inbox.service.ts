@@ -364,8 +364,12 @@ export const inboxService = {
     // Every message to/from a specific contact (both directions, all folders) —
     // powers the "all past emails" view on the contact page.
     if (params.contact_email) {
-      const e = params.contact_email.replace(/[%_,()]/g, '');
-      query = query.or(`from_email.eq.${e},to_email.eq.${e}`);
+      // Case-insensitive equality, as the thread lookup does: escaped
+      // wildcards and a quoted value. This used to strip "_" outright, so
+      // john_doe@x.com never matched its own mail, and was case-sensitive.
+      const pattern = params.contact_email.trim().replace(/([%_\\])/g, '\\$1');
+      const e = `"${pattern.replace(/"/g, '')}"`;
+      query = query.or(`from_email.ilike.${e},to_email.ilike.${e}`);
     }
 
     // Folder-based filtering (skipped when scoped to a contact)
@@ -522,9 +526,11 @@ export const inboxService = {
     // Step 3: Find ALL messages with this contact (both directions)
     // Case-insensitive match ("John@X.com" vs "john@x.com" are the same
     // mailbox) — ilike with escaped wildcards is equality, ignoring case.
-    // Quote the email so values containing commas/parens don't break PostgREST OR parsing
+    // Quote the email so values containing commas/parens don't break PostgREST OR parsing.
+    // A quote inside it is dropped: PostgREST does not read "" as an escaped
+    // quote, so doubling it (as this used to) broke the whole filter.
     const emailPattern = contactEmail.replace(/([%_\\])/g, '\\$1');
-    const emailQ = `"${emailPattern.replace(/"/g, '""')}"`;
+    const emailQ = `"${emailPattern.replace(/"/g, '')}"`;
     const { data, error } = await supabaseAdmin
       .from('inbox_messages')
       .select('*, contacts(first_name, last_name, email), smtp_accounts(id, email_address, label)')
@@ -677,7 +683,7 @@ export const inboxService = {
     if (!contactEmail) return inboxService.archive(userId, messageId);
     // Case-insensitive match — see markThreadRead for why.
     const emailPattern = contactEmail.replace(/([%_\\])/g, '\\$1');
-    const emailQ = `"${emailPattern.replace(/"/g, '""')}"`;
+    const emailQ = `"${emailPattern.replace(/"/g, '')}"`;
     const { data: affected } = await supabaseAdmin
       .from('inbox_messages')
       .select('id')
@@ -702,7 +708,7 @@ export const inboxService = {
     if (!contactEmail) return inboxService.unarchive(userId, messageId);
     // Case-insensitive match — see markThreadRead for why.
     const emailPattern = contactEmail.replace(/([%_\\])/g, '\\$1');
-    const emailQ = `"${emailPattern.replace(/"/g, '""')}"`;
+    const emailQ = `"${emailPattern.replace(/"/g, '')}"`;
     const { data: affected } = await supabaseAdmin
       .from('inbox_messages')
       .select('id')
@@ -728,7 +734,7 @@ export const inboxService = {
     // Case-insensitive match ("John@X.com" vs "john@x.com" are the same
     // mailbox) — ilike with escaped wildcards is equality, ignoring case.
     const pattern = contactEmail.replace(/([%_\\])/g, '\\$1');
-    const emailQ = `"${pattern.replace(/"/g, '""')}"`;
+    const emailQ = `"${pattern.replace(/"/g, '')}"`;
     const { error } = await supabaseAdmin
       .from('inbox_messages')
       .update({ is_read: true })
@@ -1053,13 +1059,20 @@ ${original.body_html || `<p>${textToHtml(original.body_text)}</p>`}`;
       throw new AppError('Message is not scheduled', 400);
     }
 
-    const { error } = await supabaseAdmin
+    // Re-checked in the delete itself: if the scheduler claimed the row
+    // ('sending') since the read above, deleting it would let the mail go out
+    // and lose its record while telling the user it was cancelled.
+    const { data: deleted, error } = await supabaseAdmin
       .from('inbox_messages')
       .delete()
       .eq('id', id)
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .in('sara_status', ['scheduled', 'failed'])
+      .select('id')
+      .maybeSingle();
 
     if (error) throw new AppError(error.message, 500);
+    if (!deleted) throw new AppError('Too late - this email is already being sent', 409);
     return { success: true };
   },
 
@@ -1069,6 +1082,9 @@ ${original.body_html || `<p>${textToHtml(original.body_text)}</p>`}`;
    */
   async rescheduleScheduledEmail(userId: string, id: string, scheduledAt: string) {
     scheduledAt = normaliseScheduledAt(scheduledAt);
+    if (new Date(scheduledAt).getTime() <= Date.now()) {
+      throw new AppError('Pick a time in the future', 400);
+    }
 
     const { data: msg } = await supabaseAdmin
       .from('inbox_messages')
@@ -1086,14 +1102,19 @@ ${original.body_html || `<p>${textToHtml(original.body_text)}</p>`}`;
       throw new AppError('Message is not scheduled', 400);
     }
 
-    const { error } = await supabaseAdmin
+    const { data: moved, error } = await supabaseAdmin
       .from('inbox_messages')
       .update({ sara_action: scheduledAt, sara_status: 'scheduled' })
       .eq('id', id)
       .eq('user_id', userId)
-      .in('sara_status', ['scheduled', 'failed']);
+      .in('sara_status', ['scheduled', 'failed'])
+      .select('id')
+      .maybeSingle();
 
     if (error) throw new AppError(error.message, 500);
+    // No row matched: the scheduler claimed it in between, and it is going
+    // out at the old time. Say so rather than reporting a move that did not happen.
+    if (!moved) throw new AppError('Too late - this email is already being sent', 409);
     return { success: true, scheduled_at: scheduledAt };
   },
 

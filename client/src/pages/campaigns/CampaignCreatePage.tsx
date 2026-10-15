@@ -372,7 +372,9 @@ export function CampaignCreatePage() {
   }, [smtpAccounts, campaignForm.smtp_account_id, senderPoolIds]);
 
   const { data: allLists } = useQuery({
-    queryKey: ['lists'],
+    // Keyed by kind: ['lists'] alone was shared with the import page, which
+    // fetches every kind, so this picker could briefly show contact lists.
+    queryKey: ['lists', 'lead'],
     // Lead lists only: a campaign audience is cold outreach by definition,
     // and the database refuses a contact list here anyway (migration 058).
     queryFn: () => listsApi.list('lead'),

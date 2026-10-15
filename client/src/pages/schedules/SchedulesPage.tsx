@@ -42,13 +42,30 @@ function timePartsInZone(date: Date, timeZone: string): { weekday: string; hhmm:
   }
 }
 
+const DAY_ORDER = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+
 function isSendingNow(schedule: SendingSchedule, now: Date): boolean {
   const parts = timePartsInZone(now, schedule.timezone);
-  if (!parts || !schedule.send_days.includes(parts.weekday)) return false;
+  if (!parts) return false;
   const { send_window_start: start, send_window_end: end } = schedule;
-  return end < start
-    ? (parts.hhmm >= start || parts.hhmm <= end) // overnight window wraps past midnight
-    : (parts.hhmm >= start && parts.hhmm <= end);
+
+  if (end < start) {
+    /*
+     * Overnight window that wraps past midnight (e.g. 22:00-06:00). The
+     * early hours (00:00-end) belong to the window opened on YESTERDAY's
+     * calendar day, so the active-day check has to look at whichever day
+     * actually opened the window, not the day the clock currently reads -
+     * mirrors the fix already applied server-side in sequence.service.ts.
+     */
+    if (parts.hhmm <= end) {
+      const yesterday = DAY_ORDER[(DAY_ORDER.indexOf(parts.weekday) + 6) % 7];
+      return schedule.send_days.includes(yesterday);
+    }
+    if (parts.hhmm >= start) return schedule.send_days.includes(parts.weekday);
+    return false;
+  }
+
+  return schedule.send_days.includes(parts.weekday) && parts.hhmm >= start && parts.hhmm <= end;
 }
 
 export function SchedulesPage() {

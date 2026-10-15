@@ -867,6 +867,32 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
     queryFn: contactsApi.getStats,
   });
 
+  /*
+   * The email finder has a working endpoint and was reachable from nowhere.
+   * Adding someone by hand is exactly when you have a name and a company
+   * site but not the address. It needs a domain: a company *name* such as
+   * "Acme Inc." cannot be turned into one, so the website is what is sent.
+   */
+  const findEmailMutation = useMutation({
+    mutationFn: () => verificationApi.findEmail({
+      domain: (form.website || '').trim(),
+      first_name: form.first_name?.trim() || undefined,
+      last_name: form.last_name?.trim() || undefined,
+    }),
+    onSuccess: (r) => {
+      if (!r.found || !r.email) {
+        toast.error('No address found for that name at that domain');
+        return;
+      }
+      setForm((f: any) => ({ ...f, email: r.email }));
+      toast.success(r.verified
+        ? `Found ${r.email} - the mail server confirmed it`
+        : `Best guess: ${r.email} (${r.confidence}% - not confirmed by the mail server)`);
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.error || 'Could not look that up'),
+  });
+  const canFindEmail = !!(form.website || '').trim() && !!((form.first_name || '').trim() || (form.last_name || '').trim());
+
   const createMutation = useMutation({
     mutationFn: (input: CreateContactInput) =>
       editId ? contactsApi.update(editId, input) : contactsApi.create(input),
@@ -2567,6 +2593,20 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
 
               <Input
                 label="Email address"
+                labelExtra={
+                  <button
+                    type="button"
+                    onClick={() => findEmailMutation.mutate()}
+                    disabled={!canFindEmail || findEmailMutation.isPending}
+                    title={canFindEmail ? 'Find their address from name and website' : 'Fill in a name and the company website first'}
+                    className="inline-flex min-h-6 items-center gap-1 rounded text-caption font-medium text-[var(--indigo-text)] hover:underline disabled:opacity-50 disabled:no-underline"
+                  >
+                    {findEmailMutation.isPending
+                      ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                      : <Sparkles className="h-3 w-3" aria-hidden />}
+                    Find email
+                  </button>
+                }
                 type="email"
                 required
                 autoFocus

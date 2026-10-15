@@ -302,10 +302,13 @@ export function probeMailbox(mxHost: string, addresses: string[]): Promise<SmtpP
       resolve({ reachable, catchAll, verdicts, reason });
     };
 
-    const sessionTimer = setTimeout(
-      () => finish(verdicts.size > 0, 'SMTP session timed out'),
-      SMTP_SESSION_TIMEOUT_MS
-    );
+    const sessionTimer = setTimeout(() => {
+      // Same gap as the idle timeout below: if the server never sent a
+      // greeting, nothing has recorded an outcome yet and the probe slot
+      // would stay taken for the life of the process.
+      if (stage === 'greeting') noteSmtpOutcome(false, 'SMTP session timed out');
+      finish(verdicts.size > 0, 'SMTP session timed out');
+    }, SMTP_SESSION_TIMEOUT_MS);
 
     /** Send the next RCPT, or finish when the queue is done. */
     const askNext = () => {
@@ -318,7 +321,16 @@ export function probeMailbox(mxHost: string, addresses: string[]): Promise<SmtpP
     };
 
     socket.setTimeout(SMTP_CONNECT_TIMEOUT_MS);
-    socket.on('timeout', () => finish(verdicts.size > 0, 'Mail server did not respond in time'));
+    socket.on('timeout', () => {
+      // Nothing was ever received: the port never answered, and unlike every
+      // later stage (which records its outcome the moment data arrives),
+      // that means noteSmtpOutcome hasn't fired yet for this attempt. Skipping
+      // it here left `probing` stuck true forever whenever this was the one
+      // allowed retest after a cooldown - silently disabling every future
+      // probe on this process.
+      if (stage === 'greeting') noteSmtpOutcome(false, 'Mail server did not respond in time');
+      finish(verdicts.size > 0, 'Mail server did not respond in time');
+    });
     socket.on('error', (err) => {
       noteSmtpOutcome(false, err.message);
       finish(false, `Could not reach the mail server: ${err.message}`);

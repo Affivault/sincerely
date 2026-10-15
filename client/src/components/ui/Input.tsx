@@ -1,14 +1,16 @@
-import { forwardRef, useId, type InputHTMLAttributes } from 'react';
+import { forwardRef, useId, type InputHTMLAttributes, type ReactNode } from 'react';
 import { cn } from '../../lib/utils';
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string;
   hint?: string;
+  /** A small action set on the label's line, e.g. "Find email". */
+  labelExtra?: ReactNode;
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ className, label, error, hint, id, ...props }, ref) => {
+  ({ className, label, error, hint, labelExtra, id, ...props }, ref) => {
     /*
      * 45 of 78 call sites passed no id, so the <label htmlFor> pointed at
      * nothing and the field had no accessible name, and the error/hint had
@@ -18,10 +20,15 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     const fid = id ?? auto;
     return (
       <div className="space-y-1">
-        {label && (
-          <label htmlFor={fid} className="block text-body font-medium text-[var(--text-secondary)]">
-            {label}
-          </label>
+        {(label || labelExtra) && (
+          <div className="flex items-center justify-between gap-2">
+            {label && (
+              <label htmlFor={fid} className="block text-body font-medium text-[var(--text-secondary)]">
+                {label}
+              </label>
+            )}
+            {labelExtra}
+          </div>
         )}
         <input
           ref={ref}

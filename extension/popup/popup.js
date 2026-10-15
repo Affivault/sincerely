@@ -200,6 +200,9 @@ const state = {
 /** Guards against an out-of-order lookup repainting a newer one's result. */
 let lookupSeq = 0;
 
+/** Guards against an out-of-order tab read repainting a newer tab's context. */
+let activeTabSeq = 0;
+
 /* ------------------------------------------------------------------ */
 /* Messaging                                                          */
 /* ------------------------------------------------------------------ */
@@ -2287,8 +2290,11 @@ async function grantSite() {
  * last person it read unless it goes and looks again.
  */
 async function loadActiveTab() {
+  const seq = ++activeTabSeq;
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   const context = await send('GET_CONTEXT', { tabId: tab?.id });
+  // A newer call started while this one was in flight; that one owns the panel.
+  if (seq !== activeTabSeq) return;
 
   if (!context.ok) {
     el.main.classList.remove('hidden');

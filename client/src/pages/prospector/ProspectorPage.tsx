@@ -485,7 +485,7 @@ export function ProspectorPage() {
               <Radar className="h-8 w-8 text-[var(--text-tertiary)] mx-auto mb-3" />
               <p className="text-heading font-semibold text-[var(--text-primary)]">Find your next customers</p>
               <p className="text-body text-[var(--text-tertiary)] mt-1 max-w-md mx-auto">
-                Filter by job title, location, industry and company size. Each verified email you reveal costs 1 credit and lands in your contact lists — ready for campaigns.
+                Filter by job title, location, industry and company size. Each verified email you reveal costs 1 credit and lands in your lead lists — ready for campaigns.
               </p>
             </div>
           ) : results.results.length === 0 ? (

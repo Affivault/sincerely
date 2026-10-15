@@ -150,6 +150,7 @@ export function useOptimisticRow<TVars>(opts: OptimisticRowOptions<TVars>) {
   const scopeKey = JSON.stringify(scope);
 
   return useMemo(() => ({
+    mutationKey: scope,
     onMutate: async (vars: TVars): Promise<Ctx> => {
       const rowId = id(vars);
       if (!rowId) return { snapshots: [] };
@@ -190,14 +191,19 @@ export function useOptimisticRow<TVars>(opts: OptimisticRowOptions<TVars>) {
 
     onSettled: () => {
       /*
-       * Reconcile, but not in the middle of a burst.
+       * Reconcile, but not in the middle of a burst - and only against this
+       * hook's own scope. An unscoped qc.isMutating() counts every mutation
+       * in the whole app, so ticking a task while a reply is being starred
+       * elsewhere in the UI would see 2 in flight and skip reconciling the
+       * task forever, waiting on an invalidation of ['crm'] that may never
+       * come from something else.
        *
        * Ticking four tasks quickly leaves four mutations in flight.
        * Invalidating on the first one to settle refetches a list the other
        * three have already changed optimistically, and they all flicker
        * back to their old values. Only the last one out reconciles.
        */
-      if (qc.isMutating() <= 1) void qc.invalidateQueries({ queryKey: scope });
+      if (qc.isMutating({ mutationKey: scope }) <= 1) void qc.invalidateQueries({ queryKey: scope });
     },
   }), [qc, scopeKey, id, patch, onError]); // eslint-disable-line react-hooks/exhaustive-deps
 }
