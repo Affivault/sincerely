@@ -1002,6 +1002,7 @@ async function handleCheckKnown(payload) {
     // One search per distinct surname rather than per person: a page of
     // results shares few surnames, and the per-key limit is 100/minute.
     const surnames = [...new Set(people.map((p) => p.last_name).filter(Boolean))].slice(0, 25);
+    const searchedSurnames = new Set(surnames);
     /** @type {object[]} */
     const pool = [];
     for (const surname of surnames) {
@@ -1031,7 +1032,13 @@ async function handleCheckKnown(payload) {
       .catch(() => ({ emails: new Set(), complete: false }));
 
     for (const person of people) {
-      const contact = await findContactForPerson(person, pool);
+      let contact = await findContactForPerson(person, pool);
+
+      // Surnames past the first 25 were never searched: look this one up on
+      // its own rather than report a possibly-suppressed person as unknown.
+      if (!contact && person.last_name && !searchedSurnames.has(person.last_name)) {
+        contact = await findContactForPerson(person, await searchContactsCached(person.last_name));
+      }
 
       if (!contact) {
         byProfile[person.linkedin_url] = {

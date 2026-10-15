@@ -142,8 +142,12 @@ export function buildTagValues(ctx: MergeContext): Record<string, string> {
       // "company" in someone's CSV must not override the real one.
       if (!(safe in values)) values[safe] = v;
     }
+    // Positional aliases fill gaps only: a real CSV column literally named
+    // "custom_field_2" was already stored above and must not be overwritten
+    // by whichever field happens to sit second.
     entries.forEach(([, value], i) => {
-      values[`custom_field_${i + 1}`] = str(value);
+      const positionalKey = `custom_field_${i + 1}`;
+      if (!(positionalKey in values)) values[positionalKey] = str(value);
     });
   }
 
@@ -304,8 +308,11 @@ export function countSpinVariants(text: string): number {
       break;
     }
     if (i < n && text[i] === '}') i++;
-    // No top-level '|' means this was never a spin group in the first place.
-    return alternatives > 1 ? total : 1;
+    // No top-level '|' means this brace pair was never a spin group itself -
+    // but its content can still hold a real nested group, whose count is
+    // already summed into `total` (always >= 1). Discarding it as a flat 1
+    // undercounts templates like "{for your {help|support}}".
+    return alternatives > 1 ? total : total || 1;
   }
 
   return parseSequence();

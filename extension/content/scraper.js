@@ -923,11 +923,32 @@
    */
   let netEmails = [];
 
+  /**
+   * The profile a captured request was for, when its URL says so: the
+   * voyager contact-info call as /profiles/{id}/, the overlay as /in/{id}/.
+   * Null for anything else, which is treated as unscoped rather than dropped.
+   *
+   * @param {string} url
+   * @returns {string|null}
+   */
+  function netTapProfileId(url) {
+    if (typeof url !== 'string') return null;
+    const match = url.match(/\/(?:in|profiles)\/([^/?#]+)/i);
+    if (!match) return null;
+    try { return decodeURIComponent(match[1]); } catch { return match[1]; }
+  }
+
   window.addEventListener('message', (event) => {
     // Same-window only, and only our own channel.
     if (event.source !== window) return;
     const data = event.data;
     if (!data || data.type !== 'SINCERELY_NET_EMAILS' || !Array.isArray(data.emails)) return;
+
+    // A slow request for profile A can resolve after the user has moved on to
+    // profile B; never let A's address land in B's cache.
+    const sourceProfile = netTapProfileId(data.url);
+    if (sourceProfile !== null
+        && sourceProfile.toLowerCase() !== String(linkedInPublicId() || '').toLowerCase()) return;
 
     for (const raw of data.emails) {
       const email = String(raw || '').toLowerCase();

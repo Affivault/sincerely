@@ -54,6 +54,10 @@ export function ReplyTriage({ messageId, contactId, decision, leadId }: {
   /** Which decision is mid-question. Null means the bar is at rest. */
   const [asking, setAsking] = useState<'later' | 'not_interested' | null>(null);
   const [done, setDone] = useState<TriageResult | null>(null);
+  // Set by Undo until the refetched message arrives without a decision.
+  // Otherwise the stale `decision` prop kept showing the outcome that had
+  // just been undone, and Undo looked like it did nothing.
+  const [undone, setUndone] = useState(false);
 
   /*
    * A thread that was already decided shows its decision, from the message
@@ -61,18 +65,20 @@ export function ReplyTriage({ messageId, contactId, decision, leadId }: {
    * answered reply back at the start, offering to decide it a second time -
    * which is the difference between a demo and a feature.
    */
-  const settled: TriageResult | null = done ?? (decision
+  const settled: TriageResult | null = done ?? (!undone && decision
     ? { decision, lead_id: leadId ?? undefined, message: SETTLED_LABEL[decision].title }
     : null);
 
   // A new message is a new decision: without this the bar would still be
   // showing the last thread's outcome while you read the next one.
-  useEffect(() => { setDone(null); setAsking(null); }, [messageId]);
+  useEffect(() => { setDone(null); setAsking(null); setUndone(false); }, [messageId]);
+  useEffect(() => { if (undone && !decision) setUndone(false); }, [undone, decision]);
 
   const triage = useMutation({
     mutationFn: (input: any) => inboxApi.triage(messageId, input),
     onSuccess: (result) => {
       setDone(result);
+      setUndone(false);
       setAsking(null);
       qc.invalidateQueries({ queryKey: ['inbox'] });
       // Everything a decision touches, so the Leads inbox and the task list
@@ -90,6 +96,7 @@ export function ReplyTriage({ messageId, contactId, decision, leadId }: {
     mutationFn: () => inboxApi.untriage(messageId),
     onSuccess: (r) => {
       setDone(null);
+      setUndone(true);
       qc.invalidateQueries({ queryKey: ['inbox'] });
       qc.invalidateQueries({ queryKey: ['leads'] });
       qc.invalidateQueries({ queryKey: ['crm'] });

@@ -28,6 +28,7 @@ import { TriageQuestion } from '../../components/inbox/TriageQuestion';
 import { usePeek } from '../../components/peek/usePeek';
 import { cn } from '../../lib/utils';
 import { acceptsShortcut } from '../../lib/keyboard';
+import { useUndoLastChange } from '../../hooks/useUndoable';
 import toast from 'react-hot-toast';
 import { MailHistoryPanel } from '../../components/inbox/MailHistoryPanel';
 import { ReplyActions } from '../../components/inbox/ReplyActions';
@@ -2387,9 +2388,9 @@ export function InboxPage() {
   /* ── Keyboard shortcuts ── */
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      // Skip when typing in a form element or editable content
-      const tag = (e.target as HTMLElement).tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return;
+      // Not while typing, and not behind an open dialog: a bare tag check
+      // let "c" open Compose underneath a modal.
+      if (!acceptsShortcut(e.target)) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key === 'c' && !showCompose && !replyMode) {
         setShowCompose(true);
@@ -2477,6 +2478,7 @@ export function InboxPage() {
     },
   });
 
+  const offerUndo = useUndoLastChange();
   const archiveMut = useMutation({
     mutationFn: ({ id }: { id: string; contactEmail: string | null }) => inboxApi.archiveThread(id),
     onMutate: async ({ contactEmail }: { id: string; contactEmail: string | null }) => {
@@ -2497,9 +2499,9 @@ export function InboxPage() {
       if (context?.prevData) qc.setQueryData(['inbox', folder, tagFilter, search, messageLimit, mailKindFilter], context.prevData);
       toast.error('Failed to archive');
     },
-    onSuccess: () => {
+    onSuccess: (_d, v) => {
       invalidate();
-      toast.success('Archived');
+      offerUndo('Archived', () => inboxApi.unarchiveThread(v.id), [['inbox']]);
     },
   });
 
@@ -2523,9 +2525,9 @@ export function InboxPage() {
       if (context?.prevData) qc.setQueryData(['inbox', folder, tagFilter, search, messageLimit, mailKindFilter], context.prevData);
       toast.error('Failed to unarchive');
     },
-    onSuccess: () => {
+    onSuccess: (_d, v) => {
       invalidate();
-      toast.success('Moved to Inbox');
+      offerUndo('Moved to Inbox', () => inboxApi.archiveThread(v.id), [['inbox']]);
     },
   });
 
@@ -2578,7 +2580,10 @@ export function InboxPage() {
       qc.invalidateQueries({ queryKey: ['inbox', 'scheduled'] });
       toast.success('Scheduled email cancelled');
     },
-    onError: () => toast.error('Failed to cancel scheduled email'),
+    onError: (err: any) => {
+      qc.invalidateQueries({ queryKey: ['inbox', 'scheduled'] });
+      toast.error(err?.response?.data?.error || 'Failed to cancel scheduled email');
+    },
   });
 
   const rescheduleMut = useMutation({
@@ -2589,7 +2594,10 @@ export function InboxPage() {
       const dt = new Date(data.scheduled_at);
       toast.success(`Moved to ${formatDayMonthTime(dt)}`);
     },
-    onError: () => toast.error('Failed to reschedule that email'),
+    onError: (err: any) => {
+      qc.invalidateQueries({ queryKey: ['inbox', 'scheduled'] });
+      toast.error(err?.response?.data?.error || 'Failed to reschedule that email');
+    },
   });
 
   /* ── Handlers ── */
@@ -3733,7 +3741,11 @@ export function InboxPage() {
                   }}
                   onChange={(e) => {
                     // Capped at what one bulk call will take, rather than
-                    // selecting 400 and failing at the far end of the request.
+                    // selecting 400 and failing at the far end of the request -
+                    // and said, so the cap is not a silent surprise.
+                    if (e.currentTarget.checked && visibleConversations.length > BULK_TRIAGE_LIMIT) {
+                      toast(`Selected the first ${BULK_TRIAGE_LIMIT} - bulk actions take up to ${BULK_TRIAGE_LIMIT} at a time.`);
+                    }
                     setPicked(e.currentTarget.checked
                       ? new Set(visibleConversations.slice(0, BULK_TRIAGE_LIMIT).map((c) => c.latestMessage.id))
                       : new Set());
