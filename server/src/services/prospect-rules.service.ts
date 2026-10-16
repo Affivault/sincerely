@@ -68,7 +68,10 @@ async function assertTargets(userId: string, row: Record<string, any>) {
     if (!data) throw new AppError('Campaign not found', 404);
   }
   if (row.list_id) {
-    const { data } = await supabaseAdmin.from('lists').select('id').eq('id', row.list_id).eq('user_id', userId).maybeSingle();
+    // The table is contact_lists. 'lists' does not exist, so this lookup
+    // always came back empty and every standing search that targets a list
+    // was refused with "List not found".
+    const { data } = await supabaseAdmin.from('contact_lists').select('id').eq('id', row.list_id).eq('user_id', userId).maybeSingle();
     if (!data) throw new AppError('List not found', 404);
   }
 }
