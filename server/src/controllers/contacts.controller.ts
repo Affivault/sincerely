@@ -3,6 +3,18 @@ import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware.js';
 import { contactsService } from '../services/contacts.service.js';
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * A malformed :id is the caller's mistake, so it is a 400 - left to
+ * Postgres it came back as "invalid input syntax for type uuid", a 500.
+ */
+function badId(req: AuthRequest, res: Response): boolean {
+  if (UUID_RE.test(String(req.params.id || ''))) return false;
+  res.status(400).json({ error: 'Contact id must be a UUID' });
+  return true;
+}
+
 export const contactsController = {
   async list(req: AuthRequest, res: Response, next: NextFunction) {
     try {
@@ -17,6 +29,7 @@ export const contactsController = {
 
   async get(req: AuthRequest, res: Response, next: NextFunction) {
     try {
+      if (badId(req, res)) return;
       const contact = await contactsService.get(req.userId!, req.params.id);
       res.json(contact);
     } catch (err) { next(err); }
@@ -24,6 +37,7 @@ export const contactsController = {
 
   async campaignsForContact(req: AuthRequest, res: Response, next: NextFunction) {
     try {
+      if (badId(req, res)) return;
       const campaigns = await contactsService.getCampaignsForContact(req.userId!, req.params.id);
       res.json(campaigns);
     } catch (err) { next(err); }
@@ -38,6 +52,7 @@ export const contactsController = {
 
   async update(req: AuthRequest, res: Response, next: NextFunction) {
     try {
+      if (badId(req, res)) return;
       const contact = await contactsService.update(req.userId!, req.params.id, req.body);
       res.json(contact);
     } catch (err) { next(err); }
@@ -45,6 +60,7 @@ export const contactsController = {
 
   async delete(req: AuthRequest, res: Response, next: NextFunction) {
     try {
+      if (badId(req, res)) return;
       await contactsService.delete(req.userId!, req.params.id);
       res.status(204).send();
     } catch (err) { next(err); }
@@ -79,7 +95,7 @@ export const contactsController = {
 
   async bulkCreate(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const { contacts, list_id, import_source } = req.body || {};
+      const { contacts, list_id, import_source, context } = req.body || {};
       if (!Array.isArray(contacts)) {
         res.status(400).json({ error: 'Request body must include a contacts array' });
         return;
@@ -92,7 +108,10 @@ export const contactsController = {
         res.status(413).json({ error: 'Batch too large — send at most 1000 contacts per request' });
         return;
       }
-      const result = await contactsService.bulkCreate(req.userId!, contacts, list_id || undefined, import_source || undefined);
+      const result = await contactsService.bulkCreate(
+        req.userId!, contacts, list_id || undefined, import_source || undefined,
+        context === 'contacts' ? 'contacts' : undefined,
+      );
       res.json(result);
     } catch (err) { next(err); }
   },
@@ -108,6 +127,12 @@ export const contactsController = {
     try {
       await contactsService.bulkUntag(req.userId!, req.body.contact_ids, req.body.tag_ids);
       res.status(204).send();
+    } catch (err) { next(err); }
+  },
+
+  async setLifecycle(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      res.json(await contactsService.setLifecycle(req.userId!, req.body?.contact_ids, req.body?.lifecycle));
     } catch (err) { next(err); }
   },
 

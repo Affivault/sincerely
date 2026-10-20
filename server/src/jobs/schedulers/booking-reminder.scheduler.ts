@@ -123,6 +123,7 @@ async function tick() {
     if (n > 0) console.log(`[BookingReminder] sent ${n} reminder(s)`);
   } catch (err: any) {
     console.error('[BookingReminder] sweep failed:', err?.message || err);
+    throw err; // so the heartbeat records the failure
   } finally {
     running = false;
   }

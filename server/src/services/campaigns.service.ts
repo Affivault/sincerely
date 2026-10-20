@@ -59,6 +59,35 @@ function sameValue(a: unknown, b: unknown): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
+/*
+ * Rates over people, not messages.
+ *
+ * opened/clicked/replied/bounced from get_campaigns_stats (migration 085)
+ * are distinct enrolments, so each rate is "of the people this campaign
+ * reached, how many opened / clicked / replied" - someone who replies twice
+ * is one reply, and no rate can pass 100%. Bounces are over everyone a send
+ * was attempted to, so a refusal at send time (no 'sent' row) still counts.
+ * The fallbacks keep the figures sane against a database without 085.
+ */
+const statRate = (v: number, t: number) => (t === 0 ? 0 : Math.round((v / t) * 100 * 10) / 10);
+function withRates(row: any) {
+  const n = (v: any) => Number(v) || 0;
+  const reached = row.contacts_reached != null ? n(row.contacts_reached) : n(row.sent_count);
+  const attempted = row.contacts_attempted != null ? n(row.contacts_attempted) : reached;
+  const out: Record<string, any> = {};
+  for (const [k, v] of Object.entries(row)) out[k] = typeof v === 'string' && /^\d+$/.test(v) ? Number(v) : v;
+  return {
+    ...out,
+    contacts_reached: reached,
+    contacts_attempted: attempted,
+    paused_contacts: n(row.paused_contacts),
+    open_rate: statRate(n(row.opened_count), reached),
+    click_rate: statRate(n(row.clicked_count), reached),
+    reply_rate: statRate(n(row.replied_count), reached),
+    bounce_rate: statRate(n(row.bounced_count), attempted),
+  };
+}
+
 export const campaignsService = {
   /**
    * Verify the campaign belongs to this user before delegating to a sub-resource
@@ -198,10 +227,12 @@ export const campaignsService = {
     if (error) throw new AppError(error.message, 500);
 
     // Batch-fetch stats for the whole page in one round-trip instead of the
-    // old per-campaign getStats() fan-out (13 count queries x page size —
+    // old per-campaign getStats() fan-out (13 count queries x page size -
     // up to 325 queries for a full page). Isolate failure so a stats outage
-    // doesn't break the list itself.
+    // doesn't break the list itself - but say so, rather than rendering
+    // every campaign as 0 sent / 0% as if that were the truth.
     let statsById = new Map<string, any>();
+    let statsUnavailable = false;
     if (campaigns && campaigns.length > 0) {
       try {
         const { data: statsRows, error: statsError } = await supabaseAdmin.rpc('get_campaigns_stats', {
@@ -209,29 +240,17 @@ export const campaignsService = {
         });
         if (statsError) throw statsError;
         statsById = new Map((statsRows || []).map((row: any) => [row.campaign_id, row]));
-      } catch {
-        // fall through with an empty map; campaigns still render without stats
+      } catch (err: any) {
+        statsUnavailable = true;
+        console.error('[Campaigns] Stats lookup failed; listing without stats:', err?.message ?? String(err));
       }
     }
 
-    const calcRate = (v: number, t: number) => (t === 0 ? 0 : Math.round((v / t) * 100 * 10) / 10);
     const withStats = (campaigns || []).map((campaign: any) => {
       const stats = statsById.get(campaign.id);
-      if (!stats) return campaign;
-      const { campaign_id, sent_count, opened_count, clicked_count, replied_count, bounced_count, ...rest } = stats;
-      return {
-        ...campaign,
-        ...rest,
-        sent_count,
-        opened_count,
-        clicked_count,
-        replied_count,
-        bounced_count,
-        open_rate: calcRate(opened_count, sent_count),
-        click_rate: calcRate(clicked_count, sent_count),
-        reply_rate: calcRate(replied_count, sent_count),
-        bounce_rate: calcRate(bounced_count, sent_count),
-      };
+      if (!stats) return statsUnavailable ? { ...campaign, stats_unavailable: true } : campaign;
+      const { campaign_id, ...rest } = stats;
+      return { ...campaign, ...withRates(rest) };
     });
 
     return formatPaginatedResponse(withStats, count || 0, page, limit);
@@ -921,71 +940,19 @@ export const campaignsService = {
     return cloned;
   },
 
+  /**
+   * One campaign's figures, from the same function the list uses, so the
+   * campaign page and its row in the list can never disagree. A failed
+   * lookup is reported as unavailable rather than as a campaign of zeros.
+   */
   async getStats(campaignId: string) {
-    const base = { count: 'exact' as const, head: true };
-    const act = (type: string) =>
-      supabaseAdmin.from('campaign_activities').select('*', base).eq('campaign_id', campaignId).eq('activity_type', type);
-    const cc = (status: string) =>
-      supabaseAdmin.from('campaign_contacts').select('*', base).eq('campaign_id', campaignId).eq('status', status);
-
-    const [
-      { count: stepsCount },
-      { count: contactsCount },
-      { count: sentCount },
-      { count: openedCount },
-      { count: clickedCount },
-      { count: repliedCount },
-      { count: bouncedCount },
-      { count: activeContacts },
-      { count: completedContacts },
-      { count: repliedContacts },
-      { count: bouncedContacts },
-      { count: unsubscribedContacts },
-      { count: suppressedContacts },
-      { count: errorContacts },
-    ] = await Promise.all([
-      supabaseAdmin.from('campaign_steps').select('*', base).eq('campaign_id', campaignId),
-      supabaseAdmin.from('campaign_contacts').select('*', base).eq('campaign_id', campaignId),
-      act('sent'),
-      act('opened'),
-      act('clicked'),
-      act('replied'),
-      act('bounced'),
-      cc('active'),
-      cc('completed'),
-      cc('replied'),
-      cc('bounced'),
-      cc('unsubscribed'),
-      cc('suppressed'),
-      cc('error'),
-    ]);
-
-    const sent = sentCount || 0;
-    const opened = openedCount || 0;
-    const clicked = clickedCount || 0;
-    const replied = repliedCount || 0;
-    const bounced = bouncedCount || 0;
-    const calcRate = (v: number, t: number) => t === 0 ? 0 : Math.round((v / t) * 100 * 10) / 10;
-
-    return {
-      steps_count: stepsCount || 0,
-      contacts_count: contactsCount || 0,
-      sent_count: sent,
-      opened_count: opened,
-      clicked_count: clicked,
-      replied_count: replied,
-      bounced_count: bounced,
-      active_contacts: activeContacts || 0,
-      completed_contacts: completedContacts || 0,
-      replied_contacts: repliedContacts || 0,
-      bounced_contacts: bouncedContacts || 0,
-      unsubscribed_contacts: unsubscribedContacts || 0,
-      suppressed_contacts: suppressedContacts || 0,
-      error_contacts: errorContacts || 0,
-      open_rate: calcRate(opened, sent),
-      click_rate: calcRate(clicked, sent),
-      reply_rate: calcRate(replied, sent),
-      bounce_rate: calcRate(bounced, sent),
-    };
+    const { data, error } = await supabaseAdmin.rpc('get_campaigns_stats', { p_campaign_ids: [campaignId] });
+    const row = Array.isArray(data) ? data[0] : null;
+    if (error || !row) {
+      console.error(`[Campaigns] Stats lookup failed for ${campaignId}:`, error?.message ?? 'no row returned');
+      return { stats_unavailable: true };
+    }
+    const { campaign_id, ...rest } = row;
+    return withRates(rest);
   },
 };

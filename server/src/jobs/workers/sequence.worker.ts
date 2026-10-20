@@ -1,5 +1,5 @@
-import { processDueSteps, processWebhookTimeouts, promoteDueScheduledCampaigns } from '../../services/sequence.service.js';
-import { processScheduledEmails } from '../../services/inbox.service.js';
+import { processDueSteps, processWebhookTimeouts, promoteDueScheduledCampaigns, reapStrandedContacts } from '../../services/sequence.service.js';
+import { processScheduledEmails, reapStuckScheduledSends } from '../../services/inbox.service.js';
 import { beat } from '../../utils/heartbeat.js';
 
 /**
@@ -14,6 +14,9 @@ import { beat } from '../../utils/heartbeat.js';
 
 let isRunning = false;
 let intervalId: ReturnType<typeof setInterval> | null = null;
+/** The reapers look for work a dead process left behind; every 5 minutes is plenty. */
+const REAP_EVERY_MS = 5 * 60 * 1000;
+let lastReapAt = 0;
 
 /**
  * Run one stage, and never let it take the others down with it.
@@ -24,12 +27,13 @@ let intervalId: ReturnType<typeof setInterval> | null = null;
  * and scheduled inbox emails stopped going out - for a reason that had
  * nothing to do with either of them.
  */
-async function stage(label: string, run: () => Promise<number>, done: (n: number) => string) {
+async function stage(failures: string[], label: string, run: () => Promise<number>, done: (n: number) => string) {
   try {
     const n = await run();
     if (n > 0) console.log(`[Sequence] ${done(n)}`);
   } catch (err: any) {
     console.error(`[Sequence] ${label} failed:`, err?.message || err);
+    failures.push(`${label}: ${err?.message || err}`);
   }
 }
 
@@ -37,16 +41,27 @@ async function tick() {
   if (isRunning) return; // Prevent overlapping runs
   isRunning = true;
 
+  // Every stage still runs when one fails; the failures are thrown together
+  // at the end so the heartbeat records the tick as failing. Swallowed here,
+  // the status page showed 'Sending: ok' while a stage errored every tick.
+  const failures: string[] = [];
   try {
+    // Work a crashed or killed process left claimed but never finished.
+    if (Date.now() - lastReapAt >= REAP_EVERY_MS) {
+      lastReapAt = Date.now();
+      await stage(failures, 'Stranded contacts', reapStrandedContacts, (n) => `Recovered ${n} stranded contact(s)`);
+      await stage(failures, 'Stuck scheduled emails', reapStuckScheduledSends, (n) => `Marked ${n} interrupted scheduled email(s) failed`);
+    }
     // Scheduled campaigns whose start time has come, before anything is
     // picked up, so their contacts are due on this same tick.
-    await stage('Scheduled start', promoteDueScheduledCampaigns, (n) => `Started ${n} scheduled campaign(s)`);
-    await stage('Due steps', processDueSteps, (n) => `Processed ${n} due step(s)`);
-    await stage('Webhook timeouts', processWebhookTimeouts, (n) => `Resumed ${n} timed-out webhook wait(s)`);
-    await stage('Scheduled emails', processScheduledEmails, (n) => `Sent ${n} scheduled email(s)`);
+    await stage(failures, 'Scheduled start', promoteDueScheduledCampaigns, (n) => `Started ${n} scheduled campaign(s)`);
+    await stage(failures, 'Due steps', processDueSteps, (n) => `Processed ${n} due step(s)`);
+    await stage(failures, 'Webhook timeouts', processWebhookTimeouts, (n) => `Resumed ${n} timed-out webhook wait(s)`);
+    await stage(failures, 'Scheduled emails', processScheduledEmails, (n) => `Sent ${n} scheduled email(s)`);
   } finally {
     isRunning = false;
   }
+  if (failures.length) throw new Error(failures.join('; '));
 }
 
 /**

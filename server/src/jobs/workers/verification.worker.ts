@@ -24,6 +24,7 @@ async function tick() {
     if (processed > 0) console.log(`[Verify] Auto-verified ${processed} contact(s)`);
   } catch (err: any) {
     console.error('[Verify] Worker error:', err.message);
+    throw err; // so the heartbeat records the failure
   } finally {
     isRunning = false;
   }

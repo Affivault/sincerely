@@ -2,6 +2,7 @@ import { supabaseAdmin } from '../../config/supabase.js';
 import { replyCheckDue } from '@lemlist/shared';
 import { replyCheckService } from '../../services/reply-check.service.js';
 import { beat } from '../../utils/heartbeat.js';
+import { fetchAllPages, selectInChunks } from '../../utils/batch.js';
 
 /**
  * Once a day per account, prove that a reply stops a sequence
@@ -22,19 +23,23 @@ async function tick() {
   // would look due. Automatic checks wait for migration 079.
   if (!(await replyCheckService.ready())) return;
 
-  const { data: rows, error } = await supabaseAdmin
+  // Paged past PostgREST's 1000-row cap, which silently dropped accounts.
+  const rows = await fetchAllPages<{ user_id: string }>((from, to) => supabaseAdmin
     .from('smtp_accounts')
     .select('user_id')
     .eq('is_active', true)
     .eq('is_verified', true)
     .eq('is_seed', false)
-    .not('imap_host', 'is', null);
-  if (error) throw new Error(`reply check accounts: ${error.message}`);
-  const users = [...new Set((rows || []).map((r: any) => r.user_id as string))];
+    .not('imap_host', 'is', null)
+    .order('id')
+    .range(from, to))
+    .catch((err: any) => { throw new Error(`reply check accounts: ${err.message}`); });
+  const users = [...new Set(rows.map((r) => r.user_id))];
 
-  const { data: optedOut } = await supabaseAdmin
-    .from('user_settings').select('user_id').in('user_id', users).eq('reply_check_daily', false);
-  const off = new Set((optedOut || []).map((r: any) => r.user_id));
+  // Chunked: a long .in() list overflows the request URL.
+  const optedOut = await selectInChunks(users, (slice) => supabaseAdmin
+    .from('user_settings').select('user_id').in('user_id', slice).eq('reply_check_daily', false));
+  const off = new Set(optedOut.map((r: any) => r.user_id));
 
   let ran = 0;
   for (const userId of users) {

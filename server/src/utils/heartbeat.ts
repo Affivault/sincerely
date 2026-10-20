@@ -20,6 +20,9 @@ const memory = new Map<JobId, JobBeat>();
 const instance = `${os.hostname()}:${process.pid}`;
 let tableMissing = false;
 const inFlight = new Set<JobId>();
+/** Set on shutdown: no new tick starts, and long loops stop between items. */
+let draining = false;
+const idleWaiters: Array<() => void> = [];
 
 function blank(job: JobId): JobBeat {
   return { job, last_started_at: null, last_finished_at: null, last_ok_at: null, last_error: null, last_error_at: null, duration_ms: null };
@@ -46,6 +49,8 @@ export async function beat(job: JobId, run: () => Promise<unknown> | unknown): P
    * last_finished_at where the stuck run left it, so it reads as stalled.
    */
   if (inFlight.has(job)) return;
+  // Shutting down: a tick that starts now would be killed half way through.
+  if (draining) return;
   inFlight.add(job);
   const b = { ...(memory.get(job) || blank(job)) };
   const started = Date.now();
@@ -65,7 +70,26 @@ export async function beat(job: JobId, run: () => Promise<unknown> | unknown): P
     memory.set(job, b);
     inFlight.delete(job);
     await persist(b).catch(() => {});
+    if (inFlight.size === 0) idleWaiters.splice(0).forEach((resolve) => resolve());
   }
+}
+
+/** True once shutdown has begun; batch loops check it between items. */
+export function isDraining(): boolean {
+  return draining;
+}
+
+/**
+ * Stop new ticks and resolve once every running one has finished.
+ *
+ * Shutdown used to clear the timers and exit at once, killing whatever
+ * tick was mid-batch - a contact claimed but never sent, a scheduled email
+ * left 'sending'. The caller caps the wait (index.ts's force-exit timer).
+ */
+export function whenIdle(): Promise<void> {
+  draining = true;
+  if (inFlight.size === 0) return Promise.resolve();
+  return new Promise((resolve) => idleWaiters.push(resolve));
 }
 
 /** This server's own view, for when the table is missing or unreachable. */

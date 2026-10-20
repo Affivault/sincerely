@@ -62,6 +62,8 @@ export const inboxApi = {
     sara_intent?: string;
     search?: string;
     contact_email?: string;
+    /** One contact's mail by id (linked rows), alongside contact_email. */
+    contact_id?: string;
     /** With folder 'other': just newsletters, notifications, receipts... */
     mail_kind?: string;
   }) => {
@@ -166,7 +168,7 @@ export const inboxApi = {
   },
 
   compose: async (input: { to: string; subject: string; body: string; body_html?: string; smtp_account_id?: string }) => {
-    const { data } = await apiClient.post<{ success: boolean; message_id: string }>('/inbox/compose', input);
+    const { data } = await apiClient.post<{ success: boolean; message_id: string; recorded?: boolean }>('/inbox/compose', input);
     return data;
   },
 

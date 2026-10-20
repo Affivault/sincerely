@@ -68,7 +68,10 @@ async function assertTargets(userId: string, row: Record<string, any>) {
     if (!data) throw new AppError('Campaign not found', 404);
   }
   if (row.list_id) {
-    const { data } = await supabaseAdmin.from('lists').select('id').eq('id', row.list_id).eq('user_id', userId).maybeSingle();
+    // The table is contact_lists. 'lists' does not exist, so this lookup
+    // always came back empty and every standing search that targets a list
+    // was refused with "List not found".
+    const { data } = await supabaseAdmin.from('contact_lists').select('id').eq('id', row.list_id).eq('user_id', userId).maybeSingle();
     if (!data) throw new AppError('List not found', 404);
   }
 }
@@ -228,6 +231,20 @@ export async function runDueRules(limit = 20): Promise<number> {
   if (error) throw new Error(error.message);
   let ran = 0;
   for (const rule of (data || []) as ProspectRule[]) {
+    /*
+     * Claim the run before spending anything on it. runningRules only guards
+     * this process: two instances (or a deploy's old and new one) reading
+     * the same due rule each ran it, revealing - and paying for - the daily
+     * cap twice. Moving next_run_at on, conditioned on the value just read,
+     * lets exactly one of them through. runRule's own write sets it again
+     * when the run ends.
+     */
+    const { data: claimed, error: claimErr } = await supabaseAdmin.from('prospect_rules')
+      .update({ next_run_at: nextRuleRun(rule.cadence, new Date()).toISOString() })
+      .eq('id', rule.id).eq('next_run_at', rule.next_run_at)
+      .select('id').maybeSingle();
+    if (claimErr) { console.error(`[ProspectRules] rule ${rule.id} could not be claimed:`, claimErr.message); continue; }
+    if (!claimed) continue; // another instance has it
     // One account's failure never holds up another's.
     await runRule(rule).catch((e) => console.error(`[ProspectRules] rule ${rule.id} failed:`, e?.message));
     ran++;

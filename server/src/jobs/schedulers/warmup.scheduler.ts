@@ -25,6 +25,7 @@ async function sendTick() {
     if (sent > 0) console.log(`[Warmup] sent ${sent} warm-up email(s) this tick`);
   } catch (err: any) {
     console.error('[Warmup] send tick failed:', err.message);
+    throw err; // so the heartbeat records the failure
   } finally {
     sendRunning = false;
   }
@@ -40,6 +41,7 @@ async function engageTick() {
     }
   } catch (err: any) {
     console.error('[Warmup] engage tick failed:', err.message);
+    throw err; // so the heartbeat records the failure
   } finally {
     engageRunning = false;
   }

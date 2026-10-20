@@ -15,6 +15,9 @@ let lastResetDay: string | null = null;
 let intervalId: ReturnType<typeof setInterval> | null = null;
 
 async function tick() {
+  // Both halves always run; a failure in either is thrown at the end so the
+  // heartbeat records it instead of reading 'ok'.
+  const failures: string[] = [];
   const today = new Date().toISOString().slice(0, 10);
   if (today !== lastResetDay) {
     try {
@@ -30,6 +33,7 @@ async function tick() {
       if (count > 0) console.log(`[SSE Maintenance] Reset daily send counts for ${count} account(s)`);
     } catch (err: any) {
       console.error('[SSE Maintenance] resetDailySendCounts failed:', err.message);
+      failures.push(`resetDailySendCounts: ${err.message}`);
     }
   }
 
@@ -39,7 +43,9 @@ async function tick() {
     if (!(await autopilotReady())) await recalculateBounceRates();
   } catch (err: any) {
     console.error('[SSE Maintenance] recalculateBounceRates failed:', err.message);
+    failures.push(`recalculateBounceRates: ${err.message}`);
   }
+  if (failures.length) throw new Error(failures.join('; '));
 }
 
 /**

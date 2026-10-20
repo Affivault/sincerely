@@ -236,6 +236,13 @@ function HealthCell({ c }: { c: any }) {
       <ShieldX className="h-3 w-3" />Opted out
     </span>
   );
+  // On the suppression list without having unsubscribed or bounced - added
+  // by hand, or a complaint. Invisible until now, so it read as reachable.
+  if (c.is_suppressed) return (
+    <span title="On your suppression list - no campaign will email this address." className="inline-flex items-center gap-1 px-1.5 h-[20px] rounded-md text-micro font-semibold text-amber-700 dark:text-amber-400 bg-amber-500/10">
+      <ShieldX className="h-3 w-3" />Suppressed
+    </span>
+  );
   if (c.dcs_score !== null && c.dcs_score !== undefined) return (
     <span title={`Deliverability confidence: ${c.dcs_score}/100`} className={cn(
       'inline-flex items-center gap-1 px-1.5 h-[20px] rounded-md text-micro font-semibold tabular',
@@ -911,6 +918,18 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
       queryClient.invalidateQueries({ queryKey: ['contact-stats'] });
     },
+  });
+
+  // Prospects <-> Contacts by hand. Automatic promotion only moves forward;
+  // this is the person deciding otherwise, in either direction.
+  const lifecycleMutation = useMutation({
+    mutationFn: ({ ids, to }: { ids: string[]; to: 'prospect' | 'contact' }) => contactsApi.setLifecycle(ids, to),
+    onSuccess: (result, { to }) => {
+      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+      setSelectedContacts(new Set());
+      toast.success(`Moved ${plural(result.updated, 'person', 'people')} to ${to === 'contact' ? 'Contacts' : 'Prospects'}`);
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.error || 'Could not move them'),
   });
 
   const bulkDeleteMutation = useMutation({
@@ -2191,6 +2210,28 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                 <button onClick={() => { setMoveTargetId(null); setShowMoveModal(true); }} className="btn-secondary text-strong h-8 rounded-lg">
                   <ArrowRightLeft className="h-3.5 w-3.5" />
                   Move
+                </button>
+              )}
+              {lifecycle !== 'engaged' && (
+                <button
+                  onClick={() => lifecycleMutation.mutate({ ids: Array.from(selectedContacts), to: 'contact' })}
+                  disabled={lifecycleMutation.isPending}
+                  title="Treat them as relationships: they show on the Contacts tab"
+                  className="btn-secondary text-strong h-8 rounded-lg disabled:opacity-50"
+                >
+                  <ArrowRightLeft className="h-3.5 w-3.5" />
+                  Move to Contacts
+                </button>
+              )}
+              {lifecycle !== 'prospect' && (
+                <button
+                  onClick={() => lifecycleMutation.mutate({ ids: Array.from(selectedContacts), to: 'prospect' })}
+                  disabled={lifecycleMutation.isPending}
+                  title="Back to the cold pile: they show on the Prospects tab until they reply"
+                  className="btn-secondary text-strong h-8 rounded-lg disabled:opacity-50"
+                >
+                  <ArrowRightLeft className="h-3.5 w-3.5" />
+                  Move to Prospects
                 </button>
               )}
               <button

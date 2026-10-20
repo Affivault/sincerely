@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '../config/supabase.js';
+import { env, localhostUrlProblems } from '../config/env.js';
 import { AppError } from '../middleware/error.middleware.js';
 import type { AdminStats, AdminUserRow, AdminUsersResponse } from '@lemlist/shared';
 
@@ -55,6 +56,50 @@ export const adminService = {
     rows.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
     return { users: rows.slice(0, 200), total: rows.length };
+  },
+
+  /**
+   * The diagnostics public /health used to return: relay and Redis state and
+   * platform-wide operational counts. Cross-tenant, so admin only.
+   */
+  async health(): Promise<Record<string, any>> {
+    const diagnostics: Record<string, any> = { status: 'ok', timestamp: new Date().toISOString() };
+
+    diagnostics.smtp_relay = env.SMTP_RELAY_URL
+      ? { configured: true, url: env.SMTP_RELAY_URL }
+      : { configured: false, note: 'SMTP_RELAY_URL not set - using direct SMTP (blocked on Render free tier)' };
+    if (env.SMTP_RELAY_URL) {
+      try {
+        const healthUrl = env.SMTP_RELAY_URL.replace('/api/send-email', '/api/health');
+        const relayResp = await fetch(healthUrl, { signal: AbortSignal.timeout(5000) });
+        diagnostics.smtp_relay.reachable = true;
+        diagnostics.smtp_relay.relay_status = await relayResp.json().catch(() => null);
+      } catch (err: any) {
+        diagnostics.smtp_relay.reachable = false;
+        diagnostics.smtp_relay.relay_error = err.message;
+      }
+    }
+
+    try {
+      const { redisConnection } = await import('../config/redis.js');
+      diagnostics.redis = !redisConnection ? 'not configured (REDIS_URL not set)'
+        : redisConnection.status === 'ready' ? 'connected' : `status: ${redisConnection.status}`;
+    } catch (err: any) {
+      diagnostics.redis = `error: ${err.message}`;
+    }
+
+    diagnostics.public_url_problems = localhostUrlProblems();
+
+    const count = async (q: PromiseLike<{ count: number | null; error: { message: string } | null }>) => {
+      const { count: n, error } = await q;
+      return error ? `error: ${error.message}` : n ?? 0;
+    };
+    diagnostics.campaigns = await count(supabaseAdmin.from('campaigns').select('*', { count: 'exact', head: true }));
+    diagnostics.active_smtp_accounts = await count(supabaseAdmin.from('smtp_accounts').select('*', { count: 'exact', head: true }).eq('is_active', true));
+    diagnostics.running_campaigns = await count(supabaseAdmin.from('campaigns').select('*', { count: 'exact', head: true }).eq('status', 'running'));
+    diagnostics.due_contacts = await count(supabaseAdmin.from('campaign_contacts').select('*', { count: 'exact', head: true })
+      .eq('status', 'active').not('next_send_at', 'is', null).lte('next_send_at', new Date().toISOString()));
+    return diagnostics;
   },
 
   async stats(): Promise<AdminStats> {

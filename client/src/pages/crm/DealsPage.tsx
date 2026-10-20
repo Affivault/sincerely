@@ -199,7 +199,14 @@ export function DealModal({ deal, onClose, onDeleted }: { deal: Partial<Deal> | 
       };
       return editing ? crmApi.updateDeal(deal!.id!, payload) : crmApi.createDeal(payload);
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['crm'] }); toast.success(editing ? 'Deal updated' : 'Deal added'); onClose(); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['crm'] });
+      // The contact's own page reads its deals under these keys.
+      qc.invalidateQueries({ queryKey: ['contact-crm'] });
+      qc.invalidateQueries({ queryKey: ['contacts'] });
+      toast.success(editing ? 'Deal updated' : 'Deal added');
+      onClose();
+    },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to save deal'),
   });
   // Deleting is deferred behind the undo bar rather than asked about: the
@@ -211,6 +218,8 @@ export function DealModal({ deal, onClose, onDeleted }: { deal: Partial<Deal> | 
     gone.remove(id, `Deleted "${form.title || 'deal'}"`, async () => {
       await crmApi.deleteDeal(id);
       qc.invalidateQueries({ queryKey: ['crm'] });
+      qc.invalidateQueries({ queryKey: ['contact-crm'] });
+      qc.invalidateQueries({ queryKey: ['contacts'] });
     });
     onClose();
     onDeleted?.();

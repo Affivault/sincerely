@@ -15,10 +15,106 @@ function calcChange(current: number, prev: number): number | null {
   return Math.round(((current - prev) / prev) * 1000) / 10;
 }
 
-function daysAgoISO(days: number): string {
+/** Relative change of a rate between two periods; null when either has no base. */
+function rateChange(num: number, den: number, prevNum: number, prevDen: number): number | null {
+  if (den === 0 || prevDen === 0) return null;
+  const now = num / den;
+  const before = prevNum / prevDen;
+  if (before === 0) return now > 0 ? 100 : 0;
+  return Math.round(((now - before) / before) * 1000) / 10;
+}
+
+/**
+ * Midnight UTC at the start of the day `daysBack` days before today.
+ *
+ * Windows start on a day boundary, not at "now minus N x 24h": the trend
+ * chart buckets whole UTC days, so a rolling start dropped the early hours
+ * of its oldest day and the chart's total never matched the headline above
+ * it. A period of N days is today plus the N-1 whole days before it.
+ */
+function utcDayStart(daysBack: number): Date {
   const d = new Date();
-  d.setUTCDate(d.getUTCDate() - days);
-  return d.toISOString();
+  d.setUTCHours(0, 0, 0, 0);
+  d.setUTCDate(d.getUTCDate() - daysBack);
+  return d;
+}
+
+/** [since, until) of the last `days` days, and of the `days` before that. */
+function periodWindows(days: number) {
+  const since = utcDayStart(days - 1);
+  const prevSince = new Date(since.getTime() - days * 86_400_000);
+  return { since: since.toISOString(), prevSince: prevSince.toISOString(), prevUntil: since.toISOString() };
+}
+
+/** Activity types that are counted as engagement. Machine hits never are. */
+const MACHINE_TYPES = '(machine_open,machine_click)';
+
+/**
+ * Per-enrolment rollup of activity rows: messages sent, and whether each
+ * person opened / clicked / replied / bounced. Opens, clicks and replies
+ * are people, not events - someone who replies twice is one reply - so
+ * every rate built from this is "of the people reached, how many ...".
+ */
+type PersonRollup = { sent: number; opened: boolean; clicked: boolean; replied: boolean; bounced: boolean };
+function rollupPeople(rows: { campaign_contact_id?: string | null; contact_id?: string | null; activity_type: string }[]) {
+  const people = new Map<string, PersonRollup>();
+  let sentMessages = 0;
+  for (const a of rows) {
+    const key = a.campaign_contact_id || a.contact_id;
+    if (!key) continue;
+    let p = people.get(key);
+    if (!p) { p = { sent: 0, opened: false, clicked: false, replied: false, bounced: false }; people.set(key, p); }
+    switch (a.activity_type) {
+      case 'sent': p.sent++; sentMessages++; break;
+      case 'opened': p.opened = true; break;
+      case 'clicked': p.clicked = true; break;
+      case 'replied': p.replied = true; break;
+      case 'bounced': p.bounced = true; break;
+    }
+  }
+  const t = { sent: sentMessages, reached: 0, attempted: 0, opened: 0, clicked: 0, replied: 0, bounced: 0 };
+  for (const p of people.values()) {
+    if (p.sent > 0) t.reached++;
+    if (p.sent > 0 || p.bounced) t.attempted++;
+    if (p.opened) t.opened++;
+    if (p.clicked) t.clicked++;
+    if (p.replied) t.replied++;
+    if (p.bounced) t.bounced++;
+  }
+  return t;
+}
+
+/**
+ * Daily series over whole UTC days, today and the `days - 1` before it.
+ * Sends are emails; opens, clicks, replies and bounces are people, each
+ * counted once on the first day they did it in the window - so a prospect
+ * who replies twice adds one reply, as in every other figure.
+ */
+function bucketByDay<K extends string>(
+  rows: { activity_type: string; occurred_at: string; campaign_contact_id?: string | null }[],
+  days: number,
+  keys: K[],
+): ({ date: string } & Record<K, number>)[] {
+  const blank = () => Object.fromEntries(keys.map((k) => [k, 0])) as Record<K, number>;
+  const byDate = new Map<string, Record<K, number>>();
+  const start = utcDayStart(days - 1);
+  for (let i = 0; i < days; i++) {
+    byDate.set(new Date(start.getTime() + i * 86_400_000).toISOString().slice(0, 10), blank());
+  }
+  const seen = new Set<string>();
+  const sorted = [...rows].sort((a, b) => (a.occurred_at || '').localeCompare(b.occurred_at || ''));
+  for (const a of sorted) {
+    const day = byDate.get(a.occurred_at?.slice(0, 10) ?? '');
+    if (!day || !(keys as string[]).includes(a.activity_type)) continue;
+    const k = a.activity_type as K;
+    if (k !== 'sent' && a.campaign_contact_id) {
+      const key = `${k}:${a.campaign_contact_id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+    }
+    day[k]++;
+  }
+  return [...byDate.entries()].map(([date, counts]) => ({ date, ...counts }));
 }
 
 const ACTIVITY_PAGE_SIZE = 1000;
@@ -86,55 +182,74 @@ export const analyticsService = {
 
     const campaignIds = (campaigns || []).map((c: any) => c.id);
 
-    let totalSent = 0, totalOpened = 0, totalClicked = 0, totalReplied = 0;
-    let prevSent = 0, prevOpened = 0, prevClicked = 0, prevReplied = 0;
+    /*
+     * A cohort, not two unrelated counts. The rates are "of the people sent
+     * to in this period, how many opened / clicked / replied within it":
+     * dividing this period's opens by this period's sends counted opens of
+     * last month's emails against this week's sends, and a quiet week after
+     * a busy one read as a 200% open rate. Opens, clicks and replies are
+     * people (distinct enrolments), so a prospect who replies twice is one
+     * reply. See get_engagement_summary in migration 085.
+     */
+    type Summary = { sent: number; contacts: number; opened: number; clicked: number; replied: number };
+    const empty: Summary = { sent: 0, contacts: 0, opened: 0, clicked: 0, replied: 0 };
+    let cur: Summary = { ...empty };
+    let prev: Summary = { ...empty };
 
     if (campaignIds.length > 0) {
-      const sinceFilter = days ? daysAgoISO(days) : null;
+      const win = days ? periodWindows(days) : null;
 
-      /*
-       * Scoped by owner through the join, not by an id list. Every campaign the
-       * account has went into one `in` filter, which is a URL a few hundred
-       * campaigns long - past what the gateway accepts - so the dashboard,
-       * trend and revenue pages went blank for exactly the busiest accounts.
-       */
-      const makeCountQuery = (type: string, since?: string | null, until?: string | null) => {
-        let q = supabaseAdmin
-          .from('campaign_activities')
-          .select('id, campaigns!inner(user_id)', { count: 'exact', head: true })
-          .eq('campaigns.user_id', userId)
-          .eq('activity_type', type);
-        if (since) q = q.gte('occurred_at', since);
-        if (until) q = q.lt('occurred_at', until);
-        return q;
+      const summarise = async (since: string | null, until: string | null): Promise<Summary> => {
+        const { data, error } = await supabaseAdmin.rpc('get_engagement_summary', {
+          p_user_id: userId, p_since: since, p_until: until,
+        });
+        const row = Array.isArray(data) ? data[0] : data;
+        if (!error && row) {
+          return {
+            sent: Number(row.sent_messages) || 0,
+            contacts: Number(row.contacts_sent) || 0,
+            opened: Number(row.contacts_opened) || 0,
+            clicked: Number(row.contacts_clicked) || 0,
+            replied: Number(row.contacts_replied) || 0,
+          };
+        }
+        // Without migration 085 the cohort function does not exist. Fall
+        // back to plain counts, clamped so no rate can claim more than
+        // everyone - logged, because the figures are rougher.
+        console.error('[Analytics] get_engagement_summary unavailable, using event counts:', error?.message ?? 'no row');
+        /*
+         * Scoped by owner through the join, not by an id list. Every campaign the
+         * account has went into one `in` filter, which is a URL a few hundred
+         * campaigns long - past what the gateway accepts - so the dashboard,
+         * trend and revenue pages went blank for exactly the busiest accounts.
+         */
+        const makeCountQuery = (type: string) => {
+          let q = supabaseAdmin
+            .from('campaign_activities')
+            .select('id, campaigns!inner(user_id)', { count: 'exact', head: true })
+            .eq('campaigns.user_id', userId)
+            .eq('activity_type', type);
+          if (since) q = q.gte('occurred_at', since);
+          if (until) q = q.lt('occurred_at', until);
+          return q;
+        };
+        const [sentRes, openedRes, clickedRes, repliedRes] = await Promise.all(
+          ['sent', 'opened', 'clicked', 'replied'].map(makeCountQuery),
+        );
+        const sent = sentRes.count || 0;
+        return {
+          sent,
+          contacts: sent,
+          opened: Math.min(openedRes.count || 0, sent),
+          clicked: Math.min(clickedRes.count || 0, sent),
+          replied: Math.min(repliedRes.count || 0, sent),
+        };
       };
 
-      const [sentRes, openedRes, clickedRes, repliedRes] = await Promise.all([
-        makeCountQuery('sent', sinceFilter),
-        makeCountQuery('opened', sinceFilter),
-        makeCountQuery('clicked', sinceFilter),
-        makeCountQuery('replied', sinceFilter),
+      [cur, prev] = await Promise.all([
+        summarise(win?.since ?? null, null),
+        win ? summarise(win.prevSince, win.prevUntil) : Promise.resolve({ ...empty }),
       ]);
-
-      totalSent = sentRes.count || 0;
-      totalOpened = openedRes.count || 0;
-      totalClicked = clickedRes.count || 0;
-      totalReplied = repliedRes.count || 0;
-
-      if (days) {
-        const prevSince = daysAgoISO(days * 2);
-        const prevUntil = daysAgoISO(days);
-        const [pSent, pOpened, pClicked, pReplied] = await Promise.all([
-          makeCountQuery('sent', prevSince, prevUntil),
-          makeCountQuery('opened', prevSince, prevUntil),
-          makeCountQuery('clicked', prevSince, prevUntil),
-          makeCountQuery('replied', prevSince, prevUntil),
-        ]);
-        prevSent = pSent.count || 0;
-        prevOpened = pOpened.count || 0;
-        prevClicked = pClicked.count || 0;
-        prevReplied = pReplied.count || 0;
-      }
     }
 
     const { count: suppressedCount } = await supabaseAdmin
@@ -167,21 +282,30 @@ export const analyticsService = {
       total_campaigns: totalCampaigns || 0,
       active_campaigns: activeCampaigns || 0,
       total_contacts: totalContacts || 0,
-      total_sent: totalSent,
-      total_opened: totalOpened,
-      total_clicked: totalClicked,
-      total_replied: totalReplied,
-      avg_open_rate: calcRate(totalOpened, totalSent),
-      avg_click_rate: calcRate(totalClicked, totalSent),
-      avg_reply_rate: calcRate(totalReplied, totalSent),
+      total_sent: cur.sent,
+      // The people those emails reached: the denominator of every rate.
+      contacts_sent: cur.contacts,
+      total_opened: cur.opened,
+      total_clicked: cur.clicked,
+      total_replied: cur.replied,
+      avg_open_rate: calcRate(cur.opened, cur.contacts),
+      avg_click_rate: calcRate(cur.clicked, cur.contacts),
+      avg_reply_rate: calcRate(cur.replied, cur.contacts),
       suppressed_count: suppressedCount || 0,
       avg_dcs_score: avgDcsScore,
       verified_contacts: verifiedContacts,
       bounced_contacts: bouncedContacts,
-      sent_change: days ? calcChange(totalSent, prevSent) : null,
-      opened_change: days ? calcChange(totalOpened, prevOpened) : null,
-      clicked_change: days ? calcChange(totalClicked, prevClicked) : null,
-      replied_change: days ? calcChange(totalReplied, prevReplied) : null,
+      // Change in the COUNT against the previous period of the same length.
+      sent_change: days ? calcChange(cur.sent, prev.sent) : null,
+      opened_change: days ? calcChange(cur.opened, prev.opened) : null,
+      clicked_change: days ? calcChange(cur.clicked, prev.clicked) : null,
+      replied_change: days ? calcChange(cur.replied, prev.replied) : null,
+      // Change in the RATE, relative (a 10% -> 12% open rate is +20%). A
+      // rate cell shows these: the count changes above mostly say how much
+      // more was sent, and beside a percentage read as the rate moving.
+      open_rate_change: days ? rateChange(cur.opened, cur.contacts, prev.opened, prev.contacts) : null,
+      click_rate_change: days ? rateChange(cur.clicked, cur.contacts, prev.clicked, prev.contacts) : null,
+      reply_rate_change: days ? rateChange(cur.replied, cur.contacts, prev.replied, prev.contacts) : null,
     };
   },
 
@@ -230,37 +354,19 @@ export const analyticsService = {
     const campaignIds = (campaigns || []).map((c: any) => c.id);
     if (campaignIds.length === 0) return [];
 
-    const activities = await fetchAllRows<{ activity_type: string; occurred_at: string }>((from, to) =>
+    const activities = await fetchAllRows<{ activity_type: string; occurred_at: string; campaign_contact_id: string }>((from, to) =>
       supabaseAdmin
         .from('campaign_activities')
-        .select('activity_type, occurred_at, campaigns!inner(user_id)')
+        .select('activity_type, occurred_at, campaign_contact_id, campaigns!inner(user_id)')
         .eq('campaigns.user_id', userId)
-        .gte('occurred_at', daysAgoISO(days))
+        .in('activity_type', ['sent', 'opened', 'clicked', 'replied'])
+        .gte('occurred_at', utcDayStart(days - 1).toISOString())
         .order('occurred_at', { ascending: true })
+        .order('id', { ascending: true })
         .range(from, to)
     );
 
-    const byDate: Record<string, { sent: number; opened: number; clicked: number; replied: number }> = {};
-
-    for (let i = days - 1; i >= 0; i--) {
-      const d = new Date();
-      d.setUTCDate(d.getUTCDate() - i);
-      const key = d.toISOString().slice(0, 10);
-      byDate[key] = { sent: 0, opened: 0, clicked: 0, replied: 0 };
-    }
-
-    for (const a of activities) {
-      const dateKey = a.occurred_at?.slice(0, 10);
-      if (!dateKey || !byDate[dateKey]) continue;
-      switch (a.activity_type) {
-        case 'sent': byDate[dateKey].sent++; break;
-        case 'opened': byDate[dateKey].opened++; break;
-        case 'clicked': byDate[dateKey].clicked++; break;
-        case 'replied': byDate[dateKey].replied++; break;
-      }
-    }
-
-    return Object.entries(byDate).map(([date, counts]) => ({ date, ...counts }));
+    return bucketByDay(activities, days, ['sent', 'opened', 'clicked', 'replied']);
   },
 
   async campaign(userId: string, campaignId: string) {
@@ -278,34 +384,37 @@ export const analyticsService = {
       .select('*', { count: 'exact', head: true })
       .eq('campaign_id', campaignId);
 
-    const activities = await fetchAllRows<{ activity_type: string }>((from, to) =>
+    const activities = await fetchAllRows<{ activity_type: string; campaign_contact_id: string }>((from, to) =>
       supabaseAdmin
         .from('campaign_activities')
-        .select('activity_type')
+        .select('activity_type, campaign_contact_id')
         .eq('campaign_id', campaignId)
+        .in('activity_type', ['sent', 'opened', 'clicked', 'replied', 'bounced', 'error'])
+        .order('id', { ascending: true })
         .range(from, to)
     );
 
-    const counts = { sent: 0, opened: 0, clicked: 0, replied: 0, bounced: 0, errors: 0 };
-    for (const a of activities) {
-      switch (a.activity_type) {
-        case 'sent': counts.sent++; break;
-        case 'opened': counts.opened++; break;
-        case 'clicked': counts.clicked++; break;
-        case 'replied': counts.replied++; break;
-        case 'bounced': counts.bounced++; break;
-        case 'error': counts.errors++; break;
-      }
-    }
+    // Sent is emails; opened/clicked/replied/bounced are people, and every
+    // rate is over the people reached (bounces over everyone a send was
+    // attempted to, so a refusal at send time counts).
+    const people = rollupPeople(activities);
+    const errors = activities.filter((a) => a.activity_type === 'error').length;
 
     return {
       campaign_id: campaignId,
       total_contacts: totalContacts || 0,
-      ...counts,
-      open_rate: calcRate(counts.opened, counts.sent),
-      click_rate: calcRate(counts.clicked, counts.sent),
-      reply_rate: calcRate(counts.replied, counts.sent),
-      bounce_rate: calcRate(counts.bounced, counts.sent),
+      sent: people.sent,
+      contacts_reached: people.reached,
+      contacts_attempted: people.attempted,
+      opened: people.opened,
+      clicked: people.clicked,
+      replied: people.replied,
+      bounced: people.bounced,
+      errors,
+      open_rate: calcRate(people.opened, people.reached),
+      click_rate: calcRate(people.clicked, people.reached),
+      reply_rate: calcRate(people.replied, people.reached),
+      bounce_rate: calcRate(people.bounced, people.attempted),
     };
   },
 
@@ -324,6 +433,7 @@ export const analyticsService = {
         .from('campaign_contacts')
         .select('contact_id, status, contacts(email, first_name, last_name, dcs_score, is_bounced)')
         .eq('campaign_id', campaignId)
+        .order('id', { ascending: true })
         .range(from, to)
     );
 
@@ -332,6 +442,7 @@ export const analyticsService = {
         .from('campaign_activities')
         .select('contact_id, activity_type')
         .eq('campaign_id', campaignId)
+        .order('id', { ascending: true })
         .range(from, to)
     );
 
@@ -385,11 +496,12 @@ export const analyticsService = {
     lines.push('');
     lines.push('Summary');
     lines.push(`Total Contacts,${stats.total_contacts}`);
-    lines.push(`Sent,${stats.sent}`);
-    lines.push(`Opened,${stats.opened},${stats.open_rate}%`);
-    lines.push(`Clicked,${stats.clicked},${stats.click_rate}%`);
-    lines.push(`Replied,${stats.replied},${stats.reply_rate}%`);
-    lines.push(`Bounced,${stats.bounced},${stats.bounce_rate}%`);
+    lines.push(`Sent (emails),${stats.sent}`);
+    lines.push(`Contacts reached,${stats.contacts_reached}`);
+    lines.push(`Opened (contacts),${stats.opened},${stats.open_rate}%`);
+    lines.push(`Clicked (contacts),${stats.clicked},${stats.click_rate}%`);
+    lines.push(`Replied (contacts),${stats.replied},${stats.reply_rate}%`);
+    lines.push(`Bounced (contacts),${stats.bounced},${stats.bounce_rate}%`);
     lines.push(`Errors,${stats.errors}`);
     lines.push('');
     lines.push('Contact Breakdown');
@@ -423,10 +535,11 @@ export const analyticsService = {
     lines.push(`Total Campaigns,${overview.total_campaigns}`);
     lines.push(`Active Campaigns,${overview.active_campaigns}`);
     lines.push(`Total Contacts,${overview.total_contacts}`);
-    lines.push(`Total Sent,${overview.total_sent}`);
-    lines.push(`Total Opened,${overview.total_opened},${overview.avg_open_rate}%`);
-    lines.push(`Total Clicked,${overview.total_clicked},${overview.avg_click_rate}%`);
-    lines.push(`Total Replied,${overview.total_replied},${overview.avg_reply_rate}%`);
+    lines.push(`Emails Sent,${overview.total_sent}`);
+    lines.push(`Contacts Sent To,${overview.contacts_sent}`);
+    lines.push(`Contacts Opened,${overview.total_opened},${overview.avg_open_rate}%`);
+    lines.push(`Contacts Clicked,${overview.total_clicked},${overview.avg_click_rate}%`);
+    lines.push(`Contacts Replied,${overview.total_replied},${overview.avg_reply_rate}%`);
     lines.push('');
     lines.push('Campaigns');
     lines.push('Name,Status,Created');
@@ -453,6 +566,8 @@ export const analyticsService = {
       .from('campaign_activities')
       .select('id, activity_type, metadata, occurred_at, campaign_id, step_id, campaigns(name), campaign_steps(subject, step_order)')
       .eq('contact_id', contactId)
+      // Scanner and privacy-proxy hits are kept for diagnosis only.
+      .not('activity_type', 'in', MACHINE_TYPES)
       .order('occurred_at', { ascending: false })
       .limit(100);
 
@@ -485,46 +600,39 @@ export const analyticsService = {
 
     const campaignIds = campaigns.map((c: any) => c.id);
 
-    const activities = await fetchAllRows<{ campaign_id: string; activity_type: string }>((from, to) =>
+    const activities = await fetchAllRows<{ campaign_id: string; campaign_contact_id: string; activity_type: string }>((from, to) =>
       supabaseAdmin
         .from('campaign_activities')
-        .select('campaign_id, activity_type, campaigns!inner(user_id)')
+        .select('campaign_id, campaign_contact_id, activity_type, campaigns!inner(user_id)')
         .eq('campaigns.user_id', userId)
+        .in('activity_type', ['sent', 'opened', 'clicked', 'replied', 'bounced'])
+        .order('id', { ascending: true })
         .range(from, to)
     );
 
-    const stats = new Map<string, { sent: number; opened: number; clicked: number; replied: number; bounced: number }>();
-    for (const id of campaignIds) {
-      stats.set(id, { sent: 0, opened: 0, clicked: 0, replied: 0, bounced: 0 });
-    }
-    for (const a of activities) {
-      const s = stats.get(a.campaign_id);
-      if (!s) continue;
-      switch (a.activity_type) {
-        case 'sent': s.sent++; break;
-        case 'opened': s.opened++; break;
-        case 'clicked': s.clicked++; break;
-        case 'replied': s.replied++; break;
-        case 'bounced': s.bounced++; break;
-      }
-    }
+    const rowsByCampaign = new Map<string, typeof activities>();
+    for (const id of campaignIds) rowsByCampaign.set(id, []);
+    for (const a of activities) rowsByCampaign.get(a.campaign_id)?.push(a);
 
+    // All time, whatever period the page around it is showing. Sent is
+    // emails; the rest are people, with rates over the people reached.
     return campaigns.map((c: any) => {
-      const s = stats.get(c.id) || { sent: 0, opened: 0, clicked: 0, replied: 0, bounced: 0 };
+      const s = rollupPeople(rowsByCampaign.get(c.id) || []);
       return {
         id: c.id,
         name: c.name,
         status: c.status,
         created_at: c.created_at,
         sent: s.sent,
+        contacts_sent: s.reached,
         opened: s.opened,
         clicked: s.clicked,
         replied: s.replied,
         bounced: s.bounced,
-        open_rate: calcRate(s.opened, s.sent),
-        click_rate: calcRate(s.clicked, s.sent),
-        reply_rate: calcRate(s.replied, s.sent),
-        bounce_rate: calcRate(s.bounced, s.sent),
+        open_rate: calcRate(s.opened, s.reached),
+        click_rate: calcRate(s.clicked, s.reached),
+        reply_rate: calcRate(s.replied, s.reached),
+        bounce_rate: calcRate(s.bounced, s.attempted),
       };
     });
   },
@@ -552,11 +660,13 @@ export const analyticsService = {
 
     const campaignIds = campaigns.map((c: any) => c.id);
 
-    const activities = await fetchAllRows<{ campaign_id: string; activity_type: string }>((from, to) =>
+    const activities = await fetchAllRows<{ campaign_id: string; campaign_contact_id: string; activity_type: string }>((from, to) =>
       supabaseAdmin
         .from('campaign_activities')
-        .select('campaign_id, activity_type, campaigns!inner(user_id)')
+        .select('campaign_id, campaign_contact_id, activity_type, campaigns!inner(user_id)')
         .eq('campaigns.user_id', userId)
+        .in('activity_type', ['sent', 'replied'])
+        .order('id', { ascending: true })
         .range(from, to)
     );
 
@@ -568,18 +678,25 @@ export const analyticsService = {
         .select('id, stage, value, probability, recurring_amount, recurring_period, one_off_amount, term_months, source_campaign_id, source_step_id, attribution')
         .eq('user_id', userId)
         .not('source_campaign_id', 'is', null)
+        .order('id', { ascending: true })
         .range(from, to)
     );
 
     const revenue = new Map(revenueByCampaign(deals).map((r) => [r.campaignId, r]));
 
+    // Replies are people: value per reply divided by reply messages made a
+    // prospect who wrote back three times look like three customers.
     const counts = new Map<string, { sent: number; replied: number }>();
+    const repliedPeople = new Set<string>();
     for (const id of campaignIds) counts.set(id, { sent: 0, replied: 0 });
     for (const a of activities) {
       const c = counts.get(a.campaign_id);
       if (!c) continue;
       if (a.activity_type === 'sent') c.sent++;
-      else if (a.activity_type === 'replied') c.replied++;
+      else if (a.activity_type === 'replied' && !repliedPeople.has(a.campaign_contact_id)) {
+        repliedPeople.add(a.campaign_contact_id);
+        c.replied++;
+      }
     }
 
     return campaigns.map((c: any) => {
@@ -634,11 +751,13 @@ export const analyticsService = {
       .eq('campaign_id', campaignId)
       .order('step_order', { ascending: true });
 
-    const activities = await fetchAllRows<{ activity_type: string; step_id: string | null }>((from, to) =>
+    const activities = await fetchAllRows<{ activity_type: string; step_id: string | null; campaign_contact_id: string }>((from, to) =>
       supabaseAdmin
         .from('campaign_activities')
-        .select('activity_type, step_id')
+        .select('activity_type, step_id, campaign_contact_id')
         .eq('campaign_id', campaignId)
+        .in('activity_type', ['sent', 'replied'])
+        .order('id', { ascending: true })
         .range(from, to)
     );
 
@@ -648,20 +767,39 @@ export const analyticsService = {
         .select('id, title, stage, value, probability, recurring_amount, recurring_period, one_off_amount, term_months, contact_id, contact_name, contact_email, source_campaign_id, source_step_id, attribution, closed_at, created_at')
         .eq('user_id', userId)
         .eq('source_campaign_id', campaignId)
+        .order('id', { ascending: true })
         .range(from, to)
     );
 
-    const totals = { sent: 0, replied: 0 };
+    // Sent is emails; replied is people - once for the campaign, and once
+    // per step they replied to - and `reached` is the people sent to.
+    const totals = { sent: 0, replied: 0, reached: 0 };
     const perStep = new Map<string, { sent: number; replied: number }>();
+    const reachedPeople = new Set<string>();
+    const repliedPeople = new Set<string>();
+    const repliedAtStep = new Set<string>();
     for (const a of activities) {
-      if (a.activity_type === 'sent') totals.sent++;
-      else if (a.activity_type === 'replied') totals.replied++;
+      if (a.activity_type === 'sent') {
+        totals.sent++;
+        reachedPeople.add(a.campaign_contact_id);
+      } else if (a.activity_type === 'replied') {
+        if (repliedPeople.has(a.campaign_contact_id)) {
+          // counted already for the campaign; may still be new for its step
+        } else {
+          repliedPeople.add(a.campaign_contact_id);
+          totals.replied++;
+        }
+      }
       if (!a.step_id) continue;
       const row = perStep.get(a.step_id) ?? { sent: 0, replied: 0 };
       if (a.activity_type === 'sent') row.sent++;
-      else if (a.activity_type === 'replied') row.replied++;
+      else if (a.activity_type === 'replied') {
+        const key = `${a.step_id}:${a.campaign_contact_id}`;
+        if (!repliedAtStep.has(key)) { repliedAtStep.add(key); row.replied++; }
+      }
       perStep.set(a.step_id, row);
     }
+    totals.reached = reachedPeople.size;
 
     const rollup = revenueByCampaign(deals)[0];
     const won = deals.filter((d: any) => d.stage === 'won').length;
@@ -700,8 +838,9 @@ export const analyticsService = {
 
     return {
       campaign,
+      // People at every stage: reached, replied, became a deal, won.
       funnel: outreachFunnel({
-        sent: totals.sent,
+        sent: totals.reached,
         replied: totals.replied,
         deals: deals.length,
         won,
@@ -758,6 +897,7 @@ export const analyticsService = {
         .from('campaign_activities')
         .select('contact_id, activity_type, step_id')
         .eq('campaign_id', campaignId)
+        .order('id', { ascending: true })
         .range(from, to)
     );
 
@@ -853,6 +993,7 @@ export const analyticsService = {
         .select('contact_id, step_id, activity_type, metadata')
         .eq('campaign_id', campaignId)
         .in('step_id', stepIds)
+        .order('id', { ascending: true })
         .range(from, to)
     );
 
@@ -890,6 +1031,7 @@ export const analyticsService = {
         b: { sent: 0, opened: 0, clicked: 0, replied: 0 },
       };
 
+      const repliedInArm = new Set<string>();
       for (const a of allActivities) {
         if (a.step_id !== step.id) continue;
         const variant = variantByContactStep.get(`${a.contact_id}:${a.step_id}`);
@@ -899,7 +1041,15 @@ export const analyticsService = {
           case 'sent': stats[variant].sent++; break;
           case 'opened': stats[variant].opened++; break;
           case 'clicked': stats[variant].clicked++; break;
-          case 'replied': stats[variant].replied++; break;
+          // One reply per person per arm: a second message from the same
+          // prospect is not a second reply.
+          case 'replied': {
+            const key = `${variant}:${a.contact_id}`;
+            if (repliedInArm.has(key)) break;
+            repliedInArm.add(key);
+            stats[variant].replied++;
+            break;
+          }
         }
       }
 
@@ -960,36 +1110,19 @@ export const analyticsService = {
 
     if (!campaign) throw new AppError('Campaign not found', 404);
 
-    const activities = await fetchAllRows<{ activity_type: string; occurred_at: string }>((from, to) =>
+    const activities = await fetchAllRows<{ activity_type: string; occurred_at: string; campaign_contact_id: string }>((from, to) =>
       supabaseAdmin
         .from('campaign_activities')
-        .select('activity_type, occurred_at')
+        .select('activity_type, occurred_at, campaign_contact_id')
         .eq('campaign_id', campaignId)
-        .gte('occurred_at', daysAgoISO(days))
+        .in('activity_type', ['sent', 'opened', 'clicked', 'replied', 'bounced'])
+        .gte('occurred_at', utcDayStart(days - 1).toISOString())
         .order('occurred_at', { ascending: true })
+        .order('id', { ascending: true })
         .range(from, to)
     );
 
-    const byDate: Record<string, { sent: number; opened: number; clicked: number; replied: number; bounced: number }> = {};
-    for (let i = days - 1; i >= 0; i--) {
-      const d = new Date();
-      d.setUTCDate(d.getUTCDate() - i);
-      byDate[d.toISOString().slice(0, 10)] = { sent: 0, opened: 0, clicked: 0, replied: 0, bounced: 0 };
-    }
-
-    for (const a of activities) {
-      const dateKey = a.occurred_at?.slice(0, 10);
-      if (!dateKey || !byDate[dateKey]) continue;
-      switch (a.activity_type) {
-        case 'sent': byDate[dateKey].sent++; break;
-        case 'opened': byDate[dateKey].opened++; break;
-        case 'clicked': byDate[dateKey].clicked++; break;
-        case 'replied': byDate[dateKey].replied++; break;
-        case 'bounced': byDate[dateKey].bounced++; break;
-      }
-    }
-
-    return Object.entries(byDate).map(([date, counts]) => ({ date, ...counts }));
+    return bucketByDay(activities, days, ['sent', 'opened', 'clicked', 'replied', 'bounced']);
   },
 
   async campaignHeatmap(userId: string, campaignId: string) {
@@ -1008,6 +1141,7 @@ export const analyticsService = {
         .select('activity_type, occurred_at')
         .eq('campaign_id', campaignId)
         .in('activity_type', ['opened', 'clicked', 'replied'])
+        .order('id', { ascending: true })
         .range(from, to)
     );
 
@@ -1073,6 +1207,7 @@ export const analyticsService = {
         .from('campaign_activities')
         .select('contact_id, step_id, activity_type, occurred_at')
         .eq('campaign_id', campaignId)
+        .order('id', { ascending: true })
         .range(from, to)
     );
 

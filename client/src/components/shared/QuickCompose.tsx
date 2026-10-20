@@ -89,12 +89,18 @@ export function QuickCompose({
       body_html: body.html,
       smtp_account_id: sender?.id,
     }),
-    onSuccess: () => {
+    onSuccess: (res) => {
       // The message belongs to the inbox and to this lead's history, and
-      // both are on screen somewhere the moment it lands.
+      // both are on screen somewhere the moment it lands. The history reads
+      // its own key, so it has to be named too.
       qc.invalidateQueries({ queryKey: ['inbox'] });
       qc.invalidateQueries({ queryKey: ['contacts'] });
-      toast.success(`Sent to ${toName || to}`);
+      qc.invalidateQueries({ queryKey: ['contact-emails'] });
+      if (res?.recorded === false) {
+        toast.success(`Sent to ${toName || to}, but it could not be saved to Sent`);
+      } else {
+        toast.success(`Sent to ${toName || to}`);
+      }
       cancel();
       onSent?.();
     },

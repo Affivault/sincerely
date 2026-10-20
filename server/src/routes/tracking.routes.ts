@@ -16,6 +16,52 @@ const TRANSPARENT_PIXEL = Buffer.from(
   'base64'
 );
 
+/*
+ * Machine traffic.
+ *
+ * Opens and clicks are recorded once per (contact, step), so whatever
+ * fetches the pixel or the link first becomes "the" open or click. Very
+ * often that is not the person: corporate mail scanners (Microsoft Safe
+ * Links / Defender, Mimecast, Proofpoint, Barracuda, Bitdefender...) follow
+ * every link on delivery, and Apple Mail Privacy Protection fetches every
+ * image through Apple's proxy whether or not the mail is read. Counting
+ * those reported opens and clicks that never happened and, worse, used up
+ * the slot so the real open later was ignored.
+ *
+ * Such hits are recorded as 'machine_open' / 'machine_click' instead: kept
+ * for diagnosis, never counted, and with their own dedup slot (migration
+ * 085) so a later human hit is still recorded.
+ *
+ * GoogleImageProxy is deliberately NOT here: Gmail fetches images through
+ * it when the person opens the mail, so it is the real open.
+ */
+const MACHINE_UA = new RegExp([
+  'bot\\b', 'crawler', 'spider', 'slurp', 'headless', 'phantomjs', 'puppeteer', 'playwright', 'selenium',
+  'python-requests', 'python-urllib', 'aiohttp', 'go-http-client', 'java/', 'okhttp', 'libwww', 'wget', 'curl/',
+  'axios/', 'node-fetch', 'undici', 'httpclient', 'scrapy',
+  // Not 'ms-office': that is Outlook for Windows fetching images as the
+  // person reads, a real open.
+  'safelinks', 'microsoft office existence discovery', 'outlook-ios-linkpreview',
+  '\\batp\\b', 'defender', 'mimecast', 'proofpoint', 'ppops', 'barracuda', 'bitdefender', 'sophos', 'trendmicro',
+  'forcepoint', 'fortinet', 'fortiguard', 'cisco', 'ironport', 'symantec', 'messagelabs', 'zscaler',
+  'paloalto', 'checkpoint', 'kaspersky', 'mailscanner', 'linkpreview', 'urlscan', 'virustotal',
+  'facebookexternalhit', 'slackbot', 'twitterbot', 'whatsapp', 'skypeuripreview', 'discordbot',
+].join('|'), 'i');
+
+/** Clicks this soon after the send are scanners checking the link on delivery. */
+const CLICK_MIN_SECONDS_AFTER_SEND = 15;
+
+export function isMachineUserAgent(ua: string | undefined): boolean {
+  const v = (ua || '').trim();
+  // No user agent at all is a script, not a mail client.
+  if (!v) return true;
+  // Apple Mail Privacy Protection's proxy sends exactly "Mozilla/5.0" and
+  // nothing else; a real browser or mail client always adds platform tokens.
+  if (v === 'Mozilla/5.0') return true;
+  if (/GoogleImageProxy/i.test(v)) return false;
+  return MACHINE_UA.test(v);
+}
+
 /**
  * Parse and verify a tracking ID.
  * Format: base64url(campaignContactId:stepId:hmac)
@@ -103,19 +149,24 @@ router.get('/open/:trackingId', async (req: Request, res: Response) => {
     // Privacy Protection prefetching alongside the real client) both pass the
     // check before either insert lands, double-recording the open and firing
     // the webhook twice.
-    const { data: isNewOpen } = await supabaseAdmin.rpc('record_tracking_event', {
+    // A scanner or privacy prefetch is kept apart (see isMachineUserAgent)
+    // so it neither counts nor takes the slot the person's own open needs.
+    const machine = isMachineUserAgent(req.headers['user-agent']);
+    const { data: isNewOpen, error: openError } = await supabaseAdmin.rpc('record_tracking_event', {
       p_campaign_id: cc.campaign_id,
       p_campaign_contact_id: campaignContactId,
       p_contact_id: cc.contact_id,
       p_step_id: stepId,
-      p_activity_type: 'opened',
+      p_activity_type: machine ? 'machine_open' : 'opened',
       p_metadata: {
         ip: req.ip,
         user_agent: req.headers['user-agent'],
+        ...(machine ? { machine: true } : {}),
       },
     });
+    if (openError) console.error('Tracking open record error:', openError.message);
 
-    if (isNewOpen) {
+    if (isNewOpen && !machine) {
       // Update SSE health for the account that actually sent this email.
       // Look up the send activity first so SSE credits the right account when
       // a different sender was chosen by the Smart-Sharding Engine.
@@ -205,20 +256,40 @@ router.get('/click/:trackingId', async (req: Request, res: Response) => {
       // index (see migration 049) — see the open handler above for why a
       // count-then-insert check is unsafe here (e.g. Outlook Safe Links
       // prefetching a link right before the user's own click).
-      const { data: isNewClick } = await supabaseAdmin.rpc('record_tracking_event', {
+      //
+      // A scanner's click is recorded apart and not counted: by user agent,
+      // or by arriving within seconds of the send, which no person manages
+      // but a gateway checking every link on delivery always does.
+      let machine: false | 'user_agent' | 'too_soon' = isMachineUserAgent(req.headers['user-agent']) ? 'user_agent' : false;
+      if (!machine) {
+        const { data: lastSend } = await supabaseAdmin
+          .from('campaign_activities')
+          .select('occurred_at')
+          .eq('campaign_contact_id', campaignContactId)
+          .eq('step_id', stepId)
+          .eq('activity_type', 'sent')
+          .order('occurred_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        const sentAt = lastSend?.occurred_at ? Date.parse(lastSend.occurred_at) : NaN;
+        if (Number.isFinite(sentAt) && Date.now() - sentAt < CLICK_MIN_SECONDS_AFTER_SEND * 1000) machine = 'too_soon';
+      }
+      const { data: isNewClick, error: clickError } = await supabaseAdmin.rpc('record_tracking_event', {
         p_campaign_id: cc.campaign_id,
         p_campaign_contact_id: campaignContactId,
         p_contact_id: cc.contact_id,
         p_step_id: stepId,
-        p_activity_type: 'clicked',
+        p_activity_type: machine ? 'machine_click' : 'clicked',
         p_metadata: {
           url: originalUrl,
           ip: req.ip,
           user_agent: req.headers['user-agent'],
+          ...(machine ? { machine: true, machine_reason: machine } : {}),
         },
       });
+      if (clickError) console.error('Tracking click record error:', clickError.message);
 
-      if (isNewClick) {
+      if (isNewClick && !machine) {
         // Fire webhook event
         if ((cc as any).campaigns?.user_id) {
           fireEvent((cc as any).campaigns.user_id, 'email.clicked', {

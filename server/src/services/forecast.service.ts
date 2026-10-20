@@ -40,6 +40,7 @@ export async function campaignForecast(userId: string, campaignId: string): Prom
       .select('status, current_step_order, next_send_at')
       .eq('campaign_id', campaignId)
       .in('status', ['pending', 'active'])
+      .order('id', { ascending: true })
       .range(from, to),
   );
   const now = Date.now();
@@ -99,12 +100,32 @@ export async function campaignForecast(userId: string, campaignId: string): Prom
       .eq('campaigns.user_id', userId).eq('activity_type', type).gte('occurred_at', since);
     return c || 0;
   };
-  const [sent, replies, positiveRes] = await Promise.all([
+  /*
+   * Replies and interested replies are people, not messages, and only from
+   * campaigns: a prospect writing back three times is one reply, and an
+   * interested email from a customer who was never in a sequence says
+   * nothing about what a sequence will return.
+   */
+  const [sent, replyRows, positiveRows] = await Promise.all([
     count('sent'),
-    count('replied'),
-    supabaseAdmin.from('inbox_messages').select('id', { count: 'exact', head: true })
-      .eq('user_id', userId).in('sara_intent', ['interested', 'meeting']).gte('received_at', since),
+    fetchAllPages<{ campaign_contact_id: string }>(
+      async (from, to) => await supabaseAdmin.from('campaign_activities')
+        .select('campaign_contact_id, campaigns!inner(user_id)')
+        .eq('campaigns.user_id', userId).eq('activity_type', 'replied').gte('occurred_at', since)
+        .order('id', { ascending: true })
+        .range(from, to),
+    ),
+    fetchAllPages<{ contact_id: string | null; campaign_id: string }>(
+      async (from, to) => await supabaseAdmin.from('inbox_messages')
+        .select('contact_id, campaign_id')
+        .eq('user_id', userId).not('campaign_id', 'is', null).not('contact_id', 'is', null)
+        .in('sara_intent', ['interested', 'meeting']).gte('received_at', since)
+        .order('id', { ascending: true })
+        .range(from, to),
+    ),
   ]);
+  const replies = new Set(replyRows.map((r) => r.campaign_contact_id)).size;
+  const positive = new Set(positiveRows.map((r) => `${r.campaign_id}:${r.contact_id}`)).size;
 
   const forecast = forecastCampaign({
     steps: ordered.map((s: any) => ({
@@ -117,7 +138,7 @@ export async function campaignForecast(userId: string, campaignId: string): Prom
     per_mailbox_window_cap: 0,
     mailboxes,
     start: new Date(),
-    history: { sent, replies, positive: positiveRes.count || 0 },
+    history: { sent, replies, positive },
   });
   if ((othersRunning || 0) > 0 && mailboxes.length > 0) {
     forecast.warnings.push(`${othersRunning} other running campaign${othersRunning === 1 ? '' : 's'} share these mailboxes; this assumes an even split.`);

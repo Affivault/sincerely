@@ -76,6 +76,7 @@ async function tick() {
     if (n > 0) console.log(`[AbPromote] promoted ${n} winning variant(s) this sweep`);
   } catch (err: any) {
     console.error('[AbPromote] sweep failed:', err.message);
+    throw err; // so the heartbeat records the failure
   } finally {
     running = false;
   }

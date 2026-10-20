@@ -19,6 +19,8 @@ export interface FolderAnalytics {
     status: string;
     total_contacts: number;
     sent: number;
+    /** People sent to: what the rates are over. Opened/clicked/replied/bounced are people. */
+    reached?: number;
     opened: number;
     clicked: number;
     replied: number;
@@ -29,6 +31,7 @@ export interface FolderAnalytics {
   }>;
   totals: {
     sent: number;
+    reached?: number;
     opened: number;
     clicked: number;
     replied: number;

@@ -55,6 +55,7 @@ export function startPlacementScheduler() {
       if (polled > 0) console.log(`[Placement] Polled ${polled} test(s)`);
     } catch (err: any) {
       console.error(`[Placement] Sweep error: ${err?.message || err}`);
+      throw err; // so the heartbeat records the failure
     } finally {
       running = false;
     }

@@ -66,6 +66,14 @@ export function BulkImportPage() {
   const [targetListId, setTargetListId] = useState<string>('');
   const [listMode, setListMode] = useState<'none' | 'existing' | 'new'>('none');
   const [newListName, setNewListName] = useState('');
+  /* A lead list is campaign audience; a contact list is people you already
+     know, and importing into one files them as contacts, not prospects. */
+  const [newListKind, setNewListKind] = useState<'lead' | 'contact'>('lead');
+  // Where these people land. Prospects (the default) stay off the Contacts
+  // tab until they reply; Contacts are people you already know. A contact
+  // list files them as contacts whatever this says.
+  const [importAs, setImportAs] = useState<'prospect' | 'contact'>('prospect');
+  const [filedAs, setFiledAs] = useState<'prospect' | 'contact'>('prospect');
   /** Set once the import creates the list, so the summary can name it. */
   const [createdListName, setCreatedListName] = useState<string | null>(null);
   const [progress, setProgress] = useState<ImportProgress>({
@@ -74,6 +82,9 @@ export function BulkImportPage() {
   });
   const [completedResult, setCompletedResult] = useState<{
     total: number; attempted: number; imported: number; errors: number;
+    /** New addresses, existing ones that only had blanks filled, and how
+     *  many are on the suppression list. */
+    created: number; updated: number; suppressed: number;
     errorDetails: { email: string; reason: string }[];
     durationMs: number;
     cancelled: boolean;
@@ -215,7 +226,7 @@ export function BulkImportPage() {
     let listId = listMode === 'existing' ? targetListId : '';
     if (listMode === 'new') {
       try {
-        const created = await listsApi.create({ name: newListName.trim() });
+        const created = await listsApi.create({ name: newListName.trim(), kind: newListKind });
         listId = created.id;
         setTargetListId(created.id);
         setCreatedListName(created.name);
@@ -240,7 +251,8 @@ export function BulkImportPage() {
 
     if (total === 0) {
       setCompletedResult({
-        total: 0, attempted: 0, imported: 0, errors: 0, errorDetails: [], durationMs: 0, cancelled: false,
+        total: 0, attempted: 0, imported: 0, errors: 0, created: 0, updated: 0, suppressed: 0,
+        errorDetails: [], durationMs: 0, cancelled: false,
       });
       setStep('complete');
       return;
@@ -248,9 +260,17 @@ export function BulkImportPage() {
 
     let imported = 0;
     let errors = 0;
+    let createdCount = 0;
+    let updatedCount = 0;
+    let suppressedCount = 0;
     let attempted = 0;
     let cancelled = false;
     const errorDetails: { email: string; reason: string }[] = [];
+    const chosenList = listMode === 'existing' ? (lists || []).find((l: any) => l.id === targetListId) : null;
+    const asContacts = importAs === 'contact'
+      || (listMode === 'new' && newListKind === 'contact')
+      || (chosenList as any)?.kind === 'contact';
+    setFiledAs(asContacts ? 'contact' : 'prospect');
 
     for (let i = 0; i < total; i += BATCH_SIZE) {
       if (cancelRef.current) { cancelled = true; break; }
@@ -259,9 +279,12 @@ export function BulkImportPage() {
       try {
         // The filename travels with every batch so each contact remembers
         // which import it arrived in.
-        const result: BulkImportResult = await contactsApi.bulkCreate(batch, listId || undefined, file?.name);
+        const result: BulkImportResult = await contactsApi.bulkCreate(batch, listId || undefined, file?.name, asContacts ? 'contacts' : undefined);
         imported += result.imported;
         errors += result.errors;
+        createdCount += result.created ?? 0;
+        updatedCount += result.updated ?? 0;
+        suppressedCount += result.suppressed ?? 0;
         if (result.error_details && errorDetails.length < 200) {
           errorDetails.push(...result.error_details.slice(0, 200 - errorDetails.length));
         }
@@ -292,6 +315,9 @@ export function BulkImportPage() {
       attempted,
       imported,
       errors,
+      created: createdCount,
+      updated: updatedCount,
+      suppressed: suppressedCount,
       errorDetails,
       durationMs: Date.now() - startedAt,
       cancelled,
@@ -301,7 +327,7 @@ export function BulkImportPage() {
     for (const key of ['contacts', 'contact-stats', 'contact-companies', 'verification-breakdown']) {
       queryClient.invalidateQueries({ queryKey: [key] });
     }
-  }, [prepared, mappingValid, listChoiceValid, listMode, targetListId, newListName, queryClient, file]);
+  }, [prepared, mappingValid, listChoiceValid, listMode, targetListId, newListName, newListKind, importAs, lists, queryClient, file]);
 
   const cancel = () => {
     cancelRef.current = true;
@@ -323,6 +349,7 @@ export function BulkImportPage() {
     setTargetListId('');
     setListMode('none');
     setNewListName('');
+    setNewListKind('lead');
     setCreatedListName(null);
     setCompletedResult(null);
     setProgress({ total: 0, processed: 0, imported: 0, errors: 0, errorDetails: [], currentBatch: 0, totalBatches: 0 });
@@ -692,8 +719,63 @@ export function BulkImportPage() {
                   )
                 )}
 
+                <div className="mb-3">
+                  <p className="text-caption font-medium text-[var(--text-secondary)] mb-1.5">Import as</p>
+                  <div role="radiogroup" aria-label="Import as" className="flex items-center gap-1">
+                    {([
+                      { id: 'prospect', label: 'Prospects', hint: 'Cold leads. They move to Contacts by themselves when they reply.' },
+                      { id: 'contact', label: 'Contacts', hint: 'People you already know. They show on the Contacts tab straight away.' },
+                    ] as const).map((k) => (
+                      <button
+                        key={k.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={importAs === k.id}
+                        title={k.hint}
+                        onClick={() => setImportAs(k.id)}
+                        className={cn(
+                          'inline-flex items-center h-7 px-2.5 rounded-md text-body font-medium transition-colors',
+                          importAs === k.id
+                            ? 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)]'
+                            : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]',
+                        )}
+                      >
+                        {k.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-caption text-[var(--text-tertiary)] mt-1">
+                    {importAs === 'prospect'
+                      ? 'They go to the Prospects tab and move to Contacts when they reply. You can move anyone by hand later.'
+                      : 'They go to the Contacts tab. You can move anyone back to Prospects later.'}
+                  </p>
+                </div>
+
                 {listMode === 'new' && (
                   <div>
+                    <div role="radiogroup" aria-label="Kind of list" className="flex items-center gap-1 mb-2">
+                      {([
+                        { id: 'lead', label: 'Lead list', hint: 'People to reach with campaigns' },
+                        { id: 'contact', label: 'Contact list', hint: 'People you already know - filed as contacts' },
+                      ] as const).map((k) => (
+                        <button
+                          key={k.id}
+                          type="button"
+                          role="radio"
+                          aria-checked={newListKind === k.id}
+                          title={k.hint}
+                          onClick={() => setNewListKind(k.id)}
+                          className={cn(
+                            'inline-flex items-center h-7 px-2.5 rounded-md text-body font-medium transition-colors',
+                            newListKind === k.id
+                              ? 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)]'
+                              : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]',
+                          )}
+                        >
+                          {k.label}
+                        </button>
+                      ))}
+                    </div>
                     <input aria-label="New list name"
                       value={newListName}
                       onChange={(e) => setNewListName(e.target.value)}
@@ -946,6 +1028,33 @@ export function BulkImportPage() {
               </p>
             </div>
           </div>
+
+          {/* Where they went - otherwise a prospect import looks like it did
+              nothing, because the Contacts tab is unchanged. */}
+          {!completedResult.cancelled && completedResult.imported > 0 && (
+            <p className="text-body text-[var(--text-secondary)]">
+              {filedAs === 'contact'
+                ? 'Filed as contacts - they are on the Contacts tab.'
+                : 'Filed as prospects - they are on the Prospects tab, and move to Contacts when they reply.'}
+            </p>
+          )}
+
+          {/* New versus already there: a re-import only fills empty fields,
+              and should say so rather than look like it added everyone. */}
+          {(completedResult.updated > 0 || completedResult.suppressed > 0) && (
+            <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-3 space-y-1">
+              {completedResult.updated > 0 && (
+                <p className="text-body text-[var(--text-secondary)]">
+                  {completedResult.created.toLocaleString()} new, {completedResult.updated.toLocaleString()} already in your contacts - for those, only empty fields were filled in.
+                </p>
+              )}
+              {completedResult.suppressed > 0 && (
+                <p className="text-body text-amber-700 dark:text-amber-400">
+                  {completedResult.suppressed.toLocaleString()} {completedResult.suppressed === 1 ? 'address is' : 'addresses are'} on your suppression list, so no campaign will email {completedResult.suppressed === 1 ? 'it' : 'them'}.
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Error details */}
           {completedResult.errorDetails.length > 0 && (

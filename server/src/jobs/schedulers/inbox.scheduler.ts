@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '../../config/supabase.js';
 import { inboxSyncService } from '../../services/inbox-sync.service.js';
 import { beat } from '../../utils/heartbeat.js';
+import { fetchAllPages } from '../../utils/batch.js';
 
 const SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -26,18 +27,18 @@ export function startInboxScheduler() {
     if (running) return; // never overlap — a slow mailbox must not pile up runs
     running = true;
     try {
-      const { data: accounts, error } = await supabaseAdmin
+      // Paged: PostgREST caps an unpaged select at 1000 rows, so every
+      // mailbox past the first thousand silently never synced.
+      const accounts = await fetchAllPages<{ user_id: string }>((from, to) => supabaseAdmin
         .from('smtp_accounts')
         .select('user_id')
         .eq('is_active', true)
-        .eq('is_verified', true);
+        .eq('is_verified', true)
+        .order('id')
+        .range(from, to))
+        .catch((err: any) => { throw new Error(`Could not list accounts: ${err.message}`); });
 
-      if (error) {
-        console.error('[InboxScheduler] Could not list accounts:', error.message);
-        return;
-      }
-
-      const userIds = Array.from(new Set((accounts || []).map((a) => a.user_id)));
+      const userIds = Array.from(new Set(accounts.map((a) => a.user_id)));
       for (const userId of userIds) {
         try {
           await inboxSyncService.syncInbox(userId);
@@ -48,6 +49,7 @@ export function startInboxScheduler() {
       }
     } catch (err: any) {
       console.error('[InboxScheduler] Sweep failed:', err.message);
+      throw err; // so the heartbeat records the failure
     } finally {
       running = false;
     }

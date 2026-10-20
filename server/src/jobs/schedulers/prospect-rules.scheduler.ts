@@ -17,6 +17,7 @@ async function tick() {
     if (n > 0) console.log(`[ProspectRules] ran ${n} standing search(es)`);
   } catch (err: any) {
     console.error('[ProspectRules] sweep failed:', err.message);
+    throw err; // so the heartbeat records the failure
   } finally {
     running = false;
   }

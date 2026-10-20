@@ -39,6 +39,7 @@ export async function stepOutcomes(userId: string, campaignId: string): Promise<
     async (from, to) => await supabaseAdmin.from('campaign_activities')
       .select('contact_id, step_id, occurred_at, metadata')
       .eq('campaign_id', campaignId).eq('activity_type', 'sent')
+      .order('id', { ascending: true })
       .range(from, to),
   );
 
@@ -46,6 +47,7 @@ export async function stepOutcomes(userId: string, campaignId: string): Promise<
     async (from, to) => await supabaseAdmin.from('inbox_messages')
       .select('contact_id, received_at')
       .eq('user_id', userId).eq('campaign_id', campaignId).in('sara_intent', POSITIVE)
+      .order('id', { ascending: true })
       .range(from, to),
   );
 

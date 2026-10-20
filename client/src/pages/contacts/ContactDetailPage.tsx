@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { usePopover } from '../../hooks/usePopover';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { contactsApi, listsApi } from '../../api/contacts.api';
 import { analyticsApi } from '../../api/analytics.api';
 import { crmApi } from '../../api/crm.api';
@@ -96,13 +96,23 @@ export function ContactDetailPage() {
   });
   const contactDeals = crmSummary?.deals;
 
-  // Every email exchanged with this lead (both directions), for the history view.
-  const { data: emailsPage } = useQuery({
-    queryKey: ['contact-emails', contact?.email],
-    queryFn: () => inboxApi.list({ contact_email: contact!.email, limit: 100 }),
-    enabled: !!contact?.email,
+  /*
+   * Every email exchanged with this lead (both directions), for the history
+   * view: mail linked to them by id as well as mail matching their address,
+   * a page at a time. Keyed by id and page size - the peek drawer reads a
+   * smaller page under the same prefix, and must not overwrite this one.
+   */
+  const EMAIL_PAGE = 100;
+  const {
+    data: emailPages, hasNextPage: hasMoreEmails, fetchNextPage: fetchMoreEmails, isFetchingNextPage: loadingMoreEmails,
+  } = useInfiniteQuery({
+    queryKey: ['contact-emails', id, contact?.email, { limit: EMAIL_PAGE }],
+    queryFn: ({ pageParam }) => inboxApi.list({ contact_id: id!, contact_email: contact!.email, limit: EMAIL_PAGE, page: pageParam }),
+    initialPageParam: 1,
+    getNextPageParam: (last) => (last.page < last.total_pages ? last.page + 1 : undefined),
+    enabled: !!id && !!contact?.email,
   });
-  const emails = (emailsPage?.data || []) as any[];
+  const emails = (emailPages?.pages.flatMap((p) => p.data) || []) as any[];
 
   const { data: timeline } = useQuery({
     queryKey: ['contact-timeline', id],
@@ -125,6 +135,15 @@ export function ContactDetailPage() {
   });
   const openLead = (contactLeads || []).find((l) => l.status === 'open') || null;
 
+  // Prospects <-> Contacts by hand (above every early return: it is a hook).
+  const moveStage = useMutation({
+    mutationFn: (to: 'prospect' | 'contact') => contactsApi.setLifecycle([id!], to),
+    onSuccess: (_r, to) => {
+      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+      toast.success(to === 'contact' ? 'Moved to Contacts' : 'Moved to Prospects');
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.error || 'Could not move them'),
+  });
   const makeLead = useMutation({
     mutationFn: () => leadsApi.create({ contact_id: id!, source: 'Manual' }),
     onSuccess: () => {
@@ -198,6 +217,8 @@ export function ContactDetailPage() {
     mutationFn: () => suppressionApi.add(contact!.email, 'manual'),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['suppression'] });
+      // The badge on this page and on the list row both read is_suppressed.
+      queryClient.invalidateQueries({ queryKey: ['contacts'] });
       toast.success('Added to suppression list — this contact won’t receive campaign emails');
     },
     onError: () => toast.error('Failed to add to suppression list'),
@@ -243,6 +264,8 @@ export function ContactDetailPage() {
 
   // Newest first, for the history and the "where we are" strip.
   const sortedEmails = [...emails].sort((a, b) => new Date(b.received_at).getTime() - new Date(a.received_at).getTime());
+  // A queued or failed send is not a touch yet; the history shows it with its state.
+  const sentEmails = sortedEmails.filter((m) => !(m.direction === 'outbound' && ['scheduled', 'sending', 'failed'].includes(m.sara_status)));
   const activity = (timeline || []) as any[];
   // contact_id is what puts the meeting on this profile's history — the
   // server can also match on email, but don't rely on that when we know it.
@@ -301,6 +324,9 @@ export function ContactDetailPage() {
               )}
               {contact.is_bounced && (
                 <span className="inline-flex items-center px-1.5 h-[18px] rounded text-micro font-semibold text-rose-700 dark:text-rose-400 bg-rose-500/10">Bounced</span>
+              )}
+              {(contact as any).is_suppressed && (
+                <span title="On your suppression list - no campaign will email this address." className="inline-flex items-center px-1.5 h-[18px] rounded text-micro font-semibold text-amber-700 dark:text-amber-400 bg-amber-500/10">Suppressed</span>
               )}
             </div>
           </div>
@@ -361,7 +387,7 @@ export function ContactDetailPage() {
       <WhereWeAre
         contactId={contact.id}
         away={{ until: (contact as any).away_until ?? null, returnsOn: (contact as any).away_returns_on ?? null, note: (contact as any).away_note ?? null }}
-        emails={sortedEmails}
+        emails={sentEmails}
         activity={activity}
         onBookMeeting={() => setEventModal({ ...eventPrefill, type: 'meeting' })}
         onNewDeal={() => setDealModal({ contact_name: fullName || contact.email, contact_email: contact.email, contact_id: contact.id, company: contact.company || null })}
@@ -396,6 +422,16 @@ export function ContactDetailPage() {
               >
                 {LIFECYCLE_LABEL[stage]}
               </span>
+              {/* The person's call, either way: automatic promotion only
+                  ever moves forward. */}
+              <button
+                type="button"
+                onClick={() => moveStage.mutate(stage === 'prospect' ? 'contact' : 'prospect')}
+                disabled={moveStage.isPending}
+                className="ml-auto inline-flex min-h-6 items-center text-caption font-medium text-[var(--indigo-text)] hover:underline disabled:opacity-50"
+              >
+                {stage === 'prospect' ? 'Move to Contacts' : 'Move to Prospects'}
+              </button>
             </div>
             <div className={cn(
               'flex items-start gap-2 rounded-md px-2.5 py-2 text-caption leading-snug',
@@ -647,6 +683,10 @@ export function ContactDetailPage() {
             contactEmail={contact.email}
             emails={sortedEmails}
             campaignActivity={activity}
+            hasMoreEmails={!!hasMoreEmails}
+            loadingMoreEmails={loadingMoreEmails}
+            onLoadMoreEmails={() => fetchMoreEmails()}
+            activityCapped={activity.length >= 100}
           />
         </div>
       </div>

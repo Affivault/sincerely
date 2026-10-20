@@ -26,3 +26,4 @@ contactRoutes.post('/export', contactsController.export);
 contactRoutes.post('/bulk-tag', contactsController.bulkTag);
 contactRoutes.delete('/bulk-tag', contactsController.bulkUntag);
 contactRoutes.post('/bulk-delete', contactsController.bulkDelete);
+contactRoutes.post('/lifecycle', contactsController.setLifecycle);

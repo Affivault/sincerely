@@ -94,6 +94,14 @@ export interface CampaignWithStats extends Campaign {
   bounced_contacts: number;
   unsubscribed_contacts: number;
   suppressed_contacts: number;
+  /** Enrolments held with status 'paused'. */
+  paused_contacts?: number;
+  /** People sent at least one email: the denominator of open/click/reply rates. */
+  contacts_reached?: number;
+  /** People a send was attempted to, refusals included: the bounce-rate denominator. */
+  contacts_attempted?: number;
+  /** The figures could not be loaded; show that rather than zeros. */
+  stats_unavailable?: boolean;
   open_rate: number;
   click_rate: number;
   reply_rate: number;

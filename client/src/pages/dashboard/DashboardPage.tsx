@@ -43,7 +43,10 @@ const fmtNum = (n: number | undefined | null): string => {
 };
 const fmtFull = (n: number | undefined | null): string => (Number(n) || 0).toLocaleString();
 const fmtPct = (n: number | undefined | null): string => `${(Number(n) || 0).toFixed(1)}%`;
-const fmtDate = (d: string) => formatDayMonth(new Date(d));
+// The server's days are 'YYYY-MM-DD'. new Date() reads that as UTC midnight,
+// which is the previous evening anywhere west of UTC - every label a day
+// early - so it is read as a local date.
+const fmtDate = (d: string) => formatDayMonth(new Date(/^\d{4}-\d{2}-\d{2}$/.test(d) ? `${d}T00:00:00` : d));
 
 function greeting(): string {
   const h = new Date().getHours();
@@ -235,7 +238,7 @@ function Funnel({ sent, opened, clicked, replied }: {
   sent: number; opened: number; clicked: number; replied: number;
 }) {
   const stages = [
-    { label: 'Sent', value: sent },
+    { label: 'Sent to', value: sent },
     { label: 'Opened', value: opened },
     { label: 'Clicked', value: clicked },
     { label: 'Replied', value: replied },
@@ -374,7 +377,8 @@ export function DashboardPage() {
     queryFn: () => analyticsApi.trend(period),
   });
   const { data: campaignList } = useQuery({
-    queryKey: ['analytics', 'campaignList'],
+    // One key for this list everywhere (the analytics page uses it too).
+    queryKey: ['analytics', 'campaign-list'],
     queryFn: () => analyticsApi.campaignList(),
   });
   const { data: userSettings } = useQuery({
@@ -391,6 +395,7 @@ export function DashboardPage() {
     avg_open_rate: 0, avg_click_rate: 0, avg_reply_rate: 0,
     suppressed_count: 0, avg_dcs_score: 0, verified_contacts: 0, bounced_contacts: 0,
     sent_change: null, opened_change: null, clicked_change: null, replied_change: null,
+    contacts_sent: 0, open_rate_change: null, click_rate_change: null, reply_rate_change: null,
   };
 
   const trend = Array.isArray(trendData) ? trendData : [];
@@ -401,7 +406,9 @@ export function DashboardPage() {
   const campaigns = Array.isArray(campaignList) ? campaignList : [];
   const topCampaigns = [...campaigns].sort((a, b) => b.sent - a.sent).slice(0, 5);
   /* Whether the headline rate has enough behind it to be stated as one. */
-  const headlineReply = averageRateReadout(s.avg_reply_rate, s.total_sent, 'emails');
+  /* Rates are over people sent to, so the sample is people too. */
+  const sentTo = Number(s.contacts_sent ?? s.total_sent) || 0;
+  const headlineReply = averageRateReadout(s.avg_reply_rate, sentTo, 'contacts');
 
   // Prefer the name the user set in Settings; fall back to the email prefix.
   const settingsFirst = (userSettings?.first_name || '').trim();
@@ -493,14 +500,16 @@ export function DashboardPage() {
         <div className="grid grid-cols-2 sm:flex sm:divide-x divide-[var(--border-subtle)] border-b border-[var(--border-subtle)]">
           <MetricCell label="Emails sent" value={fmtNum(s.total_sent)} delta={s.sent_change}
             active={metric === 'sent'} onClick={() => setMetric('sent')} />
-          <MetricCell label="Open rate" value={fmtPct(s.avg_open_rate)} delta={s.opened_change}
-            readout={averageRateReadout(s.avg_open_rate, s.total_sent, 'emails')}
+          {/* Rate cells carry the change in the RATE, not in the count:
+              more sends alone moved the old arrow. */}
+          <MetricCell label="Open rate" value={fmtPct(s.avg_open_rate)} delta={s.open_rate_change}
+            readout={averageRateReadout(s.avg_open_rate, sentTo, 'contacts')}
             active={metric === 'opened'} onClick={() => setMetric('opened')} />
-          <MetricCell label="Click rate" value={fmtPct(s.avg_click_rate)} delta={s.clicked_change}
-            readout={averageRateReadout(s.avg_click_rate, s.total_sent, 'emails')}
+          <MetricCell label="Click rate" value={fmtPct(s.avg_click_rate)} delta={s.click_rate_change}
+            readout={averageRateReadout(s.avg_click_rate, sentTo, 'contacts')}
             active={metric === 'clicked'} onClick={() => setMetric('clicked')} />
-          <MetricCell label="Reply rate" value={fmtPct(s.avg_reply_rate)} delta={s.replied_change}
-            readout={averageRateReadout(s.avg_reply_rate, s.total_sent, 'emails')}
+          <MetricCell label="Reply rate" value={fmtPct(s.avg_reply_rate)} delta={s.reply_rate_change}
+            readout={averageRateReadout(s.avg_reply_rate, sentTo, 'contacts')}
             active={metric === 'replied'} onClick={() => setMetric('replied')} />
         </div>
         <div className="flex items-center justify-between px-4 pt-3">
@@ -519,13 +528,15 @@ export function DashboardPage() {
       {/* ── Row 3: what's working — campaigns + funnel/health rail ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <section className="panel lg:col-span-2 overflow-hidden">
-          <Head title="Campaign leaderboard" desc="Ranked by volume" action={<MoreLink to="/analytics" />} />
+          <Head title="Campaign leaderboard" desc="All time, ranked by volume" action={<MoreLink to="/analytics" />} />
           {topCampaigns.length > 0 ? (
             <div className="divide-y divide-[var(--border-subtle)]">
               {topCampaigns.map((c, i) => {
                 /* Real counts, not the rate reconstructed from itself. */
-                const open = rateReadout(c.opened, c.sent, 'opens');
-                const reply = rateReadout(c.replied, c.sent, 'replies');
+                /* Over the people the campaign reached, not its emails. */
+                const reached = c.contacts_sent ?? c.sent;
+                const open = rateReadout(c.opened, reached, 'opens');
+                const reply = rateReadout(c.replied, reached, 'replies');
                 const barWidth = rateBarWidth(reply);
                 return (
                 <button key={c.id} onClick={() => navigate(`/campaigns/${c.id}`)}
@@ -581,7 +592,8 @@ export function DashboardPage() {
         <div className="space-y-4">
           <section className={cn('panel overflow-hidden transition-opacity duration-300', refreshing && 'opacity-60')}>
             <Head title="Conversion funnel" desc={`Last ${period} days`} />
-            <Funnel sent={Number(s.total_sent) || 0} opened={Number(s.total_opened) || 0}
+            {/* People at every stage: sent to, opened, clicked, replied. */}
+            <Funnel sent={sentTo} opened={Number(s.total_opened) || 0}
               clicked={Number(s.total_clicked) || 0} replied={Number(s.total_replied) || 0} />
           </section>
           <section className="panel overflow-hidden">
