@@ -2,13 +2,17 @@ import type { Response, NextFunction } from 'express';
 import { z } from 'zod';
 import type { AuthRequest } from '../middleware/auth.middleware.js';
 import { sendingSchedulesService } from '../services/sending-schedules.service.js';
+import { isValidTimezone } from '@lemlist/shared';
 
 const dayEnum = z.enum(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']);
 const timeRegex = /^([01]?\d|2[0-3]):[0-5]\d$/;
 
 const createSchema = z.object({
   name: z.string().min(1).max(100),
-  timezone: z.string().optional(),
+  // A zone the runtime cannot read is not an error anywhere downstream: the
+  // timezone helpers fall back to UTC, so "Europe/Londn" silently sent every
+  // email of the campaign at UTC hours. Refused here, where it can be fixed.
+  timezone: z.string().refine(isValidTimezone, { message: 'That is not a timezone this system knows.' }).optional(),
   send_window_start: z.string().regex(timeRegex).optional(),
   send_window_end: z.string().regex(timeRegex).optional(),
   send_days: z.array(dayEnum).optional(),

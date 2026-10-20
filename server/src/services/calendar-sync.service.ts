@@ -65,17 +65,42 @@ export function googleRedirectUri(): string {
   return `${env.API_BASE_URL.replace(/\/+$/, '')}/api/oauth/calendar/google/callback`;
 }
 
-/* ── Signed state, the same construction the integrations OAuth uses ── */
+/* ── Signed state, bound to the browser that asked ──
+ *
+ * The HMAC alone proves the state was minted for a user; it does not prove
+ * the browser arriving at the callback is that user's. The callback is
+ * unauthenticated, so an attacker could mint a state for their OWN account,
+ * send the consent link to somebody else, and have that person's Google
+ * calendar - its free/busy, and write access to it - attached to the
+ * attacker's account. So the state also carries a random nonce that is set,
+ * at the same moment, in an httpOnly cookie on the browser that started the
+ * flow, and the callback refuses any state whose nonce that browser does
+ * not hold.
+ */
 
-export function signState(userId: string): string {
+/** The cookie holding the nonce. Scoped to the callback path only. */
+export const CALENDAR_OAUTH_COOKIE = 'sincerely_cal_oauth';
+export const CALENDAR_OAUTH_COOKIE_PATH = '/api/oauth/calendar';
+export const CALENDAR_OAUTH_TTL_MS = STATE_TTL_MS;
+
+export function newOAuthNonce(): string {
+  return crypto.randomBytes(24).toString('base64url');
+}
+
+export function signState(userId: string, nonce: string = newOAuthNonce()): string {
   const payload = Buffer.from(JSON.stringify({
-    u: userId, e: Date.now() + STATE_TTL_MS, n: crypto.randomBytes(8).toString('hex'),
+    u: userId, e: Date.now() + STATE_TTL_MS, n: nonce,
   })).toString('base64url');
   const sig = crypto.createHmac('sha256', env.ENCRYPTION_KEY).update(payload).digest('base64url');
   return `${payload}.${sig}`;
 }
 
-export function verifyState(state: string): { userId: string } {
+/**
+ * Check a state's signature and expiry, and - when `browserNonce` is given -
+ * that it was minted for the browser presenting it. The callback always
+ * passes one; see completeConnection.
+ */
+export function verifyState(state: string, browserNonce?: string): { userId: string } {
   const [payload, sig] = String(state || '').split('.');
   if (!payload || !sig) throw new AppError('Invalid state', 400);
   const expected = crypto.createHmac('sha256', env.ENCRYPTION_KEY).update(payload).digest('base64url');
@@ -85,7 +110,7 @@ export function verifyState(state: string): { userId: string } {
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
     throw new AppError('State signature mismatch', 400);
   }
-  let parsed: { u: string; e: number };
+  let parsed: { u: string; e: number; n?: string };
   try {
     parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
   } catch {
@@ -93,6 +118,13 @@ export function verifyState(state: string): { userId: string } {
   }
   if (!parsed.u || Date.now() > parsed.e) {
     throw new AppError('That took too long - start connecting again.', 400);
+  }
+  if (browserNonce !== undefined) {
+    const held = Buffer.from(String(browserNonce));
+    const minted = Buffer.from(String(parsed.n || ''));
+    if (!held.length || held.length !== minted.length || !crypto.timingSafeEqual(held, minted)) {
+      throw new AppError('Start connecting your calendar again from this browser.', 400);
+    }
   }
   return { userId: parsed.u };
 }
@@ -151,10 +183,15 @@ async function authed(url: string, token: string, init?: RequestInit): Promise<{
 /* ── Connecting ── */
 
 export const calendarSync = {
-  authorizeUrl(userId: string): string {
+  /**
+   * Where to send the browser, and the nonce the caller must set in the
+   * CALENDAR_OAUTH_COOKIE on that same browser before it goes.
+   */
+  authorizeUrl(userId: string): { url: string; nonce: string } {
     if (!googleConfigured()) {
       throw new AppError('Google Calendar is not set up on this deployment yet.', 503);
     }
+    const nonce = newOAuthNonce();
     const params = new URLSearchParams({
       client_id: env.GOOGLE_CLIENT_ID,
       redirect_uri: googleRedirectUri(),
@@ -167,14 +204,19 @@ export const calendarSync = {
       access_type: 'offline',
       prompt: 'consent',
       include_granted_scopes: 'true',
-      state: signState(userId),
+      state: signState(userId, nonce),
     });
-    return `${GOOGLE_AUTH}?${params.toString()}`;
+    return { url: `${GOOGLE_AUTH}?${params.toString()}`, nonce };
   },
 
   /** Exchange the callback code and store the connection. */
-  async completeConnection(code: string, state: string): Promise<{ email: string }> {
-    const { userId } = verifyState(state);
+  async completeConnection(code: string, state: string, browserNonce: string | undefined): Promise<{ email: string }> {
+    // Required, never optional here: no cookie means this browser did not
+    // start the flow, which is exactly the case being defended against.
+    if (!browserNonce) {
+      throw new AppError('Start connecting your calendar again from this browser.', 400);
+    }
+    const { userId } = verifyState(state, browserNonce);
 
     const token = await post(GOOGLE_TOKEN, new URLSearchParams({
       code,
@@ -585,11 +627,23 @@ export const calendarSync = {
       if (!token) return;
 
       const calendarId = connection.calendar_ids?.[0] || 'primary';
-      await authed(
+      const res = await authed(
         `${GOOGLE_EVENTS}/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(event.external_event_id)}`,
         token,
         { method: 'DELETE' },
       );
+      /*
+       * Forget the copy once it is gone (or was already). Left pointing at a
+       * deleted Google event, a meeting the organiser reinstated was
+       * "moved" by patching the deleted copy - which stays deleted - and
+       * never reappeared in their calendar.
+       */
+      if (res.ok || res.status === 404 || res.status === 410) {
+        await supabaseAdmin.from('crm_events').update({
+          external_event_id: null,
+          external_connection_id: null,
+        }).eq('id', eventId).eq('user_id', userId);
+      }
     } catch (err: any) {
       console.error(`[CalendarSync] Could not remove event: ${err?.message || err}`);
     }

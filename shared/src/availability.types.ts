@@ -1,4 +1,4 @@
-import { partsInTimezone, tzWallTimeToUtc } from './timezone.js';
+import { partsInTimezone, tzWallTimeToUtc, isValidTimezone, nextCalendarDay } from './timezone.js';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Which moments may be offered to somebody else.
@@ -64,6 +64,37 @@ export interface Slot {
 }
 
 export const SLOT_INTERVALS = [5, 10, 15, 20, 30, 60];
+
+/**
+ * The instants an all-day event blocks.
+ *
+ * An all-day event is stored as the midnight that STARTED its day in the
+ * zone it was entered in - the form writes local midnight. Truncating that
+ * instant to a UTC day blocked the wrong day for anybody east of UTC
+ * (Tokyo's midnight on the 5th is 15:00 on the 4th in UTC, so the 4th was
+ * blocked and the 5th left bookable) and half the wrong day for anybody
+ * west of it.
+ *
+ * So the date is read in the zone the event was written in (falling back to
+ * the organiser's), and the block runs from that date's midnight to the
+ * next one in the ORGANISER's zone - the zone their working hours, and so
+ * every slot, are written in. Next midnight rather than +24h, because a
+ * day with a clock change in it is 23 or 25 hours long.
+ */
+export function allDayBlock(
+  startsAt: Date,
+  organiserTimezone: string,
+  eventTimezone?: string | null,
+): BusyInterval {
+  const organiserTz = isValidTimezone(organiserTimezone) ? organiserTimezone : 'UTC';
+  const readIn = isValidTimezone(eventTimezone) ? eventTimezone : organiserTz;
+  const p = partsInTimezone(startsAt, readIn);
+  const next = nextCalendarDay(p.year, p.month, p.day);
+  return {
+    start: tzWallTimeToUtc(p.year, p.month, p.day, 0, 0, organiserTz),
+    end: tzWallTimeToUtc(next.year, next.month, next.day, 0, 0, organiserTz),
+  };
+}
 
 /** "09:00", from minutes past midnight. */
 export function minuteLabel(minute: number): string {
@@ -154,6 +185,16 @@ export interface ComputeSlotsInput {
   prefs: SchedulingPrefs;
   /** Everything already in the diary, in instants. */
   busy: BusyInterval[];
+  /**
+   * The meetings that count against max_bookings_per_day.
+   *
+   * Only bookings do. Counting every busy interval charged a private
+   * dentist appointment against the cap, and - once write-back to Google
+   * was on - counted each booking twice: once as itself and once as the
+   * copy of it in the external calendar's free/busy. Omitted, the busy list
+   * stands in, which is what callers without the distinction always got.
+   */
+  bookings?: BusyInterval[];
   /** Now, so notice can be applied. Injectable so tests are not clock-bound. */
   now?: Date;
 }
@@ -178,6 +219,7 @@ export function computeSlots(input: ComputeSlotsInput): Slot[] {
     from, to, durationMinutes, windows, prefs, busy,
     now = new Date(),
   } = input;
+  const countable = input.bookings ?? busy;
 
   if (!(durationMinutes > 0)) return [];
   const interval = prefs.slot_interval_minutes > 0 ? prefs.slot_interval_minutes : 15;
@@ -208,7 +250,7 @@ export function computeSlots(input: ComputeSlotsInput): Slot[] {
    * or three consecutive bookings into "1" and the cap never tripped.
    */
   const bookingsOnDay = (dayStart: Date, dayEnd: Date): number =>
-    busy.filter((b) => overlaps(b.start, b.end, dayStart, dayEnd)).length;
+    countable.filter((b) => overlaps(b.start, b.end, dayStart, dayEnd)).length;
 
   const slots: Slot[] = [];
 
@@ -220,7 +262,9 @@ export function computeSlots(input: ComputeSlotsInput): Slot[] {
     // 6. A day that is already full is skipped whole.
     if (prefs.max_bookings_per_day != null) {
       const dayStart = tzWallTimeToUtc(day.year, day.month, day.day, 0, 0, prefs.timezone);
-      const dayEnd = new Date(dayStart.getTime() + 86_400_000);
+      // The next midnight, not +24h: a clock-change day is 23 or 25 hours.
+      const next = nextCalendarDay(day.year, day.month, day.day);
+      const dayEnd = tzWallTimeToUtc(next.year, next.month, next.day, 0, 0, prefs.timezone);
       if (bookingsOnDay(dayStart, dayEnd) >= prefs.max_bookings_per_day) continue;
     }
 

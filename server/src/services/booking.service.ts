@@ -10,7 +10,7 @@ import { env } from '../config/env.js';
 import { escapeHtml, textToHtml } from '../utils/html.js';
 import { promoteToContact } from './lifecycle.service.js';
 import {
-  slugify, looksLikeEmail, buildIcs,
+  slugify, looksLikeEmail, buildIcs, eventTimeProblem,
   type BookingLink, type CreateBookingLinkInput,
   type PublicBookingPage, type CreateBookingInput, type BookingConfirmation,
   type EventLocationKind, type Slot,
@@ -421,10 +421,55 @@ export async function organiserName(userId: string): Promise<string> {
   return name || (data?.company || '').trim() || 'Your host';
 }
 
-/** The organiser's address, for the calendar file only. */
+/** The organiser's address, for the calendar file only. Never throws. */
 async function organiserEmail(userId: string): Promise<string | null> {
-  const { data } = await supabaseAdmin.auth.admin.getUserById(userId);
-  return data?.user?.email ?? null;
+  try {
+    const { data } = await supabaseAdmin.auth.admin.getUserById(userId);
+    return data?.user?.email ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Call book_slot, on a database with or without migration 088.
+ *
+ * 088 adds p_timezone and p_max_per_day and drops the older signature. Code
+ * deploys before the migration is run, and in that window every booking
+ * would fail with "function not found". So when the new signature is
+ * missing, the call is retried with the old one: the all-day and daily-cap
+ * fixes wait for 088, bookings do not.
+ */
+async function rpcBookSlot(args: Record<string, unknown>) {
+  const first = await supabaseAdmin.rpc('book_slot', args);
+  if (!first.error) return first;
+  const missing = (first.error as any).code === 'PGRST202'
+    || /could not find the function|function .*book_slot.* does not exist/i.test(first.error.message);
+  if (!missing) return first;
+  const { p_timezone: _tz, p_max_per_day: _cap, ...older } = args;
+  return supabaseAdmin.rpc('book_slot', older);
+}
+
+/**
+ * What book_slot's refusals mean, in words.
+ *
+ * SLOT_TAKEN is the clash check; DAY_FULL is the daily cap, counted under
+ * the same lock since 088 so two people racing for the last place on a day
+ * cannot both get it. Anything else is a real failure.
+ */
+function bookSlotError(error: { message: string }, who: 'visitor' | 'organiser' = 'visitor'): AppError {
+  if (/SLOT_TAKEN/.test(error.message)) {
+    return who === 'organiser'
+      ? new AppError('That time clashes with something already in your diary.', 409)
+      : new AppError('Somebody just took that time. Pick another and it will be yours.', 409);
+  }
+  if (/DAY_FULL/.test(error.message)) {
+    return new AppError('That day has just filled up. Pick a time on another day.', 409);
+  }
+  if (/NO_SUCH_BOOKING/.test(error.message)) {
+    return new AppError('That meeting was not found.', 404);
+  }
+  return new AppError(error.message, 500);
 }
 
 /**
@@ -597,12 +642,12 @@ export const publicBookingService = {
     const minutes = durationOf(link);
     const end = new Date(start.getTime() + minutes * 60_000);
 
-    const free = await availabilityService.canBook(link.user_id, start, minutes);
+    const prefs = await availabilityService.getPrefs(link.user_id);
+    const free = await availabilityService.canBook(link.user_id, start, minutes, { prefs });
     if (!free) {
       throw new AppError('That time is no longer being offered. Have another look at what is free.', 409);
     }
 
-    const prefs = await availabilityService.getPrefs(link.user_id);
     const who = await identify(visitorToken, link.user_id);
 
     /*
@@ -621,7 +666,7 @@ export const publicBookingService = {
     // 32 bytes of randomness, url-safe. This stands in for a login.
     const token = crypto.randomBytes(24).toString('base64url');
 
-    const { data, error } = await supabaseAdmin.rpc('book_slot', {
+    const { data, error } = await rpcBookSlot({
       p_user_id: link.user_id,
       p_link_id: link.id,
       p_starts_at: start.toISOString(),
@@ -639,14 +684,12 @@ export const publicBookingService = {
       p_event_type_id: link.event_type_id,
       p_location: link.event_type?.location_kind ?? 'video',
       p_exclude_event_id: null,
+      // The day's cap and the all-day blocks are both the organiser's day.
+      p_timezone: prefs.timezone,
+      p_max_per_day: prefs.max_bookings_per_day ?? null,
     });
 
-    if (error) {
-      if (/SLOT_TAKEN/.test(error.message)) {
-        throw new AppError('Somebody just took that time. Pick another and it will be yours.', 409);
-      }
-      throw new AppError(error.message, 500);
-    }
+    if (error) throw bookSlotError(error);
 
     /*
      * Everything after the booking itself is follow-through, and none of it
@@ -655,7 +698,10 @@ export const publicBookingService = {
      * prospect who thinks they have no meeting and goes elsewhere.
      */
     const eventId = String(data);
-    const organiser = await organiserName(link.user_id);
+    const [organiser, hostEmail] = await Promise.all([
+      organiserName(link.user_id),
+      organiserEmail(link.user_id),
+    ]);
 
     await Promise.allSettled([
       // Where it came from, recorded on the meeting itself so "this sequence
@@ -705,6 +751,7 @@ export const publicBookingService = {
         inviteeMessage: input.answer || null,
         sequence: 0,
         notifyOrganiser: link.notify_organiser !== false,
+        organiserEmail: hostEmail,
       }).then(async (sent) => {
         if (sent.invitee) {
           await supabaseAdmin.from('crm_events')
@@ -971,8 +1018,11 @@ export const publicBookingService = {
   /** Free times for moving an existing booking, excluding its own slot. */
   async rescheduleSlots(token: string, from: Date, to: Date): Promise<Slot[]> {
     const booking = await this.byToken(token);
+    // Excluded, so neither its own time nor its place in its day's cap
+    // stands in the way of moving it - moving a meeting an hour later on a
+    // day already at the cap was refused for being over the cap by itself.
     const slots = await availabilityService.slots(booking.user_id, {
-      from, to, durationMinutes: booking.duration_minutes,
+      from, to, durationMinutes: booking.duration_minutes, excludeEventId: booking.id,
     });
     /*
      * The meeting being moved is in its own way: availabilityService sees it
@@ -1019,7 +1069,7 @@ export const publicBookingService = {
     const end = new Date(start.getTime() + booking.duration_minutes * 60_000);
     const prefs = await availabilityService.getPrefs(booking.user_id);
 
-    const { error } = await supabaseAdmin.rpc('book_slot', {
+    const { error } = await rpcBookSlot({
       p_user_id: booking.user_id,
       p_link_id: null,
       p_starts_at: start.toISOString(),
@@ -1030,13 +1080,10 @@ export const publicBookingService = {
       p_invitee_message: null, p_invitee_timezone: null, p_manage_token: null,
       p_event_type_id: null, p_location: null,
       p_exclude_event_id: booking.id,
+      p_timezone: prefs.timezone,
+      p_max_per_day: prefs.max_bookings_per_day ?? null,
     });
-    if (error) {
-      if (/SLOT_TAKEN/.test(error.message)) {
-        throw new AppError('Somebody just took that time. Pick another and it will be yours.', 409);
-      }
-      throw new AppError(error.message, 500);
-    }
+    if (error) throw bookSlotError(error);
 
     const moved = await this.byToken(token);
     // Told after the move, not before: an email announcing a time the
@@ -1066,7 +1113,10 @@ export const publicBookingService = {
     send: (ctx: BookingMailContext) => Promise<any>,
   ): Promise<void> {
     try {
-      const prefs = await availabilityService.getPrefs(booking.user_id);
+      const [prefs, hostEmail] = await Promise.all([
+        availabilityService.getPrefs(booking.user_id),
+        organiserEmail(booking.user_id),
+      ]);
       await send({
         userId: booking.user_id,
         eventId: booking.id,
@@ -1085,6 +1135,8 @@ export const publicBookingService = {
         inviteeMessage: booking.invitee_message ?? null,
         sequence: booking.ics_sequence ?? 0,
         notifyOrganiser: booking.notify_organiser !== false,
+        organiserEmail: hostEmail,
+        slug: booking.slug ?? null,
       });
     } catch (err: any) {
       console.error(`[Booking] Notification failed: ${err?.message || err}`);
@@ -1140,5 +1192,182 @@ export const publicBookingService = {
         sequence: ((booking as any).ics_sequence ?? 0) + (booking.status === 'cancelled' ? 1 : 0),
       }),
     };
+  },
+};
+
+/* ═══════════════════════════════════════════════════════════════════════
+   The organiser touching a booked meeting from their own calendar.
+
+   Dragging a booked meeting on the grid, calling it off from the meeting
+   dialog or deleting it went through the plain CRM event update, which
+   only wrote the row. The invitee was never told, their calendar kept the
+   old invite (ics_sequence never moved), the reminder already sent stayed
+   "sent" for the new time, and the copy written back to Google stayed
+   where it was. A meeting the organiser moved was, as far as the person
+   they were meeting knew, still at the old time.
+
+   So a booked meeting (one with a manage token) takes the same roads the
+   invitee's own manage page does: a move goes through book_slot, which
+   checks the diary, bumps the sequence and clears the reminder; a cancel
+   goes through publicBookingService.cancel as 'organiser', which emails
+   the invitee and takes the Google copy out.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+const ORGANISER_EVENT_SELECT =
+  '*, contact:contacts(id, email, first_name, last_name, company), deal:deals(id, title, stage)';
+
+async function bookedEvent(userId: string, id: string): Promise<any | null> {
+  const { data, error } = await supabaseAdmin
+    .from('crm_events')
+    .select('id, user_id, manage_token, status, starts_at, ends_at, all_day')
+    .eq('id', id)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error) throw new AppError(error.message, 500);
+  if (!data || !(data as any).manage_token) return null;
+  return data;
+}
+
+function sameInstant(a: unknown, b: unknown): boolean {
+  if (a == null || b == null) return a == null && b == null;
+  const x = new Date(a as any).getTime();
+  const y = new Date(b as any).getTime();
+  return Number.isFinite(x) && x === y;
+}
+
+export const organiserBookingService = {
+  /**
+   * Apply the booking-side part of an organiser's edit.
+   *
+   * Returns the part of the patch still to be written as an ordinary event
+   * update - title, notes, a deal link - with the fields handled here taken
+   * out. A meeting that was not booked through a link comes back untouched.
+   */
+  async beforeUpdate(userId: string, id: string, body: Record<string, any>): Promise<{
+    rest: Record<string, any>; notified: boolean;
+  }> {
+    const touchesTime = body.starts_at !== undefined || body.ends_at !== undefined;
+    const touchesStatus = body.status !== undefined;
+    if (!touchesTime && !touchesStatus) return { rest: body, notified: false };
+
+    const current = await bookedEvent(userId, id);
+    if (!current) return { rest: body, notified: false };
+
+    const rest: Record<string, any> = { ...body };
+    // Read here, never a column: left in, a bare "call it off" would reach
+    // the plain update as a patch with nothing in it.
+    delete rest.cancel_reason;
+    const wasCancelled = current.status === 'cancelled';
+
+    // Called off.
+    if (touchesStatus && body.status === 'cancelled') {
+      delete rest.status;
+      if (!wasCancelled) {
+        await publicBookingService.cancel(current.manage_token, body.cancel_reason, 'organiser');
+      }
+      return { rest, notified: !wasCancelled };
+    }
+
+    const allDay = body.all_day !== undefined ? !!body.all_day : !!current.all_day;
+    const start = body.starts_at !== undefined ? body.starts_at : current.starts_at;
+    const end = body.ends_at !== undefined ? body.ends_at : current.ends_at;
+    const moved = touchesTime && (!sameInstant(start, current.starts_at) || !sameInstant(end, current.ends_at));
+
+    // Back on, or moved while live. An all-day booking is not something a
+    // booking page makes; leave that rare case to the plain update.
+    const restoring = touchesStatus && body.status !== 'cancelled' && wasCancelled;
+    if ((!moved && !restoring) || allDay) {
+      if (touchesStatus && body.status === current.status) delete rest.status;
+      return { rest, notified: false };
+    }
+
+    const problem = eventTimeProblem(start, end);
+    if (problem) throw new AppError(problem, 400);
+
+    await this.move(userId, current, new Date(start),
+      end ? new Date(end) : new Date(new Date(start).getTime() + 30 * 60_000),
+      restoring ? 'restore' : 'move');
+
+    delete rest.starts_at;
+    delete rest.ends_at;
+    delete rest.status;
+    return { rest, notified: true };
+  },
+
+  /**
+   * Move (or reinstate) a booked meeting, as the organiser.
+   *
+   * The organiser's own diary, so no working hours, notice or cap - they
+   * may put their meeting wherever they like - but still the clash check,
+   * because book_slot is also what bumps the sequence and clears the
+   * reminder, and two meetings landing on each other by a slipped drag is
+   * worth a refusal rather than a quiet double booking.
+   */
+  async move(userId: string, current: any, start: Date, end: Date, why: 'move' | 'restore'): Promise<void> {
+    const prefs = await availabilityService.getPrefs(userId);
+    const previous = new Date(current.starts_at);
+
+    const { error } = await rpcBookSlot({
+      p_user_id: userId,
+      p_link_id: null,
+      p_starts_at: start.toISOString(),
+      p_ends_at: end.toISOString(),
+      p_buffer_before: 0,
+      p_buffer_after: 0,
+      p_title: '', p_contact_id: null, p_contact_name: '', p_contact_email: '',
+      p_invitee_message: null, p_invitee_timezone: null, p_manage_token: null,
+      p_event_type_id: null, p_location: null,
+      p_exclude_event_id: current.id,
+      p_timezone: prefs.timezone,
+      p_max_per_day: null,
+    });
+    if (error) throw bookSlotError(error, 'organiser');
+
+    if (why === 'restore') {
+      /*
+       * The CANCEL the invitee received carried the stored sequence + 1,
+       * which is exactly what book_slot has just bumped it to. An invite at
+       * the same number as the cancellation it follows is ignored by the
+       * stricter clients, so the reinstatement goes one higher.
+       */
+      const { data: row } = await supabaseAdmin
+        .from('crm_events').select('ics_sequence').eq('id', current.id).eq('user_id', userId).maybeSingle();
+      await supabaseAdmin.from('crm_events')
+        .update({ ics_sequence: ((row as any)?.ics_sequence ?? 0) + 1 })
+        .eq('id', current.id).eq('user_id', userId);
+    }
+
+    const booking = await publicBookingService.byToken(current.manage_token);
+    const title = `${booking.headline} with ${booking.invitee_name || booking.invitee_email}`;
+    await Promise.allSettled([
+      why === 'restore'
+        ? publicBookingService.notify(booking, (ctx) => bookingMail.confirmed({ ...ctx, notifyOrganiser: false }))
+        : publicBookingService.notify(booking, (ctx) => bookingMail.rescheduled(ctx, previous, 'organiser')),
+      // Cancelling took the Google copy out, so reinstating puts one back;
+      // moveEvent pushes afresh when there is no copy to move.
+      calendarSync.moveEvent(userId, current.id, new Date(booking.start), new Date(booking.end), {
+        title, inviteeEmail: booking.invitee_email,
+      }),
+    ]);
+  },
+
+  /** Deleting a booked meeting tells the invitee first, then deletes it. */
+  async beforeDelete(userId: string, id: string): Promise<void> {
+    const current = await bookedEvent(userId, id);
+    if (!current || current.status === 'cancelled') return;
+    await publicBookingService.cancel(current.manage_token, undefined, 'organiser');
+  },
+
+  /** The row as the calendar reads it, for an edit that left nothing else to write. */
+  async read(userId: string, id: string) {
+    const { data, error } = await supabaseAdmin
+      .from('crm_events')
+      .select(ORGANISER_EVENT_SELECT)
+      .eq('id', id)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (error) throw new AppError(error.message, 500);
+    if (!data) throw new AppError('Event not found', 404);
+    return data;
   },
 };

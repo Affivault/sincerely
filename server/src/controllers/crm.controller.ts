@@ -2,6 +2,20 @@ import { Response, NextFunction } from 'express';
 import { healthForDeals } from '../services/deal-health.service.js';
 import { AuthRequest } from '../middleware/auth.middleware.js';
 import { crmService } from '../services/crm.service.js';
+import { organiserBookingService } from '../services/booking.service.js';
+import { AppError } from '../middleware/error.middleware.js';
+import { isValidTimezone } from '@lemlist/shared';
+
+/**
+ * An event's zone says which wall-clock day an all-day event means, and
+ * the availability maths reads it. One it cannot parse would quietly turn
+ * into UTC there, so it is refused here instead.
+ */
+function assertEventTimezone(body: any) {
+  if (body && body.timezone != null && body.timezone !== '' && !isValidTimezone(body.timezone)) {
+    throw new AppError('That is not a timezone this system knows.', 400);
+  }
+}
 import { parseDayWindow } from '../utils/day-window.js';
 
 export const crmController = {
@@ -89,13 +103,36 @@ export const crmController = {
     } catch (err) { next(err); }
   },
   async createEvent(req: AuthRequest, res: Response, next: NextFunction) {
-    try { res.status(201).json(await crmService.createEvent(req.userId!, req.body)); } catch (err) { next(err); }
+    try {
+      assertEventTimezone(req.body);
+      res.status(201).json(await crmService.createEvent(req.userId!, req.body));
+    } catch (err) { next(err); }
   },
   async updateEvent(req: AuthRequest, res: Response, next: NextFunction) {
-    try { res.json(await crmService.updateEvent(req.userId!, req.params.id, req.body)); } catch (err) { next(err); }
+    try {
+      assertEventTimezone(req.body);
+      /*
+       * A meeting somebody booked through a link is moved and called off
+       * the way its invitee would: they are emailed, their invite is
+       * updated, and the Google copy follows. Whatever is left of the patch
+       * (a title, a note) is an ordinary edit.
+       */
+      const { rest, notified } = await organiserBookingService.beforeUpdate(req.userId!, req.params.id, req.body || {});
+      const saved = Object.keys(rest).length > 0
+        ? await crmService.updateEvent(req.userId!, req.params.id, rest)
+        : await organiserBookingService.read(req.userId!, req.params.id);
+      // Said back so the calendar can say who was told, rather than leave
+      // the organiser wondering whether the person they moved knows.
+      res.json(notified ? { ...(saved as any), invitee_notified: true } : saved);
+    } catch (err) { next(err); }
   },
   async deleteEvent(req: AuthRequest, res: Response, next: NextFunction) {
-    try { await crmService.deleteEvent(req.userId!, req.params.id); res.status(204).send(); } catch (err) { next(err); }
+    try {
+      // The invitee is told before the row (and the manage link) is gone.
+      await organiserBookingService.beforeDelete(req.userId!, req.params.id);
+      await crmService.deleteEvent(req.userId!, req.params.id);
+      res.status(204).send();
+    } catch (err) { next(err); }
   },
 
   /* ── Notes ── */

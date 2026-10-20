@@ -51,6 +51,15 @@ export interface BookingMailContext {
   inviteeMessage?: string | null;
   sequence: number;
   notifyOrganiser: boolean;
+  /**
+   * The organiser's address, for the invite's ORGANIZER line. Without it
+   * Outlook and Apple Calendar treat the invite as one the reader organised
+   * themselves, and a later update or CANCEL from the same UID is refused
+   * or duplicated rather than applied.
+   */
+  organiserEmail?: string | null;
+  /** The booking page it came from, for "book another time" once it is gone. */
+  slug?: string | null;
 }
 
 /** Long form, in a named zone, spelled out so nobody has to decode it. */
@@ -198,9 +207,14 @@ function icsFor(ctx: BookingMailContext, cancelled: boolean) {
       description: `With ${ctx.organiser}.`,
       location: LOCATION_LABEL[ctx.locationKind] || 'Meeting',
       organiser: ctx.organiser,
+      organiserEmail: ctx.organiserEmail || undefined,
       attendeeEmail: ctx.inviteeEmail,
       cancelled,
-      sequence: ctx.sequence,
+      // A cancellation must outrank the invite it withdraws. The stored
+      // sequence is the one that invite carried, so a CANCEL at the same
+      // number is ignored by stricter clients - the same +1 the downloadable
+      // .ics applies in booking.service.
+      sequence: (ctx.sequence ?? 0) + (cancelled ? 1 : 0),
     }),
   };
 }
@@ -270,12 +284,18 @@ ${ctx.inviteeMessage ? `<p style="margin:0 0 4px;font-size:12px;font-weight:600;
     return { invitee, organiser: organiser };
   },
 
-  /** Moved. The sequence number is what makes a calendar accept the change. */
-  async rescheduled(ctx: BookingMailContext, previous: Date): Promise<boolean> {
+  /**
+   * Moved. The sequence number is what makes a calendar accept the change.
+   *
+   * `by` says who moved it. When the organiser did, the invitee is the one
+   * who needs the news, and telling the organiser "Maud moved your meeting"
+   * about a move they made themselves would be both noise and untrue.
+   */
+  async rescheduled(ctx: BookingMailContext, previous: Date, by: 'invitee' | 'organiser' = 'invitee'): Promise<boolean> {
     const manage = `${appOrigin()}/booking/${ctx.manageToken}`;
     const html = wrap(`
 <p style="margin:0;font-size:17px;font-weight:600;color:#18181b;">Your meeting has moved</p>
-<p style="margin:6px 0 0;font-size:14px;color:#52525b;">${esc(ctx.headline)} with ${esc(ctx.organiser)}.</p>
+<p style="margin:6px 0 0;font-size:14px;color:#52525b;">${by === 'organiser' ? `${esc(ctx.organiser)} moved ${esc(ctx.headline)}.` : `${esc(ctx.headline)} with ${esc(ctx.organiser)}.`}</p>
 <p style="margin:16px 0 0;font-size:13px;color:#9b9b9b;text-decoration:line-through;">${esc(when(previous, ctx.inviteeTimezone))}</p>
 ${detailBlock(ctx, ctx.inviteeTimezone)}
 ${button(manage, 'Change or cancel')}
@@ -291,7 +311,7 @@ ${button(manage, 'Change or cancel')}
       ics: icsFor(ctx, false),
     });
 
-    if (!ctx.notifyOrganiser) return true;
+    if (!ctx.notifyOrganiser || by === 'organiser') return true;
     return deliver(ctx.userId, {
       to: (await senderFor(ctx.userId))?.address || ctx.inviteeEmail,
       replyTo: ctx.inviteeEmail,
@@ -308,7 +328,11 @@ ${detailBlock(ctx, ctx.organiserTimezone)}`),
 
   /** Cancelled, by whichever side. Both are told; neither has to chase. */
   async cancelled(ctx: BookingMailContext, by: 'invitee' | 'organiser', reason?: string | null): Promise<boolean> {
-    const rebook = ctx.manageToken ? `${appOrigin()}/booking/${ctx.manageToken}` : appOrigin();
+    // The booking page itself when we know it: an organiser can delete the
+    // meeting as well as cancel it, and the manage link dies with the row.
+    const rebook = ctx.slug
+      ? `${appOrigin()}/b/${ctx.slug}`
+      : ctx.manageToken ? `${appOrigin()}/booking/${ctx.manageToken}` : appOrigin();
     const because = reason ? `<p style="margin:0 0 16px;font-size:13px;color:#52525b;">&ldquo;${esc(reason)}&rdquo;</p>` : '';
 
     // The invitee only needs telling if they were not the one who cancelled.
