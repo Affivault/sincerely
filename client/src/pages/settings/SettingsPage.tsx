@@ -125,6 +125,11 @@ export function SettingsPage() {
   const [bounceThreshold, setBounceThreshold] = useState(8);
   const [domainLimit, setDomainLimit] = useState(5);
   const [autoVerifyContacts, setAutoVerifyContacts] = useState(true);
+  // When a prospect becomes a contact without anyone moving them.
+  const [autoPromote, setAutoPromote] = useState(true);
+  const [promoteOnReply, setPromoteOnReply] = useState<'any' | 'positive' | 'off'>('any');
+  const [promoteOnMeeting, setPromoteOnMeeting] = useState(true);
+  const [promoteOnDeal, setPromoteOnDeal] = useState(true);
   // What Relay's drafts and the sequence writer start from.
   const [relayOffer, setRelayOffer] = useState('');
   const [relayTone, setRelayTone] = useState<'friendly' | 'direct' | 'formal'>('friendly');
@@ -184,6 +189,10 @@ export function SettingsPage() {
       setBounceThreshold(Number((settings as any).bounce_guard_threshold ?? 8));
       setDomainLimit(Number((settings as any).domain_hourly_limit ?? 5));
       setAutoVerifyContacts((settings as any).auto_verify_contacts ?? true);
+      setAutoPromote(settings.contact_auto_promote ?? true);
+      setPromoteOnReply(settings.contact_promote_on_reply ?? 'any');
+      setPromoteOnMeeting(settings.contact_promote_on_meeting ?? true);
+      setPromoteOnDeal(settings.contact_promote_on_deal ?? true);
       setRelayOffer((settings as any).relay_offer ?? '');
       setRelayTone((settings as any).relay_tone ?? 'friendly');
       setHasChanges(false);
@@ -251,6 +260,10 @@ export function SettingsPage() {
       domain_hourly_limit: domainLimit,
       ai_tagging_enabled: aiTaggingEnabled,
       auto_verify_contacts: autoVerifyContacts,
+      contact_auto_promote: autoPromote,
+      contact_promote_on_reply: promoteOnReply,
+      contact_promote_on_meeting: promoteOnMeeting,
+      contact_promote_on_deal: promoteOnDeal,
       relay_offer: relayOffer,
       relay_tone: relayTone,
     });
@@ -759,6 +772,71 @@ export function SettingsPage() {
                     checked={autoVerifyContacts}
                     onChange={(v) => { setAutoVerifyContacts(v); markChanged(); }}
                   />
+                </div>
+
+                {/* Prospects -> Contacts. Auto-replies, out-of-office notes,
+                    bounces and unsubscribe requests never count; that is
+                    enforced on the server, not offered as a choice. */}
+                <div className="pt-2">
+                  <span className="block text-strong font-medium text-[var(--text-secondary)] mb-1.5">Prospects and contacts</span>
+                  <ToggleSetting
+                    label="Move prospects to Contacts automatically"
+                    description="When a prospect engages, move them to Contacts for you. Turn off to move people only by hand, from the Contacts list or a contact's page."
+                    checked={autoPromote}
+                    onChange={(v) => { setAutoPromote(v); markChanged(); }}
+                  />
+                  {autoPromote && (
+                    <div className="pl-0 sm:pl-4 border-l-0 sm:border-l-2 border-[var(--border-subtle)]">
+                      <div className="py-3.5 border-b border-[var(--border-subtle)]">
+                        <p id="settings-promote-reply-label" className="text-strong font-medium text-[var(--text-primary)]">When they reply</p>
+                        <p className="text-body text-[var(--text-tertiary)] mt-0.5 leading-snug">
+                          Auto-replies, out-of-office notes, bounces and unsubscribe requests never move anyone.
+                        </p>
+                        <div className="mt-2.5 flex flex-wrap gap-2" role="radiogroup" aria-labelledby="settings-promote-reply-label">
+                          {([
+                            { value: 'any' as const, label: 'Any reply from a person' },
+                            { value: 'positive' as const, label: 'Only interested replies' },
+                            { value: 'off' as const, label: 'Never' },
+                          ]).map(({ value, label }) => (
+                            <button
+                              key={value}
+                              type="button"
+                              role="radio"
+                              aria-checked={promoteOnReply === value}
+                              onClick={() => { setPromoteOnReply(value); markChanged(); }}
+                              className={`py-2 px-3 rounded-lg text-strong font-medium transition-colors duration-200 border ${
+                                promoteOnReply === value
+                                  ? 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)] border-[var(--indigo)]'
+                                  : 'bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-subtle)] hover:border-[var(--border-default)]'
+                              }`}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                        {promoteOnReply === 'positive' && (
+                          <p className="mt-2 text-body text-[var(--text-tertiary)] leading-snug">
+                            Interested means the reply reads as a yes or asks to meet. Questions, objections and "not now" stay in Prospects.
+                          </p>
+                        )}
+                      </div>
+                      <ToggleSetting
+                        label="When a meeting is booked"
+                        description="Someone books time through your booking page, or you log a meeting with them."
+                        checked={promoteOnMeeting}
+                        onChange={(v) => { setPromoteOnMeeting(v); markChanged(); }}
+                      />
+                      <ToggleSetting
+                        label="When they become a lead or join a deal"
+                        description="You make them a lead, or add them to a deal in the pipeline."
+                        checked={promoteOnDeal}
+                        onChange={(v) => { setPromoteOnDeal(v); markChanged(); }}
+                      />
+                    </div>
+                  )}
+                  <p className="mt-2 text-body text-[var(--text-tertiary)] leading-snug">
+                    People you move back to Prospects by hand stay there until you move them again.
+                  </p>
                 </div>
               </div>
             )}

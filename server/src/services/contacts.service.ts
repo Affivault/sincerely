@@ -865,8 +865,10 @@ export const contactsService = {
    * Automatic promotion only ever moves forward (a reply makes a prospect a
    * contact); this is the person overriding it - someone imported as a
    * prospect who is really a customer of years, or a contact who belongs
-   * back in the cold pile. Moving to prospect clears engaged_at, so the next
-   * real reply promotes them again as usual.
+   * back in the cold pile. Moving to prospect clears engaged_at and marks
+   * them as placed there by hand, and automatic promotion leaves such people
+   * alone (services/lifecycle): somebody you parked is not moved straight
+   * back by their next reply. Moving them again by hand always works.
    */
   async setLifecycle(userId: string, contactIds: string[], lifecycle: string) {
     if (!['prospect', 'contact', 'customer'].includes(lifecycle)) {
@@ -877,7 +879,7 @@ export const contactsService = {
     if (ids.length > 5000) throw new AppError('Up to 5,000 contacts at a time', 400);
 
     const patch = lifecycle === 'prospect'
-      ? { lifecycle, engaged_at: null, promoted_by: null }
+      ? { lifecycle, engaged_at: null, promoted_by: 'manual' }
       : { lifecycle, promoted_by: 'manual' };
     let updated = 0;
     for (let i = 0; i < ids.length; i += 200) {

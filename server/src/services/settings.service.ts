@@ -45,6 +45,14 @@ export interface UserSettings {
   bounce_guard_threshold: number;
   /** Most sends to one recipient company per hour. 0 = no limit. */
   domain_hourly_limit: number;
+  /** Prospects move to Contacts on their own when they engage (087). Off = by hand only. */
+  contact_auto_promote: boolean;
+  /** Which replies count: any reply from a person, only positive ones, or none. */
+  contact_promote_on_reply: 'any' | 'positive' | 'off';
+  /** A meeting booked or logged with them. */
+  contact_promote_on_meeting: boolean;
+  /** Made a lead, or added to a deal. */
+  contact_promote_on_deal: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -89,6 +97,11 @@ const DEFAULTS: Omit<UserSettings, 'id' | 'user_id' | 'created_at' | 'updated_at
   // Five an hour to one organisation is unremarkable to a gateway and still
   // works through a large company over a day.
   domain_hourly_limit: 5,
+  // What the app did before these were settings.
+  contact_auto_promote: true,
+  contact_promote_on_reply: 'any',
+  contact_promote_on_meeting: true,
+  contact_promote_on_deal: true,
 };
 
 /** Columns a client may write. Everything else (id, user_id, timestamps —
@@ -153,6 +166,12 @@ export const settingsService = {
     }
     if ('relay_tone' in filtered && !['friendly', 'direct', 'formal'].includes(filtered.relay_tone)) {
       throw new AppError('relay_tone must be friendly, direct or formal', 400);
+    }
+    if ('contact_promote_on_reply' in filtered && !['any', 'positive', 'off'].includes(filtered.contact_promote_on_reply)) {
+      throw new AppError('contact_promote_on_reply must be any, positive or off', 400);
+    }
+    for (const k of ['contact_auto_promote', 'contact_promote_on_meeting', 'contact_promote_on_deal']) {
+      if (k in filtered && typeof filtered[k] !== 'boolean') throw new AppError(`${k} must be true or false`, 400);
     }
     if ('relay_offer' in filtered) filtered.relay_offer = String(filtered.relay_offer ?? '').slice(0, 2000);
     if (Object.keys(filtered).length === 0) return settingsService.get(userId);

@@ -51,11 +51,11 @@ export type PromotionTrigger =
   | 'backfill_won_deal';
 
 export const PROMOTION_LABEL: Record<PromotionTrigger, string> = {
-  reply: 'replied to a campaign',
+  reply: 'they replied',
   meeting: 'a meeting was booked',
   lead: 'made a lead',
   deal: 'added to a deal',
-  manual: 'added by hand',
+  manual: 'added or moved by hand',
   import: 'imported as a contact',
   backfill_engaged: 'had history when lifecycle was introduced',
   backfill_won_deal: 'was on a won deal when lifecycle was introduced',

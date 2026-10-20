@@ -1,10 +1,10 @@
 import { supabaseAdmin } from '../config/supabase.js';
-import { promoteToContact } from './lifecycle.service.js';
+import { promoteFromReply } from './lifecycle.service.js';
 import { decrypt } from '../utils/encryption.js';
 import { resolveHostIp } from '../utils/dns-doh.js';
 import { detectAutoReply } from '../utils/auto-reply.js';
 import { classifyMailKind, stripQuoted, type MailKind } from '../utils/mail-kind.js';
-import { processReply } from './sara.service.js';
+import { processReply, classifyReply } from './sara.service.js';
 import { intakeBounceNotice, markBounceChecked } from './bounce-intake.service.js';
 import { looksLikeBounceNotice, parseComplaintReport, SYSTEM_MAIL_HEADER, readSystemMailHeader, replyCheckTokenIn } from '@lemlist/shared';
 import { noteReplyCheck } from '../utils/reply-check-notes.js';
@@ -518,11 +518,23 @@ async function ingest(msg: any, ctx: IngestContext): Promise<boolean> {
    * Somebody wrote to you. That is engagement regardless of whether it
    * answers a tracked campaign step, so the promotion hangs off the
    * message rather than off the campaign match — which is what made it
-   * fire six times out of twelve hundred. Auto-replies are still excluded:
-   * an out-of-office is not a person deciding to talk to you.
+   * fire six times out of twelve hundred.
+   *
+   * Only a person writing counts: not an auto-reply or out-of-office, not
+   * a bounce or a spam complaint, not a newsletter from their company.
+   * What is left still has to be read before it promotes - "I'm away
+   * until Monday" with no auto-reply header, or "please remove me", is not
+   * somebody deciding to talk to you. When Relay reads replies, that read
+   * decides (processReply); otherwise the rules read it here.
    */
-  if (!outbound && contactId && !autoReply.kind) {
-    promoteToContact(userId, [contactId], 'reply').catch(() => {});
+  const personWrote = !outbound && !!(matchedActivity?.contact_id || contactId)
+    && !autoReply.kind && !bounceNotice && !complaint
+    && (!mailKind || mailKind === 'person');
+  if (personWrote && !ctx.aiTaggingOn) {
+    promoteFromReply(userId, matchedActivity?.contact_id || contactId, {
+      intent: classifyReply(subject || '', bodyText || '').intent,
+      fromEmail,
+    }).catch(() => {});
   }
 
   if (!outbound && matchedActivity) {
@@ -581,6 +593,13 @@ async function ingest(msg: any, ctx: IngestContext): Promise<boolean> {
   if (!outbound && !bounceNotice && !complaint && ctx.aiTaggingOn && !autoReply.kind && (!mailKind || mailKind === 'person')) {
     processReply(saved.id).catch((e: any) => {
       console.warn('[InboxSync] AI tag failed for', saved.id, ':', e?.message || String(e));
+      // The read failed, not the reply: the rules still decide the move.
+      if (personWrote) {
+        promoteFromReply(userId, matchedActivity?.contact_id || contactId, {
+          intent: classifyReply(subject || '', bodyText || '').intent,
+          fromEmail,
+        }).catch(() => {});
+      }
     });
   }
 

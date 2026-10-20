@@ -16,6 +16,7 @@ import { pauseColleaguesAfterReply } from './account-pause.service.js';
 import { stripQuoted, htmlToText, NON_PERSON_KINDS } from '../utils/mail-kind.js';
 import { readReply, aiAvailable } from './ai.service.js';
 import { reinstateAfterAutoReply } from './absence.service.js';
+import { promoteFromReply } from './lifecycle.service.js';
 
 /**
  * Relay → CRM: when a reply is classified as interested/meeting, create a
@@ -431,6 +432,19 @@ async function threadHistory(message: any): Promise<string> {
     .join('\n\n');
 }
 
+/**
+ * A person's reply has been read: move them from Prospects to Contacts if
+ * the account's rule says this reply is enough (services/lifecycle). Never
+ * for mail the inbox already knows is a machine. Never throws.
+ */
+async function promoteAfterRead(message: any, intent: string | null | undefined): Promise<void> {
+  if (!message?.user_id || !message.contact_id) return;
+  if (message.direction !== 'inbound' || message.auto_reply_kind) return;
+  if (message.mail_kind && message.mail_kind !== 'person') return;
+  await promoteFromReply(message.user_id, message.contact_id, { intent, fromEmail: message.from_email })
+    .catch(() => 0);
+}
+
 export async function processReply(messageId: string, requestingUserId?: string): Promise<SaraClassificationResult> {
   // Fetch the message with context
   const { data: message, error: msgError } = await supabaseAdmin
@@ -461,6 +475,8 @@ export async function processReply(messageId: string, requestingUserId?: string)
 
   // Relay is a paid feature — skip classification/auto-actions when not included.
   if (message.user_id && !(await billingService.hasFeature(message.user_id, 'sara'))) {
+    // No Relay read, so the rules read it for the Prospects -> Contacts move.
+    await promoteAfterRead(message, classifyReply(message.subject || '', message.body_text || htmlToText(message.body_html || '')).intent);
     return {
       intent: SaraIntent.Other,
       confidence: 0,
@@ -504,6 +520,8 @@ export async function processReply(messageId: string, requestingUserId?: string)
   if (storeErr && /relay_/.test(storeErr.message)) {
     await supabaseAdmin.from('inbox_messages').update(base).eq('id', messageId);
   }
+
+  await promoteAfterRead(message, result.intent);
 
   // Fire webhook for classification
   if (message.user_id) {

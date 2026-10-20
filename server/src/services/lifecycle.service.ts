@@ -1,6 +1,6 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
-import { shouldPromote } from '@lemlist/shared';
+import { shouldPromote, SaraIntent } from '@lemlist/shared';
 import type { Lifecycle, PromotionTrigger } from '@lemlist/shared';
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -59,9 +59,129 @@ export async function promote(
   }
 }
 
-/** Somebody engaged. The commonest promotion by a wide margin. */
-export function promoteToContact(userId: string, contactIds: string[], trigger: PromotionTrigger) {
-  return promote(userId, contactIds, 'contact', trigger);
+/* ───────────────────────────────────────────────────────────────────────
+   Which events are allowed to do it (Settings -> Preferences, migration 087).
+   ─────────────────────────────────────────────────────────────────────── */
+
+export type ReplyPromotion = 'any' | 'positive' | 'off';
+
+export interface PromotionSettings {
+  /** Off: nobody moves on their own; moving is done by hand. */
+  enabled: boolean;
+  on_reply: ReplyPromotion;
+  on_meeting: boolean;
+  /** Made a lead, or put on a deal. */
+  on_deal: boolean;
+}
+
+/** What the app did before these were settings, so nothing changes unasked. */
+export const DEFAULT_PROMOTION: PromotionSettings = {
+  enabled: true, on_reply: 'any', on_meeting: true, on_deal: true,
+};
+
+/**
+ * Read with select('*') so a database without 087 still answers, with the
+ * defaults. A failed read also falls back to the defaults: this gates
+ * bookkeeping, and the defaults are what the account had before.
+ */
+export async function promotionSettings(userId: string): Promise<PromotionSettings> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('user_settings').select('*').eq('user_id', userId).maybeSingle();
+    if (error || !data) return DEFAULT_PROMOTION;
+    const d = data as any;
+    const onReply = ['any', 'positive', 'off'].includes(d.contact_promote_on_reply)
+      ? d.contact_promote_on_reply as ReplyPromotion
+      : DEFAULT_PROMOTION.on_reply;
+    return {
+      enabled: d.contact_auto_promote !== false,
+      on_reply: onReply,
+      on_meeting: d.contact_promote_on_meeting !== false,
+      on_deal: d.contact_promote_on_deal !== false,
+    };
+  } catch {
+    return DEFAULT_PROMOTION;
+  }
+}
+
+/** Whether the account lets this kind of event move somebody. */
+export function triggerAllowed(s: PromotionSettings, trigger: PromotionTrigger): boolean {
+  // Somebody choosing it - an import filed as contacts, a button - is not
+  // automatic, and the switch is about what happens without being asked.
+  if (trigger === 'manual' || trigger === 'import') return true;
+  if (!s.enabled) return false;
+  switch (trigger) {
+    case 'reply': return s.on_reply !== 'off';
+    case 'meeting': return s.on_meeting;
+    case 'lead':
+    case 'deal': return s.on_deal;
+    default: return true;
+  }
+}
+
+/**
+ * Somebody engaged. The commonest promotion by a wide margin.
+ *
+ * Gated by the account's settings, and never touches anybody who was moved
+ * back to Prospects by hand: a deliberate choice outranks an event, so a
+ * person you parked stays parked until you move them yourself.
+ */
+export async function promoteToContact(userId: string, contactIds: string[], trigger: PromotionTrigger) {
+  const ids = [...new Set(contactIds.filter(Boolean))];
+  if (ids.length === 0) return 0;
+  if (trigger === 'manual' || trigger === 'import') return promote(userId, ids, 'contact', trigger);
+  try {
+    if (!triggerAllowed(await promotionSettings(userId), trigger)) return 0;
+    const { data: held, error } = await supabaseAdmin
+      .from('contacts').select('id')
+      .eq('user_id', userId).in('id', ids)
+      .eq('lifecycle', 'prospect').eq('promoted_by', 'manual');
+    if (error) throw error;
+    const parked = new Set((held || []).map((r: any) => r.id));
+    return promote(userId, ids.filter((id) => !parked.has(id)), 'contact', trigger);
+  } catch (e: any) {
+    console.error('[Lifecycle] promoteToContact failed:', e?.message || e);
+    return 0;
+  }
+}
+
+/** Reply intents that never make a contact, whatever the settings say. */
+const NEVER_PROMOTES = new Set<string>([
+  SaraIntent.OutOfOffice, SaraIntent.Unsubscribe, SaraIntent.Bounce,
+]);
+const POSITIVE = new Set<string>([SaraIntent.Interested, SaraIntent.Meeting]);
+
+/** Addresses that are machines by name, whatever the message says. */
+const MACHINE_SENDER = /^(no-?reply|do-?not-?reply|mailer-daemon|postmaster|bounces?|notifications?|auto-?(reply|responder)?)([+._-][^@]*)?@/i;
+
+export function isMachineSender(email: string | null | undefined): boolean {
+  return MACHINE_SENDER.test(String(email || '').trim());
+}
+
+/** Whether a reply read as `intent` is enough to make a contact under `rule`. */
+export function replyQualifies(intent: string | null | undefined, rule: ReplyPromotion): boolean {
+  if (rule === 'off') return false;
+  const i = intent || SaraIntent.Other;
+  if (NEVER_PROMOTES.has(i)) return false;
+  return rule === 'any' ? true : POSITIVE.has(i);
+}
+
+/**
+ * A reply arrived and has been read. The one place a reply promotes.
+ *
+ * The caller has already ruled out what the headers and the inbox give
+ * away (auto-replies, bounces, complaints, newsletters). This adds the
+ * sender address, the read of what they wrote, and the account's rule.
+ */
+export async function promoteFromReply(
+  userId: string,
+  contactId: string | null | undefined,
+  reply: { intent: string | null | undefined; fromEmail?: string | null },
+): Promise<number> {
+  if (!contactId || isMachineSender(reply.fromEmail)) return 0;
+  const s = await promotionSettings(userId);
+  if (!s.enabled || !replyQualifies(reply.intent, s.on_reply)) return 0;
+  return promoteToContact(userId, [contactId], 'reply');
 }
 
 /** A deal was won. They are not a prospect any more, in any sense. */

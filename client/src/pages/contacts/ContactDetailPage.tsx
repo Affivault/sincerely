@@ -14,8 +14,8 @@ import { AddToCampaignModal } from '../../components/shared/AddToCampaignModal';
 import { ContactHistory, ContactOrigin } from '../../components/crm/ContactHistory';
 import { WhereWeAre } from '../../components/crm/WhereWeAre';
 import {
-  DEAL_STAGES, isColdEmailable, LIFECYCLE_LABEL,
-  type Deal, type CrmEvent, type Lifecycle, formatDate } from '@lemlist/shared';
+  DEAL_STAGES, isColdEmailable, LIFECYCLE_LABEL, PROMOTION_LABEL,
+  type Deal, type CrmEvent, type Lifecycle, type PromotionTrigger, formatDate } from '@lemlist/shared';
 import { PageSkeleton } from '../../components/ui/Skeleton';
 import { InlineEdit } from '../../components/ui/InlineEdit';
 import { Modal } from '../../components/ui/Modal';
@@ -433,6 +433,16 @@ export function ContactDetailPage() {
                 {stage === 'prospect' ? 'Move to Contacts' : 'Move to Prospects'}
               </button>
             </div>
+            {/* Why they are where they are, so a move is never a mystery. */}
+            {stage === 'prospect' && (contact as any).promoted_by === 'manual' ? (
+              <p className="mb-2 text-caption text-[var(--text-tertiary)] leading-snug">
+                Moved here by hand, so replies and meetings will not move them to Contacts on their own.
+              </p>
+            ) : stage !== 'prospect' && (contact as any).promoted_by && PROMOTION_LABEL[(contact as any).promoted_by as PromotionTrigger] ? (
+              <p className="mb-2 text-caption text-[var(--text-tertiary)] leading-snug">
+                Became a {stage}: {PROMOTION_LABEL[(contact as any).promoted_by as PromotionTrigger]}.
+              </p>
+            ) : null}
             <div className={cn(
               'flex items-start gap-2 rounded-md px-2.5 py-2 text-caption leading-snug',
               coldEmailable
