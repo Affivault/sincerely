@@ -34,6 +34,11 @@ export interface UserSettings {
   bounce_guard_threshold: number;
   /** Most sends to one recipient company per hour. 0 = no limit. */
   domain_hourly_limit: number;
+  /** Prospects move to Contacts on their own when they engage. Off = by hand only. */
+  contact_auto_promote?: boolean;
+  contact_promote_on_reply?: 'any' | 'positive' | 'off';
+  contact_promote_on_meeting?: boolean;
+  contact_promote_on_deal?: boolean;
   /** What you sell - Relay's drafts and the sequence writer start here. */
   relay_offer?: string;
   relay_tone?: 'friendly' | 'direct' | 'formal';
