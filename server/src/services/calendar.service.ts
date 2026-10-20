@@ -3,7 +3,7 @@ import { AppError } from '../middleware/error.middleware.js';
 import { calendarSync } from './calendar-sync.service.js';
 import {
   EVENT_LOCATION_KINDS, DEFAULT_EVENT_COLOUR, isHexColour,
-  computeSlots, isSlotBookable, resolveEnd,
+  computeSlots, isSlotBookable, resolveEnd, allDayBlock,
   DEFAULT_SCHEDULING_PREFS, DEFAULT_WORKING_WEEK, SLOT_INTERVALS,
   type CalendarEventType, type CreateEventTypeInput,
   type AvailabilityWindow, type SchedulingPrefs, type BusyInterval, type Slot,
@@ -308,6 +308,39 @@ function assertRealTimezone(tz: string): void {
   }
 }
 
+/**
+ * `base` with every stretch of `cut` removed from it.
+ *
+ * Used to take our own written-back bookings out of an external calendar's
+ * free/busy. Splits an interval when a cut lands in its middle, because
+ * free/busy merges touching blocks: a booking at 10:00 next to a dentist at
+ * 10:30 comes back as one 10:00-11:00 block, and dropping it whole would
+ * free the dentist too.
+ */
+export function subtractIntervals(base: BusyInterval[], cut: BusyInterval[]): BusyInterval[] {
+  if (cut.length === 0) return base;
+  const cuts = cut.slice().sort((a, b) => a.start.getTime() - b.start.getTime());
+  const out: BusyInterval[] = [];
+  for (const b of base) {
+    let pieces: BusyInterval[] = [{ start: b.start, end: b.end }];
+    for (const c of cuts) {
+      const next: BusyInterval[] = [];
+      for (const p of pieces) {
+        if (c.end.getTime() <= p.start.getTime() || c.start.getTime() >= p.end.getTime()) {
+          next.push(p);
+          continue;
+        }
+        if (c.start.getTime() > p.start.getTime()) next.push({ start: p.start, end: c.start });
+        if (c.end.getTime() < p.end.getTime()) next.push({ start: c.end, end: p.end });
+      }
+      pieces = next;
+      if (pieces.length === 0) break;
+    }
+    out.push(...pieces);
+  }
+  return out;
+}
+
 export const availabilityService = {
   /**
    * The working week.
@@ -467,9 +500,26 @@ export const availabilityService = {
    * meetings free their slot again.
    */
   async busyBetween(userId: string, from: Date, to: Date): Promise<BusyInterval[]> {
+    return (await this.diary(userId, from, to)).busy;
+  },
+
+  /**
+   * The diary across a window, as the two lists a booking rule needs.
+   *
+   * `busy` is every stretch that is taken; `bookings` is the subset that
+   * counts against the daily cap - meetings booked through a link, and
+   * nothing else (see computeSlots for why the two must differ).
+   *
+   * `excludeEventId` is the meeting being moved. It is in its own way
+   * otherwise: its current time reads as busy and it counts against its own
+   * day's cap, so moving it an hour later on a full day was refused.
+   */
+  async diary(userId: string, from: Date, to: Date, opts: {
+    excludeEventId?: string | null; prefs?: SchedulingPrefs;
+  } = {}): Promise<{ busy: BusyInterval[]; bookings: BusyInterval[] }> {
     const { data, error } = await supabaseAdmin
       .from('crm_events')
-      .select('id, starts_at, ends_at, all_day, status, event_type_id')
+      .select('id, starts_at, ends_at, all_day, status, event_type_id, timezone, booking_link_id, external_event_id')
       .eq('user_id', userId)
       .neq('status', 'cancelled')
       .gte('starts_at', new Date(from.getTime() - CALENDAR_WINDOW_BACKSTOP_MS).toISOString())
@@ -480,13 +530,31 @@ export const availabilityService = {
 
     // An event's length may only be implied by its kind, so the durations
     // have to be to hand before the ends can be resolved.
-    const { data: types } = await supabaseAdmin
-      .from('calendar_event_types')
-      .select('id, duration_minutes')
-      .eq('user_id', userId);
+    const [{ data: types }, prefs] = await Promise.all([
+      supabaseAdmin
+        .from('calendar_event_types')
+        .select('id, duration_minutes')
+        .eq('user_id', userId),
+      opts.prefs ? Promise.resolve(opts.prefs) : this.getPrefs(userId),
+    ]);
     const minutesById = new Map<string, number>(
       (types || []).map((t: any) => [t.id, t.duration_minutes]),
     );
+
+    const intervalOf = (e: any): BusyInterval => {
+      const start = new Date(e.starts_at);
+      /*
+       * An all-day event blocks the whole day rather than a moment, and the
+       * day is the organiser's - see allDayBlock for how a UTC truncation
+       * blocked the day before for anybody east of Greenwich.
+       */
+      if (e.all_day) return allDayBlock(start, prefs.timezone, e.timezone);
+      return { start, end: resolveEnd(e, minutesById.get(e.event_type_id) ?? null) };
+    };
+
+    const rows = (data || []) as any[];
+    const own = rows.filter((e) => e.id !== opts.excludeEventId);
+    const ownIntervals = own.map((e) => ({ e, i: intervalOf(e) }));
 
     /*
      * A meeting in a calendar Sincerely does not own is still a meeting.
@@ -497,20 +565,24 @@ export const availabilityService = {
      */
     const external = await calendarSync.externalBusy(userId, from, to);
 
-    return external.concat((data || []).map((e: any) => {
-      const start = new Date(e.starts_at);
-      /*
-       * An all-day event blocks the whole day rather than a moment. Treating
-       * it as a zero-length marker would leave the day bookable, which is
-       * the opposite of what somebody meant by blocking it out.
-       */
-      if (e.all_day) {
-        const dayStart = new Date(start);
-        dayStart.setUTCHours(0, 0, 0, 0);
-        return { start: dayStart, end: new Date(dayStart.getTime() + 86_400_000) };
-      }
-      return { start, end: resolveEnd(e, minutesById.get(e.event_type_id) ?? null) };
-    }));
+    /*
+     * But a booking we wrote back to Google comes back to us in Google's
+     * free/busy, as an anonymous interval - free/busy carries no event ids.
+     * Left in, every booking was busy twice, and the meeting being
+     * RESCHEDULED was still blocked by its own copy after being excluded
+     * above. So the time of every event we pushed (the moved one included)
+     * is cut out of what Google reports; our own row, where it still
+     * applies, covers that time anyway.
+     */
+    const pushed = rows
+      .filter((e) => e.external_event_id)
+      .map((e) => intervalOf(e));
+    const externalOnly = subtractIntervals(external, pushed);
+
+    return {
+      busy: externalOnly.concat(ownIntervals.map((x) => x.i)),
+      bookings: ownIntervals.filter((x) => x.e.booking_link_id).map((x) => x.i),
+    };
   },
 
   /**
@@ -520,13 +592,15 @@ export const availabilityService = {
    * itself all agree, because they all call this.
    */
   async slots(userId: string, input: {
-    from: Date; to: Date; durationMinutes: number;
+    from: Date; to: Date; durationMinutes: number; excludeEventId?: string | null;
   }): Promise<Slot[]> {
-    const [windows, prefs, busy] = await Promise.all([
+    const [windows, prefs] = await Promise.all([
       this.listWindows(userId),
       this.getPrefs(userId),
-      this.busyBetween(userId, input.from, input.to),
     ]);
+    const { busy, bookings } = await this.diary(userId, input.from, input.to, {
+      excludeEventId: input.excludeEventId, prefs,
+    });
     return computeSlots({
       from: input.from,
       to: input.to,
@@ -534,6 +608,7 @@ export const availabilityService = {
       windows,
       prefs,
       busy,
+      bookings,
     });
   },
 
@@ -543,12 +618,21 @@ export const availabilityService = {
    * What a booking must ask, because the list it was offered was computed
    * when the page loaded and somebody may have taken the slot since.
    */
-  async canBook(userId: string, start: Date, durationMinutes: number): Promise<boolean> {
-    const [windows, prefs, busy] = await Promise.all([
+  async canBook(userId: string, start: Date, durationMinutes: number, opts: {
+    excludeEventId?: string | null; prefs?: SchedulingPrefs;
+  } = {}): Promise<boolean> {
+    const [windows, prefs] = await Promise.all([
       this.listWindows(userId),
-      this.getPrefs(userId),
-      this.busyBetween(userId, new Date(start.getTime() - 86_400_000), new Date(start.getTime() + 86_400_000)),
+      opts.prefs ? Promise.resolve(opts.prefs) : this.getPrefs(userId),
     ]);
-    return isSlotBookable(start, { durationMinutes, windows, prefs, busy });
+    // Two days either side: a local day in a far-off zone can begin up to
+    // 14 hours from the UTC one, and the cap counts the whole local day.
+    const { busy, bookings } = await this.diary(
+      userId,
+      new Date(start.getTime() - 2 * 86_400_000),
+      new Date(start.getTime() + 2 * 86_400_000),
+      { excludeEventId: opts.excludeEventId, prefs },
+    );
+    return isSlotBookable(start, { durationMinutes, windows, prefs, busy, bookings });
   },
 };

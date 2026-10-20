@@ -1,7 +1,11 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware.js';
 import { calendarService, availabilityService } from '../services/calendar.service.js';
-import { calendarSync, googleConfigured } from '../services/calendar-sync.service.js';
+import {
+  calendarSync, googleConfigured,
+  CALENDAR_OAUTH_COOKIE, CALENDAR_OAUTH_COOKIE_PATH, CALENDAR_OAUTH_TTL_MS,
+} from '../services/calendar-sync.service.js';
+import { env } from '../config/env.js';
 
 export const calendarController = {
   /**
@@ -79,7 +83,22 @@ export const calendarController = {
 
   async authorizeGoogle(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      res.json({ url: calendarSync.authorizeUrl(req.userId!) });
+      const { url, nonce } = calendarSync.authorizeUrl(req.userId!);
+      /*
+       * The other half of the state: this browser, and only this one, can
+       * finish the connection. Set on the API's own host and scoped to the
+       * callback path, which Google's redirect reaches as a top-level GET -
+       * the one cross-site request SameSite=Lax still carries a cookie on.
+       * The client asks for this with credentials so the cookie is kept.
+       */
+      res.cookie(CALENDAR_OAUTH_COOKIE, nonce, {
+        httpOnly: true,
+        secure: /^https:/i.test(env.API_BASE_URL),
+        sameSite: 'lax',
+        path: CALENDAR_OAUTH_COOKIE_PATH,
+        maxAge: CALENDAR_OAUTH_TTL_MS,
+      });
+      res.json({ url });
     } catch (err) { next(err); }
   },
 

@@ -55,8 +55,12 @@ export const availabilityApi = {
       }[];
     }>('/calendar/connections')).data,
 
+  /*
+   * With credentials, so the browser keeps the nonce cookie this response
+   * sets: the Google callback is only honoured in the browser holding it.
+   */
   authorizeGoogle: async () =>
-    (await apiClient.get<{ url: string }>('/calendar/connections/authorize')).data,
+    (await apiClient.get<{ url: string }>('/calendar/connections/authorize', { withCredentials: true })).data,
 
   updateConnection: async (id: string, input: { read_busy?: boolean; write_events?: boolean }) =>
     (await apiClient.patch(`/calendar/connections/${id}`, input)).data,

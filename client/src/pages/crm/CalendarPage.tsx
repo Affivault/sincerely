@@ -320,6 +320,13 @@ export function CalendarPage() {
   const moveEvent = useMutation({
     mutationFn: ({ id, ...patch }: { id: string; starts_at?: string; ends_at?: string | null }) =>
       crmApi.updateEvent(id, patch as any),
+    // A meeting somebody booked through a link: moving it emailed them the
+    // new time, and the organiser should not have to wonder whether it did.
+    onSuccess: (saved: any) => {
+      if (saved?.invitee_notified) {
+        toast.success(`${saved.contact_name || 'The invitee'} has been sent the new time.`);
+      }
+    },
     // Spread last: an onError written after this would replace the rollback.
     ...optimisticEvent,
   });

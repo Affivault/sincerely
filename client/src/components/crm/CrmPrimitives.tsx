@@ -517,6 +517,13 @@ export function MeetingModal({
          * every meeting already booked under it on the old colour.
          */
         event_type_id: form.event_type_id || null,
+        /*
+         * An all-day meeting is stored as this browser's local midnight, and
+         * which day that midnight began is only knowable in this browser's
+         * zone. Sent along so the server reads the same day the form showed
+         * - read in UTC instead, Tokyo's Tuesday blocked Monday.
+         */
+        ...(form.all_day ? { timezone: Intl.DateTimeFormat().resolvedOptions().timeZone } : {}),
       };
       return editing ? crmApi.updateEvent(event!.id!, payload) : crmApi.createEvent(payload);
     },
@@ -541,14 +548,16 @@ export function MeetingModal({
   const setStatus = useMutation({
     mutationFn: (status: 'confirmed' | 'cancelled') =>
       crmApi.updateEvent(event!.id!, { status } as any),
-    onSuccess: (_r, status) => {
+    onSuccess: (r: any, status) => {
       invalidate();
+      // A booked meeting's invitee is emailed either way; say so.
+      const told = r?.invitee_notified ? ` ${r.contact_name || 'The invitee'} has been emailed.` : '';
       toast.success(status === 'cancelled'
         // Says what it did and what it did not do, because "cancelled" and
         // "deleted" are the same word to most people and only one of them
         // can be taken back.
-        ? 'Called off. It stays on the calendar, struck through.'
-        : 'Back on.');
+        ? `Called off. It stays on the calendar, struck through.${told}`
+        : `Back on.${told}`);
       onClose();
     },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Could not change that'),

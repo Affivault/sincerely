@@ -138,3 +138,27 @@ export function tzWallTimeToUtc(
   if (offset1 === offset2) return guess;
   return new Date(nominalUtc - offset2);
 }
+
+/**
+ * Is this an IANA zone the runtime can actually use?
+ *
+ * Every helper above quietly falls back to UTC on a zone it cannot read,
+ * which is the right thing at render time and the wrong thing at write
+ * time: a stored "Europe/Londn" turns every later calculation into a UTC
+ * one with nothing to say so. Validate on the way in with this.
+ */
+export function isValidTimezone(tz: unknown): tz is string {
+  if (typeof tz !== 'string' || !tz.trim() || tz.length > 64) return false;
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** The calendar day after (year, month, day), rolling months and years. */
+export function nextCalendarDay(year: number, month: number, day: number): { year: number; month: number; day: number } {
+  const d = new Date(Date.UTC(year, month - 1, day + 1));
+  return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() };
+}
