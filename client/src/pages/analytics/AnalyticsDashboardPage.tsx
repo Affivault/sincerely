@@ -938,7 +938,7 @@ export function AnalyticsDashboardPage() {
       { name: 'Opened', value: safeNum(overview.total_opened) },
       { name: 'Clicked', value: safeNum(overview.total_clicked) },
       { name: 'Replied', value: safeNum(overview.total_replied) },
-      { name: 'No engagement', value: Math.max(0, safeNum(overview.total_sent) - safeNum(overview.total_opened)) },
+      { name: 'No engagement', value: Math.max(0, safeNum(overview.contacts_sent ?? overview.total_sent) - safeNum(overview.total_opened)) },
     ].filter((d) => d.value > 0);
   }, [overview]);
 
@@ -1084,11 +1084,11 @@ export function AnalyticsDashboardPage() {
               <StatCard inStrip label="Emails sent" value={fmtNum(overview.total_sent)} icon={Send} accent="indigo"
                 delta={overview.sent_change ?? undefined} sparkline={trendSpark('sent')} hint={`${fmtNum(overview.total_sent)} total`} />
               <StatCard inStrip label="Open rate" value={fmtPct(overview.avg_open_rate)} icon={Mail} accent="violet"
-                delta={overview.opened_change ?? undefined} sparkline={trendSpark('opened')} hint={`${fmtNum(overview.total_opened)} opens`} />
+                delta={overview.open_rate_change ?? undefined} sparkline={trendSpark('opened')} hint={`${fmtNum(overview.total_opened)} of ${fmtNum(overview.contacts_sent ?? overview.total_sent)} contacts opened; arrow is the change in the rate`} />
               <StatCard inStrip label="Click rate" value={fmtPct(overview.avg_click_rate)} icon={MousePointerClick} accent="cyan"
-                delta={overview.clicked_change ?? undefined} sparkline={trendSpark('clicked')} hint={`${fmtNum(overview.total_clicked)} clicks`} />
+                delta={overview.click_rate_change ?? undefined} sparkline={trendSpark('clicked')} hint={`${fmtNum(overview.total_clicked)} of ${fmtNum(overview.contacts_sent ?? overview.total_sent)} contacts clicked; arrow is the change in the rate`} />
               <StatCard inStrip label="Reply rate" value={fmtPct(overview.avg_reply_rate)} icon={MessageSquare} accent="emerald"
-                delta={overview.replied_change ?? undefined} sparkline={trendSpark('replied')} hint={`${fmtNum(overview.total_replied)} replies`} />
+                delta={overview.reply_rate_change ?? undefined} sparkline={trendSpark('replied')} hint={`${fmtNum(overview.total_replied)} of ${fmtNum(overview.contacts_sent ?? overview.total_sent)} contacts replied; arrow is the change in the rate`} />
             </div>
           )}
 
@@ -1198,7 +1198,8 @@ export function AnalyticsDashboardPage() {
               <div className="px-5 py-3.5 border-b border-[var(--border-subtle)] flex items-center justify-between">
                 <div>
                   <h2 className="text-strong font-semibold text-[var(--text-primary)]">Campaign leaderboard</h2>
-                  <p className="text-caption text-[var(--text-secondary)] mt-0.5">Click any row to deep-dive into that campaign</p>
+                  {/* The leaderboard is all time, whatever the period above says. */}
+                  <p className="text-caption text-[var(--text-secondary)] mt-0.5">All time · click any row to deep-dive into that campaign</p>
                 </div>
                 <span className="text-caption text-[var(--text-tertiary)] bg-[var(--bg-elevated)] px-2 py-0.5 rounded-full">
                   {campaignList!.length} campaigns
@@ -1346,7 +1347,7 @@ export function AnalyticsDashboardPage() {
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                     {[
-                      { label: 'Sent', value: campaignStats.sent, sub: undefined, color: '#3B4AA3', icon: Send },
+                      { label: 'Sent', value: campaignStats.sent, sub: campaignStats.contacts_reached != null ? `to ${fmtNum(campaignStats.contacts_reached)} contacts` : undefined, color: '#3B4AA3', icon: Send },
                       { label: 'Open rate', value: fmtPct(campaignStats.open_rate), sub: fmtNum(campaignStats.opened) + ' opens', color: '#3F8763', icon: Mail },
                       { label: 'Click rate', value: fmtPct(campaignStats.click_rate), sub: fmtNum(campaignStats.clicked) + ' clicks', color: '#B88124', icon: MousePointerClick },
                       { label: 'Reply rate', value: fmtPct(campaignStats.reply_rate), sub: fmtNum(campaignStats.replied) + ' replies', color: '#A3507A', icon: MessageSquare },
@@ -1415,7 +1416,7 @@ export function AnalyticsDashboardPage() {
                       <h3 className="text-strong font-semibold text-[var(--text-primary)] mb-1">Engagement funnel</h3>
                       <p className="text-caption text-[var(--text-secondary)] mb-5">Contact journey from send to reply across all steps</p>
                       <FunnelViz
-                        sent={campaignStats.sent}
+                        sent={campaignStats.contacts_reached ?? campaignStats.sent}
                         opened={campaignStats.opened}
                         clicked={campaignStats.clicked}
                         replied={campaignStats.replied}
@@ -1628,7 +1629,7 @@ export function AnalyticsDashboardPage() {
                       <div className="mb-4">
                         <h3 className="text-strong font-semibold text-[var(--text-primary)]">When people engage</h3>
                         <p className="text-caption text-[var(--text-secondary)] mt-0.5">
-                          Combined opens, clicks and replies by day of week and hour of day (contact's local time)
+                          Combined opens, clicks and replies by day of week and hour of day (UTC)
                         </p>
                       </div>
                       <HeatmapGrid grid={heatmapData.grid} maxValue={heatmapData.max_value} />

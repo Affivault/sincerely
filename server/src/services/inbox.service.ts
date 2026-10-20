@@ -17,6 +17,7 @@ import { billingService } from './billing.service.js';
 import { inboxSyncService, imapHostFor } from './inbox-sync.service.js';
 import { guardImap } from '../utils/imap-guard.js';
 import { selectInChunks } from '../utils/batch.js';
+import { isDraining } from '../utils/heartbeat.js';
 
 /** Reserve a monthly-quota slot before an interactive send; throws if over cap. */
 async function assertSendQuota(userId: string): Promise<void> {
@@ -352,9 +353,18 @@ export const inboxService = {
     search?: string;
     folder?: string;
     contact_email?: string;
+    /** Scope to one contact by id - mail linked to them, plus any matching their address. */
+    contact_id?: string;
     mail_kind?: string;
   }) {
     const { page, limit, from, to } = getPagination(params);
+
+    const contactId = typeof params.contact_id === 'string' ? params.contact_id.trim() : '';
+    if (contactId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(contactId)) {
+      throw new AppError('contact_id must be a UUID', 400);
+    }
+    const contactEmail = typeof params.contact_email === 'string' ? params.contact_email.trim() : '';
+    const contactScoped = !!contactId || !!contactEmail;
 
     let query = supabaseAdmin
       .from('inbox_messages')
@@ -363,22 +373,29 @@ export const inboxService = {
 
     // Every message to/from a specific contact (both directions, all folders) —
     // powers the "all past emails" view on the contact page.
-    if (params.contact_email) {
-      // Case-insensitive equality, as the thread lookup does: escaped
-      // wildcards and a quoted value. This used to strip "_" outright, so
-      // john_doe@x.com never matched its own mail, and was case-sensitive.
-      const pattern = params.contact_email.trim().replace(/([%_\\])/g, '\\$1');
-      const e = `"${pattern.replace(/"/g, '')}"`;
-      query = query.or(`from_email.ilike.${e},to_email.ilike.${e}`);
+    if (contactScoped) {
+      const clauses: string[] = [];
+      // By id first: mail linked to the contact still belongs to them when
+      // it went to (or came from) an address other than the one on file.
+      if (contactId) clauses.push(`contact_id.eq.${contactId}`);
+      if (contactEmail) {
+        // Case-insensitive equality, as the thread lookup does: escaped
+        // wildcards and a quoted value. This used to strip "_" outright, so
+        // john_doe@x.com never matched its own mail, and was case-sensitive.
+        const pattern = contactEmail.replace(/([%_\\])/g, '\\$1');
+        const e = `"${pattern.replace(/"/g, '')}"`;
+        clauses.push(`from_email.ilike.${e}`, `to_email.ilike.${e}`);
+      }
+      query = query.or(clauses.join(','));
     }
 
     // Folder-based filtering (skipped when scoped to a contact)
-    const folder = params.folder || (params.contact_email ? 'all' : 'inbox');
+    const folder = params.folder || (contactScoped ? 'all' : 'inbox');
     const sorted = await mailKindReady();
     if (folder === 'inbox') {
       query = query.or('is_archived.is.null,is_archived.eq.false');
       // People only. Mail has its own folder, below.
-      if (sorted && !params.contact_email) query = query.or(PEOPLE_FILTER);
+      if (sorted && !contactScoped) query = query.or(PEOPLE_FILTER);
     } else if (folder === 'other') {
       query = query.or('is_archived.is.null,is_archived.eq.false');
       query = sorted ? query.in('mail_kind', params.mail_kind ? [params.mail_kind] : NON_PERSON_KINDS) : query.eq('id', '00000000-0000-0000-0000-000000000000');
@@ -448,7 +465,8 @@ export const inboxService = {
       }
     }
 
-    query = query.order('received_at', { ascending: false }).range(from, to);
+    // id breaks ties, so paging through same-instant rows neither repeats nor skips one.
+    query = query.order('received_at', { ascending: false }).order('id', { ascending: false }).range(from, to);
 
     const { data, count, error } = await query;
     if (error) throw new AppError(error.message, 500);
@@ -938,9 +956,19 @@ ${original.body_html || `<p>${textToHtml(original.body_text)}</p>`}`;
       messageId,
     }));
 
-    await supabaseAdmin.from('inbox_messages').insert({
+    // The contact this went to, so it shows in their history by id and not
+    // only by an address match. Addresses are stored lowercased.
+    const { data: recipient } = await supabaseAdmin
+      .from('contacts')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('email', String(input.to || '').trim().toLowerCase())
+      .maybeSingle();
+
+    const { error: recordError } = await supabaseAdmin.from('inbox_messages').insert({
       user_id: userId,
       smtp_account_id: smtpAccount.id,
+      contact_id: recipient?.id ?? null,
       from_email: smtpAccount.email_address,
       to_email: input.to,
       subject: input.subject,
@@ -952,7 +980,14 @@ ${original.body_html || `<p>${textToHtml(original.body_text)}</p>`}`;
       received_at: new Date().toISOString(),
     });
 
-    return { success: true, message_id: messageId };
+    // The mail has already gone, so this is still a success - but say that
+    // it was not recorded, rather than letting it vanish from Sent quietly.
+    if (recordError) {
+      console.error('[Inbox] compose sent but could not be recorded:', recordError.message);
+      return { success: true, message_id: messageId, recorded: false };
+    }
+
+    return { success: true, message_id: messageId, recorded: true };
   },
 
   /**
@@ -1255,6 +1290,36 @@ async function findSmtpAccount(userId: string, preferredId?: string | null): Pro
   return data;
 }
 
+/** A scheduled send left 'sending' this long was cut off, not slow. */
+const STUCK_SENDING_MS = 15 * 60 * 1000;
+
+/**
+ * Scheduled emails a dead process left 'sending'.
+ *
+ * The claim in processScheduledEmails flips a row to 'sending' before the
+ * SMTP call. If the process dies in between, nothing ever looks at the row
+ * again: it is neither scheduled (so never retried) nor sent, and cancel and
+ * reschedule both refuse it. Marked 'failed' rather than put back - whether
+ * the mail actually left is unknown, and a duplicate reply is worse than
+ * one the user can see failed and reschedule. inbox_messages has no column
+ * for the reason; the 'failed' state is what the scheduled list shows.
+ */
+export async function reapStuckScheduledSends(): Promise<number> {
+  const cutoff = new Date(Date.now() - STUCK_SENDING_MS).toISOString();
+  const { data, error } = await supabaseAdmin
+    .from('inbox_messages')
+    .update({ sara_status: 'failed' })
+    .eq('direction', 'outbound')
+    .eq('sara_status', 'sending')
+    .lt('sara_action', cutoff)
+    .select('id');
+  if (error) throw new Error(`stuck scheduled sends: ${error.message}`);
+  for (const r of data || []) {
+    console.error(`[ScheduledEmails] Message ${(r as any).id} was left mid-send (the server stopped); marked failed - it may or may not have gone out`);
+  }
+  return (data || []).length;
+}
+
 /**
  * Process all scheduled emails that are due for sending.
  * Called by the sequence worker on each tick (every 30 seconds).
@@ -1276,16 +1341,18 @@ export async function processScheduledEmails(): Promise<number> {
     .order('sara_action', { ascending: true })
     .limit(50);
 
-  if (error) {
-    console.error('[ScheduledEmails] Query error:', error.message);
-    return 0;
-  }
+  // Thrown, not logged and turned into "nothing due": the sequence worker
+  // records it, so the status page can say sending is failing.
+  if (error) throw new Error(`scheduled emails query: ${error.message}`);
 
   if (!dueMessages || dueMessages.length === 0) return 0;
 
   let sent = 0;
 
   for (const msg of dueMessages) {
+    // Shutting down: leave the rest 'scheduled' for the next process rather
+    // than claim one that may be cut off half way.
+    if (isDraining()) break;
     try {
       const smtpAccount = msg.smtp_accounts;
       if (!smtpAccount) {
@@ -1300,9 +1367,14 @@ export async function processScheduledEmails(): Promise<number> {
       // Atomically claim this message BEFORE sending to prevent a duplicate send if
       // an overlapping/concurrent tick picks up the same due row (same compare-and-swap
       // pattern as sequence.service.ts's processEmailStep).
+      //
+      // The claim also stamps sara_action with the claim time. inbox_messages
+      // has no updated_at, and reapStuckScheduledSends needs to know how long
+      // a row has been 'sending'. The row is due either way (claim time is
+      // never in the future), so a revert to 'scheduled' below still retries.
       const { data: claimed, error: claimErr } = await supabaseAdmin
         .from('inbox_messages')
-        .update({ sara_status: 'sending' })
+        .update({ sara_status: 'sending', sara_action: new Date().toISOString() })
         .eq('id', msg.id)
         .eq('sara_status', 'scheduled')
         .select('id')

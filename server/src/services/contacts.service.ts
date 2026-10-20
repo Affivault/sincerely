@@ -7,6 +7,7 @@ import { fireEvent } from './webhook.service.js';
 import { segmentsService } from './segments.service.js';
 import { UNLISTED_LIST_ID } from '@lemlist/shared';
 import { chunk, fetchAllPages, selectInChunks } from '../utils/batch.js';
+import { promoteToContact } from './lifecycle.service.js';
 import Papa from 'papaparse';
 import fs from 'node:fs';
 
@@ -80,6 +81,33 @@ function assertListCountColumn(error: { message?: string } | null): void {
   }
 }
 
+/** The one address check every way in shares: manual create, CSV, API. */
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Escape LIKE wildcards so a search for "john_doe" means that literally. */
+function likeEscape(text: string): string {
+  return text.replace(/([%_\\])/g, '\\$1');
+}
+
+/**
+ * Which of these addresses are on the user's suppression list.
+ *
+ * Never throws: a badge is not worth failing the page for, and a missing
+ * badge is the state the page was in before this existed.
+ */
+async function suppressedEmails(userId: string, emails: string[]): Promise<Set<string>> {
+  const wanted = [...new Set(emails.filter(Boolean).map((e) => e.toLowerCase()))];
+  if (wanted.length === 0) return new Set();
+  try {
+    const rows = await selectInChunks(wanted, (slice) =>
+      supabaseAdmin.from('suppression_list').select('email').eq('user_id', userId).in('email', slice));
+    return new Set(rows.map((r: any) => String(r.email).toLowerCase()));
+  } catch (e: any) {
+    console.warn('[Contacts] suppression lookup failed:', e?.message || e);
+    return new Set();
+  }
+}
+
 /** Which of these ids are this user's contacts, asked a slice at a time. */
 async function ownedContactIds(userId: string, contactIds: string[]): Promise<string[]> {
   const rows = await selectInChunks([...new Set(contactIds)], (slice) =>
@@ -136,12 +164,26 @@ export const contactsService = {
     }
 
     if (params.search) {
-      // Strip ILIKE wildcard characters, and PostgREST filter-syntax characters
-      // (comma separates .or() conditions, parens group them) so user input can't
-      // break out of the intended ilike value and inject extra filter clauses.
-      const safeSearch = params.search.replace(/[%_,()]/g, '');
-      if (safeSearch) {
-        query = query.or(`email.ilike.%${safeSearch}%,first_name.ilike.%${safeSearch}%,last_name.ilike.%${safeSearch}%,company.ilike.%${safeSearch}%`);
+      // Strip PostgREST filter-syntax characters (comma separates .or()
+      // conditions, parens group them, quotes delimit values) so user input
+      // can't break out of the ilike value and inject extra clauses. LIKE
+      // wildcards are escaped rather than stripped: removing "_" meant
+      // "john_doe" searched for "johndoe" and never found john_doe@x.com.
+      const cleaned = String(params.search).replace(/[,()"]/g, ' ').replace(/\s+/g, ' ').trim();
+      if (cleaned) {
+        const t = likeEscape(cleaned);
+        const clauses = [
+          `email.ilike.%${t}%`, `first_name.ilike.%${t}%`, `last_name.ilike.%${t}%`, `company.ilike.%${t}%`,
+        ];
+        // "Ada Lovelace" is a first name and a last name, which no single
+        // column contains.
+        const cut = cleaned.indexOf(' ');
+        if (cut > 0) {
+          const first = likeEscape(cleaned.slice(0, cut));
+          const last = likeEscape(cleaned.slice(cut + 1));
+          clauses.push(`and(first_name.ilike.%${first}%,last_name.ilike.%${last}%)`);
+        }
+        query = query.or(clauses.join(','));
       }
     }
 
@@ -203,13 +245,17 @@ export const contactsService = {
     const ALLOWED_SORT = new Set(['email', 'first_name', 'last_name', 'company', 'dcs_score', 'created_at']);
     const sortBy = ALLOWED_SORT.has(params.sort_by || '') ? params.sort_by! : 'created_at';
     const sortOrder = params.sort_order === 'asc';
-    query = query.order(sortBy, { ascending: sortOrder }).range(from, to);
+    // id breaks ties: an import writes hundreds of rows in the same instant,
+    // and without it paging repeated some and skipped others.
+    query = query.order(sortBy, { ascending: sortOrder }).order('id', { ascending: sortOrder }).range(from, to);
 
     const { data, count, error } = await query;
     if (error) { assertListCountColumn(error); throw new AppError(error.message, 500); }
 
+    const suppressed = await suppressedEmails(userId, (data || []).map((c: any) => c.email));
     const contacts = (data || []).map((c: any) => ({
       ...c,
+      is_suppressed: suppressed.has(String(c.email || '').toLowerCase()),
       tags: (c.contact_tags || []).map((ct: any) => ct.tags).filter(Boolean),
       lists: (c.list_contacts || []).map((lc: any) => lc.contact_lists).filter(Boolean),
       contact_tags: undefined,
@@ -262,7 +308,10 @@ export const contactsService = {
         .from('contacts')
         .select('id', { count: 'exact', head: true })
         .eq('user_id', userId)
-        .eq('lifecycle', lifecycle);
+        .eq('lifecycle', lifecycle)
+        // The same placeholder the list leaves out, so the tab counts agree
+        // with the rows under them.
+        .not('email', 'like', `%@${REPLY_CHECK_CONTACT_DOMAIN}`);
       if (error) throw new AppError(error.message, 500);
       return count || 0;
     };
@@ -285,8 +334,10 @@ export const contactsService = {
     if (error) throw new AppError(error.message, 500);
     if (!data) throw new AppError('Contact not found', 404);
 
+    const suppressed = await suppressedEmails(userId, [data.email]);
     return {
       ...data,
+      is_suppressed: suppressed.has(String(data.email || '').toLowerCase()),
       tags: (data.contact_tags || []).map((ct: any) => ct.tags).filter(Boolean),
       contact_tags: undefined,
     };
@@ -357,9 +408,11 @@ export const contactsService = {
     // matches one created through any other. Addresses are looked up by
     // exact match all over this codebase; one stored with capitals is a
     // duplicate waiting to happen.
-    if (contactData.email !== undefined) {
-      contactData.email = String(contactData.email).trim().toLowerCase();
-    }
+    contactData.email = String(contactData.email ?? '').trim().toLowerCase();
+    // The same rule the CSV import applies, so a typo is a 400 here rather
+    // than a contact nobody can ever email.
+    if (!contactData.email) throw new AppError('A contact needs an email address', 400);
+    if (!EMAIL_RE.test(contactData.email)) throw new AppError('That is not a valid email address', 400);
 
     if (contactData.company_id) {
       const { data: company } = await supabaseAdmin
@@ -371,9 +424,22 @@ export const contactsService = {
       if (!company) throw new AppError('Company not found', 404);
     }
 
+    /*
+     * Somebody typed in by hand is a relationship, not a sourced stranger
+     * (migration 055's "deliberately added"). Left at the column default of
+     * 'prospect', they never appeared on the contacts page they were just
+     * added from, which shows contacts and customers.
+     */
     const { data, error } = await supabaseAdmin
       .from('contacts')
-      .insert({ ...contactData, user_id: userId, source: 'manual' })
+      .insert({
+        ...contactData,
+        user_id: userId,
+        source: 'manual',
+        lifecycle: 'contact',
+        engaged_at: new Date().toISOString(),
+        promoted_by: 'manual',
+      })
       .select()
       .single();
 
@@ -487,25 +553,36 @@ export const contactsService = {
     /** Filename of the CSV this batch came from, recorded on every row so a
      *  lead's origin is still answerable months later. */
     importSource?: string,
+    /** 'contacts' when the import was started from the CRM side: everyone
+     *  in it is a deliberate relationship, not a sourced prospect. */
+    context?: string,
   ): Promise<{
     total: number;
     imported: number;
+    /** Of `imported`, how many were new addresses... */
+    created?: number;
+    /** ...and how many already existed and only had blanks filled. */
+    updated?: number;
+    /** Addresses in this import that are on the suppression list. */
+    suppressed?: number;
     errors: number;
     duplicates_collapsed?: number;
     error_details: { email: string; reason: string }[];
   }> {
     const total = contacts.length;
     const cleanSource = (importSource || '').trim().slice(0, 200) || null;
-    const importedAt = cleanSource ? new Date().toISOString() : null;
     const errorDetails: { email: string; reason: string }[] = [];
     const valid: any[] = [];
     const ALLOWED_FIELDS = new Set([
       'email', 'first_name', 'last_name', 'company',
       'job_title', 'phone', 'linkedin_url', 'website', 'location',
     ]);
-    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     for (const c of contacts) {
+      if (!c || typeof c !== 'object') {
+        errorDetails.push({ email: '(missing)', reason: 'Email is required' });
+        continue;
+      }
       const rawEmail = typeof c.email === 'string' ? c.email.trim() : '';
       if (!rawEmail) {
         errorDetails.push({ email: '(missing)', reason: 'Email is required' });
@@ -517,15 +594,10 @@ export const contactsService = {
         continue;
       }
 
-      const row: Record<string, any> = {
-        user_id: userId,
-        source: 'csv_import',
-        email,
-      };
-      if (cleanSource) {
-        row.import_source = cleanSource;
-        row.imported_at = importedAt;
-      }
+      // Only the fields this row actually has. A key left out is "not in
+      // this file", never "make it empty" - see the merge below.
+      const row: Record<string, any> = { email };
+      if (cleanSource) row.import_source = cleanSource;
       for (const [k, v] of Object.entries(c)) {
         if (!ALLOWED_FIELDS.has(k) || k === 'email') continue;
         if (v == null) continue;
@@ -552,40 +624,85 @@ export const contactsService = {
       return { total, imported: 0, errors: errorDetails.length, error_details: errorDetails.slice(0, 200) };
     }
 
-    // Deduplicate within the batch — PostgreSQL upsert errors on multiple rows
-    // matching the same conflict key. Last occurrence wins so later CSV rows
-    // can fill missing fields from earlier ones.
+    // Deduplicate within the batch - one write per address. A later row
+    // wins where both have a value, and fills what an earlier one left out.
     const uniqueByEmail = new Map<string, any>();
-    for (const row of valid) uniqueByEmail.set(row.email, row);
+    for (const row of valid) {
+      const prev = uniqueByEmail.get(row.email);
+      uniqueByEmail.set(row.email, prev
+        ? { ...prev, ...row, custom_fields: { ...(prev.custom_fields || {}), ...(row.custom_fields || {}) } }
+        : row);
+    }
     const uniqueValid = Array.from(uniqueByEmail.values());
     const duplicatesCollapsed = valid.length - uniqueValid.length;
 
-    const { data, error } = await supabaseAdmin
-      .from('contacts')
-      .upsert(uniqueValid, { onConflict: 'user_id,email', defaultToNull: false })
-      .select('id, email');
+    /*
+     * Re-importing fills gaps; it never blanks.
+     *
+     * This was a PostgREST upsert, which sends the union of every row's
+     * columns and writes a missing key as its default - so re-importing a
+     * file without a phone column wiped every existing contact's phone,
+     * replaced custom_fields wholesale and overwrote their source. The
+     * import_contacts_merge function (migration 086) only fills columns that
+     * are empty now, keeps existing custom fields, never touches source, and
+     * says which rows were new.
+     */
+    let importedRows: Array<{ id: string; email: string; inserted?: boolean }> = [];
+    const { data: merged, error: mergeError } = await supabaseAdmin
+      .rpc('import_contacts_merge', { p_user_id: userId, p_rows: uniqueValid });
 
-    if (error) {
+    if (!mergeError) {
+      importedRows = Array.isArray(merged) ? (merged as any[]) : [];
+    } else if (/import_contacts_merge/.test(mergeError.message || '') || (mergeError as any).code === 'PGRST202') {
+      /*
+       * Migration 086 not run yet. Fall back to something that cannot
+       * blank anything: insert the new addresses, leave existing contacts
+       * exactly as they are, then read back every id for list assignment.
+       */
+      console.warn('[Contacts] import_contacts_merge missing - run migration 086_contact_import_merge.sql. Existing contacts are left unchanged.');
+      const now = new Date().toISOString();
+      const inserts = uniqueValid.map((r) => ({
+        ...r,
+        user_id: userId,
+        source: 'csv_import',
+        ...(r.import_source ? { imported_at: now } : {}),
+      }));
+      const { data: added, error: insErr } = await supabaseAdmin
+        .from('contacts')
+        .upsert(inserts, { onConflict: 'user_id,email', ignoreDuplicates: true })
+        .select('id, email');
+      if (insErr) {
+        return { total, imported: 0, errors: total, error_details: [{ email: '(batch)', reason: insErr.message }] };
+      }
+      const addedIds = new Set((added || []).map((r: any) => r.id));
+      try {
+        const all = await selectInChunks(uniqueValid.map((r) => r.email), (slice) =>
+          supabaseAdmin.from('contacts').select('id, email').eq('user_id', userId).in('email', slice));
+        importedRows = all.map((r: any) => ({ id: r.id, email: r.email, inserted: addedIds.has(r.id) }));
+      } catch (e: any) {
+        return { total, imported: 0, errors: total, error_details: [{ email: '(batch)', reason: e?.message || 'Import failed' }] };
+      }
+    } else {
       return {
         total,
         imported: 0,
         errors: total,
-        error_details: [{ email: '(batch)', reason: error.message }],
+        error_details: [{ email: '(batch)', reason: mergeError.message }],
       };
     }
 
-    const importedRows = data || [];
-
+    let listKind: string | null = null;
     if (listId && importedRows.length > 0) {
       // Verify the list belongs to this user before attaching members
       const { data: list } = await supabaseAdmin
         .from('contact_lists')
-        .select('id')
+        .select('id, kind')
         .eq('id', listId)
         .eq('user_id', userId)
         .maybeSingle();
 
       if (list) {
+        listKind = (list as any).kind ?? null;
         const memberships = importedRows.map((r: any) => ({
           list_id: listId,
           contact_id: r.id,
@@ -600,20 +717,49 @@ export const contactsService = {
       }
     }
 
-    // Failures = rows we tried to upsert (after collapsing duplicates) but
+    /*
+     * An import into a contact list (or started from the contacts page) is
+     * people you already know. Left as prospects - the column default -
+     * they never showed on the contacts page they were imported into.
+     * Lead-list and API imports keep the default: sourcing is what those
+     * are for. promote() only moves forwards, so a customer stays one.
+     */
+    if (importedRows.length > 0 && (listKind === 'contact' || context === 'contacts')) {
+      for (const slice of chunk(importedRows.map((r) => r.id))) {
+        await promoteToContact(userId, slice, 'import');
+      }
+    }
+
+    // How many of these addresses no campaign will email, said up front
+    // rather than discovered as skips later.
+    const suppressed = (await suppressedEmails(userId, uniqueValid.map((r) => r.email))).size;
+
+    // Failures = rows we tried to write (after collapsing duplicates) but
     // didn't get back. Duplicates collapsed in-batch are not failures —
     // they're legitimate consolidations the user expects.
     enrichmentService.ensure(userId);
     const upsertFailures = Math.max(0, uniqueValid.length - importedRows.length);
+    const created = importedRows.filter((r) => r.inserted === true).length;
     return {
       total,
       imported: importedRows.length,
+      created,
+      updated: importedRows.length - created,
+      suppressed,
       errors: errorDetails.length + upsertFailures,
       duplicates_collapsed: duplicatesCollapsed,
       error_details: errorDetails.slice(0, 200),
     };
   },
 
+  /**
+   * The legacy multipart import (POST /contacts/import).
+   *
+   * The app's own import page posts parsed rows to /contacts/bulk; this
+   * route survives for API callers. It used to run its own upsert, with
+   * the same blanking problem bulkCreate had, so it now parses the file and
+   * hands the rows to bulkCreate - one write path, one set of rules.
+   */
   async importCsv(userId: string, filePath: string, columnMapping: Record<string, string>) {
     let fileContent: string;
     try {
@@ -626,9 +772,7 @@ export const contactsService = {
     const parsed = Papa.parse(fileContent, { header: true, skipEmptyLines: true });
     const rows = parsed.data as Record<string, string>[];
 
-    // Reject absurdly large imports outright — with no cap, a huge CSV would
-    // otherwise be processed as thousands of sequential single-row upserts
-    // below, tying up the DB connection and the request for a very long time.
+    // Reject absurdly large imports outright.
     const MAX_ROWS = 50_000;
     if (rows.length > MAX_ROWS) {
       throw new AppError(
@@ -637,71 +781,30 @@ export const contactsService = {
       );
     }
 
-    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    let errors = 0;
-
-    // columnMapping's values pick which contacts column each CSV column lands
-    // on, and the mapping is client-supplied — so, same as bulkCreate's
-    // ALLOWED_FIELDS, it must be checked against an allow-list rather than
-    // written straight onto the row. Unchecked, a mapping of some CSV column
-    // to "user_id" would overwrite the user_id set below, and an upsert with
-    // no existing (user_id, email) match on that id would silently INSERT a
-    // fabricated contact into a completely different tenant's account —
-    // exactly the write that source/user_id being set first here was meant
-    // to prevent. Mapping to "id", "created_at", etc. is equally unintended.
+    // columnMapping is client-supplied, so it only ever picks among the
+    // columns bulkCreate allows - mapping a CSV column to "user_id" or "id"
+    // lands nowhere.
     const IMPORT_ALLOWED_FIELDS = new Set([
       'email', 'first_name', 'last_name', 'company',
       'job_title', 'phone', 'linkedin_url', 'website', 'location',
     ]);
 
-    // Dedup within the batch (last occurrence wins), same rule bulkCreate
-    // uses — Postgres upsert errors if two rows in one call share a conflict key.
-    const validByEmail = new Map<string, Record<string, any>>();
-
-    for (const row of rows) {
-      const contact: Record<string, any> = { user_id: userId, source: 'csv_import' };
-
+    const mapped = rows.map((row) => {
+      const contact: Record<string, any> = {};
       for (const [csvCol, dbField] of Object.entries(columnMapping)) {
         if (!IMPORT_ALLOWED_FIELDS.has(dbField)) continue;
-        if (row[csvCol] !== undefined && row[csvCol] !== '') {
-          contact[dbField] = row[csvCol];
-        }
+        if (row[csvCol] !== undefined && row[csvCol] !== '') contact[dbField] = row[csvCol];
       }
+      return contact;
+    });
 
-      if (!contact.email) {
-        errors++;
-        continue;
-      }
-
-      // Normalize email consistently with bulkCreate to ensure deduplication works
-      contact.email = String(contact.email).trim().toLowerCase();
-
-      // Validate format — matches the bulkCreate check so both paths accept the same emails
-      if (!EMAIL_RE.test(contact.email)) {
-        errors++;
-        continue;
-      }
-
-      validByEmail.set(contact.email, contact);
-    }
-
-    const validContacts = Array.from(validByEmail.values());
     let imported = 0;
-
-    // Upsert in batches instead of one round-trip per row — thousands of
-    // sequential awaits held the DB connection open for the entire import.
-    const BATCH_SIZE = 500;
-    for (let i = 0; i < validContacts.length; i += BATCH_SIZE) {
-      const batch = validContacts.slice(i, i + BATCH_SIZE);
-      const { error } = await supabaseAdmin
-        .from('contacts')
-        .upsert(batch, { onConflict: 'user_id,email', defaultToNull: false });
-
-      if (error) {
-        errors += batch.length;
-      } else {
-        imported += batch.length;
-      }
+    let errors = 0;
+    const BATCH_SIZE = 1000;
+    for (let i = 0; i < mapped.length; i += BATCH_SIZE) {
+      const result = await this.bulkCreate(userId, mapped.slice(i, i + BATCH_SIZE));
+      imported += result.imported;
+      errors += result.errors;
     }
 
     return { imported, errors };

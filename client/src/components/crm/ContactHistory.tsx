@@ -253,6 +253,7 @@ function preview(text?: string | null, max = 140): string {
 
 export function ContactHistory({
   contactId, contactName, contactEmail, emails, campaignActivity,
+  hasMoreEmails = false, onLoadMoreEmails, loadingMoreEmails = false, activityCapped = false,
 }: {
   contactId: string;
   contactName: string;
@@ -261,6 +262,12 @@ export function ContactHistory({
   emails: any[];
   /** Campaign send/open/click/reply events. */
   campaignActivity: any[];
+  /** Older emails exist beyond the page already loaded. */
+  hasMoreEmails?: boolean;
+  onLoadMoreEmails?: () => void;
+  loadingMoreEmails?: boolean;
+  /** The campaign events came back at the server's cap, so older ones are not shown. */
+  activityCapped?: boolean;
 }) {
   const gone = usePendingRemoval();
   const qc = useQueryClient();
@@ -340,15 +347,29 @@ export function ContactHistory({
       const at = new Date(m.received_at);
       if (Number.isNaN(at.getTime())) continue;
       const outbound = m.direction === 'outbound';
+      /*
+       * A queued or failed send has its row written up front, so it is not
+       * "You sent" - say what it really is. A scheduled one carries its send
+       * time in sara_action.
+       */
+      const pending = outbound && (m.sara_status === 'scheduled' || m.sara_status === 'sending');
+      const failed = outbound && m.sara_status === 'failed';
+      const dueAt = pending && m.sara_action ? new Date(m.sara_action) : null;
+      const due = dueAt && !Number.isNaN(dueAt.getTime()) ? dueAt : null;
       out.push({
         id: `email-${m.id}`,
         at,
         kind: outbound ? 'email_out' : 'email_in',
         title: m.subject || '(no subject)',
         detail: preview(m.body_text || m.body_html),
-        meta: outbound ? 'You sent' : `${contactName || contactEmail} replied`,
-        icon: outbound ? ArrowUpRight : ArrowDownLeft,
-        tone: outbound ? 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)]' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+        meta: failed ? 'Failed to send'
+          : pending ? (m.sara_status === 'sending' ? 'Sending now'
+            : due ? `Scheduled for ${formatDayMonth(due)}, ${formatTime(due)}` : 'Scheduled')
+          : outbound ? 'You sent' : `${contactName || contactEmail} replied`,
+        icon: failed ? AlertTriangle : pending ? Clock : outbound ? ArrowUpRight : ArrowDownLeft,
+        tone: failed ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
+          : pending ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+          : outbound ? 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)]' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
         email: m,
       });
     }
@@ -782,6 +803,27 @@ export function ContactHistory({
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* The history is fetched a page at a time; say so rather than let
+            the oldest page look like the beginning of the relationship. */}
+        {(hasMoreEmails || activityCapped) && (
+          <div className="flex flex-wrap items-center gap-2 px-3.5 py-2 border-t border-[var(--border-subtle)]">
+            <span className="text-caption text-[var(--text-tertiary)]">
+              {hasMoreEmails
+                ? `Showing the latest ${emails.length} emails.`
+                : `Showing the latest ${campaignActivity.length} campaign events.`}
+            </span>
+            {hasMoreEmails && onLoadMoreEmails && (
+              <button
+                onClick={onLoadMoreEmails}
+                disabled={loadingMoreEmails}
+                className="text-caption font-medium text-[var(--indigo-text)] hover:underline disabled:opacity-50"
+              >
+                {loadingMoreEmails ? 'Loading…' : 'Load older emails'}
+              </button>
+            )}
           </div>
         )}
       </div>

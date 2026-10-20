@@ -51,15 +51,27 @@ export function fmtMoney(n: number): string {
   return formatMoney(n, undefined, { compact: true });
 }
 
+/*
+ * Who the rates are over. opened/clicked/replied/bounced are people
+ * (distinct enrolments, migration 085), so the denominator is the people
+ * reached - not emails, which grow with every follow-up and made a
+ * three-step sequence look a third as good as a one-step one. Bounces are
+ * over everyone a send was attempted to, refusals at send time included.
+ * Falls back to sent_count against a database without 085.
+ */
+export const reachedOf = (c: any): number => Number(c.contacts_reached ?? c.sent_count) || 0;
+export const attemptedOf = (c: any): number => Number(c.contacts_attempted ?? c.contacts_reached ?? c.sent_count) || 0;
+
 function sortValue(c: any, key: SortKey): number | string {
-  const sent = c.sent_count || 0;
+  const reached = reachedOf(c);
+  const attempted = attemptedOf(c);
   switch (key) {
     case 'name':   return (c.name || '').toLowerCase();
-    case 'sent':   return sent;
-    case 'open':   return sent ? (c.opened_count || 0) / sent : -1;
-    case 'click':  return sent ? (c.clicked_count || 0) / sent : -1;
-    case 'reply':  return sent ? (c.replied_count || 0) / sent : -1;
-    case 'bounce': return sent ? (c.bounced_count || 0) / sent : -1;
+    case 'sent':   return c.sent_count || 0;
+    case 'open':   return reached ? (c.opened_count || 0) / reached : -1;
+    case 'click':  return reached ? (c.clicked_count || 0) / reached : -1;
+    case 'reply':  return reached ? (c.replied_count || 0) / reached : -1;
+    case 'bounce': return attempted ? (c.bounced_count || 0) / attempted : -1;
     /*
      * -1 for a campaign with nothing credited, so "no deals yet" sorts
      * below a genuine zero rather than tying with it. They are different
@@ -235,8 +247,11 @@ export function CampaignsListPage() {
 
   // Aggregate stats for current view
   const aggregateStats = useMemo(() => {
-    const totals = { sent: 0, opened: 0, clicked: 0, replied: 0, bounced: 0 };
+    const totals = { sent: 0, reached: 0, attempted: 0, opened: 0, clicked: 0, replied: 0, bounced: 0, unavailable: 0 };
     for (const c of visibleCampaigns as any[]) {
+      if (c.stats_unavailable) totals.unavailable++;
+      totals.reached   += reachedOf(c);
+      totals.attempted += attemptedOf(c);
       totals.sent     += c.sent_count    || 0;
       totals.opened   += c.opened_count  || 0;
       totals.clicked  += c.clicked_count || 0;
@@ -264,13 +279,14 @@ export function CampaignsListPage() {
 
   const uncategorisedCount = allStatusesCampaigns.filter((c: any) => !c.folder_id).length;
 
-  const sentTotal = aggregateStats.sent || 0;
+  // The people reached: what every rate below is over.
+  const sentTotal = aggregateStats.reached || 0;
   // Same rule across the whole account: a rate only gets to be a rate once
   // it has enough behind it to be one.
   const openAgg   = rateReadout(aggregateStats.opened,  sentTotal, 'opens');
   const clickAgg  = rateReadout(aggregateStats.clicked, sentTotal, 'clicks');
   const replyAgg  = rateReadout(aggregateStats.replied, sentTotal, 'replies');
-  const bounceAgg = rateReadout(aggregateStats.bounced, sentTotal, 'bounces');
+  const bounceAgg = rateReadout(aggregateStats.bounced, aggregateStats.attempted, 'bounces');
 
   const statusTabs = STATUS_TABS.map((t) => ({
     value: t.value,
@@ -327,6 +343,11 @@ export function CampaignsListPage() {
       />
 
       {/* ── Aggregate metrics strip ── */}
+      {aggregateStats.unavailable > 0 && (
+        <p className="mb-3 text-body text-[var(--text-secondary)]" role="status" data-stats-unavailable>
+          Stats unavailable right now for {aggregateStats.unavailable === visibleCampaigns.length ? 'these campaigns' : `${aggregateStats.unavailable} of these campaigns`}. The figures shown are not zeros - they could not be loaded.
+        </p>
+      )}
       {sentTotal > 0 && (
         /* One ledger, not five cards: the figures are one account of the
            same sends, so they share a sheet and a baseline. */
@@ -753,10 +774,14 @@ const STATUS_DOT: Record<string, string> = {
 };
 
 function CampaignRow({ campaign, revenue, expanded, onToggleSnapshot, onOpen, onLaunch, onPause, onResume, onEdit, onContextMenu, menuOpen, menuId, dragging, onDragStart, onDragEnd, launchBusy, pauseBusy, resumeBusy }: any) {
-  const total = campaign.sent_count || 0;
+  const sentEmails = campaign.sent_count || 0;
+  // Rates are over the people reached; progress is people reached of people enrolled
+  // (counting every email over the audience passed 100% at step two).
+  const total = reachedOf(campaign);
   const totalContacts = campaign.contacts_count || campaign.total_contacts || 0;
   const pipelinePct = totalContacts ? Math.min((total / totalContacts) * 100, 100) : 0;
   const bounced   = campaign.bounced_count || 0;
+  const unavailable = !!campaign.stats_unavailable;
   /*
    * Each rate carries what it was computed from. "16.7%" off twelve sends
    * is two replies, and in this table it sat in the same weight and the
@@ -767,7 +792,7 @@ function CampaignRow({ campaign, revenue, expanded, onToggleSnapshot, onOpen, on
   const openR   = rateReadout(campaign.opened_count,  total, 'opens');
   const clickR  = rateReadout(campaign.clicked_count, total, 'clicks');
   const replyR  = rateReadout(campaign.replied_count, total, 'replies');
-  const bounceR = rateReadout(bounced, total, 'bounces');
+  const bounceR = rateReadout(bounced, attemptedOf(campaign), 'bounces');
 
   const metric = (v: string, strong = false, warn = false) => (
     <span className={cn(
@@ -842,11 +867,21 @@ function CampaignRow({ campaign, revenue, expanded, onToggleSnapshot, onOpen, on
       </div>
 
       {/* Metrics */}
-      {metric(total ? total.toLocaleString() : '—', true)}
-      {rateCell(openR, 60)}
-      {rateCell(clickR, 15)}
-      {rateCell(replyR, 15, true)}
-      {rateCell(bounceR, 10, false, 3)}
+      {unavailable ? (
+        <>
+          {/* A failed lookup, said as one - not five zeros. */}
+          <span className="text-caption text-right text-[var(--text-tertiary)]" title="The figures could not be loaded" data-stats-unavailable>Stats unavailable</span>
+          <span /><span /><span /><span />
+        </>
+      ) : (
+        <>
+          {metric(sentEmails ? sentEmails.toLocaleString() : '—', true)}
+          {rateCell(openR, 60)}
+          {rateCell(clickR, 15)}
+          {rateCell(replyR, 15, true)}
+          {rateCell(bounceR, 10, false, 3)}
+        </>
+      )}
       {/*
         * What it actually earned. A dash rather than a zero when nothing
         * is attributed: "no deals credited yet" and "this campaign earns
@@ -867,7 +902,7 @@ function CampaignRow({ campaign, revenue, expanded, onToggleSnapshot, onOpen, on
           <div className="h-full rounded-full bg-[var(--indigo)] transition-all duration-500" style={{ width: `${pipelinePct}%` }} />
         </div>
         <div className="text-micro tabular text-[var(--text-tertiary)] mt-1 truncate flex items-center gap-1">
-          {total.toLocaleString()} / {totalContacts.toLocaleString()} sent
+          {unavailable ? 'Stats unavailable' : <>{total.toLocaleString()} / {totalContacts.toLocaleString()} reached</>}
           {campaign.status === 'running' && (campaign.active_contacts ?? 0) > 0 && (
             <span
               className="inline-flex items-center gap-0.5 text-micro font-semibold text-emerald-600 dark:text-emerald-400 flex-shrink-0"
@@ -942,7 +977,8 @@ function FunnelRow({ icon: Icon, label, value, pct, tone }: {
 }
 
 function CampaignSnapshot({ campaign: c, onOpenReport }: { campaign: any; onOpenReport: () => void }) {
-  const sent = c.sent_count || 0;
+  // People at every stage of the funnel: reached, then opened/clicked/replied.
+  const sent = reachedOf(c);
   const pct = (n: number) => (sent ? (n / sent) * 100 : 0);
   const opened = c.opened_count || 0;
   const clicked = c.clicked_count || 0;
@@ -953,9 +989,14 @@ function CampaignSnapshot({ campaign: c, onOpenReport }: { campaign: any; onOpen
   const totalContacts = c.contacts_count || c.total_contacts || 0;
   const active = c.active_contacts || 0;
   const completed = c.completed_contacts || 0;
-  const remaining = Math.max(totalContacts - active - completed - bounced, 0);
+  // Not started: everyone not in any other status (replied, paused and the
+  // rest were all being shown as "Pending" before).
+  const settled = ['replied_contacts', 'bounced_contacts', 'unsubscribed_contacts', 'suppressed_contacts', 'error_contacts', 'paused_contacts']
+    .reduce((n, k) => n + (Number(c[k]) || 0), 0);
+  const remaining = Math.max(totalContacts - active - completed - settled, 0);
 
-  const bouncePct = sent ? (bounced / sent) * 100 : 0;
+  const attempted = attemptedOf(c);
+  const bouncePct = attempted ? (bounced / attempted) * 100 : 0;
   const window = c.send_window_start && c.send_window_end ? `${c.send_window_start}–${c.send_window_end}` : 'Any time';
   const activeDays = (c.send_days || []) as string[];
 
@@ -974,7 +1015,7 @@ function CampaignSnapshot({ campaign: c, onOpenReport }: { campaign: any; onOpen
             {sent === 0 && <span className="text-micro text-[var(--text-tertiary)]">No emails sent yet</span>}
           </div>
           <div className="space-y-2">
-            <FunnelRow icon={Send}              label="Sent"    value={sent}    pct={sent ? 100 : 0} tone="#3B4AA3" />
+            <FunnelRow icon={Send}              label="Reached" value={sent}    pct={sent ? 100 : 0} tone="#3B4AA3" />
             <FunnelRow icon={Mail}              label="Opened"  value={opened}  pct={pct(opened)}    tone="#6E4E8E" />
             <FunnelRow icon={MousePointerClick} label="Clicked" value={clicked} pct={pct(clicked)}   tone="#3D7F89" />
             <FunnelRow icon={MessageSquare}     label="Replied" value={replied} pct={pct(replied)}   tone="#3F8763" />
@@ -1009,7 +1050,7 @@ function CampaignSnapshot({ campaign: c, onOpenReport }: { campaign: any; onOpen
             <div className="flex h-2.5 rounded-full bg-[var(--bg-elevated)] overflow-hidden">
               {seg(completed, '#3B4AA3', `${completed} completed`)}
               {seg(active, '#3F8763', `${active} active`)}
-              {seg(bounced, '#B54B53', `${bounced} bounced`)}
+              {seg(Number(c.bounced_contacts) || 0, '#B54B53', `${Number(c.bounced_contacts) || 0} bounced`)}
               {seg(remaining, 'var(--border-strong)', `${remaining} not started`)}
             </div>
             <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
@@ -1184,9 +1225,9 @@ function FolderAnalyticsModal({ folderId, onClose }: { folderId: string; onClose
         <>
           <div className="grid grid-cols-4 gap-3 mb-5">
             <MetricChip icon={Send}              label="Sent"    value={data.totals.sent}    tone="indigo" />
-            <MetricChip icon={Mail}              label="Opened"  value={data.totals.opened}  tone="violet"  readout={rateReadout(data.totals.opened, data.totals.sent, 'opens')} />
-            <MetricChip icon={MousePointerClick} label="Clicked" value={data.totals.clicked} tone="cyan"    readout={rateReadout(data.totals.clicked, data.totals.sent, 'clicks')} />
-            <MetricChip icon={MessageSquare}     label="Replied" value={data.totals.replied} tone="emerald" readout={rateReadout(data.totals.replied, data.totals.sent, 'replies')} />
+            <MetricChip icon={Mail}              label="Opened"  value={data.totals.opened}  tone="violet"  readout={rateReadout(data.totals.opened, data.totals.reached ?? data.totals.sent, 'opens')} />
+            <MetricChip icon={MousePointerClick} label="Clicked" value={data.totals.clicked} tone="cyan"    readout={rateReadout(data.totals.clicked, data.totals.reached ?? data.totals.sent, 'clicks')} />
+            <MetricChip icon={MessageSquare}     label="Replied" value={data.totals.replied} tone="emerald" readout={rateReadout(data.totals.replied, data.totals.reached ?? data.totals.sent, 'replies')} />
           </div>
 
           <div className="text-micro text-[var(--text-tertiary)] mb-2">By campaign</div>
@@ -1209,7 +1250,7 @@ function FolderAnalyticsModal({ folderId, onClose }: { folderId: string; onClose
                   <td className="py-2.5 text-right text-[var(--text-secondary)] tabular">{c.open_rate}%</td>
                   <td className="py-2.5 text-right text-[var(--text-secondary)] tabular">{c.click_rate}%</td>
                   <td className="py-2.5 text-right text-[var(--text-secondary)] tabular">{c.reply_rate}%</td>
-                  <td className={`py-2.5 text-right tabular ${c.bounced > 0 && c.sent > 0 && c.bounced / c.sent > 0.05 ? 'text-[var(--danger,#dc2626)] font-medium' : 'text-[var(--text-secondary)]'}`}>{c.bounced.toLocaleString()}</td>
+                  <td className={`py-2.5 text-right tabular ${c.bounced > 0 && (c.reached ?? c.sent) > 0 && c.bounced / (c.reached ?? c.sent) > 0.05 ? 'text-[var(--danger,#dc2626)] font-medium' : 'text-[var(--text-secondary)]'}`}>{c.bounced.toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>

@@ -147,10 +147,13 @@ function ContactPeek({ id, onClose }: { id: string; onClose: () => void }) {
   };
   const field = (key: string) => (next: string) => save({ [key]: next || null });
 
+  // Keyed by id, and apart from the profile page: that reads 100 at a time
+  // and pages, this reads one page of 50, and under one key each would
+  // overwrite the other's cache entry.
   const { data: emailsPage } = useQuery({
-    queryKey: ['contact-emails', contact?.email],
-    queryFn: () => inboxApi.list({ contact_email: contact!.email, limit: 50 }),
-    enabled: !!contact?.email,
+    queryKey: ['contact-emails', id, contact?.email, 'drawer'],
+    queryFn: () => inboxApi.list({ contact_id: id, contact_email: contact!.email, limit: 50 }),
+    enabled: !!id && !!contact?.email,
   });
 
   const { data: timeline } = useQuery({
@@ -258,6 +261,8 @@ function ContactPeek({ id, onClose }: { id: string; onClose: () => void }) {
           contactEmail={contact.email}
           emails={emails}
           campaignActivity={(timeline || []) as any[]}
+          hasMoreEmails={(emailsPage?.total ?? 0) > emails.length}
+          activityCapped={(timeline || []).length >= 100}
         />
       </div>
     </>

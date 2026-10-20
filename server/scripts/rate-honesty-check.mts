@@ -160,7 +160,8 @@ console.log('\nthe dashboard uses it, including for the arrow');
   const dash = src('pages/dashboard/DashboardPage.tsx');
 
   is('the headline rate is judged on what was sent',
-     /const headlineReply = averageRateReadout\(s\.avg_reply_rate, s\.total_sent/.test(dash),
+     // Over the people sent to (contacts_sent), since rates are per person.
+     /const headlineReply = averageRateReadout\(s\.avg_reply_rate, (s\.total_sent|sentTo)/.test(dash),
      'the dashboard still divides and renders');
   is('and says "too early" rather than a figure',
      /too early for a reply rate/.test(dash));
@@ -186,8 +187,8 @@ console.log('\nthe dashboard uses it, including for the arrow');
    * multiplied back out by its own denominator.
    */
   is('the leaderboard reads real counts, not a reconstructed numerator',
-     /rateReadout\(c\.opened, c\.sent, 'opens'\)/.test(dash)
-     && /rateReadout\(c\.replied, c\.sent, 'replies'\)/.test(dash));
+     /rateReadout\(c\.opened, (c\.sent|reached), 'opens'\)/.test(dash)
+     && /rateReadout\(c\.replied, (c\.sent|reached), 'replies'\)/.test(dash));
   is('and its bar disappears below the sample',
      /\{barWidth != null && \(/.test(dash),
      'a two-reply campaign would still get a bar');

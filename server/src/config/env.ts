@@ -63,3 +63,25 @@ if (!parsed.success) {
 }
 
 export const env = parsed.data;
+
+/**
+ * Public URLs still on their localhost defaults, in production.
+ *
+ * Every one of these ends up in mail or a redirect that leaves this server,
+ * so a default here does not fail - it quietly ships links nobody can open.
+ * Production is NODE_ENV, or the host platforms' own markers (Render and
+ * Railway do not set NODE_ENV for you).
+ */
+export function localhostUrlProblems(): Array<{ name: string; value: string; breaks: string }> {
+  const production = process.env.NODE_ENV === 'production' || !!process.env.RENDER || !!process.env.RAILWAY_ENVIRONMENT;
+  if (!production) return [];
+  const local = (url: string) => /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/i.test(url.trim());
+  const checks: Array<{ name: 'TRACKING_BASE_URL' | 'CLIENT_URL' | 'API_BASE_URL'; breaks: string }> = [
+    { name: 'TRACKING_BASE_URL', breaks: 'the open-tracking pixel, click-tracked links and unsubscribe links in sent mail point at localhost (for accounts without their own tracking domain)' },
+    { name: 'CLIENT_URL', breaks: 'booking links, links in notifications and digests, billing return pages and post-OAuth redirects point at localhost' },
+    { name: 'API_BASE_URL', breaks: 'OAuth callback URLs (integrations, Google Calendar) and inbound webhook URLs point at localhost' },
+  ];
+  return checks
+    .filter((c) => local(env[c.name]))
+    .map((c) => ({ name: c.name, value: env[c.name], breaks: c.breaks }));
+}

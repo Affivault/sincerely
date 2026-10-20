@@ -66,6 +66,9 @@ export function BulkImportPage() {
   const [targetListId, setTargetListId] = useState<string>('');
   const [listMode, setListMode] = useState<'none' | 'existing' | 'new'>('none');
   const [newListName, setNewListName] = useState('');
+  /* A lead list is campaign audience; a contact list is people you already
+     know, and importing into one files them as contacts, not prospects. */
+  const [newListKind, setNewListKind] = useState<'lead' | 'contact'>('lead');
   /** Set once the import creates the list, so the summary can name it. */
   const [createdListName, setCreatedListName] = useState<string | null>(null);
   const [progress, setProgress] = useState<ImportProgress>({
@@ -74,6 +77,9 @@ export function BulkImportPage() {
   });
   const [completedResult, setCompletedResult] = useState<{
     total: number; attempted: number; imported: number; errors: number;
+    /** New addresses, existing ones that only had blanks filled, and how
+     *  many are on the suppression list. */
+    created: number; updated: number; suppressed: number;
     errorDetails: { email: string; reason: string }[];
     durationMs: number;
     cancelled: boolean;
@@ -215,7 +221,7 @@ export function BulkImportPage() {
     let listId = listMode === 'existing' ? targetListId : '';
     if (listMode === 'new') {
       try {
-        const created = await listsApi.create({ name: newListName.trim() });
+        const created = await listsApi.create({ name: newListName.trim(), kind: newListKind });
         listId = created.id;
         setTargetListId(created.id);
         setCreatedListName(created.name);
@@ -240,7 +246,8 @@ export function BulkImportPage() {
 
     if (total === 0) {
       setCompletedResult({
-        total: 0, attempted: 0, imported: 0, errors: 0, errorDetails: [], durationMs: 0, cancelled: false,
+        total: 0, attempted: 0, imported: 0, errors: 0, created: 0, updated: 0, suppressed: 0,
+        errorDetails: [], durationMs: 0, cancelled: false,
       });
       setStep('complete');
       return;
@@ -248,6 +255,9 @@ export function BulkImportPage() {
 
     let imported = 0;
     let errors = 0;
+    let createdCount = 0;
+    let updatedCount = 0;
+    let suppressedCount = 0;
     let attempted = 0;
     let cancelled = false;
     const errorDetails: { email: string; reason: string }[] = [];
@@ -262,6 +272,9 @@ export function BulkImportPage() {
         const result: BulkImportResult = await contactsApi.bulkCreate(batch, listId || undefined, file?.name);
         imported += result.imported;
         errors += result.errors;
+        createdCount += result.created ?? 0;
+        updatedCount += result.updated ?? 0;
+        suppressedCount += result.suppressed ?? 0;
         if (result.error_details && errorDetails.length < 200) {
           errorDetails.push(...result.error_details.slice(0, 200 - errorDetails.length));
         }
@@ -292,6 +305,9 @@ export function BulkImportPage() {
       attempted,
       imported,
       errors,
+      created: createdCount,
+      updated: updatedCount,
+      suppressed: suppressedCount,
       errorDetails,
       durationMs: Date.now() - startedAt,
       cancelled,
@@ -301,7 +317,7 @@ export function BulkImportPage() {
     for (const key of ['contacts', 'contact-stats', 'contact-companies', 'verification-breakdown']) {
       queryClient.invalidateQueries({ queryKey: [key] });
     }
-  }, [prepared, mappingValid, listChoiceValid, listMode, targetListId, newListName, queryClient, file]);
+  }, [prepared, mappingValid, listChoiceValid, listMode, targetListId, newListName, newListKind, queryClient, file]);
 
   const cancel = () => {
     cancelRef.current = true;
@@ -323,6 +339,7 @@ export function BulkImportPage() {
     setTargetListId('');
     setListMode('none');
     setNewListName('');
+    setNewListKind('lead');
     setCreatedListName(null);
     setCompletedResult(null);
     setProgress({ total: 0, processed: 0, imported: 0, errors: 0, errorDetails: [], currentBatch: 0, totalBatches: 0 });
@@ -694,6 +711,29 @@ export function BulkImportPage() {
 
                 {listMode === 'new' && (
                   <div>
+                    <div role="radiogroup" aria-label="Kind of list" className="flex items-center gap-1 mb-2">
+                      {([
+                        { id: 'lead', label: 'Lead list', hint: 'People to reach with campaigns' },
+                        { id: 'contact', label: 'Contact list', hint: 'People you already know - filed as contacts' },
+                      ] as const).map((k) => (
+                        <button
+                          key={k.id}
+                          type="button"
+                          role="radio"
+                          aria-checked={newListKind === k.id}
+                          title={k.hint}
+                          onClick={() => setNewListKind(k.id)}
+                          className={cn(
+                            'inline-flex items-center h-7 px-2.5 rounded-md text-body font-medium transition-colors',
+                            newListKind === k.id
+                              ? 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)]'
+                              : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]',
+                          )}
+                        >
+                          {k.label}
+                        </button>
+                      ))}
+                    </div>
                     <input aria-label="New list name"
                       value={newListName}
                       onChange={(e) => setNewListName(e.target.value)}
@@ -946,6 +986,23 @@ export function BulkImportPage() {
               </p>
             </div>
           </div>
+
+          {/* New versus already there: a re-import only fills empty fields,
+              and should say so rather than look like it added everyone. */}
+          {(completedResult.updated > 0 || completedResult.suppressed > 0) && (
+            <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-3 space-y-1">
+              {completedResult.updated > 0 && (
+                <p className="text-body text-[var(--text-secondary)]">
+                  {completedResult.created.toLocaleString()} new, {completedResult.updated.toLocaleString()} already in your contacts - for those, only empty fields were filled in.
+                </p>
+              )}
+              {completedResult.suppressed > 0 && (
+                <p className="text-body text-amber-700 dark:text-amber-400">
+                  {completedResult.suppressed.toLocaleString()} {completedResult.suppressed === 1 ? 'address is' : 'addresses are'} on your suppression list, so no campaign will email {completedResult.suppressed === 1 ? 'it' : 'them'}.
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Error details */}
           {completedResult.errorDetails.length > 0 && (

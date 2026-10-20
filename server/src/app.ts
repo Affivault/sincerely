@@ -70,89 +70,57 @@ app.get('/', (_req, res) => {
   res.json({ service: 'sincerely-api', status: 'ok' });
 });
 
-// Health check with diagnostics
-app.get('/health', async (_req, res) => {
-  const diagnostics: Record<string, any> = {
+/*
+ * Liveness: is this process up and serving? Cheap and always 200 while it
+ * is - it is what Render/Railway's healthCheckPath polls, so it must not
+ * depend on the database (a Supabase blip would otherwise get a healthy
+ * server restarted in a loop). It used to run four count queries, one over
+ * every campaign_contacts row, and hand cross-tenant totals to anyone who
+ * asked; those now live behind the admin gate at /api/v1/admin/health.
+ */
+app.get('/health', (_req, res) => {
+  res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
     version: 'v7-smtp-relay',
-  };
+    uptime_s: Math.round(process.uptime()),
+  });
+});
 
-  // Check SMTP relay config
-  const { env: envConfig } = await import('./config/env.js');
-  diagnostics.smtp_relay = envConfig.SMTP_RELAY_URL
-    // Whether, not where: this endpoint is public, and the relay's address
-    // is one half of what it takes to send mail through it.
-    ? { configured: true }
-    : { configured: false, note: 'SMTP_RELAY_URL not set — using direct SMTP (blocked on Render free tier)' };
-
-  // Ping the relay if configured
-  if (envConfig.SMTP_RELAY_URL) {
-    try {
-      const healthUrl = envConfig.SMTP_RELAY_URL.replace('/api/send-email', '/api/health');
-      const relayResp = await fetch(healthUrl, { signal: AbortSignal.timeout(5000) });
-      const relayData = await relayResp.json() as any;
-      diagnostics.smtp_relay.reachable = true;
-      diagnostics.smtp_relay.relay_status = relayData;
-    } catch (err: any) {
-      diagnostics.smtp_relay.reachable = false;
-      diagnostics.smtp_relay.relay_error = err.message;
-    }
-  }
-
-  // Check Redis
-  try {
-    const { redisConnection } = await import('./config/redis.js');
-    if (!redisConnection) {
-      diagnostics.redis = 'not configured (REDIS_URL not set)';
-    } else if (redisConnection.status === 'ready') {
-      diagnostics.redis = 'connected';
-    } else {
-      diagnostics.redis = `status: ${redisConnection.status}`;
-    }
-  } catch (err: any) {
-    diagnostics.redis = `error: ${err.message}`;
-  }
-
-  // Check Supabase connectivity
+/*
+ * Readiness: can this server actually do its job? 503 when the database does
+ * not answer, or when the sending job has not finished a run in three of its
+ * intervals (the heartbeat in utils/heartbeat). Not used as the platform
+ * health check, deliberately - restarting on a stalled job is a decision,
+ * not a reflex - but it is what an uptime monitor should watch.
+ */
+app.get('/ready', async (_req, res) => {
+  const checks: Record<string, { ok: boolean; detail?: string }> = {};
   try {
     const { supabaseAdmin } = await import('./config/supabase.js');
-    const { count, error } = await supabaseAdmin
-      .from('campaigns')
-      .select('*', { count: 'exact', head: true });
-    diagnostics.supabase = error ? `error: ${error.message}` : `ok (${count} campaigns)`;
-  } catch (err: any) {
-    diagnostics.supabase = `error: ${err.message}`;
+    const { error } = await supabaseAdmin.from('job_heartbeats').select('job', { head: true }).limit(1);
+    // A database without migration 078 still answers; only a failure to answer is not ready.
+    checks.database = error && !/job_heartbeats/.test(error.message) ? { ok: false, detail: 'query failed' } : { ok: true };
+  } catch {
+    checks.database = { ok: false, detail: 'unreachable' };
   }
-
-  // Aggregate operational counts only — this endpoint is public and unauthenticated,
-  // so it must never return per-tenant data (account emails, campaign names, error text).
   try {
-    const { supabaseAdmin } = await import('./config/supabase.js');
-    const { count: activeSmtpCount } = await supabaseAdmin
-      .from('smtp_accounts')
-      .select('*', { count: 'exact', head: true })
-      .eq('is_active', true);
-    diagnostics.active_smtp_accounts = activeSmtpCount ?? 0;
-
-    const { count: runningCount } = await supabaseAdmin
-      .from('campaigns')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'running');
-    diagnostics.running_campaigns = runningCount ?? 0;
-
-    const { count: dueCount } = await supabaseAdmin
-      .from('campaign_contacts')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'active')
-      .not('next_send_at', 'is', null)
-      .lte('next_send_at', new Date().toISOString());
-    diagnostics.due_contacts = dueCount ?? 0;
-  } catch (err: any) {
-    diagnostics.operational_counts = `error: ${err.message}`;
+    const { readBeats } = await import('./utils/heartbeat.js');
+    const { JOB_BY_ID } = await import('@lemlist/shared');
+    const { beats } = await readBeats();
+    const b = beats.get('sending');
+    const every = JOB_BY_ID.sending.everyMs;
+    const last = b?.last_finished_at ? Date.parse(b.last_finished_at) : 0;
+    // Grace after boot: the first run has not had a chance to finish yet.
+    const booting = process.uptime() * 1000 < 3 * every;
+    checks.sending = booting || (last && Date.now() - last <= 3 * every)
+      ? { ok: true }
+      : { ok: false, detail: last ? 'last run finished too long ago' : 'has not run' };
+  } catch {
+    checks.sending = { ok: false, detail: 'heartbeat unreadable' };
   }
-
-  res.json(diagnostics);
+  const ready = Object.values(checks).every((c) => c.ok);
+  res.status(ready ? 200 : 503).json({ status: ready ? 'ready' : 'not_ready', checks });
 });
 
 

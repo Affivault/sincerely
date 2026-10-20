@@ -236,6 +236,13 @@ function HealthCell({ c }: { c: any }) {
       <ShieldX className="h-3 w-3" />Opted out
     </span>
   );
+  // On the suppression list without having unsubscribed or bounced - added
+  // by hand, or a complaint. Invisible until now, so it read as reachable.
+  if (c.is_suppressed) return (
+    <span title="On your suppression list - no campaign will email this address." className="inline-flex items-center gap-1 px-1.5 h-[20px] rounded-md text-micro font-semibold text-amber-700 dark:text-amber-400 bg-amber-500/10">
+      <ShieldX className="h-3 w-3" />Suppressed
+    </span>
+  );
   if (c.dcs_score !== null && c.dcs_score !== undefined) return (
     <span title={`Deliverability confidence: ${c.dcs_score}/100`} className={cn(
       'inline-flex items-center gap-1 px-1.5 h-[20px] rounded-md text-micro font-semibold tabular',

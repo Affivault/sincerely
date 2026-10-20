@@ -96,6 +96,7 @@ export function startDomainReverifyScheduler() {
       }
     } catch (err: any) {
       console.error(`[DomainReverify] Sweep error: ${err?.message || err}`);
+      throw err; // so the heartbeat records the failure
     } finally {
       running = false;
     }

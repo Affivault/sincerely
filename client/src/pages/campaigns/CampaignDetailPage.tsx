@@ -54,6 +54,9 @@ type TabId = 'overview' | 'sequence' | 'contacts';
  * Somebody paused by hand stays paused until resumed by name. Matches
  * COMPANY_PAUSE_PREFIX in server/src/services/account-pause.service.ts.
  */
+/** Refresh for figures that change after sending stops: replies, late opens. */
+const LIVE_STATS_MS = 60_000;
+
 const isColleaguePause = (cc: any) => cc.status === 'paused' && String(cc.error_message || '').startsWith('Paused: ');
 
 export function CampaignDetailPage() {
@@ -78,7 +81,7 @@ export function CampaignDetailPage() {
     queryFn: () => campaignsApi.get(id!),
     enabled: !!id,
     refetchInterval: (query) =>
-      query.state.data?.status === 'running' ? 30_000 : false,
+      query.state.data?.status === 'running' ? 30_000 : LIVE_STATS_MS,
   });
 
   const isRunning = campaign?.status === 'running';
@@ -95,7 +98,10 @@ export function CampaignDetailPage() {
     queryKey: ['analytics', 'campaign', id],
     queryFn: () => analyticsApi.campaign(id!),
     enabled: !!id,
-    refetchInterval: isRunning ? 30_000 : false,
+    // Opens, clicks and replies keep arriving after a campaign is paused or
+    // finishes sending, so it never stops refreshing (React Query skips the
+    // interval while the tab is hidden).
+    refetchInterval: isRunning ? 30_000 : LIVE_STATS_MS,
   });
 
   /*
@@ -107,7 +113,7 @@ export function CampaignDetailPage() {
     queryKey: ['analytics', 'campaign-ab', id],
     queryFn: () => analyticsApi.campaignAbTest(id!),
     enabled: !!id,
-    refetchInterval: isRunning ? 60_000 : false,
+    refetchInterval: LIVE_STATS_MS,
     meta: { silentError: true },
   });
   const abByStep = useMemo(() => {
@@ -419,12 +425,18 @@ export function CampaignDetailPage() {
           {/* The five numbers, once. A bar chart of these same five sat
               under them - each figure drawn a second time, with Replied
               in Sent's colour - and said nothing the row did not. */}
+          {campaign.stats_unavailable && (
+            <p className="text-body text-[var(--text-secondary)]" role="status" data-stats-unavailable>
+              Stats unavailable right now - the figures could not be loaded, so none are shown rather than zeros.
+            </p>
+          )}
+          {/* Sent is emails; the rest are people, as a share of the people reached. */}
           {analytics && analytics.sent > 0 && (
             <div className="fact-strip grid-cols-2 sm:grid-cols-5" data-campaign-metrics>
-              <StatCard inStrip label="Sent" value={analytics.sent.toLocaleString()} />
-              <StatCard inStrip label="Opened" value={analytics.opened.toLocaleString()} hint={`${analytics.open_rate}% open rate`} />
-              <StatCard inStrip label="Clicked" value={analytics.clicked.toLocaleString()} hint={`${analytics.click_rate}% click rate`} />
-              <StatCard inStrip label="Replied" value={analytics.replied.toLocaleString()} hint={`${analytics.reply_rate}% reply rate`} />
+              <StatCard inStrip label="Sent" value={analytics.sent.toLocaleString()} hint={analytics.contacts_reached != null ? `to ${analytics.contacts_reached.toLocaleString()} contacts` : undefined} />
+              <StatCard inStrip label="Opened" value={analytics.opened.toLocaleString()} hint={`${analytics.open_rate}% of contacts reached`} />
+              <StatCard inStrip label="Clicked" value={analytics.clicked.toLocaleString()} hint={`${analytics.click_rate}% of contacts reached`} />
+              <StatCard inStrip label="Replied" value={analytics.replied.toLocaleString()} hint={`${analytics.reply_rate}% of contacts reached`} />
               <StatCard inStrip className="col-span-2 sm:col-span-1" label="Bounced" value={analytics.bounced.toLocaleString()} hint={`${analytics.bounce_rate}% bounce rate`} />
             </div>
           )}
@@ -705,6 +717,8 @@ function ContactProgressCard({ campaign }: { campaign: any }) {
     { label: 'Replied', count: campaign.replied_contacts || 0, color: 'bg-emerald-500' },
     { label: 'Completed', count: campaign.completed_contacts || 0, color: 'bg-emerald-500/50' },
     { label: 'Active', count: campaign.active_contacts || 0, color: 'bg-[var(--indigo)]' },
+    // Held, not waiting to start: these were counted as Pending.
+    { label: 'Paused', count: campaign.paused_contacts || 0, color: 'bg-amber-300' },
     { label: 'Bounced', count: campaign.bounced_contacts || 0, color: 'bg-red-500' },
     { label: 'Unsubscribed', count: campaign.unsubscribed_contacts || 0, color: 'bg-amber-500' },
     { label: 'Suppressed', count: campaign.suppressed_contacts || 0, color: 'bg-purple-500' },

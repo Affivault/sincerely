@@ -21,6 +21,8 @@ import {
   type StatusIssue, type StatusJob, type SystemStatus, type SelfTestResult,
 } from '@lemlist/shared';
 import { readBeats } from '../utils/heartbeat.js';
+import { fetchAllPages } from '../utils/batch.js';
+import { localhostUrlProblems } from '../config/env.js';
 import { smtpService } from './smtp.service.js';
 import { fireEvent } from './webhook.service.js';
 import { replyCheckService } from './reply-check.service.js';
@@ -189,6 +191,23 @@ function jobIssues(list: StatusJob[]): StatusIssue[] {
     }));
 }
 
+/**
+ * Server configuration that makes every sent link unusable - public URLs
+ * left on their localhost defaults in production (config/env). Not the
+ * account's doing and not something it can fix, but it is why tracking,
+ * unsubscribe and booking links stopped working, so it is said here.
+ */
+function configIssues(): StatusIssue[] {
+  return localhostUrlProblems().map((p) => ({
+    key: `config:${p.name}`,
+    level: 'down' as const,
+    title: `${p.name} points at localhost`,
+    detail: `The server's ${p.name} is ${p.value}, so ${p.breaks}. It needs to be set to this deployment's public URL.`,
+    href: '/system',
+    since: null,
+  }));
+}
+
 function headlineFor(level: SystemStatus['level'], issues: StatusIssue[]): string {
   if (level === 'ok') return 'Everything is running.';
   const first = issues[0];
@@ -200,7 +219,7 @@ export const systemStatusService = {
   async status(userId: string): Promise<SystemStatus> {
     const now = Date.now();
     const [{ list, persisted }, mine, replyCheck] = await Promise.all([jobs(now), accountIssues(userId, now), replyCheckStatus(userId)]);
-    const issues = [...jobIssues(list), ...mine]
+    const issues = [...configIssues(), ...jobIssues(list), ...mine]
       .sort((a, b) => (a.level === b.level ? 0 : a.level === 'down' ? -1 : 1));
     const level = overallLevel(list, issues);
     return { persisted, level, headline: headlineFor(level, issues), jobs: list, issues, checked_at: new Date(now).toISOString(), reply_check: replyCheck };
@@ -217,6 +236,14 @@ export const systemStatusService = {
     const t0 = Date.now();
     const { error: dbErr } = await supabaseAdmin.from('smtp_accounts').select('id', { head: true, count: 'exact' }).eq('user_id', userId);
     results.push({ id: 'database', label: 'Database', ok: !dbErr, detail: dbErr ? dbErr.message : `Answered in ${Date.now() - t0} ms.` });
+
+    // Public links: a localhost default in production breaks every link in sent mail.
+    const urlProblems = configIssues();
+    results.push({
+      id: 'public-urls', label: 'Public links', ok: urlProblems.length === 0,
+      detail: urlProblems.length === 0 ? 'Tracking, unsubscribe, booking and sign-in links point at public addresses.'
+        : urlProblems.map((p) => p.detail).join(' '),
+    });
 
     const { data: boxes } = await supabaseAdmin
       .from('smtp_accounts')
@@ -274,15 +301,20 @@ export async function runWatchdog(): Promise<{ users: number; raised: number; cl
   const globalIssues = jobIssues(list);
 
   const users = new Set<string>();
-  const { data: rows, error } = await supabaseAdmin
-    .from('smtp_accounts').select('user_id').eq('is_active', true).eq('is_seed', false);
-  if (error) throw new Error(`watchdog accounts: ${error.message}`);
-  for (const r of rows || []) users.add((r as any).user_id);
+  // Both paged: PostgREST caps an unpaged select at 1000 rows, so accounts
+  // past the first thousand mailboxes were never watched.
+  const rows = await fetchAllPages<{ user_id: string }>((from, to) => supabaseAdmin
+    .from('smtp_accounts').select('user_id').eq('is_active', true).eq('is_seed', false)
+    .order('id').range(from, to))
+    .catch((err: any) => { throw new Error(`watchdog accounts: ${err.message}`); });
+  for (const r of rows) users.add(r.user_id);
   // An account that has since lost every active mailbox still has alerts
   // that can only be cleared by visiting it, or they stay open forever.
-  const { data: openRows } = await supabaseAdmin
-    .from('system_alerts').select('user_id').is('resolved_at', null);
-  for (const r of openRows || []) users.add((r as any).user_id);
+  const openRows = await fetchAllPages<{ user_id: string }>((from, to) => supabaseAdmin
+    .from('system_alerts').select('user_id').is('resolved_at', null)
+    .order('user_id').order('key').range(from, to))
+    .catch(() => [] as { user_id: string }[]);
+  for (const r of openRows) users.add(r.user_id);
 
   let raised = 0, cleared = 0;
   for (const userId of users) {
@@ -299,11 +331,31 @@ export async function runWatchdog(): Promise<{ users: number; raised: number; cl
 
       for (const i of issues) {
         if (known.has(i.key)) continue;
-        const { error: insErr } = await supabaseAdmin.from('system_alerts').upsert({
-          user_id: userId, key: i.key, level: i.level, title: i.title, detail: i.detail,
+        /*
+         * Told only by whoever actually opens the alert. An upsert succeeded
+         * for every instance (and every overlapping run) that got here, so
+         * each one fired the notification. Now: insert-if-absent, or reopen
+         * a resolved row - both return the row only to the writer that
+         * changed it, and only that writer fires.
+         */
+        const fields = {
+          level: i.level, title: i.title, detail: i.detail,
           first_seen_at: new Date(now).toISOString(), resolved_at: null,
-        }, { onConflict: 'user_id,key' });
+        };
+        const { data: inserted, error: insErr } = await supabaseAdmin.from('system_alerts')
+          .upsert({ user_id: userId, key: i.key, ...fields }, { onConflict: 'user_id,key', ignoreDuplicates: true })
+          .select('key');
         if (insErr) continue;
+        let opened = !!inserted?.length;
+        if (!opened) {
+          const { data: reopened, error: reopenErr } = await supabaseAdmin.from('system_alerts')
+            .update(fields)
+            .eq('user_id', userId).eq('key', i.key).not('resolved_at', 'is', null)
+            .select('key');
+          if (reopenErr) continue;
+          opened = !!reopened?.length;
+        }
+        if (!opened) continue;
         raised++;
         fireEvent(userId, 'system.attention', { key: i.key, level: i.level, title: i.title, detail: i.detail, href: i.href }).catch(() => {});
       }

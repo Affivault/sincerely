@@ -15,6 +15,7 @@ import { providerHeldUntil } from './autopilot.service.js';
 import { isLinkedinStep, inferTimezone } from '@lemlist/shared';
 import { stepHasVariantB, assignVariant, classifyRejection } from '@lemlist/shared';
 import { classifySendFailure, stallReasonFor } from '../utils/send-failure.js';
+import { isDraining } from '../utils/heartbeat.js';
 
 /**
  * Sequence Engine Service
@@ -1242,7 +1243,8 @@ export async function processWebhookTimeouts(): Promise<number> {
       .eq('status', 'active')
       .lt('webhook_wait_until', new Date().toISOString());
 
-    if (error || !timedOut || timedOut.length === 0) return 0;
+    if (error) throw new Error(error.message);
+    if (!timedOut || timedOut.length === 0) return 0;
 
     for (const cc of timedOut) {
       // advanceToNextStep owns the delay arithmetic for whatever comes next,
@@ -1275,7 +1277,9 @@ export async function processWebhookTimeouts(): Promise<number> {
 
     return timedOut.length;
   } catch (err: any) {
-    // waiting_for_webhook/webhook_wait_until columns may not exist yet
+    // waiting_for_webhook/webhook_wait_until columns may not exist yet.
+    // Anything else is a real failure the heartbeat should see.
+    if (!/waiting_for_webhook|webhook_wait_until/.test(err?.message || '')) throw err;
     console.warn('[Sequence] processWebhookTimeouts skipped:', err.message);
     return 0;
   }
@@ -1284,6 +1288,141 @@ export async function processWebhookTimeouts(): Promise<number> {
 // ============================================
 // Scheduling: Process Due Steps
 // ============================================
+
+/** Claimed this long ago and still unfinished means the process died, not that it is slow. */
+const STRANDED_AFTER_MS = 15 * 60 * 1000;
+
+/**
+ * Contacts a dead process left claimed.
+ *
+ * Both claims (email and LinkedIn) clear next_send_at while status stays
+ * 'active', and only the code that made the claim ever sets it again. If
+ * the process is killed in between - a deploy, a crash, an OOM - the
+ * contact is never picked up again and the sequence silently stops for it.
+ *
+ * "Active with no next_send_at" is also how a contact legitimately waits,
+ * so every waiting state is excluded:
+ *   - waiting_for_webhook set     (webhook_wait step)
+ *   - waiting_for_task_id set     (LinkedIn task)
+ *   - campaign not running        (paused or draft - pause() leaves rows
+ *                                  alone, and the reply check's placeholder
+ *                                  enrolment lives on a draft campaign)
+ *   - updated_at recent           (a claim still in flight; the trigger from
+ *                                  migration 001 stamps every update)
+ * Paused-by-colleague, account pause, replied, bounced and the rest all
+ * change status away from 'active'; an out-of-office hold moves
+ * next_send_at, it never clears it.
+ *
+ * And because putting it back on the clock re-runs the current step, the
+ * two half-finished cases are finished instead of re-run:
+ *   - the step's email already has a 'sent' activity  -> advance, as the
+ *     sender would have, rather than send it a second time
+ *   - the step's LinkedIn task already exists          -> link the task,
+ *     the write the claim never got to make, rather than raise a second
+ * Left uncovered: a process killed between the SMTP server accepting the
+ * message and the 'sent' row being written (milliseconds). That one is
+ * re-sent; the alternative is losing every interrupted contact.
+ */
+export async function reapStrandedContacts(): Promise<number> {
+  const cutoff = new Date(Date.now() - STRANDED_AFTER_MS).toISOString();
+  const { data: stranded, error } = await supabaseAdmin
+    .from('campaign_contacts')
+    .select('id, campaign_id, current_step_order, campaigns!inner(status)')
+    .eq('status', 'active')
+    .eq('campaigns.status', 'running')
+    .is('next_send_at', null)
+    .is('waiting_for_webhook', null)
+    .is('waiting_for_task_id', null)
+    .lt('updated_at', cutoff)
+    .order('updated_at', { ascending: true })
+    .limit(100);
+  if (error) throw new Error(`stranded contacts: ${error.message}`);
+
+  // Every write repeats the stranded conditions, so a contact that moved on
+  // (another instance's reaper, a reply arriving) is left alone.
+  const guarded = (q: any, id: string) => q
+    .eq('id', id)
+    .eq('status', 'active')
+    .is('next_send_at', null)
+    .is('waiting_for_webhook', null)
+    .is('waiting_for_task_id', null)
+    .lt('updated_at', cutoff)
+    .select('id')
+    .maybeSingle();
+
+  let recovered = 0;
+  for (const cc of (stranded || []) as any[]) {
+    if (isDraining()) break;
+    try {
+      const { data: steps, error: stepsErr } = await supabaseAdmin
+        .from('campaign_steps').select('*').eq('campaign_id', cc.campaign_id).order('step_order');
+      if (stepsErr) throw new Error(stepsErr.message);
+      const step = (steps || []).find((s: any) => s.step_order === (cc.current_step_order || 0));
+
+      if (step && step.step_type === 'email') {
+        const { count: sent, error: sentErr } = await supabaseAdmin
+          .from('campaign_activities')
+          .select('id', { count: 'exact', head: true })
+          .eq('campaign_contact_id', cc.id)
+          .eq('step_id', step.id)
+          .eq('activity_type', 'sent');
+        if (sentErr) throw new Error(sentErr.message);
+        if ((sent || 0) > 0) {
+          // One guarded write past the sent step, honouring the next step's
+          // own wait the way advanceToNextStep does. With no next step the
+          // contact is due now, and processNextStep completes it.
+          const next = (steps || []).find((s: any) => s.step_order === step.step_order + 1);
+          const waitMs = next && (next.step_type === 'email' || isLinkedinStep(next.step_type))
+            ? ((next.delay_days || 0) * 86400000) + ((next.delay_hours || 0) * 3600000) + ((next.delay_minutes || 0) * 60000)
+            : 0;
+          const { data: mine } = await guarded(
+            supabaseAdmin.from('campaign_contacts').update({
+              current_step_order: step.step_order + 1,
+              next_send_at: new Date(Date.now() + waitMs).toISOString(),
+            }), cc.id);
+          if (!mine) continue;
+          recovered++;
+          console.warn(`[Sequence] Contact ${cc.id}: step ${step.step_order} was sent but never advanced - advanced now`);
+          continue;
+        }
+      }
+
+      if (step && isLinkedinStep(step.step_type)) {
+        const { data: task, error: taskErr } = await supabaseAdmin
+          .from('crm_tasks')
+          .select('id, is_done')
+          .eq('campaign_contact_id', cc.id)
+          .eq('campaign_step_id', step.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (taskErr) throw new Error(taskErr.message);
+        if (task) {
+          const { data: mine } = await guarded(
+            supabaseAdmin.from('campaign_contacts').update({ waiting_for_task_id: task.id }), cc.id);
+          if (!mine) continue;
+          // Done while unlinked: its completion found nobody to resume.
+          if (task.is_done) await resumeAfterTask(task.id);
+          recovered++;
+          console.warn(`[Sequence] Contact ${cc.id}: re-linked to LinkedIn task ${task.id}`);
+          continue;
+        }
+      }
+
+      // Nothing went out for this step: put it back on the clock, where the
+      // usual claim decides who sends it.
+      const { data: mine } = await guarded(
+        supabaseAdmin.from('campaign_contacts').update({ next_send_at: new Date().toISOString() }), cc.id);
+      if (!mine) continue;
+      recovered++;
+      console.warn(`[Sequence] Contact ${cc.id}: claimed but never finished - rescheduled`);
+    } catch (err: any) {
+      // One contact's failure must not stop the sweep for the rest.
+      console.error(`[Sequence] Could not recover stranded contact ${cc.id}:`, err?.message || err);
+    }
+  }
+  return recovered;
+}
 
 /**
  * Start the scheduled campaigns whose time has come.
@@ -1335,15 +1474,16 @@ export async function processDueSteps(): Promise<number> {
     .order('next_send_at', { ascending: true })
     .limit(50);
 
-  if (dueError) {
-    console.error('[Sequence] processDueSteps query error:', dueError.message);
-    return 0;
-  }
+  // Thrown rather than read as "nothing due": the worker's heartbeat records
+  // it, so a broken query shows as failing instead of quietly sending nothing.
+  if (dueError) throw new Error(`processDueSteps query: ${dueError.message}`);
 
   if (!dueContacts || dueContacts.length === 0) return 0;
   console.log(`[Sequence] Found ${dueContacts.length} due contact(s) to process`);
 
   for (const cc of dueContacts) {
+    // Shutting down: unclaimed contacts stay due for the next process.
+    if (isDraining()) break;
     try {
       await processNextStep(cc.id);
     } catch (err: any) {

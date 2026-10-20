@@ -39,7 +39,10 @@ export interface CampaignListItem {
   name: string;
   status: string;
   created_at: string;
+  /** Emails sent, all time. */
   sent: number;
+  /** People sent to: the denominator of the rates. Opened/clicked/replied/bounced are people. */
+  contacts_sent?: number;
   opened: number;
   clicked: number;
   replied: number;

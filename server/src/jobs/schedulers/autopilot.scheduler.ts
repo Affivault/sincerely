@@ -35,6 +35,7 @@ async function tick() {
     if (changed > 0) console.log(`[Autopilot] ${changed} change(s) across ${users} account(s)`);
   } catch (err: any) {
     console.error('[Autopilot] Tick failed:', err?.message || err);
+    throw err; // so the heartbeat records the failure
   } finally {
     running = false;
   }

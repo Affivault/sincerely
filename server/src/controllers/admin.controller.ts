@@ -16,6 +16,11 @@ export const adminController = {
     try { res.json(await adminService.stats()); } catch (err) { next(err); }
   },
 
+  /** GET /admin/health — relay, Redis and platform-wide counts (moved off public /health) */
+  async health(_req: AuthRequest, res: Response, next: NextFunction) {
+    try { res.json(await adminService.health()); } catch (err) { next(err); }
+  },
+
   /** POST /admin/grant-lifetime { email } */
   async grantLifetime(req: AuthRequest, res: Response, next: NextFunction) {
     try {

@@ -1,5 +1,6 @@
 import { app } from './app.js';
-import { env } from './config/env.js';
+import { env, localhostUrlProblems } from './config/env.js';
+import { whenIdle } from './utils/heartbeat.js';
 import { startSequenceWorker } from './jobs/workers/sequence.worker.js';
 import { startVerificationWorker } from './jobs/workers/verification.worker.js';
 import { startInboxScheduler } from './jobs/schedulers/inbox.scheduler.js';
@@ -18,6 +19,13 @@ import { startBookingReminderScheduler } from './jobs/schedulers/booking-reminde
 import { startDomainReverifyScheduler } from './jobs/schedulers/domain-reverify.scheduler.js';
 
 const port = parseInt(env.PORT, 10);
+
+// Loud, not fatal: exiting here would take a running production down over
+// a config mistake that is better fixed live. The system status page shows
+// the same thing (services/system-status).
+for (const p of localhostUrlProblems()) {
+  console.error(`[Config] ${p.name} is ${p.value} in production - ${p.breaks}. Set ${p.name} to this deployment's public URL.`);
+}
 
 // Disposers for everything started at boot, drained on shutdown.
 const disposers: Array<() => void | Promise<void>> = [];
@@ -193,6 +201,11 @@ async function shutdown(signal: string) {
   server.close(() => console.log('HTTP server closed'));
 
   await Promise.allSettled(disposers.map((dispose) => dispose()));
+
+  // Let ticks already running finish their batch (still capped by the
+  // force-exit above); anything cut off is picked up by the reapers in
+  // sequence.service / inbox.service on the next boot.
+  await whenIdle();
 
   clearTimeout(forceExit);
   console.log('Shutdown complete');

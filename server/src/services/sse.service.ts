@@ -2,6 +2,7 @@ import { supabaseAdmin } from '../config/supabase.js';
 import type { SmtpAccount, SmtpAccountHealthSummary, SseSelectionResult } from '@lemlist/shared';
 import { autopilotAllowance } from '@lemlist/shared';
 import { AppError } from '../middleware/error.middleware.js';
+import { fetchAllPages } from '../utils/batch.js';
 
 /**
  * SSE - Smart-Sharding Engine
@@ -422,11 +423,13 @@ export async function resetDailySendCounts(now = new Date()): Promise<number> {
  * rate, query campaign_activities directly filtered by occurred_at.
  */
 export async function recalculateBounceRates(): Promise<void> {
-  const { data: accounts } = await supabaseAdmin
+  // Paged past PostgREST's 1000-row cap, and a failed read is thrown rather
+  // than read as "no accounts" so the maintenance heartbeat sees it.
+  const accounts = await fetchAllPages<{ id: string; total_sent: number; total_bounced: number }>((from, to) => supabaseAdmin
     .from('smtp_accounts')
-    .select('id, total_sent, total_bounced');
-
-  if (!accounts) return;
+    .select('id, total_sent, total_bounced')
+    .order('id')
+    .range(from, to));
 
   for (const account of accounts) {
     const bounceRate = account.total_sent > 0

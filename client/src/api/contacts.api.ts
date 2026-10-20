@@ -30,7 +30,13 @@ export interface ContactStats {
 export interface BulkImportResult {
   total: number;
   imported: number;
+  /** Of imported: new addresses, and existing ones that only had blanks filled. */
+  created?: number;
+  updated?: number;
+  /** Addresses in the batch that are on the suppression list. */
+  suppressed?: number;
   errors: number;
+  duplicates_collapsed?: number;
   error_details: { email: string; reason: string }[];
 }
 
@@ -104,10 +110,12 @@ export const contactsApi = {
     listId?: string,
     /** CSV filename, recorded on each contact as its origin. */
     importSource?: string,
+    /** 'contacts' files everyone in the batch as a contact, not a prospect. */
+    context?: 'contacts',
   ) => {
     const { data } = await apiClient.post<BulkImportResult>(
       '/contacts/bulk',
-      { contacts, list_id: listId, import_source: importSource }
+      { contacts, list_id: listId, import_source: importSource, context }
     );
     return data;
   },

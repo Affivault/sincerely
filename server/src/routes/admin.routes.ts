@@ -15,5 +15,6 @@ adminRoutes.use(jwtOnly);
 
 adminRoutes.get('/users', adminController.listUsers);
 adminRoutes.get('/stats', adminController.stats);
+adminRoutes.get('/health', adminController.health);
 adminRoutes.post('/grant-lifetime', adminController.grantLifetime);
 adminRoutes.post('/revoke-lifetime', adminController.revokeLifetime);

@@ -40,6 +40,7 @@ export const campaignFoldersService = {
         .select('id, folder_id')
         .eq('user_id', userId)
         .not('folder_id', 'is', null)
+        .order('id', { ascending: true })
         .range(from, to)
     );
 
@@ -146,40 +147,60 @@ export const campaignFoldersService = {
 
     const campaignIds = (campaigns || []).map((c: any) => c.id);
     if (campaignIds.length === 0) {
-      return { folder, campaigns: [], totals: { sent: 0, opened: 0, clicked: 0, replied: 0, bounced: 0 } };
+      return { folder, campaigns: [], totals: { sent: 0, reached: 0, opened: 0, clicked: 0, replied: 0, bounced: 0 } };
     }
 
     // Slice the id list: a folder with many campaigns would overflow the URL.
-    const activities: { activity_type: string; campaign_id: string }[] = [];
+    const activities: { activity_type: string; campaign_id: string; campaign_contact_id: string }[] = [];
     for (const slice of chunk(campaignIds)) {
-      activities.push(...await fetchAllRows<{ activity_type: string; campaign_id: string }>((from, to) =>
+      activities.push(...await fetchAllRows<{ activity_type: string; campaign_id: string; campaign_contact_id: string }>((from, to) =>
         supabaseAdmin
           .from('campaign_activities')
-          .select('activity_type, campaign_id')
+          .select('activity_type, campaign_id, campaign_contact_id')
           .in('campaign_id', slice)
+          .in('activity_type', ['sent', 'opened', 'clicked', 'replied', 'bounced'])
+          .order('id', { ascending: true })
           .range(from, to)
       ));
     }
 
-    const byCampaign: Record<string, any> = {};
-    const totals = { sent: 0, opened: 0, clicked: 0, replied: 0, bounced: 0 };
-    for (const id of campaignIds) byCampaign[id] = { sent: 0, opened: 0, clicked: 0, replied: 0, bounced: 0 };
-
+    /*
+     * Sent is emails; opened, clicked, replied and bounced are people
+     * (distinct enrolments), and the rates are over the people reached -
+     * the same definition as the campaign list and the dashboard, so a
+     * prospect who replies twice is one reply and no rate passes 100%.
+     */
+    type Counts = { sent: number; reached: number; opened: number; clicked: number; replied: number; bounced: number };
+    const blank = (): Counts => ({ sent: 0, reached: 0, opened: 0, clicked: 0, replied: 0, bounced: 0 });
+    const byCampaign: Record<string, Counts> = {};
+    for (const id of campaignIds) byCampaign[id] = blank();
+    const seen = new Set<string>();
     for (const a of activities) {
       const c = byCampaign[a.campaign_id];
       if (!c) continue;
-      if (a.activity_type in c) {
-        c[a.activity_type]++;
-        (totals as any)[a.activity_type]++;
+      if (a.activity_type === 'sent') {
+        c.sent++;
+        const k = `reached:${a.campaign_contact_id}`;
+        if (!seen.has(k)) { seen.add(k); c.reached++; }
+        continue;
       }
+      const k = `${a.activity_type}:${a.campaign_contact_id}`;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      if (a.activity_type in c) (c as any)[a.activity_type]++;
     }
+    const totals = blank();
+    for (const c of Object.values(byCampaign)) {
+      for (const k of Object.keys(totals) as (keyof Counts)[]) totals[k] += c[k];
+    }
+    const rate = (v: number, t: number) => (t ? Math.round((v / t) * 1000) / 10 : 0);
 
     const campaignBreakdown = (campaigns || []).map((c: any) => ({
       ...c,
       ...byCampaign[c.id],
-      open_rate:  byCampaign[c.id].sent ? Math.round((byCampaign[c.id].opened  / byCampaign[c.id].sent) * 1000) / 10 : 0,
-      click_rate: byCampaign[c.id].sent ? Math.round((byCampaign[c.id].clicked / byCampaign[c.id].sent) * 1000) / 10 : 0,
-      reply_rate: byCampaign[c.id].sent ? Math.round((byCampaign[c.id].replied / byCampaign[c.id].sent) * 1000) / 10 : 0,
+      open_rate:  rate(byCampaign[c.id].opened,  byCampaign[c.id].reached),
+      click_rate: rate(byCampaign[c.id].clicked, byCampaign[c.id].reached),
+      reply_rate: rate(byCampaign[c.id].replied, byCampaign[c.id].reached),
     }));
 
     return { folder, campaigns: campaignBreakdown, totals };
