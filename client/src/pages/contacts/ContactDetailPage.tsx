@@ -135,6 +135,15 @@ export function ContactDetailPage() {
   });
   const openLead = (contactLeads || []).find((l) => l.status === 'open') || null;
 
+  // Prospects <-> Contacts by hand (above every early return: it is a hook).
+  const moveStage = useMutation({
+    mutationFn: (to: 'prospect' | 'contact') => contactsApi.setLifecycle([id!], to),
+    onSuccess: (_r, to) => {
+      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+      toast.success(to === 'contact' ? 'Moved to Contacts' : 'Moved to Prospects');
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.error || 'Could not move them'),
+  });
   const makeLead = useMutation({
     mutationFn: () => leadsApi.create({ contact_id: id!, source: 'Manual' }),
     onSuccess: () => {
@@ -413,6 +422,16 @@ export function ContactDetailPage() {
               >
                 {LIFECYCLE_LABEL[stage]}
               </span>
+              {/* The person's call, either way: automatic promotion only
+                  ever moves forward. */}
+              <button
+                type="button"
+                onClick={() => moveStage.mutate(stage === 'prospect' ? 'contact' : 'prospect')}
+                disabled={moveStage.isPending}
+                className="ml-auto inline-flex min-h-6 items-center text-caption font-medium text-[var(--indigo-text)] hover:underline disabled:opacity-50"
+              >
+                {stage === 'prospect' ? 'Move to Contacts' : 'Move to Prospects'}
+              </button>
             </div>
             <div className={cn(
               'flex items-start gap-2 rounded-md px-2.5 py-2 text-caption leading-snug',

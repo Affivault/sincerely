@@ -130,6 +130,12 @@ export const contactsController = {
     } catch (err) { next(err); }
   },
 
+  async setLifecycle(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      res.json(await contactsService.setLifecycle(req.userId!, req.body?.contact_ids, req.body?.lifecycle));
+    } catch (err) { next(err); }
+  },
+
   async bulkDelete(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const result = await contactsService.bulkDelete(req.userId!, req.body.contact_ids);

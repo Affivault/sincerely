@@ -920,6 +920,18 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
     },
   });
 
+  // Prospects <-> Contacts by hand. Automatic promotion only moves forward;
+  // this is the person deciding otherwise, in either direction.
+  const lifecycleMutation = useMutation({
+    mutationFn: ({ ids, to }: { ids: string[]; to: 'prospect' | 'contact' }) => contactsApi.setLifecycle(ids, to),
+    onSuccess: (result, { to }) => {
+      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+      setSelectedContacts(new Set());
+      toast.success(`Moved ${plural(result.updated, 'person', 'people')} to ${to === 'contact' ? 'Contacts' : 'Prospects'}`);
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.error || 'Could not move them'),
+  });
+
   const bulkDeleteMutation = useMutation({
     mutationFn: (ids: string[]) => contactsApi.bulkDelete(ids),
     onSuccess: (result, ids) => {
@@ -2198,6 +2210,28 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                 <button onClick={() => { setMoveTargetId(null); setShowMoveModal(true); }} className="btn-secondary text-strong h-8 rounded-lg">
                   <ArrowRightLeft className="h-3.5 w-3.5" />
                   Move
+                </button>
+              )}
+              {lifecycle !== 'engaged' && (
+                <button
+                  onClick={() => lifecycleMutation.mutate({ ids: Array.from(selectedContacts), to: 'contact' })}
+                  disabled={lifecycleMutation.isPending}
+                  title="Treat them as relationships: they show on the Contacts tab"
+                  className="btn-secondary text-strong h-8 rounded-lg disabled:opacity-50"
+                >
+                  <ArrowRightLeft className="h-3.5 w-3.5" />
+                  Move to Contacts
+                </button>
+              )}
+              {lifecycle !== 'prospect' && (
+                <button
+                  onClick={() => lifecycleMutation.mutate({ ids: Array.from(selectedContacts), to: 'prospect' })}
+                  disabled={lifecycleMutation.isPending}
+                  title="Back to the cold pile: they show on the Prospects tab until they reply"
+                  className="btn-secondary text-strong h-8 rounded-lg disabled:opacity-50"
+                >
+                  <ArrowRightLeft className="h-3.5 w-3.5" />
+                  Move to Prospects
                 </button>
               )}
               <button

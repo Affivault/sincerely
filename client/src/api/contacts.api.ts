@@ -137,6 +137,12 @@ export const contactsApi = {
     });
   },
 
+  /** Move people between Prospects / Contacts / Customers by hand, either way. */
+  setLifecycle: async (contactIds: string[], lifecycle: 'prospect' | 'contact' | 'customer') => {
+    const { data } = await apiClient.post<{ updated: number; lifecycle: string }>('/contacts/lifecycle', { contact_ids: contactIds, lifecycle });
+    return data;
+  },
+
   bulkDelete: async (contactIds: string[]) => {
     const { data } = await apiClient.post<{ deleted: number }>('/contacts/bulk-delete', { contact_ids: contactIds });
     return data;

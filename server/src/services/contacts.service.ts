@@ -859,6 +859,50 @@ export const contactsService = {
     }
   },
 
+  /**
+   * Put people in Prospects or Contacts by hand, in either direction.
+   *
+   * Automatic promotion only ever moves forward (a reply makes a prospect a
+   * contact); this is the person overriding it - someone imported as a
+   * prospect who is really a customer of years, or a contact who belongs
+   * back in the cold pile. Moving to prospect clears engaged_at, so the next
+   * real reply promotes them again as usual.
+   */
+  async setLifecycle(userId: string, contactIds: string[], lifecycle: string) {
+    if (!['prospect', 'contact', 'customer'].includes(lifecycle)) {
+      throw new AppError('lifecycle must be prospect, contact or customer', 400);
+    }
+    const ids = [...new Set((Array.isArray(contactIds) ? contactIds : []).filter((x) => typeof x === 'string'))];
+    if (ids.length === 0) throw new AppError('No contacts given', 400);
+    if (ids.length > 5000) throw new AppError('Up to 5,000 contacts at a time', 400);
+
+    const patch = lifecycle === 'prospect'
+      ? { lifecycle, engaged_at: null, promoted_by: null }
+      : { lifecycle, promoted_by: 'manual' };
+    let updated = 0;
+    for (let i = 0; i < ids.length; i += 200) {
+      const slice = ids.slice(i, i + 200);
+      const { data, error } = await supabaseAdmin
+        .from('contacts')
+        .update(patch)
+        .eq('user_id', userId)
+        .in('id', slice)
+        .select('id');
+      if (error) throw new AppError(error.message, 500);
+      updated += data?.length || 0;
+      if (lifecycle !== 'prospect') {
+        // Keep the first engagement date if there is one; set it if not.
+        await supabaseAdmin
+          .from('contacts')
+          .update({ engaged_at: new Date().toISOString() })
+          .eq('user_id', userId)
+          .in('id', slice)
+          .is('engaged_at', null);
+      }
+    }
+    return { updated, lifecycle };
+  },
+
   async bulkDelete(userId: string, contactIds: string[]) {
     if (!Array.isArray(contactIds) || contactIds.length === 0) return { deleted: 0 };
 
