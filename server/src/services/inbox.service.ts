@@ -148,9 +148,18 @@ async function syncArchiveToImap(
       const bySource = new Map<string, any[]>();
       for (const m of msgs) {
         if (!m.imap_uid) continue;
+        /*
+         * A UID means something only inside the folder it came from. Archive
+         * used to open INBOX for every message, so archiving one synced from
+         * Sent or Junk moved whichever INBOX message happened to hold that
+         * number - somebody else's email, in the real mailbox. Only a message
+         * that is in INBOX is archived there; anything else is left alone.
+         */
+        const folder = m.imap_folder || 'INBOX';
+        if (archive && folder.toUpperCase() !== 'INBOX') continue;
         const src = archive
-          ? 'INBOX'
-          : (m.imap_folder && m.imap_folder !== 'INBOX' ? m.imap_folder : archiveTargets[0]);
+          ? folder
+          : (m.imap_folder && m.imap_folder.toUpperCase() !== 'INBOX' ? m.imap_folder : archiveTargets[0]);
         if (!bySource.has(src)) bySource.set(src, []);
         bySource.get(src)!.push(m);
       }
@@ -177,11 +186,10 @@ async function syncArchiveToImap(
                 const mapped = map.get(Number(m.imap_uid)) ?? map.get(m.imap_uid);
                 if (typeof mapped === 'number') newUid = mapped;
               }
-              // Only update imap_uid if the server returned a new UID.
-              // Setting it to null would break future archive/unarchive since
-              // the sync query filters .not('imap_uid', 'is', null).
-              const updatePayload: Record<string, any> = { imap_folder: target };
-              if (newUid !== null) updatePayload.imap_uid = newUid;
+              // The old UID is meaningless in the new folder. Without the new
+              // one (a server with no UIDPLUS) the row stops syncing rather
+              // than keep a number that would move a different message later.
+              const updatePayload: Record<string, any> = { imap_folder: target, imap_uid: newUid };
               await supabaseAdmin
                 .from('inbox_messages')
                 .update(updatePayload)

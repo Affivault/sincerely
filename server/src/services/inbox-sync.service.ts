@@ -142,6 +142,18 @@ export function pickSentFolder(list: Array<{ path: string; specialUse?: string; 
   return null;
 }
 
+/** Which mailbox holds spam: the \Junk special-use flag, then common names. */
+export function pickJunkFolder(list: Array<{ path: string; specialUse?: string; name?: string }>): string | null {
+  const bySpecialUse = list.find((box) => box.specialUse === '\\Junk');
+  if (bySpecialUse) return bySpecialUse.path;
+  const candidates = ['[Gmail]/Spam', 'Junk', 'Junk Email', 'Junk E-mail', 'Spam', 'INBOX.Junk', 'INBOX.Spam', 'Bulk Mail'];
+  for (const name of candidates) {
+    const match = list.find((box) => box.path.toLowerCase() === name.toLowerCase());
+    if (match) return match.path;
+  }
+  return null;
+}
+
 /** The window this mailbox was configured for, defaulting safely. */
 function windowFor(account: SyncAccount): SyncWindowMonths {
   return isSyncWindow(account.inbox_sync_months)
@@ -246,7 +258,11 @@ async function matchSend(userId: string, inReplyTo: string, contactId: string | 
       .from('campaign_contacts')
       .select('id, campaign_id, contact_id')
       .eq('contact_id', contactId)
-      .in('status', ['active', 'completed'])
+      // Paused and pending enrolments too: markReplied stops those, and a
+      // reply from somebody whose sequence was paused (a colleague replied,
+      // an out-of-office hold) was otherwise never recorded - and the pause
+      // later lifted into a follow-up to a person who had already answered.
+      .in('status', ['pending', 'active', 'paused', 'completed'])
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -416,6 +432,14 @@ async function ingest(msg: any, ctx: IngestContext): Promise<boolean> {
   });
 
   const matchedActivity: any = !outbound && !bounceNotice && !complaint ? await matchSend(userId, inReplyTo, contactId) : null;
+
+  /*
+   * From the spam folder, only people you are talking to. A prospect's
+   * reply filtered as spam used to go unseen - no reply recorded, the
+   * sequence kept following up. Everything else in there is spam, and
+   * stays out of the inbox.
+   */
+  if (role === 'junk' && !matchedActivity && !contactId) return false;
 
   /*
    * Person or mail. Decided once, here, from the headers bulk senders are
@@ -788,6 +812,12 @@ export const inboxSyncService = {
     for (const raw of accounts as SyncAccount[]) {
       let client: any = null;
       let budget = PER_RUN_LIMIT;
+      // A refused password is not retried every few minutes (see authBackoff).
+      const waiting = authBackoffUntil(raw);
+      if (waiting) {
+        errors.push(`${raw.email_address}: The mailbox rejected the login. Trying again after ${waiting.toISOString().slice(11, 16)} UTC, or as soon as the password is updated.`);
+        continue;
+      }
       try {
         const password = decrypt(raw.smtp_pass_encrypted);
 
@@ -852,12 +882,14 @@ export const inboxSyncService = {
           }),
         ]).finally(() => clearTimeout(connectTimeoutId!));
 
-        // INBOX always; Sent when the server will say where it is.
+        // INBOX always; Sent and Junk when the server will say where they are.
         const targets: FolderTarget[] = [{ path: 'INBOX', role: 'inbox' }];
         try {
           const boxes = await client.list();
           const sent = pickSentFolder(boxes || []);
           if (sent) targets.push({ path: sent, role: 'sent' });
+          const junk = pickJunkFolder(boxes || []);
+          if (junk) targets.push({ path: junk, role: 'junk' });
         } catch {
           // A server that will not list its folders still has an INBOX.
         }
@@ -984,9 +1016,11 @@ export const inboxSyncService = {
 
         await client.logout().catch(() => {});
         client = null;
+        authBackoff.delete(raw.id);
         console.log(`[InboxSync] ${raw.email_address}: ${totalNew} new, ${totalBackfilled} from history`);
       } catch (err: any) {
         const friendly = categoriseImapError(err.message || String(err));
+        if (friendly === LOGIN_REJECTED) noteAuthFailure(raw);
         console.error(`[InboxSync] Failed for ${raw.email_address}:`, err.message);
 
         /*
@@ -1055,11 +1089,40 @@ async function isAiTaggingEnabled(userId: string): Promise<boolean> {
   }
 }
 
+const LOGIN_REJECTED = 'The mailbox rejected the login. Update the password (or app password) on this account.';
+
+/*
+ * Backing off a refused login.
+ *
+ * Every sync pass signed in again, every few minutes, for as long as the
+ * password stayed wrong - and Gmail and Microsoft lock an account after a
+ * run of failed sign-ins, which turns a stale app password into a locked
+ * mailbox. A refused login now waits 5 minutes, then 15, then an hour, then
+ * four hours between tries. Keyed on the stored password too, so updating
+ * the password retries at once. In memory: a restart costs one extra try.
+ */
+const AUTH_BACKOFF_MS = [5, 15, 60, 240].map((m) => m * 60_000);
+const authBackoff = new Map<string, { secret: string; failures: number; until: number }>();
+
+function authBackoffUntil(raw: { id: string; smtp_pass_encrypted: string }): Date | null {
+  const b = authBackoff.get(raw.id);
+  if (!b) return null;
+  if (b.secret !== raw.smtp_pass_encrypted) { authBackoff.delete(raw.id); return null; }
+  return Date.now() < b.until ? new Date(b.until) : null;
+}
+
+function noteAuthFailure(raw: { id: string; smtp_pass_encrypted: string }): void {
+  const prev = authBackoff.get(raw.id);
+  const failures = prev && prev.secret === raw.smtp_pass_encrypted ? prev.failures + 1 : 1;
+  const wait = AUTH_BACKOFF_MS[Math.min(failures, AUTH_BACKOFF_MS.length) - 1];
+  authBackoff.set(raw.id, { secret: raw.smtp_pass_encrypted, failures, until: Date.now() + wait });
+}
+
 /** IMAP failures in words somebody can act on. */
 export function categoriseImapError(message: string): string {
   const m = (message || '').toLowerCase();
   if (m.includes('invalid credentials') || m.includes('authenticationfailed') || m.includes('auth')) {
-    return 'The mailbox rejected the login. Update the password (or app password) on this account.';
+    return LOGIN_REJECTED;
   }
   if (m.includes('timed out') || m.includes('timeout')) {
     return 'The mail server did not respond in time. It may be slow or unreachable from here.';

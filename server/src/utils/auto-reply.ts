@@ -52,11 +52,6 @@ const OOO_PHRASES: RegExp[] = [
   /\bauto[-\s]?reply\b/i,
   /\bthis is an automated\b/i,
   /\bon (annual |parental |maternity |paternity |sick )?leave\b.{0,40}\b(until|till|returning|return)\b/i,
-  /\bon (vacation|holiday|pto)\b.{0,40}\b(until|till|returning|return|back)\b/i,
-  /\bI (am|'m) currently (away|out|travel(l)?ing|unavailable)\b/i,
-  /\bwill be (back|returning) (in|on|the)\b/i,
-  /\blimited access to (my )?e-?mail\b/i,
-  /\bno longer (with|works? (at|for))\b/i,        // left the company
   // Non-English, common in European B2B
   /\babwesenheitsnotiz\b/i,                        // German
   /\bautomatische antwort\b/i,
@@ -66,6 +61,26 @@ const OOO_PHRASES: RegExp[] = [
   /\bfuori sede\b/i,                               // Italian
   /\bautomatisch antwoord\b/i,                     // Dutch
 ];
+
+/**
+ * Phrases a responder uses but a person replying can too: "I am currently
+ * away at a conference, but yes, let's set up a call", "I'll be back in
+ * touch next week", "he is no longer with the team, but I run it now".
+ * Each of those was filed as an out-of-office - hidden from the reply
+ * count, the sequence left running, the interested prospect followed up
+ * with a cold step. So these only count when nothing in the opening reads
+ * as someone engaging (ENGAGED below).
+ */
+const WEAK_OOO_PHRASES: RegExp[] = [
+  /\bon (vacation|holiday|pto)\b.{0,40}\b(until|till|returning|return|back)\b/i,
+  /\bI (am|'m) currently (away|out|travel(l)?ing|unavailable)\b/i,
+  /\bwill be (back|returning) (in|on|the)\b(?! touch)/i,
+  /\blimited access to (my )?e-?mail\b/i,
+  /\bno longer (with|works? (at|for))\b/i,        // left the company
+];
+
+/** Somebody answering, not a responder: a weak phrase next to one of these is a person. */
+const ENGAGED = /\b(interested|let'?s (talk|chat|set|book|connect|do|meet|speak)|set up (a )?(call|meeting|time)|book (a|some) (time|call)|happy to (chat|talk|help|connect|meet)|would love to|sounds (good|great|interesting)|looks (interesting|great|good)|send (me )?(some )?(times|availability|details|info)|can we (talk|chat|book|meet|speak)|tell me more|count me in)\b/i;
 
 /**
  * Machine-written, but nobody is away — a helpdesk or form acknowledging
@@ -141,9 +156,11 @@ export function detectAutoReply(
   const map = normaliseHeaders(headers);
 
   const opening = (body || '').slice(0, 600);
+  const weakAway = !ENGAGED.test(opening) && WEAK_OOO_PHRASES.some((re) => re.test(opening));
   const readsAsAway = OOO_HEADER_HINTS.some((h) => map[h] !== undefined)
     || OOO_SUBJECTS.some((re) => re.test(subject || ''))
-    || OOO_PHRASES.some((re) => re.test(opening));
+    || OOO_PHRASES.some((re) => re.test(opening))
+    || weakAway;
 
   for (const rule of HEADER_RULES) {
     const value = map[rule.name];
@@ -170,6 +187,9 @@ export function detectAutoReply(
     if (re.test(opening)) {
       return { kind: 'out_of_office', reason: 'opening lines', confident: false };
     }
+  }
+  if (weakAway) {
+    return { kind: 'out_of_office', reason: 'opening lines', confident: false };
   }
 
   for (const re of ACK_PHRASES) {
