@@ -133,6 +133,8 @@ interface Message {
   is_read: boolean;
   /** Set when a machine sent it — never counted as a reply. */
   auto_reply_kind?: 'out_of_office' | 'auto_reply' | null;
+  /** The mailbox folder it was synced from (INBOX, Sent, Junk...). */
+  imap_folder?: string | null;
   /** Person, or mail (newsletter, notification, receipt, your own mailboxes). */
   mail_kind?: MailKind | null;
   /** The name their mail client sent, e.g. "GO Markets". */
@@ -3957,6 +3959,17 @@ export function InboxPage() {
                           >
                             <BotIcon className="h-2.5 w-2.5" />
                             {msg.auto_reply_kind === 'out_of_office' ? 'Away' : 'Auto'}
+                          </span>
+                        )}
+                        {/* Rescued from the mailbox's spam folder: the person
+                            replied, their provider filed it as spam. Worth
+                            knowing - and worth moving out of spam there too. */}
+                        {/(^|[/.])(junk|spam|bulk)/i.test(msg.imap_folder || '') && (
+                          <span
+                            className="inline-flex items-center text-micro font-semibold px-1.5 py-0.5 rounded bg-amber-500/12 text-amber-700 dark:text-amber-400 flex-shrink-0"
+                            title="This reply landed in your mailbox's spam folder. Sincerely found it there; mark it as not spam in your mail provider so the next one arrives in the inbox."
+                          >
+                            Was in spam
                           </span>
                         )}
                       </span>

@@ -17,6 +17,7 @@ import {
   readAbsence, awayLabel, AWAY_DEFAULT_HOLD_DAYS, findReferrals, referralIntro,
   checkEmailContent, applyContentFixes, launchGate,
 } from '@lemlist/shared';
+import { detectAutoReply } from '../src/utils/auto-reply.js';
 
 let pass = 0, fail = 0;
 const is = (label: string, cond: boolean, detail = '') => {
@@ -110,6 +111,27 @@ console.log('\nthe launch review reads the emails');
   const migration = readFileSync(join(here, '../../supabase/migrations/080_out_of_office_hold.sql'), 'utf8');
   is('migration 080 adds the note columns', /away_until/.test(migration) && /away_returns_on/.test(migration) && /away_note/.test(migration));
   is('the migration is ASCII with no BEGIN/COMMIT', /^[\x00-\x7F]*$/.test(migration) && !/^\s*(begin|commit)\s*;/im.test(migration));
+}
+
+console.log('\na person who mentions being away is still a person');
+{
+  // Each was filed as an out-of-office: hidden from replies, sequence left running.
+  for (const body of [
+    'Thanks, this looks interesting. I will be back in touch next week to set up a call.',
+    'I am currently away at a conference, but yes let\'s set up a call next week.',
+    'He is no longer with the team, but I run partnerships now - happy to talk.',
+    'Interested! I\'ll be back on the 3rd, can we book then?',
+  ]) {
+    is(`not an auto-reply: "${body.slice(0, 40)}..."`, detectAutoReply({}, 'Re: idea', body).kind === null);
+  }
+  for (const body of [
+    'I am out of the office until Monday 3rd with limited access to email.',
+    'Thank you for your email. I\'m currently on annual leave and will return on 14 November.',
+    'I am currently away from the office and will be back on Monday.',
+    'John Smith is no longer with Acme. Please contact jane@acme.com.',
+  ]) {
+    is(`still an out-of-office: "${body.slice(0, 40)}..."`, detectAutoReply({}, 'Re: idea', body).kind === 'out_of_office');
+  }
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

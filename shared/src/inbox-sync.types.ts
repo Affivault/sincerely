@@ -28,7 +28,7 @@ export function syncWindowLabel(months: SyncWindowMonths): string {
 }
 
 /** The folders this platform reads. Sent matters: a thread needs both halves. */
-export type SyncFolderRole = 'inbox' | 'sent';
+export type SyncFolderRole = 'inbox' | 'sent' | 'junk';
 
 export interface FolderSyncState {
   folder: string;
