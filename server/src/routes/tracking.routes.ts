@@ -399,29 +399,14 @@ async function performUnsubscribe(campaignContactId: string, stepId: string | nu
  * RFC 8058 one-click unsubscribe — Gmail/Yahoo/Outlook POST here (required for
  * bulk-sender compliance). Performs the unsubscribe and returns 200.
  */
-router.post('/unsubscribe/:trackingId', async (req: Request, res: Response) => {
-  const parsed = parseTrackingId(req.params.trackingId);
-  if (!parsed) return res.status(400).json({ error: 'Invalid link' });
-  if (!(await performUnsubscribe(parsed.campaignContactId, parsed.stepId, 'one_click'))) {
-    return res.status(500).json({ error: 'Could not unsubscribe, please retry' });
-  }
-  return res.status(200).json({ ok: true });
-});
-
-router.get('/unsubscribe/:trackingId', async (req: Request, res: Response) => {
-  const parsed = parseTrackingId(req.params.trackingId);
-
-  if (!parsed) {
-    return res.status(400).send('<html><body><h2>Invalid link</h2></body></html>');
-  }
-
-  if (!(await performUnsubscribe(parsed.campaignContactId, parsed.stepId, 'link_click'))) {
-    return res.status(500).send('<html><body><h2>Something went wrong</h2><p>We could not process your unsubscribe. Please try the link again in a moment.</p></body></html>');
-  }
-
-  return res.send(`<!DOCTYPE html>
+/*
+ * The page is the same shell for every state; only the card changes.
+ */
+function unsubscribePage(card: string): string {
+  return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Unsubscribed — Sincerely</title>
+<meta name="robots" content="noindex">
+<title>Unsubscribe - Sincerely</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;background:linear-gradient(135deg,#f0f0ff 0%,#f9fafb 50%,#fff5f5 100%);color:#111;padding:1rem}
@@ -434,18 +419,81 @@ router.get('/unsubscribe/:trackingId', async (req: Request, res: Response) => {
   .footer{margin-top:2rem;font-size:.75rem;color:#9ca3af}
   .footer a{color:#6366F1;text-decoration:none;font-weight:500}
 </style>
+<style>
+  button{margin-top:1.25rem;font:inherit;font-size:.9rem;font-weight:600;color:#fff;background:linear-gradient(135deg,#6366F1,#8B5CF6);border:0;border-radius:10px;padding:.7rem 1.4rem;cursor:pointer;min-height:44px}
+  button:focus-visible{outline:3px solid #a5b4fc;outline-offset:2px}
+</style>
 </head><body>
-<div class="card">
-  <div class="icon-wrap">
+<main class="card">${card}</main>
+<div class="footer">Powered by <a href="https://usesincerely.com" target="_blank" rel="noopener">Sincerely</a></div>
+</body></html>`;
+}
+
+const DONE_CARD = `
+  <div class="icon-wrap" aria-hidden="true">
     <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
   </div>
   <h1>You're unsubscribed</h1>
   <div class="divider"></div>
   <p>You've been successfully removed from this mailing list and won't receive any more emails from this campaign.</p>
-  <p style="margin-top:.75rem">If this was a mistake, please reply directly to the sender's email to be re-added.</p>
-</div>
-<div class="footer">Powered by <a href="https://usesincerely.com" target="_blank" rel="noopener">Sincerely</a></div>
-</body></html>`);
+  <p style="margin-top:.75rem">If this was a mistake, please reply directly to the sender's email to be re-added.</p>`;
+
+const FAILED_CARD = `
+  <h1>Something went wrong</h1>
+  <div class="divider"></div>
+  <p>We could not process your unsubscribe. Please try the link again in a moment.</p>`;
+
+/**
+ * POST /api/track/unsubscribe/:trackingId
+ *
+ * Two callers. Gmail, Yahoo and Outlook POST here for RFC 8058 one-click
+ * unsubscribe (required for bulk senders) and want a bare 200. The
+ * confirmation page below POSTs here too, from a person's button press,
+ * and wants a page back.
+ */
+router.post('/unsubscribe/:trackingId', async (req: Request, res: Response) => {
+  const parsed = parseTrackingId(req.params.trackingId);
+  const fromPage = req.body?.confirm === 'yes';
+  if (!parsed) {
+    return fromPage
+      ? res.status(400).send(unsubscribePage('<h1>Invalid link</h1>'))
+      : res.status(400).json({ error: 'Invalid link' });
+  }
+  const ok = await performUnsubscribe(parsed.campaignContactId, parsed.stepId, fromPage ? 'link_click' : 'one_click');
+  if (fromPage) return res.status(ok ? 200 : 500).send(unsubscribePage(ok ? DONE_CARD : FAILED_CARD));
+  if (!ok) return res.status(500).json({ error: 'Could not unsubscribe, please retry' });
+  return res.status(200).json({ ok: true });
+});
+
+/**
+ * GET /api/track/unsubscribe/:trackingId
+ *
+ * Asks, and does not act. Corporate mail filters (Microsoft Safe Links,
+ * Mimecast, Proofpoint) open every link in a message before the person
+ * sees it, and a GET that unsubscribed meant prospects behind those
+ * filters were unsubscribed on delivery, without ever choosing to be. The
+ * button POSTs, which scanners do not do. One press, no typing.
+ */
+router.get('/unsubscribe/:trackingId', async (req: Request, res: Response) => {
+  res.setHeader('Cache-Control', 'no-store');
+  const parsed = parseTrackingId(req.params.trackingId);
+  if (!parsed) return res.status(400).send(unsubscribePage('<h1>Invalid link</h1>'));
+
+  // Already done (one-click from the inbox, or an earlier press): say so.
+  const { data: cc } = await supabaseAdmin
+    .from('campaign_contacts').select('status')
+    .eq('id', parsed.campaignContactId).maybeSingle();
+  if (cc?.status === 'unsubscribed') return res.send(unsubscribePage(DONE_CARD));
+
+  const action = `${req.baseUrl}/unsubscribe/${encodeURIComponent(req.params.trackingId)}`;
+  return res.send(unsubscribePage(`
+  <h1>Unsubscribe from these emails?</h1>
+  <div class="divider"></div>
+  <p>Press the button and you won't receive any more emails from this campaign.</p>
+  <form method="POST" action="${action}">
+    <input type="hidden" name="confirm" value="yes">
+    <button type="submit">Unsubscribe</button>
+  </form>`));
 });
 
 export { router as trackingRoutes };

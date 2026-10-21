@@ -146,11 +146,19 @@ console.log('\nnothing waits longer than the browser will');
   is('the relay call is given a deadline', /controller\.signal/.test(relay), 'relay fetch is unbounded');
   // Read the ceiling out of the code rather than pattern-matching the
   // expression around it, so the assertion is about the number that matters.
+  // The ceiling that matters is the interactive one - a send somebody is
+  // waiting on passes timeoutMs. Background sends (no timeoutMs, nobody
+  // waiting) deliberately outlast the relay's own 24s deadline instead.
   const ceiling = Number(
-    (relay.match(/const budget = Math\.min\(.*?,\s*([0-9_]+)\s*\)/)?.[1] || '0').replace(/_/g, ''),
+    (relay.match(/Math\.min\(params\.timeoutMs[^,]*,\s*([0-9_]+)\s*\)/)?.[1] || '0').replace(/_/g, ''),
   );
   is('and the deadline is under the client’s 30s timeout',
      ceiling > 0 && ceiling < 30_000, `ceiling is ${ceiling}ms against a 30000ms client timeout`);
+  const background = Number(
+    (relay.match(/params\.timeoutMs === undefined\s*\?\s*([0-9_]+)/)?.[1] || '0').replace(/_/g, ''),
+  );
+  is('and a background send waits out the relay’s 24s deadline',
+     background > 24_000, `background budget is ${background}ms against the relay's 24000ms deadline`);
   is('the timer is always cleared', /finally \{\s*\n\s*clearTimeout\(deadline\);/.test(relay));
 
   /*
