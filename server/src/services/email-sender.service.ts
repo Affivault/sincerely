@@ -7,7 +7,7 @@ import { resolveHostIp } from '../utils/dns-doh.js';
 import { fireEvent } from './webhook.service.js';
 import * as sse from './sse.service.js';
 import { checkAndAutoCompleteCampaign, htmlToText } from './sequence.service.js';
-import { autopilotAllowance } from '@lemlist/shared';
+import { autopilotAllowance, baseSubject } from '@lemlist/shared';
 import { renderMergeTags, spin } from '@lemlist/shared';
 import { personaliseBookingLinks } from '../utils/booking-token.js';
 import { settingsService } from './settings.service.js';
@@ -426,10 +426,41 @@ function wrapLinks(html: string, trackingId: string, base: string): string {
   );
 }
 
-/** A subject without its "Re:" / "Fwd:" prefixes, for comparing and replying. */
-function baseSubject(subject: string): string {
-  return String(subject || '').replace(/^\s*((re|fwd?|aw|sv|tr)\s*:\s*)+/i, '').trim();
+/**
+ * Not a failure: the mailbox is pacing itself (Settings > the mailbox >
+ * Sending pace). The sequence puts the contact back until `retryAt`.
+ */
+function spacedError(until: string): Error {
+  const err: any = new Error('The mailbox is pausing between sends.');
+  err.retryAt = until;
+  return err;
 }
+
+/**
+ * The earliest moment one of this account's mailboxes may send again, when
+ * one has room today but is inside its gap; null when none is just waiting.
+ * The campaign-default and last-resort paths reserve without the pool's
+ * view, so this answers for them.
+ */
+async function soonestSpacedMailbox(userId: string): Promise<string | null> {
+  const { data } = await supabaseAdmin
+    .from('smtp_accounts')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('is_active', true)
+    .eq('is_verified', true)
+    .eq('is_seed', false)
+    .gt('next_send_allowed_at', new Date().toISOString());
+  let soonest: number | null = null;
+  for (const a of data || []) {
+    const allowance = autopilotAllowance(a);
+    if (!allowance.sendable || (allowance.limit > 0 && a.sends_today >= allowance.limit)) continue;
+    const t = new Date(a.next_send_allowed_at).getTime();
+    if (soonest === null || t < soonest) soonest = t;
+  }
+  return soonest === null ? null : new Date(soonest).toISOString();
+}
+
 
 /**
  * Send a single campaign email directly via the user's SMTP account.
@@ -470,9 +501,23 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
   const prior = (priorSends || []).filter((a: any) => a.message_id);
   const last: any = prior[prior.length - 1] || null;
   const lastSubject = String(last?.metadata?.subject || '');
+  // How this step asked to go out (089): 'reply', 'new', or unset (inferred).
+  const { data: stepRow } = await supabaseAdmin
+    .from('campaign_steps').select('*').eq('id', stepId).maybeSingle();
+  const threadMode: string | null = (stepRow as any)?.thread_mode ?? null;
+
   let sendSubject = subject;
   let threaded = false;
-  if (!subject.trim()) {
+  if (threadMode === 'reply' && last && lastSubject) {
+    // Always the same conversation: its own subject line would break the
+    // thread in Gmail, which groups by subject as well as by headers.
+    sendSubject = `Re: ${baseSubject(lastSubject)}`;
+    threaded = true;
+  } else if (threadMode === 'new') {
+    if (!subject.trim()) {
+      throw new Error('This email is set to go out as a new email but has no subject line. Add one, or set it to reply in the same thread.');
+    }
+  } else if (!subject.trim()) {
     if (!lastSubject) {
       throw new Error('This email has no subject line, and there is no earlier email for it to reply to. Add a subject to the first email.');
     }
@@ -506,6 +551,12 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
       .maybeSingle();
     if (previous) {
       const allowance = autopilotAllowance(previous);
+      const spacedUntil = previous.next_send_allowed_at && new Date(previous.next_send_allowed_at) > new Date()
+        ? previous.next_send_allowed_at as string : null;
+      if (allowance.sendable && spacedUntil && (allowance.limit === 0 || previous.sends_today < allowance.limit)) {
+        // Room today, but between sends: wait for it, minutes not hours.
+        throw spacedError(spacedUntil);
+      }
       if (allowance.sendable && await sse.reserveWarmupSend(previous.id, allowance.limit)) {
         smtpAccount = previous;
         console.log(`[EmailSender] Follow-up from the same mailbox: ${previous.label || previous.id}`);
@@ -590,6 +641,12 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
         break;
       }
     }
+  }
+
+  if (!smtpAccount) {
+    // Room somewhere today, but every such mailbox is between sends.
+    const spacedUntil = sseResult.spaced_until || await soonestSpacedMailbox(campaign.user_id);
+    if (spacedUntil) throw spacedError(spacedUntil);
   }
 
   if (!smtpAccount) {

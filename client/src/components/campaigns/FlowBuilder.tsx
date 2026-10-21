@@ -300,7 +300,7 @@ function FlowNode({
 
   const getStepSummary = () => {
     if (step.step_type === 'email') {
-      return step.subject || 'Reply in same thread';
+      return (step as any).thread_mode === 'reply' ? 'Reply in same thread' : (step.subject || 'Reply in same thread');
     }
     if (step.step_type === 'delay') {
       const parts = [];

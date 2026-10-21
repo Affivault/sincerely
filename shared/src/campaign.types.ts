@@ -53,6 +53,8 @@ export interface CampaignStep {
   skip_if_replied: boolean;
   /** Connection-request note (linkedin_connect only), max 300 chars. */
   linkedin_note?: string | null;
+  /** How a follow-up email goes out (089). Unset: a reply when its subject is blank. */
+  thread_mode?: ThreadMode | null;
   condition_field: ConditionField | null;
   condition_operator: ConditionOperator | null;
   condition_value: string | null;
@@ -152,6 +154,7 @@ export interface CreateStepInput {
   send_at_local_time?: string;
   /** Connection-request note (linkedin_connect only), max 300 chars. */
   linkedin_note?: string;
+  thread_mode?: ThreadMode | null;
 }
 
 export interface UpdateStepInput extends Partial<CreateStepInput> {}
@@ -197,4 +200,28 @@ export interface PersonalizationAudit {
   tags: PersonalizationTag[];
   /** null when the database predates migration 042. */
   timezone_coverage?: TimezoneCoverage | null;
+}
+
+/** A follow-up as a reply in the same thread, or as a new email with its own subject. */
+export type ThreadMode = 'reply' | 'new';
+
+/** A subject without its "Re:" / "Fwd:" prefixes. */
+export function baseSubject(subject: string | null | undefined): string {
+  return String(subject || '').replace(/^\s*((re|fwd?|aw|sv|tr)\s*:\s*)+/i, '').trim();
+}
+
+/**
+ * The mode a follow-up actually goes out in: the one set, or - for steps
+ * saved before there was a choice - what the sender infers: a reply when
+ * the subject is blank or repeats the earlier email's ("Re: Quick
+ * question" after "Quick question").
+ */
+export function effectiveThreadMode(
+  step: { thread_mode?: ThreadMode | null; subject?: string | null },
+  earlierSubject?: string | null,
+): ThreadMode {
+  if (step.thread_mode === 'reply' || step.thread_mode === 'new') return step.thread_mode;
+  const own = baseSubject(step.subject);
+  if (!own) return 'reply';
+  return earlierSubject && own.toLowerCase() === baseSubject(earlierSubject).toLowerCase() ? 'reply' : 'new';
 }

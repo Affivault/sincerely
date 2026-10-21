@@ -22,6 +22,7 @@ import {
   SMTP_PRESETS, detectPresetFromEmail, PLACEHOLDER, isSenderMismatch,
   missingFields, mailboxLabel, serverSummary, sendingSummary, limitAdvice, sectionsToOpen,
   providerGuide, isSendOnlyProvider, isFreeMailDomain,
+  RECOMMENDED_DAILY_LIMIT, RECOMMENDED_GAP, DAILY_LIMIT_PRESETS, GAP_PRESETS, formatGap, gapCapacityPerDay, gapProblem,
 } from '@lemlist/shared';
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -89,7 +90,9 @@ const emptyForm: Form = {
   imap_host: undefined,
   imap_port: undefined,
   imap_secure: undefined,
-  daily_send_limit: 200,
+  daily_send_limit: RECOMMENDED_DAILY_LIMIT,
+  send_gap_min_seconds: RECOMMENDED_GAP.min,
+  send_gap_max_seconds: RECOMMENDED_GAP.max,
   signature_html: '',
   signature_auto: false,
 };
@@ -104,7 +107,7 @@ const emptyForm: Form = {
  * at a level that advice calls safe; anyone can raise it knowingly.
  */
 function safeDefaultLimit(preset: SmtpPreset): number {
-  return Math.min(preset.recommended_daily_limit || 200, 200);
+  return Math.min(preset.recommended_daily_limit || RECOMMENDED_DAILY_LIMIT, RECOMMENDED_DAILY_LIMIT);
 }
 
 export function presetToForm(preset: SmtpPreset): Form {
@@ -122,6 +125,8 @@ export function presetToForm(preset: SmtpPreset): Form {
     imap_port: preset.imap_port || undefined,
     imap_secure: preset.imap_secure ?? undefined,
     daily_send_limit: safeDefaultLimit(preset),
+    send_gap_min_seconds: RECOMMENDED_GAP.min,
+    send_gap_max_seconds: RECOMMENDED_GAP.max,
     signature_html: '',
     signature_auto: false,
   };
@@ -456,6 +461,8 @@ export function SmtpAccountModal({
         imap_secure: editAccount.imap_secure ?? undefined,
         imap_user: editAccount.imap_user || undefined,
         daily_send_limit: editAccount.daily_send_limit,
+        send_gap_min_seconds: editAccount.send_gap_min_seconds ?? RECOMMENDED_GAP.min,
+        send_gap_max_seconds: editAccount.send_gap_max_seconds ?? RECOMMENDED_GAP.max,
         signature_html: editAccount.signature_html || '',
         signature_auto: editAccount.signature_auto || false,
       };
@@ -788,6 +795,8 @@ export function SmtpAccountModal({
       const p = payload();
       await smtpApi.update(connected.id, {
         daily_send_limit: p.daily_send_limit,
+        send_gap_min_seconds: p.send_gap_min_seconds,
+        send_gap_max_seconds: p.send_gap_max_seconds,
         signature_html: p.signature_html,
         signature_auto: p.signature_auto,
       } as any);
@@ -828,9 +837,11 @@ export function SmtpAccountModal({
 
   const sending = useMemo(() => sendingSummary({
     daily_send_limit: form.daily_send_limit,
+    send_gap_min_seconds: form.send_gap_min_seconds,
+    send_gap_max_seconds: form.send_gap_max_seconds,
     signature_html: form.signature_html,
     signature_auto: form.signature_auto,
-  }), [form.daily_send_limit, form.signature_html, form.signature_auto]);
+  }), [form.daily_send_limit, form.send_gap_min_seconds, form.send_gap_max_seconds, form.signature_html, form.signature_auto]);
 
   const limit = limitAdvice(Number(form.daily_send_limit) || 0);
 
@@ -1080,34 +1091,112 @@ export function SmtpAccountModal({
     </>
   );
 
+  const gapMin = Number(form.send_gap_min_seconds ?? RECOMMENDED_GAP.min);
+  const gapMax = Number(form.send_gap_max_seconds ?? RECOMMENDED_GAP.max);
+  const gapIssue = gapProblem(gapMin, gapMax);
+  const dailyLimit = Number(form.daily_send_limit) || 0;
+  const limitPreset = DAILY_LIMIT_PRESETS.find((p) => p.value === dailyLimit);
+  const gapPreset = GAP_PRESETS.find((p) => p.min === gapMin && p.max === gapMax);
+  const isRecommendedPace = dailyLimit === RECOMMENDED_DAILY_LIMIT
+    && gapMin === RECOMMENDED_GAP.min && gapMax === RECOMMENDED_GAP.max;
+  // Can the gap deliver the limit in a working day? Said, not enforced.
+  const gapCeiling = gapCapacityPerDay(gapMin, gapMax);
+  const chip = (active: boolean) => cn(
+    'min-h-8 rounded-lg border px-2.5 text-caption font-medium transition-colors',
+    active
+      ? 'border-[var(--indigo)] bg-[var(--indigo-subtle)] text-[var(--indigo-text)]'
+      : 'border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:border-[var(--border-default)] hover:text-[var(--text-primary)]',
+  );
+
+  /*
+   * Sending pace: how many campaign emails a day, and how far apart.
+   * Both protect the domain's reputation - providers judge volume and
+   * rhythm - so both start at the recommended values and both can be set
+   * faster or slower here, with what each choice trades said beside it.
+   */
   const limitField = (
-    <Group icon={Gauge} title="Daily limit" subtitle="real campaign sends from this mailbox">
-      <div className="grid grid-cols-2 gap-3">
-        <Input
-          aria-label="Daily send limit"
-          type="number"
-          min={0}
-          placeholder="0 = unlimited"
-          value={String(form.daily_send_limit ?? '')}
-          onChange={(e) => updateField('daily_send_limit', parseInt(e.target.value) || 0)}
-          error={limit.tone === 'danger' ? limit.note : undefined}
-          hint={
-            limit.tone !== 'ok' ? undefined
-              : Number(form.daily_send_limit) === 0 ? 'No daily cap on this mailbox'
-              : 'Warm-up ramps up to this over time'
-          }
-        />
+    <Group icon={Gauge} title="Sending pace" subtitle="campaign emails from this mailbox">
+      <div className="space-y-4">
+        <div>
+          <div className="flex items-center justify-between gap-2">
+            <span id="pace-daily-label" className="text-caption font-semibold text-[var(--text-secondary)]">Most emails a day</span>
+            {!isRecommendedPace && (
+              <button
+                type="button"
+                onClick={() => {
+                  updateField('daily_send_limit', RECOMMENDED_DAILY_LIMIT);
+                  updateField('send_gap_min_seconds', RECOMMENDED_GAP.min);
+                  updateField('send_gap_max_seconds', RECOMMENDED_GAP.max);
+                }}
+                className="inline-flex min-h-6 items-center text-caption font-medium text-[var(--indigo-text)] hover:underline"
+              >
+                Use recommended
+              </button>
+            )}
+          </div>
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5" role="radiogroup" aria-labelledby="pace-daily-label">
+            {DAILY_LIMIT_PRESETS.map((p) => (
+              <button key={p.value} type="button" role="radio" aria-checked={dailyLimit === p.value}
+                onClick={() => updateField('daily_send_limit', p.value)} className={chip(dailyLimit === p.value)}>
+                {p.label}{p.recommended ? ' · Recommended' : ''}
+              </button>
+            ))}
+            <Input
+              aria-label="Custom daily limit"
+              type="number"
+              min={0}
+              placeholder="Custom"
+              value={limitPreset ? '' : String(form.daily_send_limit ?? '')}
+              onChange={(e) => updateField('daily_send_limit', parseInt(e.target.value) || 0)}
+              error={limit.tone === 'danger' ? limit.note : undefined}
+              className="!w-24"
+            />
+          </div>
+          <p className="mt-1.5 text-caption leading-snug text-[var(--text-tertiary)]">
+            {limitPreset?.note
+              || (dailyLimit === 0 ? 'No daily cap on this mailbox.' : `${dailyLimit} a day.`)}
+            {' '}Warm-up ramps up to this over time.
+          </p>
+          {limit.tone === 'warning' && (
+            <p className="mt-1.5 flex items-start gap-1.5 text-caption leading-snug text-amber-700 dark:text-amber-400" data-limit-warning>
+              <AlertTriangle className="mt-px h-3 w-3 shrink-0" /> {limit.note}
+            </p>
+          )}
+        </div>
+
+        <div>
+          <span id="pace-gap-label" className="text-caption font-semibold text-[var(--text-secondary)]">Time between emails</span>
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5" role="radiogroup" aria-labelledby="pace-gap-label">
+            {GAP_PRESETS.map((p) => (
+              <button key={p.label} type="button" role="radio" aria-checked={!!gapPreset && gapPreset.label === p.label}
+                onClick={() => { updateField('send_gap_min_seconds', p.min); updateField('send_gap_max_seconds', p.max); }}
+                className={chip(!!gapPreset && gapPreset.label === p.label)}>
+                {p.label}{p.recommended ? ' · Recommended' : ''}
+              </button>
+            ))}
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-1.5 text-caption text-[var(--text-secondary)]">
+            <span>Or a random gap between</span>
+            <Input aria-label="Shortest gap in minutes" type="number" min={0} step={0.5} className="!w-20"
+              value={String(gapMin / 60)}
+              onChange={(e) => updateField('send_gap_min_seconds', Math.round((parseFloat(e.target.value) || 0) * 60))} />
+            <span>and</span>
+            <Input aria-label="Longest gap in minutes" type="number" min={0} step={0.5} className="!w-20"
+              value={String(gapMax / 60)}
+              onChange={(e) => updateField('send_gap_max_seconds', Math.round((parseFloat(e.target.value) || 0) * 60))} />
+            <span>minutes</span>
+          </div>
+          <p className="mt-1.5 text-caption leading-snug text-[var(--text-tertiary)]">
+            {gapIssue || gapPreset?.note || `A random ${formatGap(gapMin, gapMax)} between campaign emails.`}
+          </p>
+          {!gapIssue && dailyLimit > 0 && Number.isFinite(gapCeiling) && gapCeiling < dailyLimit && (
+            <p className="mt-1 flex items-start gap-1.5 text-caption leading-snug text-amber-700 dark:text-amber-400">
+              <AlertTriangle className="mt-px h-3 w-3 shrink-0" />
+              At this pace an 8-hour sending window fits about {gapCeiling} emails, fewer than the {dailyLimit} a day above.
+            </p>
+          )}
+        </div>
       </div>
-      {/*
-        * Guidance where the number is typed. The field was a bare
-        * input with nothing to say what a survivable figure looks
-        * like, which is how a new domain ends up set to 2,000 a day.
-        */}
-      {limit.tone === 'warning' && (
-        <p className="mt-2 flex items-start gap-1.5 text-caption leading-snug text-amber-700 dark:text-amber-400" data-limit-warning>
-          <AlertTriangle className="mt-px h-3 w-3 shrink-0" /> {limit.note}
-        </p>
-      )}
     </Group>
   );
 

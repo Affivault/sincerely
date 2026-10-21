@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useId, Children, cloneElement, isValidElement } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useDraftRecovery, useUnsavedChangesWarning } from '../../hooks/useDraftRecovery';
-import { draftAgeLabel, firstBlocker, plural } from '@lemlist/shared';
+import { draftAgeLabel, firstBlocker, plural, effectiveThreadMode, baseSubject } from '@lemlist/shared';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { campaignsApi, type WrittenSequence } from '../../api/campaigns.api';
 import { WriteWithRelay } from '../../components/campaigns/WriteWithRelay';
@@ -217,7 +217,9 @@ export function CampaignCreatePage() {
     send_in_recipient_timezone: false,
     track_opens: true,
     track_clicks: true,
-    include_unsubscribe: false,
+    // On unless switched off: Gmail and Yahoo expect it from bulk senders,
+    // and a visible way out costs fewer spam complaints than it saves.
+    include_unsubscribe: true,
     scheduled_at: null,
   });
 
@@ -565,6 +567,7 @@ export function CampaignCreatePage() {
             false_branch_step: s.false_branch_step ?? undefined,
             webhook_event: s.webhook_event || '',
             webhook_timeout_hours: s.webhook_timeout_hours ?? undefined,
+            thread_mode: s.thread_mode ?? undefined,
           }))
         );
       }
@@ -1022,7 +1025,9 @@ export function CampaignCreatePage() {
   // What a test of the step being edited is sent with: a blank follow-up
   // subject goes out as a reply to the first email, so test it that way.
   const testSubject = editingStep !== null && steps[editingStep]
-    ? (steps[editingStep].subject || (emailSteps[0]?.subject ? `Re: ${emailSteps[0].subject}` : ''))
+    ? (steps[editingStep] !== emailSteps[0] && effectiveThreadMode(steps[editingStep], emailSteps[0]?.subject) === 'reply'
+      ? (emailSteps[0]?.subject ? `Re: ${emailSteps[0].subject}` : '')
+      : (steps[editingStep].subject || ''))
     : '';
   const editingEmail = editingStep !== null && steps[editingStep]?.step_type === 'email';
   const conditionSteps = steps.filter((s) => s.step_type === 'condition');
@@ -1037,6 +1042,7 @@ export function CampaignCreatePage() {
       // Only the first email needs one: a follow-up with a blank subject goes
       // out as a reply in the same thread ("Re: ...").
       emailSteps.length > 0 && !emailSteps[0].subject && 'The first email needs a subject',
+      emailSteps.slice(1).some((s) => s.thread_mode === 'new' && !(s.subject || '').trim()) && 'A follow-up sent as a new email needs a subject',
       emailSteps.some((s) => !s.body_html) && 'Some emails missing body',
       conditionSteps.some((s) => !s.condition_field || !s.condition_operator) && 'Some conditions missing a field or comparison',
       webhookWaitSteps.some((s) => !s.webhook_event) && 'Some webhook-wait steps missing an event',
@@ -1733,24 +1739,64 @@ export function CampaignCreatePage() {
                       </div>
 
                       <div className="p-4 space-y-3 max-h-[calc(100vh-220px)] overflow-y-auto">
-                        {/* Subject */}
+                        {/* A follow-up: reply in the thread, or a new email.
+                            The first email has nothing to reply to. */}
+                        {steps[editingStep] !== emailSteps[0] && (() => {
+                          const mode = effectiveThreadMode(steps[editingStep], emailSteps[0]?.subject);
+                          // The subject the conversation carries when this step is
+                          // reached: the latest earlier email sent as a new one.
+                          const at = emailSteps.indexOf(steps[editingStep]);
+                          const carried = emailSteps.slice(0, at).reverse()
+                            .find((e, k, arr) => k === arr.length - 1 || effectiveThreadMode(e, emailSteps[0]?.subject) === 'new');
+                          const first = baseSubject(carried?.subject);
+                          return (
+                            <Field label="Send as">
+                              <div className="grid grid-cols-2 gap-1.5" role="radiogroup" aria-label="Send this follow-up as">
+                                {([
+                                  { value: 'reply' as const, label: 'Reply in same thread' },
+                                  { value: 'new' as const, label: 'New email' },
+                                ]).map((o) => (
+                                  <button
+                                    key={o.value}
+                                    type="button"
+                                    role="radio"
+                                    aria-checked={mode === o.value}
+                                    onClick={() => updateStep(editingStep, { thread_mode: o.value } as any)}
+                                    className={cn(
+                                      'min-h-9 rounded-lg border px-2 text-caption font-semibold transition-colors',
+                                      mode === o.value
+                                        ? 'border-[var(--indigo)] bg-[var(--indigo-subtle)] text-[var(--indigo-text)]'
+                                        : 'border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
+                                    )}
+                                  >
+                                    {o.label}
+                                  </button>
+                                ))}
+                              </div>
+                              <p className="mt-1.5 text-caption text-[var(--text-tertiary)] leading-snug">
+                                {mode === 'reply'
+                                  ? `Goes out as "Re: ${first || 'your first subject'}", from the same address, in the same conversation. Recommended: replies get read.`
+                                  : 'A separate email with its own subject line. Use it to change topic or restart a conversation that went quiet.'}
+                              </p>
+                            </Field>
+                          );
+                        })()}
+
+                        {(steps[editingStep] === emailSteps[0] || effectiveThreadMode(steps[editingStep], emailSteps[0]?.subject) === 'new') && (
                         <Field label="Subject line">
                           <input
                             ref={subjectRef}
                             type="text"
                             value={steps[editingStep].subject || ''}
-                            onChange={(e) => updateStep(editingStep, { subject: e.target.value })}
+                            // Typing a follow-up's subject pins it as a new email, so
+                            // clearing the field mid-edit does not flip it to a reply.
+                            onChange={(e) => updateStep(editingStep, steps[editingStep] === emailSteps[0]
+                              ? { subject: e.target.value }
+                              : ({ subject: e.target.value, thread_mode: 'new' } as any))}
                             onFocus={() => setActiveField('subject')}
-                            placeholder={steps[editingStep] === emailSteps[0]
-                              ? 'e.g. Quick question about {{company}}'
-                              : 'Leave blank to reply in the same thread'}
+                            placeholder="e.g. Quick question about {{company}}"
                             className={inputCls}
                           />
-                          {steps[editingStep] !== emailSteps[0] && !(steps[editingStep].subject || '').trim() && (
-                            <p className="mt-1.5 text-caption text-[var(--text-tertiary)]">
-                              Sent as a reply to the previous email, from the same address, so it lands in the same conversation.
-                            </p>
-                          )}
                           {(() => {
                             const len = (steps[editingStep].subject || '').length;
                             if (len === 0) return null;
@@ -1767,6 +1813,7 @@ export function CampaignCreatePage() {
                             );
                           })()}
                         </Field>
+                        )}
 
                         {/* Body — WYSIWYG */}
                         <Field label="Email body">
@@ -2270,7 +2317,7 @@ export function CampaignCreatePage() {
                                 <Mail className="h-3.5 w-3.5 text-[var(--indigo-text)] flex-shrink-0" />
                                 <div className="flex-1 min-w-0">
                                   <p className="text-body font-medium text-[var(--text-primary)] truncate">
-                                    {step.subject || 'Reply in same thread'}
+                                    {step.thread_mode === 'reply' ? 'Reply in same thread' : (step.subject || 'Reply in same thread')}
                                   </p>
                                   {(step as any).subject_b && (
                                     <p className="text-micro text-[var(--text-tertiary)] truncate">

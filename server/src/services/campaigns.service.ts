@@ -51,7 +51,12 @@ interface ListParams {
 }
 
 /** The parts of a step that are read at send time and nothing else depends on. */
-export const LIVE_EDITABLE_STEP_FIELDS = new Set(['subject', 'subject_b', 'body_html', 'body_html_b', 'body_text', 'linkedin_note']);
+export const LIVE_EDITABLE_STEP_FIELDS = new Set(['subject', 'subject_b', 'body_html', 'body_html_b', 'body_text', 'linkedin_note',
+  // When a follow-up goes out, and whether it replies in the thread. Both
+  // are read at the moment a contact reaches the step - the wait when the
+  // step before it is sent, the mode when it is sent - so a change reaches
+  // everybody who has not got that far yet and nobody else.
+  'delay_days', 'delay_hours', 'delay_minutes', 'thread_mode']);
 
 function sameValue(a: unknown, b: unknown): boolean {
   if ((a === null || a === undefined || a === '') && (b === null || b === undefined || b === '')) return true;
@@ -176,7 +181,7 @@ export const campaignsService = {
     }
     if (refused.length > 0) {
       throw new AppError(
-        `Only the wording of a step can change once a campaign has launched - not ${refused.join(', ')}. ` +
+        `Only the wording and timing of a step can change once a campaign has launched - not ${refused.join(', ')}. ` +
         'People are part-way through this sequence. Duplicate the campaign to change its shape.',
         400,
       );
@@ -931,6 +936,7 @@ export const campaignsService = {
         webhook_event: s.webhook_event,
         webhook_timeout_hours: s.webhook_timeout_hours,
         linkedin_note: s.linkedin_note,
+        ...(s.thread_mode !== undefined ? { thread_mode: s.thread_mode } : {}),
       }));
       const { error: stepsError } = await supabaseAdmin.from('campaign_steps').insert(stepRows);
       if (stepsError) throw new AppError(`Failed to clone campaign steps: ${stepsError.message}`, 500);

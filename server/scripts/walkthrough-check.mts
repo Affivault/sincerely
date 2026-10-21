@@ -39,10 +39,12 @@ console.log('\nthe wording of a live campaign can be fixed');
 {
   const svc = readS('services/campaigns.service.ts');
   const ctl = readS('controllers/campaigns.controller.ts');
-  is('wording is editable after launch', /LIVE_EDITABLE_STEP_FIELDS = new Set\(\['subject', 'subject_b', 'body_html', 'body_html_b', 'body_text', 'linkedin_note'\]\)/.test(svc));
+  is('wording is editable after launch', /LIVE_EDITABLE_STEP_FIELDS = new Set\(\['subject', 'subject_b', 'body_html', 'body_html_b', 'body_text', 'linkedin_note',/.test(svc));
+  // Timing too: a wait is read when the contact reaches the step before it.
+  is('and so is a follow-up\'s timing', /'delay_days', 'delay_hours', 'delay_minutes', 'thread_mode'\]\)/.test(svc));
   is('updating a step goes through that rule', /editableStepPatch\(req\.userId!, req\.params\.id, req\.params\.stepId, req\.body\)/.test(ctl));
   is('adding, removing and reordering stay draft-only', (ctl.match(/assertEditableSteps/g) || []).length === 3);
-  is('a structural change is refused by name', /Only the wording of a step can change once a campaign has launched/.test(svc));
+  is('a structural change is refused by name', /Only the wording and timing of a step can change once a campaign has launched/.test(svc));
   const detail = readC('pages/campaigns/CampaignDetailPage.tsx');
   is('the sequence tab offers it on a launched campaign', /onEditWording=\{\['running', 'paused', 'scheduled'\]\.includes\(campaign\.status\)/.test(detail));
   const list = readC('pages/campaigns/CampaignsListPage.tsx');

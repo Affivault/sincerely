@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { writable } from '../utils/writable-fields.js';
+import { gapProblem } from '@lemlist/shared';
 import { encrypt, decrypt } from '../utils/encryption.js';
 import { sendViaSmtp, formatFromHeader, describeSmtpError } from './email-sender.service.js';
 import { resolveHostIp } from '../utils/dns-doh.js';
@@ -75,7 +76,24 @@ const SMTP_ACCOUNT_FIELDS = [
   // CHECK constraint, so a bad value is rejected by the database rather than
   // silently stored.
   'inbox_sync_months',
+  // Sending pace (089): the random gap this mailbox keeps between campaign
+  // sends. Checked here and by a CHECK constraint.
+  'send_gap_min_seconds', 'send_gap_max_seconds',
 ] as const;
+
+/** Refuse a gap the database would refuse, in words, before it gets there. */
+function assertGap(row: Record<string, any>): void {
+  const hasMin = row.send_gap_min_seconds !== undefined;
+  const hasMax = row.send_gap_max_seconds !== undefined;
+  if (!hasMin && !hasMax) return;
+  if (hasMin !== hasMax) throw new AppError('Send both the shortest and the longest gap', 400);
+  const min = Number(row.send_gap_min_seconds);
+  const max = Number(row.send_gap_max_seconds);
+  const problem = gapProblem(min, max);
+  if (problem) throw new AppError(problem, 400);
+  row.send_gap_min_seconds = Math.round(min);
+  row.send_gap_max_seconds = Math.round(max);
+}
 
 export const smtpService = {
   /** Verify an smtp_accounts row belongs to this user before acting on its id alone. */
@@ -173,6 +191,7 @@ export const smtpService = {
       // Set by the server from its own test, never taken from the body.
       ...(verification?.success ? { is_verified: true } : {}),
     };
+    assertGap(row);
 
     // Retry without any column the DB doesn't have yet, so shipping ahead of a
     // migration (e.g. reply_to) never blocks connecting a mailbox.
@@ -193,6 +212,7 @@ export const smtpService = {
 
   async update(userId: string, id: string, input: any) {
     const updateData: any = writable(input, SMTP_ACCOUNT_FIELDS);
+    assertGap(updateData);
 
     // Only re-encrypt when a new password is supplied. The raw field is never
     // in the allow-list, so it cannot reach the database as itself, and the
