@@ -1,3 +1,4 @@
+import { formatGap } from './sending-pace.js';
 /* ═══════════════════════════════════════════════════════════════════════
    What is already known about a mailbox, and what is still missing.
 
@@ -126,6 +127,8 @@ export function serverSummary(f: SetupFacts): SetupSummary {
 }
 
 export interface SendingFacts {
+  send_gap_min_seconds?: number;
+  send_gap_max_seconds?: number;
   daily_send_limit?: number | null;
   signature_html?: string | null;
   signature_auto?: boolean | null;
@@ -142,7 +145,10 @@ export function sendingSummary(f: SendingFacts): SetupSummary {
   const advice = limitAdvice(limit);
   if (advice.tone !== 'ok') return { text: `${advice.note} ${cap(sig)}.`, tone: 'warning' };
   const limitText = limit === 0 ? 'No daily cap' : `Up to ${limit} a day`;
-  return { text: `${limitText}, ${sig}.`, tone: 'ok' };
+  const gap = typeof f.send_gap_max_seconds === 'number'
+    ? `, ${formatGap(f.send_gap_min_seconds ?? 0, f.send_gap_max_seconds)} apart`.replace(', No gap apart', ', no gap')
+    : '';
+  return { text: `${limitText}${gap}, ${sig}.`, tone: 'ok' };
 }
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);

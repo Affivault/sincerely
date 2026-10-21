@@ -107,14 +107,18 @@ function getNextSendWindowStart(campaign: any, campaignContact?: any): Date {
     return tzWallTimeToUtc(now.year, now.month, now.day, startH, startM, tz);
   }
 
-  // Otherwise find the next active day. Probe noon UTC of each future day,
-  // then ask for its calendar parts in `tz` — this dodges DST edges since
-  // noon is always far from any transition boundary.
+  // Otherwise find the next active day. The next local calendar date is
+  // plain date arithmetic on the local date; tzWallTimeToUtc then places its
+  // window start in the zone, DST included. This used to probe noon UTC of
+  // each following day and read it back in `tz` - but from UTC+12 eastwards
+  // (New Zealand, Tonga, Kiribati) noon UTC is already the day after, so
+  // tomorrow was skipped and Tuesday's follow-ups went out on Wednesday.
   for (let daysAhead = 1; daysAhead <= 7; daysAhead++) {
-    const probe = new Date(Date.UTC(now.year, now.month - 1, now.day + daysAhead, 12, 0, 0));
-    const future = partsInTimezone(probe, tz);
-    if (sendDays.includes(dayNames[future.weekday])) {
-      return tzWallTimeToUtc(future.year, future.month, future.day, startH, startM, tz);
+    const next = new Date(Date.UTC(now.year, now.month - 1, now.day + daysAhead));
+    if (sendDays.includes(dayNames[next.getUTCDay()])) {
+      return tzWallTimeToUtc(
+        next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate(), startH, startM, tz,
+      );
     }
   }
 
@@ -703,7 +707,7 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
     // Whatever was blocking this campaign clearly isn't any more.
     await recordStall(cc.campaign_id, null);
   } catch (err: any) {
-    console.error(`[Sequence] Email send failed for ${cc.contacts.email}:`, err.message);
+    if (!err.retryAt) console.error(`[Sequence] Email send failed for ${cc.contacts.email}:`, err.message);
 
     // The send never happened — give back the slots reserved above.
     if (ownerId) await billingService.refundEmailQuota(ownerId);
@@ -718,6 +722,21 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
     // recommended deployment — never registered a bounce at all.
     const failureKind = classifySendFailure(err);
     const isBounce = failureKind === 'bounce';
+
+    /*
+     * The mailbox is pacing itself, not failing: it has room today but is
+     * inside the gap it keeps between sends. Put the claim back for when it
+     * is free - minutes - and say nothing on the campaign, because nothing
+     * is wrong.
+     */
+    if (err.retryAt) {
+      await supabaseAdmin
+        .from('campaign_contacts')
+        .update({ current_step_order: cc.current_step_order, next_send_at: err.retryAt })
+        .eq('id', cc.id)
+        .eq('status', 'active');
+      return;
+    }
 
     if (err.stallReason) {
       await recordStall(cc.campaign_id, err.stallReason);

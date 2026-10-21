@@ -19,6 +19,11 @@ export interface SmtpAccount {
   /** IMAP login, when it differs from smtp_user/email_address (e.g. a custom mail server). */
   imap_user: string | null;
   daily_send_limit: number;
+  /** Seconds this mailbox waits between campaign sends: a random gap in [min, max] (089). */
+  send_gap_min_seconds?: number;
+  send_gap_max_seconds?: number;
+  /** When it may send its next campaign email. */
+  next_send_allowed_at?: string | null;
   sends_today: number;
   last_send_reset_at: string;
   is_verified: boolean;
@@ -78,6 +83,12 @@ export interface SseSelectionResult {
   account: SmtpAccount | null;
   reason: string;
   all_exhausted: boolean;
+  /**
+   * Set when a mailbox has room today but is between sends: the earliest
+   * moment one of them may send again. The caller waits until then rather
+   * than treating it as out of capacity.
+   */
+  spaced_until?: string;
 }
 
 /* ─── Warm-up ramp math (shared by the send-gating engine and the UI) ───
@@ -206,6 +217,8 @@ export interface CreateSmtpAccountInput {
   imap_secure?: boolean;
   imap_user?: string;
   daily_send_limit?: number;
+  send_gap_min_seconds?: number;
+  send_gap_max_seconds?: number;
   signature_html?: string | null;
   signature_auto?: boolean;
 }

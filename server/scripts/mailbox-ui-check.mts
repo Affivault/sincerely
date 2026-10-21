@@ -301,7 +301,10 @@ console.log('\nthe right kind of password, explained where it is typed');
 console.log('\na new mailbox never starts at a limit the form calls dangerous');
 {
   const modal = readFileSync(join(here, '../../client/src/pages/smtp/SmtpAccountModal.tsx'), 'utf8');
-  is('the starting limit is capped', /Math\.min\(preset\.recommended_daily_limit \|\| 200, 200\)/.test(modal));
+  // Capped at the recommended cold-outreach pace (shared/sending-pace), well
+  // inside what limitAdvice calls safe.
+  is('the starting limit is capped', /Math\.min\(preset\.recommended_daily_limit \|\| RECOMMENDED_DAILY_LIMIT, RECOMMENDED_DAILY_LIMIT\)/.test(modal));
+  is('and so is a mailbox started from nothing', /daily_send_limit: RECOMMENDED_DAILY_LIMIT,/.test(modal));
   is('and no preset bypasses the cap', !/daily_send_limit: (preset|detected)\.recommended_daily_limit/.test(modal));
 }
 

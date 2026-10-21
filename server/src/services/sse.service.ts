@@ -87,8 +87,27 @@ export async function selectBestSender(
     };
   }
 
+  /*
+   * Between sends. A mailbox with room today may still be inside the gap
+   * it waits between campaign emails (migration 089). That is not "out of
+   * capacity" - the caller holds the contact until the earliest one is
+   * free, minutes away, instead of an hour.
+   */
+  const ready = available.filter((a: SmtpAccount) => !a.next_send_allowed_at || new Date(a.next_send_allowed_at) <= now);
+  if (ready.length === 0) {
+    const soonest = available
+      .map((a: SmtpAccount) => new Date(a.next_send_allowed_at as string).getTime())
+      .reduce((m: number, t: number) => Math.min(m, t), Infinity);
+    return {
+      account: null,
+      reason: 'Every mailbox with room today is pausing between sends.',
+      all_exhausted: false,
+      spaced_until: new Date(soonest).toISOString(),
+    };
+  }
+
   // Score each account: higher is better
-  const scored = available.map((a: SmtpAccount) => {
+  const scored = ready.map((a: SmtpAccount) => {
     const limit = autopilotAllowance(a, now).limit;
     const healthComponent = a.health_score * HEALTH_WEIGHT;
     // limit=0 means unlimited — treat as fully available (100% capacity remaining)

@@ -477,7 +477,7 @@ export function CampaignDetailPage() {
       )}
 
       {editingStep && id && (
-        <StepWordingEditor campaignId={id} step={editingStep.step} index={editingStep.index} isFirstEmail={(campaign.steps || []).find((s: CampaignStep) => s.step_type === 'email')?.id === editingStep.step.id} onClose={() => setEditingStep(null)} />
+        <StepWordingEditor campaignId={id} step={editingStep.step} index={editingStep.index} isFirstEmail={(campaign.steps || []).find((s: CampaignStep) => s.step_type === 'email')?.id === editingStep.step.id} firstSubject={(campaign.steps || []).find((s: CampaignStep) => s.step_type === 'email')?.subject} onClose={() => setEditingStep(null)} />
       )}
 
       {/* Sequence Tab */}
@@ -812,7 +812,7 @@ function SequenceStepCard({ step, index, ab, onEditWording }: {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <Mail className={cn('h-3.5 w-3.5 shrink-0', cfg.iconColor)} />
-              <span className="text-strong font-medium text-[var(--text-primary)] truncate">{step.subject || 'Reply in same thread'}</span>
+              <span className="text-strong font-medium text-[var(--text-primary)] truncate">{step.thread_mode === 'reply' ? 'Reply in same thread' : (step.subject || 'Reply in same thread')}</span>
               {/*
                 * Gated on the shared predicate. This was `step.subject_b`
                 * alone - the third place that decided for itself what an
@@ -863,7 +863,7 @@ function SequenceStepCard({ step, index, ab, onEditWording }: {
             title="Fix the subject or body - people who have not reached this step get the new version"
             className="inline-flex h-7 flex-shrink-0 items-center gap-1.5 rounded-md border border-[var(--border-subtle)] px-2.5 text-caption font-medium text-[var(--text-secondary)] hover:border-[var(--border-default)] hover:text-[var(--text-primary)]"
           >
-            <Pencil className="h-3 w-3" /> Edit wording
+            <Pencil className="h-3 w-3" /> Edit
           </button>
         )}
 
