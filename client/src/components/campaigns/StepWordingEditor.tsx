@@ -22,10 +22,12 @@ import { RichTextEditor } from '../ui/RichTextEditor';
 import { campaignsApi } from '../../api/campaigns.api';
 import { cn } from '../../lib/utils';
 
-export function StepWordingEditor({ campaignId, step, index, onClose }: {
+export function StepWordingEditor({ campaignId, step, index, isFirstEmail = true, onClose }: {
   campaignId: string;
   step: CampaignStep;
   index: number;
+  /** A follow-up may have a blank subject: it is then sent as a reply in the thread. */
+  isFirstEmail?: boolean;
   onClose: () => void;
 }) {
   const qc = useQueryClient();
@@ -65,7 +67,7 @@ export function StepWordingEditor({ campaignId, step, index, onClose }: {
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={() => save.mutate()} disabled={!dirty || !subject.trim() || save.isPending}>
+          <Button onClick={() => save.mutate()} disabled={!dirty || (isFirstEmail && !subject.trim()) || save.isPending}>
             {save.isPending ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…</> : 'Save wording'}
           </Button>
         </>
@@ -94,6 +96,7 @@ export function StepWordingEditor({ campaignId, step, index, onClose }: {
           <input
             value={variant === 'a' ? subject : subjectB}
             onChange={(e) => (variant === 'a' ? setSubject(e.target.value) : setSubjectB(e.target.value))}
+            placeholder={isFirstEmail ? undefined : 'Leave blank to reply in the same thread'}
             className="h-9 w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-3 text-strong text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none"
           />
         </label>

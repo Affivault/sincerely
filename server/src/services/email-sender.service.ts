@@ -213,7 +213,17 @@ async function sendViaRelay(params: SmtpSendParams): Promise<SmtpSendResult> {
    * relay that is merely slow still gets to finish and report.
    */
   const controller = new AbortController();
-  const budget = Math.min((params.timeoutMs ?? 12_000) + 8_000, 25_000);
+  /*
+   * Background sends (campaigns, scheduled mail) pass no timeoutMs and
+   * nobody is waiting on them, so they wait out the relay: its own hard
+   * deadline is 24s inside a 30s function. Giving up at 20s, as this did,
+   * abandoned sends the relay was still delivering - the email arrived and
+   * the contact was filed as an error, to be retried into a duplicate.
+   * Interactive sends keep the short budget their caller asked for.
+   */
+  const budget = params.timeoutMs === undefined
+    ? 32_000
+    : Math.min(params.timeoutMs + 8_000, 25_000);
   const deadline = setTimeout(() => controller.abort(), budget);
 
   let response: Response;
@@ -416,6 +426,11 @@ function wrapLinks(html: string, trackingId: string, base: string): string {
   );
 }
 
+/** A subject without its "Re:" / "Fwd:" prefixes, for comparing and replying. */
+function baseSubject(subject: string): string {
+  return String(subject || '').replace(/^\s*((re|fwd?|aw|sv|tr)\s*:\s*)+/i, '').trim();
+}
+
 /**
  * Send a single campaign email directly via the user's SMTP account.
  */
@@ -434,13 +449,84 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
     throw new Error(`Campaign ${campaignId} not found`);
   }
 
-  // 2. Find SMTP account
+  /*
+   * 2. The thread so far.
+   *
+   * Earlier emails to this person in this campaign, oldest first. A
+   * follow-up belongs in the same conversation: from the same address, and
+   * - when its subject is left blank or repeats the last one - as a reply,
+   * with In-Reply-To and References so every mail client files it under
+   * the first email instead of starting a new conversation. A blank subject
+   * also used to be refused outright by the relay.
+   */
+  const { data: priorSends } = await supabaseAdmin
+    .from('campaign_activities')
+    .select('message_id, metadata')
+    .eq('campaign_contact_id', campaignContactId)
+    .eq('activity_type', 'sent')
+    .not('message_id', 'is', null)
+    .order('occurred_at', { ascending: true })
+    .limit(20);
+  const prior = (priorSends || []).filter((a: any) => a.message_id);
+  const last: any = prior[prior.length - 1] || null;
+  const lastSubject = String(last?.metadata?.subject || '');
+  let sendSubject = subject;
+  let threaded = false;
+  if (!subject.trim()) {
+    if (!lastSubject) {
+      throw new Error('This email has no subject line, and there is no earlier email for it to reply to. Add a subject to the first email.');
+    }
+    sendSubject = `Re: ${baseSubject(lastSubject)}`;
+    threaded = true;
+  } else if (lastSubject && baseSubject(subject).toLowerCase() === baseSubject(lastSubject).toLowerCase()) {
+    threaded = true;
+  }
+
+  // 3. Find SMTP account
   let smtpAccount: any = null;
+
+  /*
+   * A follow-up comes from the address the conversation started from. The
+   * pool used to pick afresh for every step, so step two could arrive from
+   * a colleague's mailbox the prospect had never heard of. If that mailbox
+   * has no room today the follow-up waits for it (retried hourly) rather
+   * than switching. Only a mailbox that is gone for good - switched off,
+   * disconnected, deleted - lets another one take over.
+   */
+  const previousMailboxId: string | null = last?.metadata?.smtp_account_id || null;
+  if (previousMailboxId) {
+    const { data: previous } = await supabaseAdmin
+      .from('smtp_accounts')
+      .select('*')
+      .eq('id', previousMailboxId)
+      .eq('user_id', campaign.user_id)
+      .eq('is_active', true)
+      .eq('is_verified', true)
+      .eq('is_seed', false)
+      .maybeSingle();
+    if (previous) {
+      const allowance = autopilotAllowance(previous);
+      if (allowance.sendable && await sse.reserveWarmupSend(previous.id, allowance.limit)) {
+        smtpAccount = previous;
+        console.log(`[EmailSender] Follow-up from the same mailbox: ${previous.label || previous.id}`);
+      } else {
+        const who = previous.email_address || previous.label || 'The mailbox this conversation started from';
+        const err: any = new Error(`${who} has no sends left today; follow-ups wait for it rather than arriving from a different address.`);
+        err.stallReason = `Follow-ups are waiting for ${who}, which has reached today's sending limit. They go out from it as soon as it has room.`;
+        err.stallKind = 'capacity';
+        throw err;
+      }
+    }
+  }
 
   // Try SSE selection (multi-account pool). reserve=true: this is an actual
   // send, so atomically claim the winning account's ramp slot now.
-  const sseResult = await sse.selectBestSender(campaign.user_id, campaignId, true);
-  if (sseResult.account) {
+  const sseResult: Awaited<ReturnType<typeof sse.selectBestSender>> = smtpAccount
+    ? { account: null } as any
+    : await sse.selectBestSender(campaign.user_id, campaignId, true);
+  if (smtpAccount) {
+    // Already chosen above.
+  } else if (sseResult.account) {
     smtpAccount = sseResult.account;
     console.log(`[EmailSender] SSE selected: ${sseResult.reason}`);
   } else if (campaign.smtp_account_id) {
@@ -580,7 +666,7 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
   // arrive rephrased. Subject and body get different seeds so their choices
   // are independent — but both are fixed for this recipient.
   const spinFor = (part: string) => `${stepId}:${campaignContactId}:${part}`;
-  const finalSubject = spin(fillSenderTags(subject), spinFor('subject'));
+  const finalSubject = spin(fillSenderTags(sendSubject), spinFor('subject'));
   finalHtml = spin(fillSenderTags(finalHtml), spinFor('body'));
 
   /*
@@ -613,10 +699,18 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
   // 5. Send via relay (Vercel) or direct SMTP
   const domain = (smtpAccount.email_address || '').split('@')[1] || 'usesincerely.com';
   const messageId = `<${crypto.randomUUID()}@${domain}>`;
+  /*
+   * No X-Sincerely-* headers. Nothing read them back (replies are matched on
+   * Message-ID), and they handed every recipient - and every spam filter -
+   * the tool's name plus internal campaign, contact and step ids: a
+   * fingerprint shared by every account on the platform.
+   */
   const emailHeaders: Record<string, string> = {
-    'X-Sincerely-Campaign': campaignId,
-    'X-Sincerely-Contact': contactId,
-    'X-Sincerely-Step': stepId,
+    ...(threaded && last ? {
+      'In-Reply-To': last.message_id,
+      // The chain, oldest first, capped so a long sequence stays a sane header.
+      'References': prior.slice(-10).map((a: any) => a.message_id).join(' '),
+    } : {}),
     ...(campaign.include_unsubscribe === true ? {
       'List-Unsubscribe': `<${unsubUrl}>`,
       'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',

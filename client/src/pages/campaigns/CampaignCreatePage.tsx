@@ -1019,6 +1019,11 @@ export function CampaignCreatePage() {
 
   // ── Validation ──
   const emailSteps = steps.filter((s) => s.step_type === 'email');
+  // What a test of the step being edited is sent with: a blank follow-up
+  // subject goes out as a reply to the first email, so test it that way.
+  const testSubject = editingStep !== null && steps[editingStep]
+    ? (steps[editingStep].subject || (emailSteps[0]?.subject ? `Re: ${emailSteps[0].subject}` : ''))
+    : '';
   const editingEmail = editingStep !== null && steps[editingStep]?.step_type === 'email';
   const conditionSteps = steps.filter((s) => s.step_type === 'condition');
   const webhookWaitSteps = steps.filter((s) => s.step_type === 'webhook_wait');
@@ -1029,7 +1034,9 @@ export function CampaignCreatePage() {
     1: [
       steps.length === 0 && 'Add at least one step',
       steps.length > 0 && emailSteps.length === 0 && 'No email steps in sequence',
-      emailSteps.some((s) => !s.subject) && 'Some emails missing subject',
+      // Only the first email needs one: a follow-up with a blank subject goes
+      // out as a reply in the same thread ("Re: ...").
+      emailSteps.length > 0 && !emailSteps[0].subject && 'The first email needs a subject',
       emailSteps.some((s) => !s.body_html) && 'Some emails missing body',
       conditionSteps.some((s) => !s.condition_field || !s.condition_operator) && 'Some conditions missing a field or comparison',
       webhookWaitSteps.some((s) => !s.webhook_event) && 'Some webhook-wait steps missing an event',
@@ -1734,9 +1741,16 @@ export function CampaignCreatePage() {
                             value={steps[editingStep].subject || ''}
                             onChange={(e) => updateStep(editingStep, { subject: e.target.value })}
                             onFocus={() => setActiveField('subject')}
-                            placeholder="e.g. Quick question about {{company}}"
+                            placeholder={steps[editingStep] === emailSteps[0]
+                              ? 'e.g. Quick question about {{company}}'
+                              : 'Leave blank to reply in the same thread'}
                             className={inputCls}
                           />
+                          {steps[editingStep] !== emailSteps[0] && !(steps[editingStep].subject || '').trim() && (
+                            <p className="mt-1.5 text-caption text-[var(--text-tertiary)]">
+                              Sent as a reply to the previous email, from the same address, so it lands in the same conversation.
+                            </p>
+                          )}
                           {(() => {
                             const len = (steps[editingStep].subject || '').length;
                             if (len === 0) return null;
@@ -1892,7 +1906,7 @@ export function CampaignCreatePage() {
                                       disabled={sendingTest}
                                       {...blockedProps(firstBlocker([
                                         [!effectiveSmtp, 'Choose a sending account'],
-                                        [!steps[editingStep].subject, 'Add a subject line first'],
+                                        [!testSubject, 'Add a subject line first'],
                                         [!hasBody, 'Write an email body first'],
                                         [!testEmailTo, 'Enter a recipient'],
                                       ]), async () => {
@@ -1900,7 +1914,7 @@ export function CampaignCreatePage() {
                                         try {
                                           const result = await smtpApi.sendTestEmail(effectiveSmtp, {
                                             to: testEmailTo,
-                                            subject: steps[editingStep].subject || 'Test',
+                                            subject: testSubject,
                                             body_html: steps[editingStep].body_html || '',
                                           });
                                           if (result.success) toast.success(result.message || 'Test sent!');
@@ -1912,7 +1926,7 @@ export function CampaignCreatePage() {
                                       })}
                                       className={cn(
                                         'inline-flex items-center gap-1 px-3 rounded-md bg-[var(--indigo)] text-white text-caption font-semibold disabled:opacity-40 hover:bg-[var(--indigo-hover)] transition-colors',
-                                        (!effectiveSmtp || !steps[editingStep].subject || !hasBody || !testEmailTo) && BLOCKED_CLASS,
+                                        (!effectiveSmtp || !testSubject || !hasBody || !testEmailTo) && BLOCKED_CLASS,
                                       )}
                                     >
                                       <Send className="h-3 w-3" />
@@ -2256,7 +2270,7 @@ export function CampaignCreatePage() {
                                 <Mail className="h-3.5 w-3.5 text-[var(--indigo-text)] flex-shrink-0" />
                                 <div className="flex-1 min-w-0">
                                   <p className="text-body font-medium text-[var(--text-primary)] truncate">
-                                    {step.subject || 'Untitled Email'}
+                                    {step.subject || 'Reply in same thread'}
                                   </p>
                                   {(step as any).subject_b && (
                                     <p className="text-micro text-[var(--text-tertiary)] truncate">

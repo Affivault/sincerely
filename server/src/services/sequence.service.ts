@@ -250,10 +250,37 @@ async function recordStall(campaignId: string, reason: string | null): Promise<v
  * Process the next step for a campaign contact.
  * Called after campaign launch, after email sent, or after delay expires.
  */
+/**
+ * A read that failed before anything was sent: the database timed out or
+ * the connection dropped. Nothing about the contact is wrong, so it is not
+ * an 'error' - which is final, and dropped a contact from the campaign for
+ * good over one bad second. It is tried again later instead.
+ */
+class TransientSequenceError extends Error {}
+
+/** How long a contact waits after a failed read before another try. */
+const READ_RETRY_MS = 10 * 60 * 1000;
+
 export async function processNextStep(campaignContactId: string): Promise<void> {
   try {
     await _processNextStepInner(campaignContactId);
   } catch (err: any) {
+    if (err instanceof TransientSequenceError) {
+      console.warn(`processNextStep: transient failure for ${campaignContactId}, retrying later:`, err.message);
+      // Only while still active: a run that has since moved it on wins.
+      // Not waiting longer than 10 minutes means a persistent failure
+      // retries slowly instead of spinning every tick.
+      await supabaseAdmin
+        .from('campaign_contacts')
+        .update({
+          next_send_at: new Date(Date.now() + READ_RETRY_MS).toISOString(),
+          error_message: `Retrying: ${err.message}`.slice(0, 500),
+        })
+        .eq('id', campaignContactId)
+        .eq('status', 'active')
+        .then(() => {}, () => {});
+      return;
+    }
     // CRITICAL: On ANY error, nullify next_send_at to prevent infinite loop.
     // Without this, a failed query leaves the contact in a re-processable state
     // and the sequence worker picks it up again every 30 seconds.
@@ -280,7 +307,7 @@ async function _processNextStepInner(campaignContactId: string): Promise<void> {
     .single();
 
   if (ccError) {
-    throw new Error(`Failed to fetch campaign contact: ${ccError.message}`);
+    throw new TransientSequenceError(`Failed to fetch campaign contact: ${ccError.message}`);
   }
 
   if (!cc || !cc.campaigns || !cc.contacts) {
@@ -288,6 +315,14 @@ async function _processNextStepInner(campaignContactId: string): Promise<void> {
   }
   if (cc.status !== 'active') return;
   if (cc.campaigns.status !== 'running') return;
+  /*
+   * Still due? The list this id came from was read before any of the
+   * contacts ahead of it were sent. If another run got here first, the
+   * contact has moved on - claimed (next_send_at null) or advanced to the
+   * next step with a future time - and acting on it now would send that
+   * next step early. Nothing to do: whoever moved it owns it.
+   */
+  if (!cc.next_send_at || new Date(cc.next_send_at).getTime() > Date.now()) return;
 
   // Check if contact is globally unsubscribed or bounced
   if (cc.contacts.is_unsubscribed || cc.contacts.is_bounced) {
@@ -385,7 +420,7 @@ async function _processNextStepInner(campaignContactId: string): Promise<void> {
     // A transient fetch failure is not "this campaign has no steps" — let the
     // processNextStep safety net mark the contact 'error' instead of wrongly
     // completing it.
-    throw new Error(`Failed to fetch campaign steps for ${cc.campaign_id}: ${stepsError.message}`);
+    throw new TransientSequenceError(`Failed to fetch campaign steps for ${cc.campaign_id}: ${stepsError.message}`);
   }
   if (!steps || steps.length === 0) {
     await markCompleted(campaignContactId);
@@ -476,7 +511,7 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
       // A fetch error here must not be treated as "no steps left" — that
       // would wrongly mark the contact completed. Let it throw and surface
       // as a genuine error instead.
-      if (stepsError) throw new Error(`Failed to fetch campaign steps for ${cc.campaign_id}: ${stepsError.message}`);
+      if (stepsError) throw new TransientSequenceError(`Failed to fetch campaign steps for ${cc.campaign_id}: ${stepsError.message}`);
       await advanceToNextStep(cc.id, step.step_order, steps || []);
       return;
     }
@@ -496,7 +531,7 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
       .select('*')
       .eq('campaign_id', cc.campaign_id)
       .order('step_order');
-    if (stepsError) throw new Error(`Failed to fetch campaign steps for ${cc.campaign_id}: ${stepsError.message}`);
+    if (stepsError) throw new TransientSequenceError(`Failed to fetch campaign steps for ${cc.campaign_id}: ${stepsError.message}`);
     await advanceToNextStep(cc.id, step.step_order, steps || []);
     return;
   }
@@ -619,17 +654,23 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
   // and backs off instead of sending a duplicate email.
   const { data: claimed, error: nullifyErr } = await supabaseAdmin
     .from('campaign_contacts')
-    .update({ current_step_order: step.step_order, next_send_at: null })
+    .update({ current_step_order: step.step_order, next_send_at: null, error_message: null })
     .eq('id', cc.id)
     .eq('status', 'active')
+    // Still on the step this run read, and still due. "next_send_at is
+    // set" alone also matched a contact a faster run had already sent and
+    // advanced (next step, future time): this claim then rewound it to the
+    // step just sent and sent it again.
+    .eq('current_step_order', cc.current_step_order || 0)
     .not('next_send_at', 'is', null)
+    .lte('next_send_at', new Date().toISOString())
     .select('id')
     .maybeSingle();
   if (nullifyErr) {
     if (ownerId) await billingService.refundEmailQuota(ownerId);
     if (dailyLimit > 0) await refundCampaignDailySend(cc.campaign_id, dailyPeriodStart);
     if (ownerId) await domainThrottle.refundDomainSend(ownerId, domainReservation);
-    throw new Error(`Failed to lock contact ${cc.id} for processing: ${nullifyErr.message}`);
+    throw new TransientSequenceError(`Failed to lock contact ${cc.id} for processing: ${nullifyErr.message}`);
   }
   if (!claimed) {
     // Lost the race to a concurrent processDueSteps() run — the other caller
@@ -1454,7 +1495,40 @@ export async function promoteDueScheduledCampaigns(): Promise<number> {
  * Find all campaign contacts with next_send_at <= now and process them.
  * Should be called periodically (e.g., every 30 seconds via cron/scheduler).
  */
-export async function processDueSteps(): Promise<number> {
+/*
+ * One pass at a time, per process.
+ *
+ * Launching a campaign kicks a pass straight away so the first emails do
+ * not wait for the next tick, and the worker runs one every 30 seconds.
+ * Run side by side, both read the same due contacts and raced to send
+ * them. A second caller now joins the pass already running, and asks for
+ * one more pass after it so whatever it was launched for is not missed.
+ * The claim in processEmailStep still guards against a second process.
+ */
+let dueRun: Promise<number> | null = null;
+let dueAgain = false;
+
+export function processDueSteps(): Promise<number> {
+  if (dueRun) {
+    dueAgain = true;
+    return dueRun;
+  }
+  dueRun = (async () => {
+    let total = 0;
+    try {
+      do {
+        dueAgain = false;
+        total += await processDueBatch();
+      } while (dueAgain && !isDraining());
+      return total;
+    } finally {
+      dueRun = null;
+    }
+  })();
+  return dueRun;
+}
+
+async function processDueBatch(): Promise<number> {
   // Join on campaigns.status so a paused campaign's still-"active" contacts
   // (pause() intentionally leaves their next_send_at untouched so resume()
   // can pick them up immediately) don't keep occupying slots in the 50-row

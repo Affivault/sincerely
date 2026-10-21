@@ -477,7 +477,7 @@ export function CampaignDetailPage() {
       )}
 
       {editingStep && id && (
-        <StepWordingEditor campaignId={id} step={editingStep.step} index={editingStep.index} onClose={() => setEditingStep(null)} />
+        <StepWordingEditor campaignId={id} step={editingStep.step} index={editingStep.index} isFirstEmail={(campaign.steps || []).find((s: CampaignStep) => s.step_type === 'email')?.id === editingStep.step.id} onClose={() => setEditingStep(null)} />
       )}
 
       {/* Sequence Tab */}
@@ -812,7 +812,7 @@ function SequenceStepCard({ step, index, ab, onEditWording }: {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <Mail className={cn('h-3.5 w-3.5 shrink-0', cfg.iconColor)} />
-              <span className="text-strong font-medium text-[var(--text-primary)] truncate">{step.subject || 'Untitled Email'}</span>
+              <span className="text-strong font-medium text-[var(--text-primary)] truncate">{step.subject || 'Reply in same thread'}</span>
               {/*
                 * Gated on the shared predicate. This was `step.subject_b`
                 * alone - the third place that decided for itself what an
