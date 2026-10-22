@@ -100,8 +100,20 @@ export async function reinstateAfterAutoReply(userId: string, message: {
       .update({ status: 'active', completed_at: null, next_send_at: reading.resume_at })
       .eq('id', message.campaign_contact_id)
       .eq('status', 'replied')
-      .select('id');
+      .select('id, campaign_id');
     if (!back?.length) return false;
+    /*
+     * The "reply" may have been the last contact to finish, in which case
+     * the campaign closed itself. An active contact in a completed campaign
+     * is never picked up again - the worker only reads running campaigns -
+     * so it is reopened. Only one the system completed: a campaign somebody
+     * cancelled or paused stays as they left it.
+     */
+    await supabaseAdmin
+      .from('campaigns')
+      .update({ status: 'running', completed_at: null })
+      .eq('id', (back[0] as any).campaign_id)
+      .eq('status', 'completed');
     await supabaseAdmin
       .from('campaign_activities')
       .update({ activity_type: 'auto_reply', metadata: { ...((replies![0] as any).metadata || {}), auto_reply_kind: 'out_of_office', auto_reply_reason: 'read by Relay' } })

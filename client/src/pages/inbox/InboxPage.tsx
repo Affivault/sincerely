@@ -93,6 +93,7 @@ import {
   // which resolves first and fails as a JSX component.
   History as HistoryIcon,
   ArrowRight,
+  Paperclip,
 } from 'lucide-react';
 
 import {
@@ -135,6 +136,8 @@ interface Message {
   auto_reply_kind?: 'out_of_office' | 'auto_reply' | null;
   /** The mailbox folder it was synced from (INBOX, Sent, Junk...). */
   imap_folder?: string | null;
+  /** What came attached - names and sizes; the files stay in the mailbox (090). */
+  attachments?: Array<{ filename: string; content_type: string; size: number }> | null;
   /** Person, or mail (newsletter, notification, receipt, your own mailboxes). */
   mail_kind?: MailKind | null;
   /** The name their mail client sent, e.g. "GO Markets". */
@@ -394,6 +397,33 @@ const INTENT_DOTS: Record<string, string> = {
   bounce: '#B54B53',
   other: '#94A3B8',
 };
+
+/*
+ * What came attached. The files stay in the mailbox they arrived in, so
+ * this names them and says where to open them, rather than a reply that
+ * says "see attached" sitting there with nothing attached.
+ */
+function AttachmentList({ items }: { items?: Array<{ filename: string; content_type: string; size: number }> | null }) {
+  if (!items || items.length === 0) return null;
+  const size = (b: number) => (b >= 1_048_576 ? `${(b / 1_048_576).toFixed(1)} MB` : b >= 1024 ? `${Math.round(b / 1024)} KB` : `${b} B`);
+  return (
+    <div className="mx-5 mb-4 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2.5">
+      <p className="flex items-center gap-1.5 text-caption font-semibold text-[var(--text-secondary)]">
+        <Paperclip className="h-3.5 w-3.5" aria-hidden="true" />
+        {items.length === 1 ? '1 attachment' : `${items.length} attachments`}
+      </p>
+      <ul className="mt-1.5 space-y-1">
+        {items.map((a, i) => (
+          <li key={`${a.filename}-${i}`} className="flex items-center justify-between gap-3 text-caption">
+            <span className="truncate text-[var(--text-primary)]" title={a.filename}>{a.filename}</span>
+            <span className="flex-shrink-0 tabular text-[var(--text-tertiary)]">{size(a.size)}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-1.5 text-micro text-[var(--text-tertiary)]">Open the email in your mailbox to download these.</p>
+    </div>
+  );
+}
 
 /* EmailBody (sandboxed iframe renderer) now lives in components/shared/EmailBody. */
 
@@ -1275,6 +1305,7 @@ function TimelineMessage({ msg, threadSubject, isCurrent, expanded, onToggle }: 
             </div>
           }>
             <EmailBody html={msg.body_html} text={msg.body_text} />
+            <AttachmentList items={msg.attachments} />
           </ErrorBoundary>
         )}
       </div>
@@ -3971,6 +4002,9 @@ export function InboxPage() {
                           >
                             Was in spam
                           </span>
+                        )}
+                        {!!msg.attachments?.length && (
+                          <Paperclip className="h-3 w-3 text-[var(--text-tertiary)] flex-shrink-0" aria-label={`${msg.attachments.length} attachment${msg.attachments.length === 1 ? '' : 's'}`} />
                         )}
                       </span>
 

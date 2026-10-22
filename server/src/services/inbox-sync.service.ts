@@ -266,7 +266,23 @@ async function matchSend(userId: string, inReplyTo: string, contactId: string | 
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (cc) return { campaign_id: cc.campaign_id, campaign_contact_id: cc.id, contact_id: cc.contact_id };
+    if (cc) {
+      /*
+       * Which step it answers: the latest email sent to them in this
+       * enrolment. Without it the reply was recorded with no step, so
+       * per-step reply rates - "step 2 gets the replies" - never counted
+       * anybody whose client dropped In-Reply-To.
+       */
+      const { data: last } = await supabaseAdmin
+        .from('campaign_activities')
+        .select('step_id')
+        .eq('campaign_contact_id', cc.id)
+        .eq('activity_type', 'sent')
+        .order('occurred_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return { campaign_id: cc.campaign_id, campaign_contact_id: cc.id, contact_id: cc.contact_id, step_id: last?.step_id ?? null };
+    }
   }
   return null;
 }
@@ -355,11 +371,23 @@ async function ingest(msg: any, ctx: IngestContext): Promise<boolean> {
   let parsedHeaders: unknown = null;
   // A feedback-loop report carries its findings in attached parts.
   let reportText = '';
+  // What came attached: names and sizes only (migration 090); the files
+  // stay in the mailbox. Inline images in a signature are not attachments
+  // anybody sent on purpose, so they are left out.
+  let attachments: Array<{ filename: string; content_type: string; size: number }> = [];
   try {
     const parsed = await ctx.simpleParser(msg.source || '');
     bodyText = parsed.text || '';
     bodyHtml = parsed.html || undefined;
     parsedHeaders = parsed.headers;
+    attachments = (parsed.attachments || [])
+      .filter((a: any) => a.contentDisposition !== 'inline' && !a.related)
+      .slice(0, 50)
+      .map((a: any) => ({
+        filename: String(a.filename || 'attachment').slice(0, 200),
+        content_type: String(a.contentType || 'application/octet-stream').slice(0, 100),
+        size: Number(a.size) || 0,
+      }));
     for (const a of parsed.attachments || []) {
       if (/^(message\/(feedback-report|rfc822)|text\/rfc822-headers)$/i.test(a.contentType || '') && a.content) {
         reportText += `\n${a.content.toString('utf8').slice(0, 200_000)}`;
@@ -491,6 +519,7 @@ async function ingest(msg: any, ctx: IngestContext): Promise<boolean> {
     imap_folder: folder,
     auto_reply_kind: autoReply.kind,
     mail_kind: mailKind,
+    ...(attachments.length ? { attachments } : {}),
     sender_name: (outbound ? envelope.to?.[0]?.name : envelope.from?.[0]?.name) || null,
   };
   // Whoever this is with, whether or not a campaign was involved.
@@ -506,6 +535,16 @@ async function ingest(msg: any, ctx: IngestContext): Promise<boolean> {
     .insert(row)
     .select('id')
     .maybeSingle();
+
+  // Migration 090 pending: keep the message, lose only the attachment list.
+  if (insErr && /attachments/.test(insErr.message)) {
+    delete row.attachments;
+    ({ data: saved, error: insErr } = await supabaseAdmin
+      .from('inbox_messages')
+      .insert(row)
+      .select('id')
+      .maybeSingle());
+  }
 
   // A database without migration 043 has no auto_reply_kind column. Losing
   // every inbound message because a migration is pending would be far worse

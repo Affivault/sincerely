@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '../config/supabase.js';
+import { fetchAllPages } from '../utils/batch.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { widenWindowStart } from './calendar.service.js';
 import { resumeAfterTask } from './sequence.service.js';
@@ -374,24 +375,36 @@ async function resolveAttribution(
 export const crmService = {
   /* ── Deals ── */
   async listDeals(userId: string, filters?: { contactId?: string; contactEmail?: string }) {
-    let query = supabaseAdmin.from('deals').select(DEAL_SELECT).eq('user_id', userId);
     // Scope to a specific lead (used by the contact page) — match either the
     // linked contact_id or the captured contact_email. Values are quoted so
     // reserved characters (commas, parens, quotes) in either can't break out
     // of the filter expression and inject extra OR conditions.
     const quote = (v: string) => `"${v.replace(/"/g, '')}"`;
-    if (filters?.contactId && filters?.contactEmail) {
-      query = query.or(`contact_id.eq.${quote(filters.contactId)},contact_email.eq.${quote(filters.contactEmail)}`);
-    } else if (filters?.contactId) {
-      query = query.eq('contact_id', filters.contactId);
-    } else if (filters?.contactEmail) {
-      query = query.eq('contact_email', filters.contactEmail);
+    // A fresh query per page: query builders are mutable, and reusing one
+    // would pile up its order clauses page after page.
+    const build = () => {
+      let query = supabaseAdmin.from('deals').select(DEAL_SELECT).eq('user_id', userId);
+      if (filters?.contactId && filters?.contactEmail) {
+        query = query.or(`contact_id.eq.${quote(filters.contactId)},contact_email.eq.${quote(filters.contactEmail)}`);
+      } else if (filters?.contactId) {
+        query = query.eq('contact_id', filters.contactId);
+      } else if (filters?.contactEmail) {
+        query = query.eq('contact_email', filters.contactEmail);
+      }
+      return query;
+    };
+    // Every page: a board with more than 1,000 deals used to stop at the
+    // 1,000th, so the last columns and every total under-counted. The id
+    // breaks ties so a row cannot appear on two pages or none.
+    try {
+      return await fetchAllPages((from, to) => build()
+        .order('position', { ascending: true })
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: true })
+        .range(from, to));
+    } catch (e: any) {
+      throw new AppError(e?.message || 'Could not load deals', 500);
     }
-    const { data, error } = await query
-      .order('position', { ascending: true })
-      .order('created_at', { ascending: false });
-    if (error) throw new AppError(error.message, 500);
-    return data || [];
   },
 
   async createDeal(userId: string, body: any) {
@@ -986,14 +999,18 @@ export const crmService = {
     const window = Number.isFinite(days) && days > 0 ? Math.min(Math.round(days), 3650) : 180;
     const since = new Date(Date.now() - window * 86_400_000).toISOString();
 
-    const { data: deals, error } = await supabaseAdmin
-      .from('deals')
-      .select('id, title, stage, value, currency, probability, source, label, outcome_reason, closed_at, created_at, stage_changed_at, recurring_amount, recurring_period, one_off_amount, term_months')
-      .eq('user_id', userId)
-      .or(`closed_at.is.null,closed_at.gte.${since}`);
-    if (error) throw new AppError(error.message, 500);
-
-    const rows = deals || [];
+    let rows: any[];
+    try {
+      rows = await fetchAllPages((from, to) => supabaseAdmin
+        .from('deals')
+        .select('id, title, stage, value, currency, probability, source, label, outcome_reason, closed_at, created_at, stage_changed_at, recurring_amount, recurring_period, one_off_amount, term_months')
+        .eq('user_id', userId)
+        .or(`closed_at.is.null,closed_at.gte.${since}`)
+        .order('id', { ascending: true })
+        .range(from, to));
+    } catch (e: any) {
+      throw new AppError(e?.message || 'Could not load deals', 500);
+    }
     if (rows.length === 0) return { deals: [], history: {}, windowDays: window };
 
     /*
