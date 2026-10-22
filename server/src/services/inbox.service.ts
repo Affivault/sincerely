@@ -266,7 +266,10 @@ export const inboxService = {
       .select('id', { count: 'exact', head: true })
       .eq('user_id', userId)
       .eq('is_read', false)
-      .eq('is_archived', false);
+      // The list's own predicate: null counts as not archived. `= false`
+      // left out every message stored before the column had a default, so
+      // the badge read lower than the unread rows plainly in the list.
+      .or('is_archived.is.null,is_archived.eq.false');
     // Unread newsletters are not something anybody is behind on.
     if (await mailKindReady()) q = q.or(PEOPLE_FILTER);
     const { count } = await q;
