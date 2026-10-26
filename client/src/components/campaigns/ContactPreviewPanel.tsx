@@ -162,6 +162,11 @@ export function ContactPreviewPanel({
 }
 
 function PreviewBody({ data }: { data: CampaignPreview }) {
+  // An answer without a contact (an older server, a proxy error page parsed
+  // as JSON) is said plainly rather than taking the campaign page down.
+  if (!data?.contact || !Array.isArray(data.emails)) {
+    return <p className="text-caption text-[var(--text-tertiary)]">The preview could not be built just now. Try again in a moment.</p>;
+  }
   const { contact, sender, emails, audience } = data;
   return (
     <div className="space-y-3">
