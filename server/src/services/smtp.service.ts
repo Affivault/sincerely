@@ -1,7 +1,8 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { writable } from '../utils/writable-fields.js';
-import { gapProblem } from '@lemlist/shared';
+import { gapProblem, dailyLimitProblem } from '@lemlist/shared';
+import { chunk } from '../utils/batch.js';
 import { encrypt, decrypt } from '../utils/encryption.js';
 import { sendViaSmtp, formatFromHeader, describeSmtpError } from './email-sender.service.js';
 import { resolveHostIp } from '../utils/dns-doh.js';
@@ -93,6 +94,20 @@ function assertGap(row: Record<string, any>): void {
   if (problem) throw new AppError(problem, 400);
   row.send_gap_min_seconds = Math.round(min);
   row.send_gap_max_seconds = Math.round(max);
+}
+
+/*
+ * A daily limit is a whole number of emails, 0 meaning uncapped. Nothing
+ * checked it: a body with -5 or 12.5 was stored as-is, and a negative cap
+ * reads as "full" to the rotation, so the mailbox silently never sent.
+ */
+function assertLimit(row: Record<string, any>): void {
+  if (row.daily_send_limit === undefined) return;
+  const n = Number(row.daily_send_limit);
+  if (!Number.isInteger(n) || n < 0 || n > 10000) {
+    throw new AppError('The daily limit must be a whole number from 0 (no limit) to 10,000', 400);
+  }
+  row.daily_send_limit = n;
 }
 
 export const smtpService = {
@@ -192,6 +207,7 @@ export const smtpService = {
       ...(verification?.success ? { is_verified: true } : {}),
     };
     assertGap(row);
+    assertLimit(row);
 
     // Retry without any column the DB doesn't have yet, so shipping ahead of a
     // migration (e.g. reply_to) never blocks connecting a mailbox.
@@ -213,6 +229,7 @@ export const smtpService = {
   async update(userId: string, id: string, input: any) {
     const updateData: any = writable(input, SMTP_ACCOUNT_FIELDS);
     assertGap(updateData);
+    assertLimit(updateData);
 
     // Only re-encrypt when a new password is supplied. The raw field is never
     // in the allow-list, so it cannot reach the database as itself, and the
@@ -262,6 +279,77 @@ export const smtpService = {
       if (!stripMissingColumnKey(error.message, updateData)) throw new AppError(error.message, 500);
     }
     throw new AppError('Failed to update SMTP account', 500);
+  },
+
+  /**
+   * One sending pace on many mailboxes at once.
+   *
+   * Setting forty mailboxes one drawer at a time is how a fleet ends up
+   * with forty different paces nobody chose. This applies one daily limit
+   * and one gap to the mailboxes named (or all of them), validated by the
+   * same rules as a single save, and only to rows this account owns:
+   * every read and write is scoped by user_id, so an id from another
+   * account is simply not found rather than refused after the fact.
+   *
+   * Reports how many actually changed, so "applied to 12" never means
+   * "12 were already like that".
+   */
+  async applyPace(userId: string, input: any) {
+    const limit = Number(input?.daily_send_limit);
+    const limitIssue = dailyLimitProblem(limit);
+    if (limitIssue) throw new AppError(limitIssue, 400);
+    const min = Number(input?.send_gap_min_seconds);
+    const max = Number(input?.send_gap_max_seconds);
+    const gapIssue = gapProblem(min, max);
+    if (gapIssue) throw new AppError(gapIssue, 400);
+    const pace = { daily_send_limit: limit, send_gap_min_seconds: Math.round(min), send_gap_max_seconds: Math.round(max) };
+
+    const all = input?.account_ids === 'all';
+    const wanted = all ? null : Array.isArray(input?.account_ids)
+      ? [...new Set((input.account_ids as unknown[]).filter((v): v is string => typeof v === 'string' && v.length > 0))]
+      : [];
+    if (wanted && wanted.length === 0) throw new AppError('Choose at least one mailbox', 400);
+
+    const { data: rows, error } = await supabaseAdmin
+      .from('smtp_accounts')
+      .select('*')
+      .eq('user_id', userId);
+    if (error) throw new AppError(error.message, 500);
+
+    // Seeds receive placement probes and never send, so a pace means nothing on them.
+    const mine = ((rows || []) as any[]).filter((r) => !r.is_seed && (!wanted || wanted.includes(r.id)));
+    const changed = mine.filter((r) => r.daily_send_limit !== pace.daily_send_limit
+      || r.send_gap_min_seconds !== pace.send_gap_min_seconds
+      || r.send_gap_max_seconds !== pace.send_gap_max_seconds);
+
+    let gapSaved = true;
+    if (changed.length > 0) {
+      const patch: Record<string, number> = { ...pace };
+      for (const ids of chunk(changed.map((r) => r.id))) {
+        // Without migration 089 the gap columns do not exist yet: save the
+        // limit anyway and say the gap was not, rather than saving nothing.
+        for (let attempt = 0; attempt < 3; attempt++) {
+          const { error: upErr } = await supabaseAdmin
+            .from('smtp_accounts')
+            .update(patch)
+            .eq('user_id', userId)
+            .in('id', ids);
+          if (!upErr) break;
+          if (!stripMissingColumnKey(upErr.message, patch)) throw new AppError(upErr.message, 500);
+          gapSaved = false;
+        }
+      }
+    }
+
+    return {
+      matched: mine.length,
+      changed: changed.length,
+      unchanged: mine.length - changed.length,
+      // Ids asked for that are not this account's sending mailboxes.
+      skipped: wanted ? wanted.length - mine.length : 0,
+      gap_saved: gapSaved,
+      pace,
+    };
   },
 
   async delete(userId: string, id: string) {

@@ -1,3 +1,4 @@
+import type { CampaignComparisonRow, SenderResultsReport } from '@lemlist/shared';
 import { apiClient } from './client';
 import type { CampaignAnalytics, OverviewAnalytics, ContactActivityItem, SequencePerformance, StepOutcomes } from '@lemlist/shared';
 
@@ -172,6 +173,18 @@ export interface CampaignRevenueDetail {
 }
 
 export const analyticsApi = {
+  /** Two to four campaigns on the same definitions, in the order given. */
+  compare: async (ids: string[]) => {
+    const { data } = await apiClient.get<CampaignComparisonRow[]>('/analytics/compare', { params: { ids: ids.join(',') } });
+    return data;
+  },
+
+  /** Sends and their outcomes by the mailbox and domain that sent them. Dates are YYYY-MM-DD, inclusive. */
+  bySender: async (from: string, to: string) => {
+    const { data } = await apiClient.get<SenderResultsReport>('/analytics/by-sender', { params: { from, to } });
+    return data;
+  },
+
   /**
    * What each campaign earned, not just what it sent.
    *

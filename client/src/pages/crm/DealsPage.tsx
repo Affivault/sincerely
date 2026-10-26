@@ -46,6 +46,8 @@ import {
   type CrmEvent, type EventType,
   type ContactWithTags,
   PLACEHOLDER, formatDayMonth, formatMoney, parseDay } from '@lemlist/shared';
+// Shared, so every export guards against spreadsheet formulas the same way.
+import { csvCell } from '@lemlist/shared';
 
 /* ─── Helpers ─────────────────────────────────────── */
 function fmtMoney(v: number, currency = 'USD'): string {
@@ -106,11 +108,6 @@ function leadId(d: Deal): string | null {
 /** The account this deal belongs to — its own link, or the lead's. */
 function dealCompanyId(d: Deal): string | null {
   return d.company_id || d.contact?.company_id || null;
-}
-
-function csvCell(v: string | number | null | undefined): string {
-  const s = v == null ? '' : String(v);
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
 /** Export the given deals as a CSV file the browser downloads directly — no server round-trip. */

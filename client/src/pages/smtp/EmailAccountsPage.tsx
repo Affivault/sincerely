@@ -15,11 +15,11 @@ import { cn } from '../../lib/utils';
 import {
   Mail, Plus, Trash2, CheckCircle2, HelpCircle, ArrowRight, Globe, Search, Flame,
   ShieldCheck, ShieldAlert, ChevronDown, ChevronRight, AlertTriangle, RefreshCw, Gauge,
-  Lock, Plug, Server, FileUp,
+  Lock, Plug, Server, FileUp, Activity,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { SmtpAccount, SmtpPreset, SendingDomain, InboxSyncProgress } from '@lemlist/shared';
-import { SMTP_PRESETS } from '@lemlist/shared';
+import { SMTP_PRESETS, RECOMMENDED_GAP } from '@lemlist/shared';
 import { SmtpAccountModal } from './SmtpAccountModal';
 import { WarmupPanel } from './WarmupPanel';
 import { StatusBadge, DomainDetailPanel } from '../domains/DomainsPage';
@@ -32,6 +32,7 @@ import { MailboxDrawer } from '../../components/mailbox/MailboxDrawer';
 import { ProviderLogo } from '../../components/mailbox/ProviderLogo';
 import { EmptyState } from '../../components/shared/EmptyState';
 import { BulkConnect } from '../../components/mailbox/BulkConnect';
+import { BulkPace } from '../../components/mailbox/BulkPace';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Email accounts.
@@ -184,6 +185,7 @@ export function EmailAccountsPage() {
   const [newDomain, setNewDomain] = useState('');
   const [showExplainer, setShowExplainer] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [paceOpen, setPaceOpen] = useState(false);
 
   const { data: accounts, isLoading, isError: accountsError } = useQuery({ queryKey: ['smtp-accounts'], queryFn: smtpApi.list, meta: { silentError: true } });
   const { data: domainsData, isLoading: loadingDomains, isError: domainsError } = useQuery({ queryKey: ['domains'], queryFn: domainApi.list, meta: { silentError: true } });
@@ -373,6 +375,12 @@ export function EmailAccountsPage() {
             <button onClick={() => setShowExplainer(true)} className="inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-body text-[var(--text-tertiary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]">
               <HelpCircle className="h-3.5 w-3.5" /> How it works
             </button>
+            {/* Every mailbox's verdict on one page: pace, warm-up, bounces, DNS, placement. */}
+            {list.length > 0 && (
+              <Link to="/email-accounts/health" className="inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-body text-[var(--text-tertiary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]">
+                <Activity className="h-3.5 w-3.5" /> Sending health
+              </Link>
+            )}
             {tab === 'domains'
               ? <Button size="sm" onClick={() => setAddDomainOpen(true)}><Plus className="h-3.5 w-3.5" /> Add domain</Button>
               : <Button size="sm" onClick={openAdd}><Plus className="h-3.5 w-3.5" /> Connect mailbox</Button>}
@@ -522,6 +530,14 @@ export function EmailAccountsPage() {
               >
                 <FileUp className="h-4 w-4" /> Import CSV
               </button>
+              {/* One pace for the fleet, rather than a save per mailbox. */}
+              <button
+                onClick={() => setPaceOpen(true)}
+                title="Set one daily limit and gap on every mailbox"
+                className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--border-default)] px-4 py-3 text-body font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--indigo)]/40 hover:bg-[var(--indigo-subtle)]/30 hover:text-[var(--indigo-text)]"
+              >
+                <Gauge className="h-4 w-4" /> Set pace for all
+              </button>
             </div>
           </>
         )
@@ -648,6 +664,20 @@ export function EmailAccountsPage() {
       />
 
       <BulkConnect open={bulkOpen} onClose={() => setBulkOpen(false)} existing={list} />
+
+      <BulkPace
+        open={paceOpen}
+        onClose={() => setPaceOpen(false)}
+        mailboxes={list.filter((a: SmtpAccount) => !(a as SmtpAccount & { is_seed?: boolean }).is_seed).map((a: SmtpAccount) => ({
+          id: a.id,
+          label: a.label,
+          email_address: a.email_address,
+          daily_send_limit: a.daily_send_limit,
+          // Absent before migration 089, when every mailbox sends at the default.
+          gap_min: a.send_gap_min_seconds ?? RECOMMENDED_GAP.min,
+          gap_max: a.send_gap_max_seconds ?? RECOMMENDED_GAP.max,
+        }))}
+      />
 
       {/* Add domain modal */}
       <Modal isOpen={addDomainOpen} onClose={() => { setAddDomainOpen(false); setNewDomain(''); }} title="Authenticate a sending domain" size="md">

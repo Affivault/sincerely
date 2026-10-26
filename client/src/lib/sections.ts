@@ -134,7 +134,7 @@ export const SETTINGS_GROUPS: { label: string; items: SectionTab[] }[] = [
     label: 'Sending',
     items: [
       { label: 'Email accounts', href: '/email-accounts', icon: AtSign, match: ['/smtp-accounts', '/domains'], keywords: 'mailbox sender smtp domains dns spf dkim' },
-      { label: 'Sender health', href: '/sse', icon: Activity, keywords: 'reputation deliverability warm up health' },
+      { label: 'Sending health', href: '/email-accounts/health', icon: Activity, match: ['/sse'], keywords: 'reputation deliverability warm up health bounces spf dkim dmarc placement pace limit gap at risk' },
       { label: 'Inbox placement', href: '/placement', icon: Target, keywords: 'inbox spam placement seed test' },
     ],
   },

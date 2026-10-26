@@ -60,7 +60,7 @@ const CalendarPage         = lazyRoute('/calendar', () => import('./pages/crm/Ca
 const ProspectorPage       = lazyRoute('/prospector', () => import('./pages/prospector/ProspectorPage'), m => m.ProspectorPage);
 const AdminPage            = lazyRoute('/admin', () => import('./pages/admin/AdminPage'), m => m.AdminPage);
 const SettingsPage         = lazyRoute('/settings', () => import('./pages/settings/SettingsPage'), m => m.SettingsPage);
-const SseDashboardPage     = lazyRoute('/sse', () => import('./pages/sse/SseDashboardPage'), m => m.SseDashboardPage);
+const SendingHealthPage    = lazyRoute('/email-accounts/health', () => import('./pages/smtp/SendingHealthPage'), m => m.SendingHealthPage);
 const AssetBuilderPage     = lazyRoute('/assets', () => import('./pages/assets/AssetBuilderPage'), m => m.AssetBuilderPage);
 const TemplatesPage        = lazyRoute('/templates', () => import('./pages/templates/TemplatesPage'), m => m.TemplatesPage);
 const DeveloperPage        = lazyRoute('/developer', () => import('./pages/developer/DeveloperPage'), m => m.DeveloperPage);
@@ -198,6 +198,7 @@ export default function App() {
           <Route path="/campaigns/:id"      element={<CampaignDetailPage />} />
           <Route path="/campaigns/:id/edit" element={<CampaignCreatePage />} />
           <Route path="/email-accounts"     element={<EmailAccountsPage />} />
+          <Route path="/email-accounts/health" element={<SendingHealthPage />} />
           <Route path="/smtp-accounts"      element={<Navigate to="/email-accounts" replace />} />
           <Route path="/smtp-accounts/guide" element={<SmtpGuidePage />} />
           <Route path="/placement"          element={<PlacementPage />} />
@@ -227,7 +228,8 @@ export default function App() {
           <Route path="/prospector"         element={<ProspectorPage />} />
           <Route path="/admin"              element={<AdminPage />} />
           <Route path="/sara"               element={<Navigate to="/inbox" replace />} />
-          <Route path="/sse"                element={<SseDashboardPage />} />
+          {/* The old sender-health page; its job is now the sending health page. */}
+          <Route path="/sse"                element={<Navigate to="/email-accounts/health" replace />} />
           <Route path="/templates"          element={<TemplatesPage />} />
           <Route path="/assets"             element={<AssetBuilderPage />} />
           <Route path="/developer"          element={<DeveloperPage />} />

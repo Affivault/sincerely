@@ -7,6 +7,9 @@ export const smtpRoutes = Router();
 // captured as an account id.
 smtpRoutes.get('/', smtpController.list);
 smtpRoutes.get('/warmup', smtpController.warmupSummary);
+smtpRoutes.get('/health', smtpController.health);
+// One sending pace on many mailboxes; a POST so '/:id' never sees it.
+smtpRoutes.post('/pace', smtpController.applyPace);
 smtpRoutes.post('/verify', smtpController.verify);
 smtpRoutes.post('/check-domain', smtpController.checkDomain);
 smtpRoutes.post('/diagnose', smtpController.diagnose);

@@ -18,11 +18,8 @@ import toast from 'react-hot-toast';
 import { DEFAULT_PAGE_SIZE } from '../../lib/constants';
 import { keepPrevious } from '../../lib/listQuery';
 import { Refreshing } from '../../components/ui/Refreshing';
-
-function csvCell(v: string | number | null | undefined): string {
-  const s = v == null ? '' : String(v);
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
+// Shared, so every export guards against spreadsheet formulas the same way.
+import { csvCell } from '@lemlist/shared';
 
 /**
  * Export every suppressed email matching the current search/reason filter —

@@ -53,6 +53,23 @@ export function gapCapacityPerDay(min: number, max: number, windowHours = 8): nu
   return Math.floor((windowHours * 3600) / avg);
 }
 
+/**
+ * The highest daily limit that may be set on many mailboxes at once.
+ *
+ * One mailbox can be set to anything, unlimited included, by somebody
+ * looking at it. Setting a fleet is one click, so it is held to a number a
+ * real mailbox can plausibly send without being filtered.
+ */
+export const MAX_BULK_DAILY_LIMIT = 500;
+
+/** Why a daily limit cannot be applied to many mailboxes, or null when it can. */
+export function dailyLimitProblem(limit: number): string | null {
+  if (!Number.isFinite(limit) || !Number.isInteger(limit)) return 'The daily limit must be a whole number.';
+  if (limit < 1) return 'The daily limit must be at least 1 email a day.';
+  if (limit > MAX_BULK_DAILY_LIMIT) return `A daily limit above ${MAX_BULK_DAILY_LIMIT} cannot be set on many mailboxes at once.`;
+  return null;
+}
+
 /** Why a gap cannot be saved, or null when it can. */
 export function gapProblem(min: number, max: number): string | null {
   if (!Number.isFinite(min) || !Number.isFinite(max) || min < 0 || max < 0) return 'Gaps must be zero or more seconds.';

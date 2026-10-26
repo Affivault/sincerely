@@ -108,8 +108,14 @@ function topLevelColumns(select: string): string[] {
   let current = '';
 
   const flush = () => {
+    // Trimmed first, so an alias after ", " is recognised as one.
     const name = current
+      .trim()
       .replace(/^[a-z_][a-z0-9_]*:/i, '')  // alias:column
+      // column->>key reads a JSON field; the column is what must exist.
+      // The sending-health read asks for metadata->>smtp_account_id this
+      // way instead of fetching every row's whole metadata blob.
+      .replace(/->>?.*$/, '')
       .replace(/!inner|!left/gi, '')
       .trim()
       .toLowerCase();
