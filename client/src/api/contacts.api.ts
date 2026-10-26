@@ -17,6 +17,12 @@ import type {
   UpdateSegmentInput,
   FilterConfig,
   BulkActionResult,
+  DuplicateGroup,
+  SavedView,
+  SavedViewConfig,
+  SavedViewPage,
+  BulkEditInput,
+  EngagementResult,
 } from '@lemlist/shared';
 
 export interface ContactStats {
@@ -38,6 +44,15 @@ export interface BulkImportResult {
   errors: number;
   duplicates_collapsed?: number;
   error_details: { email: string; reason: string }[];
+}
+
+// The duplicates UI reads groups.length and total straight away, so an
+// unexpected body (a proxy error page, an older server) is an error here
+// rather than a crash on the contacts list and every contact page.
+function duplicateGroups(data: unknown): { groups: DuplicateGroup[]; total: number } {
+  const body = data as { groups?: unknown; total?: unknown } | null;
+  if (!body || !Array.isArray(body.groups)) throw new Error('Duplicates could not be loaded');
+  return { groups: body.groups as DuplicateGroup[], total: typeof body.total === 'number' ? body.total : body.groups.length };
 }
 
 export const contactsApi = {
@@ -150,6 +165,66 @@ export const contactsApi = {
 
   getStats: async () => {
     const { data } = await apiClient.get<ContactStats>('/contacts/stats');
+    return data;
+  },
+
+  /* ── Duplicates and merging (migration 096) ── */
+  duplicates: async (limit?: number) => {
+    const { data } = await apiClient.get<{ groups: DuplicateGroup[]; total: number }>('/contacts/duplicates', {
+      params: limit ? { limit } : undefined,
+    });
+    return duplicateGroups(data);
+  },
+
+  duplicatesFor: async (id: string) => {
+    const { data } = await apiClient.get<{ groups: DuplicateGroup[]; total: number }>(`/contacts/${id}/duplicates`);
+    return duplicateGroups(data);
+  },
+
+  dismissDuplicate: async (contactIds: string[]) => {
+    await apiClient.post('/contacts/duplicates/dismiss', { contact_ids: contactIds });
+  },
+
+  merge: async (primaryId: string, otherIds: string[], fields: Record<string, string | null>) => {
+    const { data } = await apiClient.post<{ primary_id: string; merged: number; moved: Record<string, number>; contact: ContactWithTags }>(
+      '/contacts/merge', { primary_id: primaryId, other_ids: otherIds, fields },
+    );
+    return data;
+  },
+
+  /* ── Saved views ── */
+  views: async (page: SavedViewPage) => {
+    const { data } = await apiClient.get<SavedView[] | { unavailable: string }>('/contacts/views', { params: { page } });
+    return data;
+  },
+
+  createView: async (page: SavedViewPage, name: string, config: SavedViewConfig) => {
+    const { data } = await apiClient.post<SavedView>('/contacts/views', { page, name, config });
+    return data;
+  },
+
+  updateView: async (id: string, patch: { name?: string; config?: SavedViewConfig }) => {
+    const { data } = await apiClient.put<SavedView>(`/contacts/views/${id}`, patch);
+    return data;
+  },
+
+  deleteView: async (id: string) => {
+    await apiClient.delete(`/contacts/views/${id}`);
+  },
+
+  /** One change to many contacts: set or clear a field, a custom field, or tags. */
+  bulkEdit: async (contactIds: string[], edit: BulkEditInput) => {
+    const { data } = await apiClient.post<{ updated: number; op: string }>('/contacts/bulk-edit', { contact_ids: contactIds, ...edit });
+    return data;
+  },
+
+  /** The 0-100 score, recounted now, and what it is made of. */
+  engagement: async (id: string) => {
+    const { data } = await apiClient.get<EngagementResult & { stored: boolean }>(`/contacts/${id}/engagement`);
+    // The panel reads factors.length and the score at once; anything else is an error, not a crash.
+    if (!data || typeof data.score !== 'number' || !Array.isArray(data.factors)) {
+      throw new Error('Engagement could not be loaded');
+    }
     return data;
   },
 };

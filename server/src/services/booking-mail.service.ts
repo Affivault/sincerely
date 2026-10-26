@@ -404,6 +404,30 @@ ${button(manage, 'Move or cancel')}`),
     });
   },
 
+  /**
+   * "Sorry we missed you" after a no-show.
+   *
+   * Through deliver() like every other email here, so it leaves from the
+   * account's own mailbox and a reply reaches a person. The words are the
+   * account's template, already filled in; the booking page goes under
+   * them as a button too, because a bare URL in a plain paragraph is the
+   * part people miss. Returns whether it went, and never throws.
+   */
+  async noShowFollowUp(userId: string, message: {
+    to: string; subject: string; body: string; bookingLink: string | null;
+  }): Promise<boolean> {
+    const paragraphs = message.body
+      .split(/\n{2,}/)
+      .map((p) => `<p style="margin:0 0 12px;font-size:14px;color:#18181b;white-space:pre-line;">${esc(p)}</p>`)
+      .join('\n');
+    return deliver(userId, {
+      to: message.to,
+      subject: message.subject,
+      html: wrap(`${paragraphs}${message.bookingLink ? `\n${button(message.bookingLink, 'Pick a new time')}` : ''}`),
+      text: message.body,
+    });
+  },
+
   /** Does this account have a mailbox at all? The links page asks, to warn. */
   async canSend(userId: string): Promise<boolean> {
     return (await senderFor(userId)) !== null;

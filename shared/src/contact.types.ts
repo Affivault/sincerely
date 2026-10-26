@@ -1,5 +1,6 @@
 import type { Lifecycle } from './lifecycle.types.js';
 import type { CampaignStatus, ContactCampaignStatus } from './enums.js';
+import type { StoredEngagementFactors } from './engagement.js';
 
 export interface Contact {
   id: string;
@@ -21,6 +22,10 @@ export interface Contact {
   engaged_at?: string | null;
   /** What promoted them, so it is auditable rather than mysterious. */
   promoted_by?: string | null;
+  /** 0-100, from shared/engagement (migration 096). Null until first scored. */
+  engagement_score?: number | null;
+  engagement_factors?: StoredEngagementFactors | null;
+  engagement_updated_at?: string | null;
   is_unsubscribed: boolean;
   is_bounced: boolean;
   dcs_score: number | null;
@@ -307,7 +312,7 @@ export interface ContactsListParams {
    * the entire job.
    */
   lifecycle?: 'engaged' | 'all' | 'prospect' | 'contact' | 'customer';
-  sort_by?: 'created_at' | 'email' | 'first_name' | 'company' | 'dcs_score';
+  sort_by?: 'created_at' | 'email' | 'first_name' | 'company' | 'dcs_score' | 'engagement_score';
   sort_order?: 'asc' | 'desc';
 }
 

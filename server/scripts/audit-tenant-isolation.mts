@@ -69,6 +69,9 @@ const ID = {
   eventType: 'd0000000-0000-0000-0000-000000000002',
   bookingLink: 'd0000000-0000-0000-0000-000000000005',
   calendarConnection: 'd0000000-0000-0000-0000-000000000006',
+  event: '30000000-0000-0000-0000-000000000005',
+  savedView: 'e0000000-0000-0000-0000-000000000002',
+  otherContact: '10000000-0000-0000-0000-000000000002',
 };
 
 const owned = (id: string, extra: Record<string, any> = {}) => ({
@@ -91,7 +94,12 @@ let world: World;
 
 function freshWorld(): World {
   return {
-    contacts: [owned(ID.contact, { first_name: SECRET, last_name: SECRET, lifecycle: 'contact', is_unsubscribed: false, is_bounced: false })],
+    contacts: [
+      owned(ID.contact, { first_name: SECRET, last_name: SECRET, lifecycle: 'contact', is_unsubscribed: false, is_bounced: false }),
+      // A second of OWNER's, so a merge has a pair to try to fold together.
+      owned(ID.otherContact, { first_name: SECRET, last_name: SECRET, lifecycle: 'prospect', is_unsubscribed: false, is_bounced: false }),
+    ],
+    contact_saved_views: [owned(ID.savedView, { page: 'contact', config: { search: SECRET }, position: 0 })],
     campaigns: [owned(ID.campaign, { status: 'draft', list_id: null })],
     campaign_steps: [owned(ID.step, { campaign_id: ID.campaign, step_order: 0, step_type: 'email' })],
     campaign_contacts: [owned('c0ffee00-0000-0000-0000-000000000001', { campaign_id: ID.campaign, contact_id: ID.contact, status: 'pending' })],
@@ -110,7 +118,7 @@ function freshWorld(): World {
     }],
     crm_notes: [owned(ID.note, { deal_id: ID.deal, contact_id: ID.contact, pinned: false })],
     deal_participants: [owned(ID.participant, { deal_id: ID.deal, contact_id: ID.contact, role: 'Champion' })],
-    crm_events: [owned('30000000-0000-0000-0000-000000000005', { starts_at: '2026-02-01T00:00:00Z', type: 'meeting' })],
+    crm_events: [owned(ID.event, { starts_at: '2026-02-01T00:00:00Z', type: 'meeting', status: 'confirmed', contact_email: `${SECRET}@owner.test`, booking_link_id: ID.bookingLink, no_show_followup_sent_at: null })],
     calendar_availability: [owned('d0000000-0000-0000-0000-000000000003', { weekday: 1, start_minute: 540, end_minute: 1020 })],
     calendar_scheduling_prefs: [owned('d0000000-0000-0000-0000-000000000004', { timezone: 'Secret/Zone', buffer_before_minutes: 0, buffer_after_minutes: 0, minimum_notice_minutes: 240, max_bookings_per_day: null, slot_interval_minutes: 15, booking_horizon_days: 60 })],
     calendar_connections: [owned(ID.calendarConnection, { provider: 'google', account_email: `${SECRET}@owner.test`, access_token: SECRET, refresh_token: SECRET, read_busy: true, write_events: true, broken_at: null, calendar_ids: ['primary'] })],
@@ -305,7 +313,7 @@ function judge(name: string, returned: unknown, threw: unknown) {
 const [
   contacts, campaigns, campaignSteps, campaignContacts, crm, calendar, booking, calsync, leads, lists, companies,
   template, segments, tags, smtp, inbox, triage, webhook, integrations, asset, apikey, settings, suppression,
-  inboxReminders, inboxAssign, inboxAttachments, linkedinAgent,
+  inboxReminders, inboxAssign, inboxAttachments, linkedinAgent, hygiene, engagement, noShow,
 ] = await Promise.all([
   import('../src/services/contacts.service.js'),
   import('../src/services/campaigns.service.js'),
@@ -334,6 +342,9 @@ const [
   import('../src/services/inbox-assign.service.js'),
   import('../src/services/inbox-attachments.service.js'),
   import('../src/services/linkedin-agent.service.js'),
+  import('../src/services/contact-hygiene.service.js'),
+  import('../src/services/engagement.service.js'),
+  import('../src/services/no-show.service.js'),
 ]);
 
 const S = (m: any, key: string) => (m as any)[key];
@@ -388,6 +399,20 @@ const cases: Case[] = [
   { name: 'contacts.update',         on: contactsService, method: 'update', args: [INTRUDER, ID.contact, { first_name: 'x' }] },
   { name: 'contacts.delete',         on: contactsService, method: 'delete', args: [INTRUDER, ID.contact] },
   { name: 'contacts.getCampaignsForContact', on: contactsService, method: 'getCampaignsForContact', args: [INTRUDER, ID.contact] },
+  // Duplicates, merging, views and bulk edit (096). A merge is the most
+  // dangerous of these: it moves every related row and deletes contacts,
+  // so OWNER's pair must come back refused, not folded together.
+  { name: 'hygiene.merge',           on: S(hygiene, 'contactHygieneService'), method: 'merge',            args: [INTRUDER, ID.contact, [ID.otherContact], { first_name: 'x' }] },
+  { name: 'hygiene.duplicatesFor',   on: S(hygiene, 'contactHygieneService'), method: 'duplicates',       args: [INTRUDER, { contactId: ID.contact }] },
+  { name: 'hygiene.dismissDuplicate', on: S(hygiene, 'contactHygieneService'), method: 'dismissDuplicate', args: [INTRUDER, [ID.contact, ID.otherContact]] },
+  { name: 'hygiene.listViews',       on: S(hygiene, 'contactHygieneService'), method: 'listViews',        args: [INTRUDER, 'contact'] },
+  { name: 'hygiene.updateView',      on: S(hygiene, 'contactHygieneService'), method: 'updateView',       args: [INTRUDER, ID.savedView, { name: 'x' }] },
+  { name: 'hygiene.deleteView',      on: S(hygiene, 'contactHygieneService'), method: 'deleteView',       args: [INTRUDER, ID.savedView] },
+  { name: 'hygiene.bulkEdit',        on: S(hygiene, 'contactHygieneService'), method: 'bulkEdit',         args: [INTRUDER, [ID.contact], { op: 'set', field: 'company', value: 'x' }] },
+  { name: 'engagement.forContact',   on: S(engagement, 'engagementService'),  method: 'forContact',       args: [INTRUDER, ID.contact] },
+  { name: 'noShow.mark',             on: S(noShow, 'noShowService'),          method: 'mark',             args: [INTRUDER, ID.event] },
+  { name: 'noShow.preview',          on: S(noShow, 'noShowService'),          method: 'preview',          args: [INTRUDER, ID.event] },
+  { name: 'noShow.send',             on: S(noShow, 'noShowService'),          method: 'send',             args: [INTRUDER, ID.event] },
 
   // Campaigns
   { name: 'campaigns.get',           on: campaignsService, method: 'get',    args: [INTRUDER, ID.campaign] },

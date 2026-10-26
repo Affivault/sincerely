@@ -261,6 +261,11 @@ export interface CrmEvent {
   conferencing_url: string | null;
   timezone: string | null;
   deal_id: string | null;
+  /** Set when it was booked through a booking page; null when made by hand. */
+  booking_link_id?: string | null;
+  /* Migration 096 - when they did not turn up, and whether we followed up. */
+  no_show_at?: string | null;
+  no_show_followup_sent_at?: string | null;
   created_at: string;
   updated_at: string;
   contact?: { id: string; email: string; first_name: string | null; last_name: string | null; company: string | null } | null;

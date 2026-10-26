@@ -37,6 +37,7 @@ const SharedResultsPage    = lazyRoute('/r/:token', () => import('./pages/public
 const ContactsListPage     = lazyRoute(['/leads', '/contacts'], () => import('./pages/contacts/ContactsListPage'), m => m.ContactsListPage);
 const ContactDetailPage    = lazyRoute('/contacts/:id', () => import('./pages/contacts/ContactDetailPage'), m => m.ContactDetailPage);
 const BulkImportPage       = lazyRoute('/contacts/import', () => import('./pages/contacts/BulkImportPage'), m => m.BulkImportPage);
+const DuplicatesPage       = lazyRoute('/contacts/duplicates', () => import('./pages/contacts/DuplicatesPage'), m => m.DuplicatesPage);
 const CampaignsListPage    = lazyRoute('/campaigns', () => import('./pages/campaigns/CampaignsListPage'), m => m.CampaignsListPage);
 const CampaignCreatePage   = lazyRoute(['/campaigns/new', '/campaigns/:id/edit'], () => import('./pages/campaigns/CampaignCreatePage'), m => m.CampaignCreatePage);
 const CampaignDetailPage   = lazyRoute('/campaigns/:id', () => import('./pages/campaigns/CampaignDetailPage'), m => m.CampaignDetailPage);
@@ -192,6 +193,7 @@ export default function App() {
           <Route path="/leads"              element={<ContactsListPage key="lead" kind="lead" />} />
           <Route path="/contacts"           element={<ContactsListPage key="contact" kind="contact" />} />
           <Route path="/contacts/import"    element={<BulkImportPage />} />
+          <Route path="/contacts/duplicates" element={<DuplicatesPage />} />
           <Route path="/contacts/:id"       element={<ContactDetailPage />} />
           <Route path="/campaigns"          element={<CampaignsListPage />} />
           <Route path="/campaigns/new"      element={<CampaignCreatePage />} />

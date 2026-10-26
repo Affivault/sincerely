@@ -4,7 +4,7 @@ import type {
   CrmTask, CreateTaskInput, UpdateTaskInput,
   CrmEvent, CreateEventInput, UpdateEventInput,
   CrmNote, CreateNoteInput, UpdateNoteInput,
-  ContactCrmSummary, DealHealth,
+  ContactCrmSummary, DealHealth, NoShowOutcome, NoShowPreview,
 } from '@lemlist/shared';
 
 export const crmApi = {
@@ -51,6 +51,11 @@ export const crmApi = {
   createEvent: async (input: CreateEventInput) => (await apiClient.post<CrmEvent>('/crm/events', input)).data,
   updateEvent: async (id: string, input: UpdateEventInput) => (await apiClient.put<CrmEvent>(`/crm/events/${id}`, input)).data,
   deleteEvent: async (id: string) => { await apiClient.delete(`/crm/events/${id}`); },
+  // Did not turn up (migration 096): mark it, then preview or send the rebook email.
+  markNoShow: async (id: string) => (await apiClient.post<NoShowOutcome>(`/crm/events/${id}/no-show`)).data,
+  noShowPreview: async (id: string) => (await apiClient.get<NoShowPreview>(`/crm/events/${id}/no-show/follow-up`)).data,
+  sendNoShowFollowUp: async (id: string, edit?: { subject?: string; body?: string }) =>
+    (await apiClient.post<{ sent: boolean; sent_at: string; to: string }>(`/crm/events/${id}/no-show/follow-up`, edit || {})).data,
 
   // Notes
   listNotes: async (params?: { contact_id?: string; deal_id?: string }) =>

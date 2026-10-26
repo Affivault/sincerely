@@ -455,7 +455,13 @@ export function ContactHistory({
         kind: 'event',
         title: e.title,
         detail: e.outcome || e.notes,
-        meta: [e.type === 'call' ? 'Call' : 'Meeting', e.location].filter(Boolean).join(' · '),
+        // A no-show says so on the line itself; the history is where somebody
+        // looks to see whether a meeting actually happened.
+        meta: [
+          e.type === 'call' ? 'Call' : 'Meeting',
+          (e.status as string) === 'no_show' ? 'did not turn up' : e.status === 'cancelled' ? 'called off' : null,
+          e.location,
+        ].filter(Boolean).join(' · '),
         icon: e.type === 'call' ? Phone : Users,
         tone: 'bg-violet-500/10 text-violet-600 dark:text-violet-400',
         event: e,

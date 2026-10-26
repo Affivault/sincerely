@@ -29,6 +29,10 @@ crmRoutes.get('/events', crmController.listEvents);
 crmRoutes.post('/events', crmController.createEvent);
 crmRoutes.put('/events/:id', crmController.updateEvent);
 crmRoutes.delete('/events/:id', crmController.deleteEvent);
+// Did not turn up: mark it, and the "sorry we missed you" email that can follow.
+crmRoutes.post('/events/:id/no-show', crmController.markNoShow);
+crmRoutes.get('/events/:id/no-show/follow-up', crmController.noShowPreview);
+crmRoutes.post('/events/:id/no-show/follow-up', crmController.sendNoShowFollowUp);
 
 // Notes
 crmRoutes.get('/notes', crmController.listNotes);

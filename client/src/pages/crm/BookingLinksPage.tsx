@@ -12,6 +12,7 @@ import { PageHeader } from '../../components/shared/PageHeader';
 import { slugify, type BookingLink, type CalendarEventType, formatDayMonthTime } from '@lemlist/shared';
 import { cn } from '../../lib/utils';
 import toast from 'react-hot-toast';
+import { NoShowSettingsCard } from '../../components/crm/NoShow';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Booking links.
@@ -310,6 +311,11 @@ export function BookingLinksPage() {
             </div>
           )}
         </section>
+      </div>
+
+      {/* What happens when somebody books and then does not come. */}
+      <div className="mt-4">
+        <NoShowSettingsCard />
       </div>
     </div>
   );

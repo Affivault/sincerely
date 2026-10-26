@@ -13,6 +13,8 @@ import { MeetingModal } from '../../components/crm/CrmPrimitives';
 import { AddToCampaignModal } from '../../components/shared/AddToCampaignModal';
 import { ContactHistory, ContactOrigin } from '../../components/crm/ContactHistory';
 import { WhereWeAre } from '../../components/crm/WhereWeAre';
+import { EngagementPanel } from '../../components/contacts/Engagement';
+import { ContactDuplicatesSection } from '../../components/contacts/Duplicates';
 import {
   DEAL_STAGES, isColdEmailable, LIFECYCLE_LABEL, PROMOTION_LABEL,
   type Deal, type CrmEvent, type Lifecycle, type PromotionTrigger, formatDate } from '@lemlist/shared';
@@ -393,6 +395,13 @@ export function ContactDetailPage() {
         onNewDeal={() => setDealModal({ contact_name: fullName || contact.email, contact_email: contact.email, contact_id: contact.id, company: contact.company || null })}
       />
 
+      {/* Only there when this person seems to be on more than one record.
+          Merging into another record moves you to the one that was kept. */}
+      <ContactDuplicatesSection
+        contactId={contact.id}
+        onMerged={(primaryId) => { if (primaryId !== contact.id) navigate(`/contacts/${primaryId}`, { replace: true }); }}
+      />
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Contact Info */}
         <div>
@@ -458,6 +467,13 @@ export function ContactDetailPage() {
                     : 'Not reachable by cold campaigns.'}
               </span>
             </div>
+          </div>
+
+          {/* How warm they are, and from what: the same score as the list's
+              Engagement column, recounted fresh with its reasons. */}
+          <div className="record-section">
+            <h2 className="text-caption font-bold text-[var(--text-tertiary)] mb-2.5">Engagement</h2>
+            <EngagementPanel contactId={contact.id} />
           </div>
 
           <div className="record-section">

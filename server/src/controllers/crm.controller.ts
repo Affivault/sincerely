@@ -3,6 +3,7 @@ import { healthForDeals } from '../services/deal-health.service.js';
 import { AuthRequest } from '../middleware/auth.middleware.js';
 import { crmService } from '../services/crm.service.js';
 import { organiserBookingService } from '../services/booking.service.js';
+import { noShowService } from '../services/no-show.service.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { isValidTimezone } from '@lemlist/shared';
 
@@ -117,13 +118,42 @@ export const crmController = {
        * updated, and the Google copy follows. Whatever is left of the patch
        * (a title, a note) is an ordinary edit.
        */
-      const { rest, notified } = await organiserBookingService.beforeUpdate(req.userId!, req.params.id, req.body || {});
+      /*
+       * A no-show is more than a status: it is logged on the contact and
+       * may send (or offer) the rebook email. Routed through the same
+       * service the dedicated endpoint uses, so the calendar's status menu
+       * and the meeting dialog cannot disagree about what it does.
+       */
+      let noShow: any = null;
+      let body = req.body || {};
+      if (body.status === 'no_show') {
+        noShow = await noShowService.mark(req.userId!, req.params.id);
+        const { status: _status, ...withoutStatus } = body;
+        body = withoutStatus;
+      }
+      const { rest, notified } = await organiserBookingService.beforeUpdate(req.userId!, req.params.id, body);
       const saved = Object.keys(rest).length > 0
         ? await crmService.updateEvent(req.userId!, req.params.id, rest)
         : await organiserBookingService.read(req.userId!, req.params.id);
       // Said back so the calendar can say who was told, rather than leave
       // the organiser wondering whether the person they moved knows.
-      res.json(notified ? { ...(saved as any), invitee_notified: true } : saved);
+      res.json({
+        ...(saved as any),
+        ...(notified ? { invitee_notified: true } : {}),
+        ...(noShow ? { no_show: noShow } : {}),
+      });
+    } catch (err) { next(err); }
+  },
+  /* -- No-shows -- */
+  async markNoShow(req: AuthRequest, res: Response, next: NextFunction) {
+    try { res.json(await noShowService.mark(req.userId!, req.params.id)); } catch (err) { next(err); }
+  },
+  async noShowPreview(req: AuthRequest, res: Response, next: NextFunction) {
+    try { res.json(await noShowService.preview(req.userId!, req.params.id)); } catch (err) { next(err); }
+  },
+  async sendNoShowFollowUp(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      res.json(await noShowService.send(req.userId!, req.params.id, { subject: req.body?.subject, body: req.body?.body }));
     } catch (err) { next(err); }
   },
   async deleteEvent(req: AuthRequest, res: Response, next: NextFunction) {

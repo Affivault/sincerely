@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware.js';
 import { contactsService } from '../services/contacts.service.js';
+import { contactHygieneService } from '../services/contact-hygiene.service.js';
+import { engagementService } from '../services/engagement.service.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -177,6 +179,83 @@ export const contactsController = {
     try {
       const companies = await contactsService.companies(req.userId!);
       res.json(companies);
+    } catch (err) { next(err); }
+  },
+
+  /* -- Duplicates and merging (096) -- */
+  async duplicates(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const limit = Number(req.query.limit);
+      res.json(await contactHygieneService.duplicates(req.userId!, { limit: Number.isFinite(limit) ? limit : undefined }));
+    } catch (err) { next(err); }
+  },
+
+  async duplicatesFor(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      if (badId(req, res)) return;
+      res.json(await contactHygieneService.duplicates(req.userId!, { contactId: req.params.id }));
+    } catch (err) { next(err); }
+  },
+
+  async dismissDuplicate(req: AuthRequest, res: Response, next: NextFunction) {
+    try { res.json(await contactHygieneService.dismissDuplicate(req.userId!, req.body?.contact_ids)); } catch (err) { next(err); }
+  },
+
+  async merge(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const { primary_id, other_ids, fields } = req.body || {};
+      if (typeof primary_id !== 'string' || !UUID_RE.test(primary_id)) {
+        res.status(400).json({ error: 'primary_id must be a contact id' });
+        return;
+      }
+      if (!Array.isArray(other_ids) || other_ids.some((x: unknown) => typeof x !== 'string' || !UUID_RE.test(x))) {
+        res.status(400).json({ error: 'other_ids must be a list of contact ids' });
+        return;
+      }
+      res.json(await contactHygieneService.merge(req.userId!, primary_id, other_ids, fields || {}));
+    } catch (err) { next(err); }
+  },
+
+  /* -- Saved views (096) -- */
+  async listViews(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const page = req.query.page === 'lead' ? 'lead' : 'contact';
+      res.json(await contactHygieneService.listViews(req.userId!, page));
+    } catch (err) { next(err); }
+  },
+
+  async createView(req: AuthRequest, res: Response, next: NextFunction) {
+    try { res.status(201).json(await contactHygieneService.createView(req.userId!, req.body || {})); } catch (err) { next(err); }
+  },
+
+  async updateView(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      if (badId(req, res)) return;
+      res.json(await contactHygieneService.updateView(req.userId!, req.params.id, req.body || {}));
+    } catch (err) { next(err); }
+  },
+
+  async deleteView(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      if (badId(req, res)) return;
+      await contactHygieneService.deleteView(req.userId!, req.params.id);
+      res.status(204).send();
+    } catch (err) { next(err); }
+  },
+
+  /* -- Bulk edit -- */
+  async bulkEdit(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const { contact_ids, ...edit } = req.body || {};
+      res.json(await contactHygieneService.bulkEdit(req.userId!, contact_ids, edit as any));
+    } catch (err) { next(err); }
+  },
+
+  /* -- Engagement -- */
+  async engagement(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      if (badId(req, res)) return;
+      res.json(await engagementService.forContact(req.userId!, req.params.id));
     } catch (err) { next(err); }
   },
 };

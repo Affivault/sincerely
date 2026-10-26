@@ -119,7 +119,7 @@ async function ownedContactIds(userId: string, contactIds: string[]): Promise<st
 }
 
 export const contactsService = {
-  async list(userId: string, params: ListParams) {
+  async list(userId: string, params: ListParams): Promise<ReturnType<typeof formatPaginatedResponse<any>> & { sort_unavailable?: string }> {
     const { page, limit, from, to } = getPagination(params);
     // Anything added without a company or website gets what its address says.
     enrichmentService.ensure(userId);
@@ -245,15 +245,28 @@ export const contactsService = {
         break;
     }
 
-    const ALLOWED_SORT = new Set(['email', 'first_name', 'last_name', 'company', 'dcs_score', 'created_at']);
+    const ALLOWED_SORT = new Set(['email', 'first_name', 'last_name', 'company', 'dcs_score', 'created_at', 'engagement_score']);
     const sortBy = ALLOWED_SORT.has(params.sort_by || '') ? params.sort_by! : 'created_at';
     const sortOrder = params.sort_order === 'asc';
     // id breaks ties: an import writes hundreds of rows in the same instant,
-    // and without it paging repeated some and skipped others.
-    query = query.order(sortBy, { ascending: sortOrder }).order('id', { ascending: sortOrder }).range(from, to);
+    // and without it paging repeated some and skipped others. Unscored
+    // contacts go last either way: "no score yet" is not "coldest".
+    query = query
+      .order(sortBy, sortBy === 'engagement_score' ? { ascending: sortOrder, nullsFirst: false } : { ascending: sortOrder })
+      .order('id', { ascending: sortOrder })
+      .range(from, to);
 
     const { data, count, error } = await query;
-    if (error) { assertListCountColumn(error); throw new AppError(error.message, 500); }
+    if (error) {
+      assertListCountColumn(error);
+      // Sorting by a score that migration 096 has not created yet: show the
+      // list in its usual order and say why, rather than show nothing.
+      if (sortBy === 'engagement_score' && /engagement_score/.test(error.message || '')) {
+        const fallback = await contactsService.list(userId, { ...params, sort_by: 'created_at' });
+        return { ...fallback, sort_unavailable: 'Sorting by engagement needs database migration 096_duplicates_views_engagement_noshow.sql.' };
+      }
+      throw new AppError(error.message, 500);
+    }
 
     const suppressed = await suppressedEmails(userId, (data || []).map((c: any) => c.email));
     const contacts = (data || []).map((c: any) => ({

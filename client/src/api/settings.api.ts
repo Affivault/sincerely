@@ -47,6 +47,11 @@ export interface UserSettings {
   contact_promote_on_reply?: 'any' | 'positive' | 'off';
   contact_promote_on_meeting?: boolean;
   contact_promote_on_deal?: boolean;
+  /** Send the no-show follow-up by itself (096). Off: offered instead. */
+  no_show_auto_send?: boolean;
+  /** Empty or null: the built-in wording from shared/no-show. */
+  no_show_subject?: string | null;
+  no_show_body?: string | null;
   /** What you sell - Relay's drafts and the sequence writer start here. */
   relay_offer?: string;
   relay_tone?: 'friendly' | 'direct' | 'formal';
