@@ -2,7 +2,7 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { twoProportionPValue, wilsonLowerBound, wilsonUpperBound } from '../utils/stats.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { MIN_STEP_SENDS, revenueByCampaign, valuePerReply, outreachFunnel, dealValue } from '@lemlist/shared';
-import { readVariant } from '@lemlist/shared';
+import { readVariant, csvCell } from '@lemlist/shared';
 import type { SequencePerformance, SequenceStepPerformance, StepVerdict } from '@lemlist/shared';
 
 function calcRate(value: number, total: number): number {
@@ -491,7 +491,10 @@ export const analyticsService = {
     const campaignName = campaignData?.name || 'Unknown';
 
     const lines: string[] = [];
-    lines.push(`Campaign Report: ${campaignName.replace(/[\n\r]/g, ' ')}`);
+    // The name is the account's own text, so it goes through the same
+    // formula guard as the contact columns: a campaign called =HYPERLINK(...)
+    // was printed raw on the first line and ran when the file was opened.
+    lines.push(`Campaign Report,${csvCell(campaignName.replace(/[\n\r]/g, ' '))}`);
     lines.push(`Generated: ${new Date().toISOString()}`);
     lines.push('');
     lines.push('Summary');
@@ -509,10 +512,7 @@ export const analyticsService = {
     for (const c of contacts) {
       const name = [c.first_name, c.last_name].filter(Boolean).join(' ') || '';
       // Neutralise spreadsheet formulas (=, +, -, @) in imported text.
-      const csvSafe = (v: string) => `"${(/^[=+\-@\t\r]/.test(v) ? `'${v}` : v).replace(/"/g, '""')}"`;
-      const csvEmail = csvSafe(String(c.email ?? ''));
-      const csvName = csvSafe(name);
-      lines.push(`${csvEmail},${csvName},${c.status},${c.dcs_score ?? ''},${c.sent},${c.opened},${c.clicked},${c.replied ? 'Yes' : 'No'},${c.is_bounced ? 'Yes' : 'No'}`);
+      lines.push([String(c.email ?? ''), name, c.status, c.dcs_score ?? '', c.sent, c.opened, c.clicked, !!c.replied, !!c.is_bounced].map(csvCell).join(','));
     }
 
     return lines.join('\n');
@@ -544,7 +544,8 @@ export const analyticsService = {
     lines.push('Campaigns');
     lines.push('Name,Status,Created');
     for (const c of campaigns || []) {
-      lines.push(`"${String(c.name ?? '').replace(/"/g, '""')}",${c.status},${c.created_at}`);
+      // Quoted but not formula-guarded before: a campaign named =... ran on open.
+      lines.push([String(c.name ?? ''), c.status, c.created_at].map(csvCell).join(','));
     }
 
     return lines.join('\n');

@@ -23,6 +23,8 @@ import {
 import toast from 'react-hot-toast';
 import type { Company } from '@lemlist/shared';
 import { keepPrevious } from '../../lib/listQuery';
+// Shared, so every export guards against spreadsheet formulas the same way.
+import { csvCell } from '@lemlist/shared';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Companies.
@@ -123,11 +125,6 @@ const ALL_COLUMNS: ColumnDef[] = [
 ];
 
 const DEFAULT_COLUMNS = ['contact_count', 'deal_count', 'open_value', 'industry', 'location', 'domain'];
-
-function csvCell(v: string | number | null | undefined): string {
-  const s = v == null ? '' : String(v);
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
 
 /** Export the given companies as a CSV file the browser downloads directly — no server round-trip. */
 function exportCompaniesCsv(companies: Company[]) {

@@ -25,6 +25,9 @@ import { useTheme } from '../../context/ThemeContext';
 import { Link } from 'react-router-dom';
 import { cn } from '../../lib/utils';
 import { SequenceStepsPanel } from '../../components/analytics/SequenceStepsPanel';
+import { CampaignCompare } from '../../components/analytics/CampaignCompare';
+import { SenderResults } from '../../components/analytics/SenderResults';
+import { downloadCsv as saveCsv, csvDate } from '../../lib/csv';
 import toast from 'react-hot-toast';
 import { keepPrevious } from '../../lib/listQuery';
 import { Refreshing } from '../../components/ui/Refreshing';
@@ -43,7 +46,7 @@ import {
   Calendar, Target, Users, ChevronDown, Download, ShieldOff,
   ShieldCheck, Activity, TrendingUp, TrendingDown, BarChart3,
   FlaskConical, Layers, Thermometer, ArrowRight, Trophy,
-  ChevronUp, ChevronsUpDown, Eye, Search, Filter, Clock, Zap,
+  ChevronUp, ChevronsUpDown, Eye, Search, Filter, Clock, Zap, Columns3, AtSign,
 } from 'lucide-react';
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -489,6 +492,30 @@ function CampaignLeaderboard({
   );
 }
 
+/** The leaderboard as a file: the same rows, all time, rates as numbers. */
+function leaderboardCsv(campaigns: CampaignListItem[]) {
+  saveCsv(
+    `campaign-leaderboard-${csvDate()}.csv`,
+    ['Campaign', 'Status', 'Created', 'Sent', 'People reached', 'Opened', 'Open rate (%)', 'Clicked', 'Click rate (%)', 'Replied', 'Reply rate (%)', 'Bounced', 'Bounce rate (%)'],
+    campaigns.map((c) => [
+      c.name, campaignStatusLabel(c.status), c.created_at.slice(0, 10), c.sent, c.contacts_sent ?? '',
+      c.opened, c.open_rate, c.clicked, c.click_rate, c.replied, c.reply_rate, c.bounced, c.bounce_rate,
+    ]),
+  );
+}
+
+/** One campaign's step table as a file. */
+function stepsCsv(campaignName: string, steps: FunnelStep[]) {
+  saveCsv(
+    `steps-${campaignName.replace(/[^\w-]+/g, '-').slice(0, 40) || 'campaign'}-${csvDate()}.csv`,
+    ['Step', 'Subject', 'Delay (days)', 'Sent', 'Opened', 'Open rate (%)', 'Clicked', 'Click rate (%)', 'Replied', 'Reply rate (%)', 'Bounced', 'Bounce rate (%)'],
+    steps.map((st) => [
+      st.step_number, st.subject, st.delay_days, st.sent, st.opened, st.open_rate, st.clicked, st.click_rate,
+      st.replied, st.reply_rate, st.bounced, st.bounce_rate,
+    ]),
+  );
+}
+
 // ─── Deliverability section ────────────────────────────────────────────────
 
 function DeliverabilitySection({
@@ -822,7 +849,7 @@ function ContactsTab({ contacts }: { contacts: CampaignContact[] }) {
 
 const DATE_RANGE_MAP = { '7d': 7, '30d': 30, '90d': 90 } as const;
 
-type Mode = 'overview' | 'campaign';
+type Mode = 'overview' | 'campaign' | 'compare' | 'senders';
 type CampaignTab = 'stats' | 'funnel' | 'abtest' | 'contacts' | 'heatmap';
 
 export function AnalyticsDashboardPage() {
@@ -1039,7 +1066,7 @@ export function AnalyticsDashboardPage() {
       />
 
       {/* Mode switcher */}
-      <div className="flex items-center gap-2 p-1 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-xl w-fit">
+      <div className="flex flex-wrap max-w-full items-center gap-2 p-1 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-xl w-fit">
         <button
           onClick={() => setMode('overview')}
           aria-pressed={mode === 'overview'}
@@ -1071,7 +1098,36 @@ export function AnalyticsDashboardPage() {
             </span>
           )}
         </button>
+        {([
+          { id: 'compare' as const, label: 'Compare', icon: Columns3 },
+          { id: 'senders' as const, label: 'By sender', icon: AtSign },
+        ]).map((m) => (
+          <button
+            key={m.id}
+            onClick={() => setMode(m.id)}
+            aria-pressed={mode === m.id}
+            className={cn(
+              'inline-flex items-center gap-2 px-4 h-8 rounded-lg text-body font-medium transition-all',
+              mode === m.id
+                ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]'
+                : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'
+            )}
+          >
+            <m.icon className="h-3.5 w-3.5" />
+            {m.label}
+          </button>
+        ))}
       </div>
+
+      {/* ── COMPARE MODE ─────────────────────────────────────────────────── */}
+      {mode === 'compare' && (
+        (campaignList?.length ?? 0) < 2
+          ? <EmptyDeepDive icon={Columns3} title="Two campaigns are needed to compare" description="Once a second campaign has sent, the two line up here side by side." />
+          : <CampaignCompare campaigns={campaignList!} />
+      )}
+
+      {/* ── BY SENDER MODE ───────────────────────────────────────────────── */}
+      {mode === 'senders' && <SenderResults />}
 
       {/* ── OVERVIEW MODE ────────────────────────────────────────────────── */}
       {mode === 'overview' && (
@@ -1201,9 +1257,14 @@ export function AnalyticsDashboardPage() {
                   {/* The leaderboard is all time, whatever the period above says. */}
                   <p className="text-caption text-[var(--text-secondary)] mt-0.5">All time · click any row to deep-dive into that campaign</p>
                 </div>
-                <span className="text-caption text-[var(--text-tertiary)] bg-[var(--bg-elevated)] px-2 py-0.5 rounded-full">
-                  {campaignList!.length} campaigns
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-caption text-[var(--text-tertiary)] bg-[var(--bg-elevated)] px-2 py-0.5 rounded-full">
+                    {campaignList!.length} campaigns
+                  </span>
+                  <Button variant="secondary" size="sm" onClick={() => leaderboardCsv(campaignList!)}>
+                    <Download className="h-3.5 w-3.5" /> CSV
+                  </Button>
+                </div>
               </div>
               <CampaignLeaderboard campaigns={campaignList!} onSelect={selectCampaign} />
             </div>
@@ -1432,7 +1493,12 @@ export function AnalyticsDashboardPage() {
 
                   {funnelData && funnelData.length > 0 && (
                     <div className="p-5 panel">
-                      <h3 className="text-strong font-semibold text-[var(--text-primary)] mb-4">Step-by-Step Breakdown</h3>
+                      <div className="mb-4 flex items-center justify-between gap-2">
+                        <h3 className="text-strong font-semibold text-[var(--text-primary)]">Step-by-step breakdown</h3>
+                        <Button variant="secondary" size="sm" onClick={() => stepsCsv(selectedCampaign?.name || 'campaign', funnelData)}>
+                          <Download className="h-3.5 w-3.5" /> CSV
+                        </Button>
+                      </div>
                       <div className="overflow-x-auto">
                         <table className="w-full text-strong">
                           <thead>

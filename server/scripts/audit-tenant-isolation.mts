@@ -366,6 +366,11 @@ const calendarSyncService = S(calsync, 'calendarSync');
 const calendarService = S(calendar, 'calendarService');
 const availabilityService = S(calendar, 'availabilityService');
 
+// The sending-health page and the analytics comparisons read across every
+// mailbox and campaign an account has, so each is called as the intruder too.
+const { sendingHealthService } = await import('../src/services/sending-health.service.js');
+const { comparisonService } = await import('../src/services/comparison.service.js');
+
 const cases: Case[] = [
   // Contacts
   { name: 'contacts.get',            on: contactsService, method: 'get',    args: [INTRUDER, ID.contact] },
@@ -458,6 +463,12 @@ const cases: Case[] = [
   { name: 'smtp.update',             on: smtpService, method: 'update',          args: [INTRUDER, ID.smtp, { label: 'x' }] },
   { name: 'smtp.delete',             on: smtpService, method: 'delete',          args: [INTRUDER, ID.smtp] },
   { name: 'smtp.assertOwnership',    on: smtpService, method: 'assertOwnership', args: [INTRUDER, ID.smtp] },
+  // One pace on many mailboxes: OWNER's id named explicitly, and "all".
+  { name: 'smtp.applyPace (by id)',  on: smtpService, method: 'applyPace',       args: [INTRUDER, { account_ids: [ID.smtp], daily_send_limit: 20, send_gap_min_seconds: 300, send_gap_max_seconds: 600 }] },
+  { name: 'smtp.applyPace (all)',    on: smtpService, method: 'applyPace',       args: [INTRUDER, { account_ids: 'all', daily_send_limit: 20, send_gap_min_seconds: 300, send_gap_max_seconds: 600 }] },
+  { name: 'sendingHealth.report',    on: sendingHealthService, method: 'report', args: [INTRUDER] },
+  { name: 'compare.campaigns',       on: comparisonService, method: 'campaigns', args: [INTRUDER, [ID.campaign, '20000000-0000-0000-0000-000000000009']] },
+  { name: 'compare.bySender',        on: comparisonService, method: 'bySender',  args: [INTRUDER, '2026-01-01', '2026-03-01'] },
 
   // Inbox
   { name: 'inbox.get',               on: inboxService, method: 'get',             args: [INTRUDER, ID.message] },

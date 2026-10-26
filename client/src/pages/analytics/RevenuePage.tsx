@@ -9,6 +9,8 @@ import { Skeleton } from '../../components/ui/Skeleton';
 import { Button } from '../../components/ui/Button';
 import { valuePerReply, formatMoney, plural } from '@lemlist/shared';
 import { cn } from '../../lib/utils';
+// Shared, so every export guards against spreadsheet formulas the same way.
+import { csvCell } from '@lemlist/shared';
 
 /* ═══════════════════════════════════════════════════════════════════════
    What the outreach earned.
@@ -30,11 +32,6 @@ function money(v: number): string {
 /** A rate as a percentage, or an em dash where there is no evidence yet. */
 function pct(v: number | null): string {
   return v === null ? '—' : `${Math.round(v * 100)}%`;
-}
-
-function csvCell(v: string | number | null | undefined): string {
-  const s = v == null ? '' : String(v);
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
 /** Export the campaign revenue table as a CSV file the browser downloads directly — no server round-trip. */

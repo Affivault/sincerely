@@ -24,6 +24,8 @@ import toast from 'react-hot-toast';
 import { EmptyState } from '../../components/shared/EmptyState';
 import { keepPrevious } from '../../lib/listQuery';
 import { Refreshing } from '../../components/ui/Refreshing';
+// Shared, so every export guards against spreadsheet formulas the same way.
+import { csvCell } from '@lemlist/shared';
 
 /* ═══════════════════════════════════════════════════════════════════════
    The inbox between a reply and a forecast.
@@ -63,11 +65,6 @@ function personName(lead: Lead): string {
   const c = lead.contact;
   if (!c) return lead.title;
   return [c.first_name, c.last_name].filter(Boolean).join(' ') || c.email;
-}
-
-function csvCell(v: string | number | null | undefined): string {
-  const s = v == null ? '' : String(v);
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
 /** Export the given leads as a CSV file the browser downloads directly — no server round-trip. */

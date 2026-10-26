@@ -2,6 +2,7 @@ import { Router, Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware.js';
 import { stepOutcomes } from '../services/step-outcomes.service.js';
 import { analyticsController } from '../controllers/analytics.controller.js';
+import { comparisonService } from '../services/comparison.service.js';
 
 export const analyticsRoutes = Router();
 
@@ -14,6 +15,15 @@ analyticsRoutes.get('/deliverability', analyticsController.deliverability);
 analyticsRoutes.get('/trend', analyticsController.trend);
 analyticsRoutes.get('/export/overview', analyticsController.exportOverviewReport);
 analyticsRoutes.get('/export/campaigns/:campaignId', analyticsController.exportCampaignReport);
+
+// Two to four campaigns side by side: ?ids=a,b,c
+analyticsRoutes.get('/compare', async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try { res.json(await comparisonService.campaigns(req.userId!, req.query.ids)); } catch (err) { next(err); }
+});
+// Results by the mailbox that sent them and by its domain: ?from=YYYY-MM-DD&to=YYYY-MM-DD
+analyticsRoutes.get('/by-sender', async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try { res.json(await comparisonService.bySender(req.userId!, req.query.from, req.query.to)); } catch (err) { next(err); }
+});
 
 // /campaigns must be registered BEFORE /:campaignId to prevent shadowing
 analyticsRoutes.get('/campaigns', analyticsController.campaignList);

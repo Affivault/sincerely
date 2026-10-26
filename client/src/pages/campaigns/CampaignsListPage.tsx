@@ -24,7 +24,7 @@ import {
   Folder, FolderPlus, FolderOpen, X, Pencil, Trash2,
   BarChart3, Layers, Play, Pause, Search, AlertTriangle, MoreVertical,
   ChevronUp, ChevronDown, ChevronsUpDown, ChevronRight,
-  Clock, Gauge, Calendar, ArrowUpRight, Ban, Users, CheckCircle2,
+  Clock, Gauge, Calendar, ArrowUpRight, Ban, Users, CheckCircle2, Download,
 } from 'lucide-react';
 
 /* Shared column template so the header and every row stay perfectly aligned */
@@ -87,6 +87,7 @@ import { rateReadout, rateBarWidth, formatDate, formatMoney } from '@lemlist/sha
 import { analyticsApi } from '../../api/analytics.api';
 import { keepPrevious } from '../../lib/listQuery';
 import { Refreshing } from '../../components/ui/Refreshing';
+import { downloadCsv, csvDate } from '../../lib/csv';
 
 const STATUS_TABS = [
   { label: 'All',       value: '' },
@@ -333,6 +334,27 @@ export function CampaignsListPage() {
             {activeFolderId && activeFolderId !== 'all' && activeFolderId !== null && (
               <Button variant="secondary" size="sm" onClick={() => setFolderAnalyticsId(activeFolderId)}>
                 <BarChart3 className="h-3.5 w-3.5" /> Folder analytics
+              </Button>
+            )}
+            {visibleCampaigns.length > 0 && (
+              <Button
+                variant="secondary"
+                size="sm"
+                title="Download the campaigns shown, with their figures, as a CSV file"
+                onClick={() => downloadCsv(
+                  `campaigns-${csvDate()}.csv`,
+                  ['Campaign', 'Status', 'Created', 'Contacts', 'Sent', 'People reached', 'Opened', 'Open rate (%)', 'Clicked', 'Click rate (%)', 'Replied', 'Reply rate (%)', 'Bounced', 'Bounce rate (%)', 'Unsubscribed'],
+                  // The rows as the table has them: the same folder, status and figures.
+                  visibleCampaigns.map((c) => c.stats_unavailable
+                    ? [c.name, c.status, String(c.created_at || '').slice(0, 10)]
+                    : [
+                      c.name, c.status, String(c.created_at || '').slice(0, 10), c.contacts_count, c.sent_count, c.contacts_reached ?? '',
+                      c.opened_count, c.open_rate, c.clicked_count, c.click_rate, c.replied_count, c.reply_rate,
+                      c.bounced_count, c.bounce_rate, c.unsubscribed_contacts,
+                    ]),
+                )}
+              >
+                <Download className="h-3.5 w-3.5" /> CSV
               </Button>
             )}
             <Button size="sm" onClick={() => setShowStartChooser(true)}>

@@ -3,6 +3,7 @@ import dns from 'dns';
 import { promisify } from 'util';
 import { AuthRequest } from '../middleware/auth.middleware.js';
 import { smtpService } from '../services/smtp.service.js';
+import { sendingHealthService } from '../services/sending-health.service.js';
 import { supabaseAdmin } from '../config/supabase.js';
 import { decrypt } from '../utils/encryption.js';
 import { sendViaSmtp, formatFromHeader, describeSmtpError } from '../services/email-sender.service.js';
@@ -77,6 +78,20 @@ export const smtpController = {
   },
 
   /** GET /smtp-accounts/warmup — warm-up status + metrics for every mailbox. */
+  /** GET /smtp-accounts/health — every mailbox's sending health, judged in one read. */
+  async health(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      res.json(await sendingHealthService.report(req.userId!));
+    } catch (err) { next(err); }
+  },
+
+  /** POST /smtp-accounts/pace — one daily limit and gap on many mailboxes. */
+  async applyPace(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      res.json(await smtpService.applyPace(req.userId!, req.body));
+    } catch (err) { next(err); }
+  },
+
   async warmupSummary(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const result = await warmupService.summary(req.userId!);

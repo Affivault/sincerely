@@ -1,4 +1,5 @@
 import { apiClient } from './client';
+import type { SendingHealthReport } from '@lemlist/shared';
 import type { SmtpAccount, CreateSmtpAccountInput, UpdateSmtpAccountInput, VerifySmtpInput, VerifySmtpResult, WarmupSummary, SetWarmupInput, DiagnoseSmtpInput, MailboxDiagnostics } from '@lemlist/shared';
 
 export const smtpApi = {
@@ -84,6 +85,34 @@ export const smtpApi = {
         note: string;
       }>;
     }>('/smtp-accounts/repair-hosts');
+    return data;
+  },
+
+  /** Every mailbox's sending health, judged on the server in one read. */
+  health: async () => {
+    const { data } = await apiClient.get<SendingHealthReport>('/smtp-accounts/health');
+    // A body without a mailbox list (an older server, an error page parsed as
+    // JSON) is an error, so the page says it could not load rather than
+    // rendering half a report.
+    if (!data || !Array.isArray((data as any).mailboxes)) throw new Error('Sending health could not be loaded');
+    return data;
+  },
+
+  /** One daily limit and gap on the named mailboxes, or on all of them. */
+  applyPace: async (input: {
+    account_ids: string[] | 'all';
+    daily_send_limit: number;
+    send_gap_min_seconds: number;
+    send_gap_max_seconds: number;
+  }) => {
+    const { data } = await apiClient.post<{
+      matched: number;
+      changed: number;
+      unchanged: number;
+      skipped: number;
+      /** False when the database has no gap columns yet (migration 089). */
+      gap_saved: boolean;
+    }>('/smtp-accounts/pace', input);
     return data;
   },
 
