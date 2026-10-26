@@ -2263,8 +2263,10 @@ function agentGap(gap) {
  */
 async function agentPerform(action) {
   let tab = null;
+  // An inbox read opens the messaging page; everything else a profile.
+  const target = action.url || action.profile_url;
   try {
-    tab = await chrome.tabs.create({ url: action.profile_url, active: false });
+    tab = await chrome.tabs.create({ url: target, active: false });
   } catch (err) {
     return { ok: false, reason: `Could not open the profile: ${err?.message || err}` };
   }
@@ -2369,11 +2371,26 @@ async function agentAct(action) {
   await agentState({ status: 'working', current: action.title, error: null });
   const result = await agentPerform(action);
 
+  if (!action.task_id) {
+    // Upkeep: no task to close, just an outcome to report. An account
+    // problem met here stops the agent exactly as it does for a step.
+    await api.agentReport(action, result);
+    await agentState({
+      status: result.fatal ? (result.kind === 'logged_out' ? 'logged_out' : 'blocked') : result.ok ? 'done_one' : 'skipped_one',
+      last: result.ok ? action.title : result.reason,
+      error: null,
+    });
+    if (result.fatal) {
+      notify(result.kind === 'logged_out' ? 'Sign in to LinkedIn' : 'LinkedIn paused the agent', result.reason);
+    }
+    return;
+  }
+
   if (result.ok) {
-    await api.agentDone(action.task_id);
+    await api.agentDone(action.task_id, result);
     await agentState({ status: 'done_one', last: action.title, error: null });
   } else {
-    await api.agentFailed(action.task_id, result.reason, result.fatal, result.kind || null);
+    await api.agentFailed(action.task_id, result.reason, result.fatal, result.kind || null, result);
     await agentState({
       status: result.fatal ? (result.kind === 'logged_out' ? 'logged_out' : 'blocked') : 'skipped_one',
       last: result.reason,
@@ -2398,7 +2415,10 @@ async function agentTick() {
       // neither held until the lease runs out nor charged an attempt.
       if (pending) {
         await clearPending();
-        await api.agentFailed(pending.action.task_id, 'Paused on this machine', false, 'released').catch(() => {});
+        // Upkeep has no task to hand back; its claim simply lapses.
+        if (pending.action.task_id) {
+          await api.agentFailed(pending.action.task_id, 'Paused on this machine', false, 'released').catch(() => {});
+        }
       }
       await agentState({ status: 'paused_local' });
       return;

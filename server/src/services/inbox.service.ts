@@ -221,6 +221,17 @@ async function syncArchiveToImap(
  * from_email - our own mailbox - so the follow-up landed in our own inbox
  * and the prospect never saw it.
  */
+/**
+ * A LinkedIn message (095) has no mailbox behind it. Answering it by email
+ * would start a second conversation the person never asked for, from an
+ * address they may never have given, so the inbox sends them to LinkedIn.
+ */
+function refuseLinkedinReply(original: { channel?: string | null }): void {
+  if (original.channel === 'linkedin') {
+    throw new AppError('This message came in on LinkedIn. Answer it on LinkedIn, or write them a new email.', 400);
+  }
+}
+
 function replyRecipient(original: { direction?: string | null; from_email?: string | null; to_email?: string | null }): string {
   const to = original.direction === 'outbound' ? original.to_email : original.from_email;
   if (!to) throw new AppError('This message has no address to reply to', 400);
@@ -896,6 +907,7 @@ export const inboxService = {
       .eq('user_id', userId)
       .single();
     if (!original) throw new AppError('Message not found', 404);
+    refuseLinkedinReply(original);
 
     const smtpAccount = await findSmtpAccount(userId, smtpAccountId || original.smtp_account_id);
     let smtpPassword: string;
@@ -1162,6 +1174,7 @@ ${original.body_html || `<p>${textToHtml(original.body_text)}</p>`}`;
       .eq('user_id', userId)
       .single();
     if (!original) throw new AppError('Message not found', 404);
+    refuseLinkedinReply(original);
 
     const smtpAccount = await findSmtpAccount(userId, smtpAccountId || original.smtp_account_id);
     const domain = smtpAccount.email_address?.split('@')[1] || 'usesincerely.com';

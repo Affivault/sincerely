@@ -2,10 +2,11 @@
    LinkedIn as a channel.
 
    There is no public LinkedIn API for connection requests or messages to
-   people you aren't connected to, so a LinkedIn step doesn't pretend to
-   send anything. It becomes a task — personalised, with the profile one
-   click away — and the sequence waits for a human to complete it before
-   carrying on.
+   people you aren't connected to, so a LinkedIn step becomes a task —
+   personalised, with the profile one click away — and the sequence waits
+   for it before carrying on. The browser extension's agent does those
+   tasks in the user's own logged-in browser, at a human pace; a person is
+   only asked to step in when the agent cannot (signed out, a checkpoint).
    ═══════════════════════════════════════════════════════════════════════ */
 
 /** LinkedIn caps a connection-request note at 300 characters. */
@@ -42,6 +43,31 @@ export const LINKEDIN_SKIP_AFTER_DAYS_DEFAULT = 7;
 
 /** The agent tries a task this many times before the sequence moves on. */
 export const LINKEDIN_TASK_MAX_ATTEMPTS = 3;
+
+/**
+ * Invites still pending this long are withdrawn (095). Three weeks is
+ * long past the point anybody accepts, and a pile of stale pending
+ * invites is one of the things LinkedIn weighs against an account.
+ */
+export const LINKEDIN_WITHDRAW_AFTER_DAYS_DEFAULT = 21;
+
+/**
+ * The extension checks in every minute while Chrome is open. Ten minutes
+ * of silence means Chrome is closed or the extension is off, and nothing
+ * LinkedIn-side will happen until somebody opens it.
+ */
+export const LINKEDIN_AGENT_OFFLINE_MINUTES = 10;
+
+/** The longest a message step may wait for an invite to be accepted. */
+export const LINKEDIN_WAIT_CONNECTED_MAX_DAYS = 90;
+
+/** Daily caps for the agent's own upkeep, on top of the step caps (095). */
+export const LINKEDIN_UPKEEP_LIMITS = {
+  daily_check_limit: { default: 40, max: 150 },
+  daily_withdraw_limit: { default: 10, max: 40 },
+  daily_inbox_limit: { default: 8, max: 24 },
+  daily_enrich_limit: { default: 60, max: 200 },
+} as const;
 
 /**
  * A profile URL with a scheme on it.

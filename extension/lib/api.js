@@ -897,21 +897,38 @@ export async function testConnection() {
 /* LinkedIn agent                                                     */
 /* ------------------------------------------------------------------ */
 /**
- * The three calls the LinkedIn agent makes. Note what isn't here: nothing
- * sends a cookie, a session, or anything about the LinkedIn login. The
- * server answers with a public profile URL and the message the user already
- * wrote, and hears back only "done" or "failed".
+ * The calls the LinkedIn agent makes. Note what isn't here: nothing sends a
+ * cookie, a session, or anything about the LinkedIn login. The server
+ * answers with a public profile URL and the message the user already wrote,
+ * and hears back what happened, plus what the profile's top card said
+ * (headline, title, company, location, degree) so blank contact fields can
+ * be filled.
  */
+
+/**
+ * What this build can do beyond campaign steps. The server only hands out
+ * acceptance checks, withdrawals and inbox reads to an extension that says
+ * it knows them, so an older build is never given work it cannot report.
+ */
+export const AGENT_CAPS = ['upkeep'];
 
 /** "Is there anything to do right now?" — usually the answer is no. */
 export async function agentNext() {
-  return request('/linkedin/agent/next');
+  return request(`/linkedin/agent/next?caps=${AGENT_CAPS.join(',')}`);
 }
 
-export async function agentDone(taskId) {
+/** Only what the server reads: the invite's state and the top card. */
+function visitReport(result) {
+  const out = {};
+  if (result?.profile && typeof result.profile === 'object') out.profile = result.profile;
+  if (typeof result?.state === 'string') out.state = result.state;
+  return out;
+}
+
+export async function agentDone(taskId, result = null) {
   return request(`/linkedin/agent/tasks/${encodeURIComponent(taskId)}/done`, {
     method: 'POST',
-    body: {},
+    body: visitReport(result),
   });
 }
 
@@ -921,9 +938,37 @@ export async function agentDone(taskId) {
  * ('logged_out', 'restricted', 'weekly_limit'), or 'released' to hand an
  * unattempted claim back, so the task does not lose one of its attempts.
  */
-export async function agentFailed(taskId, reason, fatal = false, kind = null) {
+export async function agentFailed(taskId, reason, fatal = false, kind = null, result = null) {
   return request(`/linkedin/agent/tasks/${encodeURIComponent(taskId)}/failed`, {
     method: 'POST',
-    body: { reason: String(reason || '').slice(0, 500), fatal: !!fatal, ...(kind ? { kind } : {}) },
+    body: {
+      reason: String(reason || '').slice(0, 500), fatal: !!fatal, ...(kind ? { kind } : {}),
+      ...visitReport(result),
+    },
+  });
+}
+
+/**
+ * How an upkeep action went: an acceptance check, a withdrawal or an inbox
+ * read. These have no task; the contact (or, for the inbox, the watchlist
+ * the server sent) is what they are about.
+ */
+export async function agentReport(action, result) {
+  return request('/linkedin/agent/report', {
+    method: 'POST',
+    body: {
+      kind: action.kind,
+      ...(action.contact_id ? { contact_id: action.contact_id } : {}),
+      result: {
+        ok: !!result?.ok,
+        fatal: !!result?.fatal,
+        ...(result?.kind ? { kind: result.kind } : {}),
+        ...(result?.reason ? { reason: String(result.reason).slice(0, 500) } : {}),
+        ...(result?.state ? { state: result.state } : {}),
+        ...(result?.already ? { already: true } : {}),
+        ...(result?.profile ? { profile: result.profile } : {}),
+        ...(Array.isArray(result?.conversations) ? { conversations: result.conversations.slice(0, 20) } : {}),
+      },
+    },
   });
 }

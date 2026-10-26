@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { crmApi } from '../../api/crm.api';
+import { linkedinApi } from '../../api/linkedin.api';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { EmptyState } from '../../components/shared/EmptyState';
 import { Checkbox } from '../../components/ui/Checkbox';
@@ -249,7 +250,31 @@ export function TasksPage() {
   const [typeFilter, setTypeFilter] = useState<TaskType | 'all'>('all');
   const [showDone, setShowDone] = useState(false);
 
-  const { data: tasks = [], isLoading } = useQuery({ queryKey: ['crm', 'tasks'], queryFn: () => crmApi.listTasks() });
+  const { data: allTasks = [], isLoading } = useQuery({ queryKey: ['crm', 'tasks'], queryFn: () => crmApi.listTasks() });
+
+  /*
+   * LinkedIn steps are the agent's while it is on. Listed here they were
+   * chores somebody else was already doing, crowding out the calls and
+   * follow-ups that are actually the user's - so they move to the LinkedIn
+   * page's activity log, and this list keeps only a line saying how many.
+   * With the agent off they are the user's to do, and they stay. The one
+   * task the agent raises for a person ("LinkedIn needs you") has no
+   * channel, so it always shows.
+   */
+  const { data: agent } = useQuery({
+    queryKey: ['linkedin', 'status'],
+    queryFn: linkedinApi.status,
+    retry: false,
+    staleTime: 60_000,
+  });
+  const agentOn = !!agent?.settings.enabled;
+  const tasks = useMemo(
+    () => (agentOn ? allTasks.filter((t) => !isLinkedinStep(t.channel || '')) : allTasks),
+    [allTasks, agentOn],
+  );
+  const agentHandling = agentOn
+    ? allTasks.filter((t) => !t.is_done && isLinkedinStep(t.channel || '')).length
+    : 0;
 
   /*
    * Ticking a task should feel instant - the list is the whole interface.
@@ -394,6 +419,21 @@ export function TasksPage() {
           <StatCard label="Open" value={stats.open} />
           <StatCard label="Done today" value={stats.doneToday} tone={stats.doneToday > 0 ? 'text-emerald-700 dark:text-emerald-400' : undefined} />
         </div>
+
+        {agentHandling > 0 && (
+          <Link
+            to="/linkedin"
+            className="flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2 text-body text-[var(--text-secondary)] hover:border-[var(--border-default)] transition-colors"
+          >
+            <Linkedin className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400 flex-shrink-0" />
+            <span>
+              The LinkedIn agent is handling <span className="tabular font-semibold text-[var(--text-primary)]">{agentHandling}</span> step{agentHandling === 1 ? '' : 's'} for you.
+            </span>
+            <span className="ml-auto inline-flex items-center gap-1 text-caption font-medium text-[var(--indigo-text)]">
+              See its activity <ArrowRight className="h-3 w-3" />
+            </span>
+          </Link>
+        )}
 
         {/* Type filter */}
         <div className="flex items-center gap-1.5 flex-wrap">

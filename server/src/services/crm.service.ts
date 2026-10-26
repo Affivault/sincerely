@@ -4,6 +4,7 @@ import { AppError } from '../middleware/error.middleware.js';
 import { widenWindowStart } from './calendar.service.js';
 import { resumeAfterTask } from './sequence.service.js';
 import { skipAndResume } from './channel-tasks.service.js';
+import { linkedinAgentService, LINKEDIN_ATTENTION_MARKER } from './linkedin-agent.service.js';
 import { eventTimeProblem, hasEconomics, totalContractValue } from '@lemlist/shared';
 import { contactIdsOnDeal, promoteToContact, promoteToCustomer } from './lifecycle.service.js';
 
@@ -743,6 +744,13 @@ export const crmService = {
     // must never be able to fail the request that ticked it.
     if (input.is_done === true && (data as any).campaign_contact_id) {
       resumeAfterTask(id).catch((e) => console.warn('[CRM] sequence resume failed:', e?.message));
+    }
+
+    // "LinkedIn needs you" is the one task the agent raises for a person.
+    // Ticking it off means they have signed in or cleared the check, which
+    // is what the paused agent was waiting for.
+    if (input.is_done === true && (data as any).payload === LINKEDIN_ATTENTION_MARKER && !(data as any).channel) {
+      await linkedinAgentService.resumeFromAttention(userId);
     }
 
     return data;

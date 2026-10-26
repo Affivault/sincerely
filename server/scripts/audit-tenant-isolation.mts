@@ -97,7 +97,17 @@ function freshWorld(): World {
     campaign_contacts: [owned('c0ffee00-0000-0000-0000-000000000001', { campaign_id: ID.campaign, contact_id: ID.contact, status: 'pending' })],
     campaign_activities: [owned('c0ffee00-0000-0000-0000-000000000002', { campaign_id: ID.campaign, contact_id: ID.contact, activity_type: 'sent' })],
     deals: [owned(ID.deal, { stage: 'lead', value: 1000, contact_id: ID.contact, position: 0 })],
-    crm_tasks: [owned(ID.task, { deal_id: ID.deal, is_done: false })],
+    crm_tasks: [owned(ID.task, { deal_id: ID.deal, is_done: false, channel: 'linkedin_connect', contact_id: ID.contact, attempts: 1 })],
+    // The intruder's own agent settings, with migration 095's columns, so the
+    // LinkedIn cases below reach their ownership checks rather than stopping
+    // at "migration not run".
+    linkedin_settings: [{
+      user_id: INTRUDER, enabled: true, timezone: 'UTC', work_days: [1, 2, 3, 4, 5, 6, 7],
+      work_start: '00:00', work_end: '23:59', min_gap_seconds: 45, max_gap_seconds: 180,
+      daily_connect_limit: 15, daily_message_limit: 40, daily_visit_limit: 60,
+      daily_check_limit: 40, daily_withdraw_limit: 10, daily_inbox_limit: 8, daily_enrich_limit: 60,
+      withdraw_after_days: 21, counters_date: '2026-01-01',
+    }],
     crm_notes: [owned(ID.note, { deal_id: ID.deal, contact_id: ID.contact, pinned: false })],
     deal_participants: [owned(ID.participant, { deal_id: ID.deal, contact_id: ID.contact, role: 'Champion' })],
     crm_events: [owned('30000000-0000-0000-0000-000000000005', { starts_at: '2026-02-01T00:00:00Z', type: 'meeting' })],
@@ -295,7 +305,7 @@ function judge(name: string, returned: unknown, threw: unknown) {
 const [
   contacts, campaigns, campaignSteps, campaignContacts, crm, calendar, booking, calsync, leads, lists, companies,
   template, segments, tags, smtp, inbox, triage, webhook, integrations, asset, apikey, settings, suppression,
-  inboxReminders, inboxAssign, inboxAttachments,
+  inboxReminders, inboxAssign, inboxAttachments, linkedinAgent,
 ] = await Promise.all([
   import('../src/services/contacts.service.js'),
   import('../src/services/campaigns.service.js'),
@@ -323,6 +333,7 @@ const [
   import('../src/services/inbox-reminders.service.js'),
   import('../src/services/inbox-assign.service.js'),
   import('../src/services/inbox-attachments.service.js'),
+  import('../src/services/linkedin-agent.service.js'),
 ]);
 
 const S = (m: any, key: string) => (m as any)[key];
@@ -503,6 +514,17 @@ const cases: Case[] = [
   { name: 'asset.updateTemplate',    on: asset,        method: 'updateTemplate',    args: [INTRUDER, ID.asset, { name: 'x' }] },
   { name: 'asset.deleteTemplate',    on: asset,        method: 'deleteTemplate',    args: [INTRUDER, ID.asset] },
   { name: 'apikey.revokeKey',        on: apikey,       method: 'revokeKey',         args: [INTRUDER, ID.apikey] },
+
+  // The LinkedIn agent (095). Reports name a contact or a task by id, and
+  // the extension sending them holds only an API key: neither may reach
+  // another account's people.
+  { name: 'linkedin.complete',       on: S(linkedinAgent, 'linkedinAgentService'), method: 'complete', args: [INTRUDER, ID.task, { state: 'accepted', profile: { headline: 'x' } }] },
+  { name: 'linkedin.fail',           on: S(linkedinAgent, 'linkedinAgentService'), method: 'fail',     args: [INTRUDER, ID.task, 'x', false, null, { state: 'accepted' }] },
+  { name: 'linkedin.report.check',   on: S(linkedinAgent, 'linkedinAgentService'), method: 'report',   args: [INTRUDER, { kind: 'check', contact_id: ID.contact, result: { ok: true, state: 'accepted', profile: { headline: 'x' } } }] },
+  { name: 'linkedin.report.withdraw', on: S(linkedinAgent, 'linkedinAgentService'), method: 'report',  args: [INTRUDER, { kind: 'withdraw', contact_id: ID.contact, result: { ok: true, state: 'withdrawn' } }] },
+  { name: 'linkedin.report.inbox',   on: S(linkedinAgent, 'linkedinAgentService'), method: 'report',   args: [INTRUDER, { kind: 'inbox', result: { ok: true, conversations: [{ contact_id: ID.contact, thread_id: 't', messages: [{ id: 'm', text: 'hi' }] }] } }] },
+  { name: 'linkedin.activity',       on: S(linkedinAgent, 'linkedinAgentService'), method: 'activity', args: [INTRUDER, 50] },
+  { name: 'linkedin.status',         on: S(linkedinAgent, 'linkedinAgentService'), method: 'status',   args: [INTRUDER] },
 ];
 
 /*

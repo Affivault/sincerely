@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Sincerely — Campaign Manager",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "description": "Add and remove people from your Sincerely campaigns from LinkedIn, Sales Navigator, Gmail, or any page.",
   "minimum_chrome_version": "116",
   "permissions": [
@@ -88,7 +88,8 @@
     {
       "matches": [
         "https://www.linkedin.com/in/*",
-        "https://www.linkedin.com/sales/lead/*"
+        "https://www.linkedin.com/sales/lead/*",
+        "https://www.linkedin.com/messaging/*"
       ],
       "js": [
         "content/act.js"

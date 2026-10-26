@@ -78,7 +78,7 @@ function takeFailure(method, path) {
 const crawl = { inFlight: 0, peak: 0, fetched: [] };
 
 /** What the LinkedIn agent has been told to do, and what it reported back. */
-const agent = { queue: [], handedOut: [], done: [], failed: [] };
+const agent = { queue: [], handedOut: [], done: [], failed: [], reports: [], caps: [] };
 
 const rateLimit = {
   /** Requests to reject with 429 before letting anything through again. */
@@ -251,6 +251,8 @@ const server = createServer(async (req, res) => {
     agent.handedOut = [];
     agent.done = [];
     agent.failed = [];
+    agent.reports = [];
+    agent.caps = [];
     return json(res, 200, { reset: true });
   }
 
@@ -287,8 +289,33 @@ const server = createServer(async (req, res) => {
 
   /* Queue one action for the agent to pick up on its next tick. */
   if (req.method === 'GET' && url.pathname === '/__queue-agent-action') {
+    // An upkeep action (kind=check|withdraw|inbox) has no task id, as the
+    // server sends it; the contact or the watchlist is what it is about.
+    const kind = url.searchParams.get('kind');
+    if (kind) {
+      agent.queue.push({
+        task_id: null,
+        kind,
+        channel: `linkedin_${kind}`,
+        contact_id: url.searchParams.get('contactId') || null,
+        profile_url: url.searchParams.get('profileUrl') || 'https://www.linkedin.com/in/agent-accepted/',
+        ...(kind === 'inbox' ? {
+          url: 'https://www.linkedin.com/messaging/',
+          max_threads: 5,
+          watch: [
+            { contact_id: 'c-rowan', name: 'Rowan Fitz', profile_url: 'https://www.linkedin.com/in/agent-target/' },
+            { contact_id: 'c-jonas', name: 'Jonas Berg', profile_url: 'https://www.linkedin.com/in/agent-first/' },
+          ],
+        } : {}),
+        capture_profile: url.searchParams.get('capture') === '1',
+        title: `Agent ${kind}`,
+        gap: 0,
+      });
+      return json(res, 200, { queued: agent.queue.length });
+    }
     agent.queue.push({
       task_id: url.searchParams.get('taskId') || `task-${agent.queue.length + 1}`,
+      capture_profile: url.searchParams.get('capture') === '1',
       channel: url.searchParams.get('channel') || 'linkedin_visit',
       profile_url: url.searchParams.get('profileUrl') || 'https://www.linkedin.com/in/agent-target/',
       message: url.searchParams.get('message') || '',
@@ -785,8 +812,9 @@ const server = createServer(async (req, res) => {
    * and recorded against the task.
    */
   if (req.method === 'GET' && path === '/linkedin/agent/next') {
+    agent.caps.push(url.searchParams.get('caps') || '');
     const action = agent.queue.shift() || null;
-    if (action) agent.handedOut.push(action.task_id);
+    if (action) agent.handedOut.push(action.task_id || action.kind);
     return json(res, 200, {
       action,
       reason: action ? null : 'nothing_due',
@@ -794,8 +822,13 @@ const server = createServer(async (req, res) => {
       lease_seconds: (action?.gap || 0) + 900,
     });
   }
+  if (req.method === 'POST' && path === '/linkedin/agent/report') {
+    agent.reports.push(body || {});
+    return json(res, 200, { ok: true });
+  }
   if (req.method === 'POST' && /^\/linkedin\/agent\/tasks\/[^/]+\/done$/.test(path)) {
     agent.done.push(path.split('/')[4]);
+    agent.doneBodies = [...(agent.doneBodies || []), { taskId: path.split('/')[4], ...(body || {}) }];
     return json(res, 200, { ok: true });
   }
   if (req.method === 'POST' && /^\/linkedin\/agent\/tasks\/[^/]+\/failed$/.test(path)) {

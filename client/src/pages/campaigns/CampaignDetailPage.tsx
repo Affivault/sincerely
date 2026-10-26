@@ -8,7 +8,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { campaignsApi } from '../../api/campaigns.api';
 import { InlineEdit } from '../../components/ui/InlineEdit';
 import { analyticsApi, type AbTestStep } from '../../api/analytics.api';
-import { stepHasVariantB, abStatusLine, type AbStatus, formatDate, formatDateTime } from '@lemlist/shared';
+import { stepHasVariantB, abStatusLine, type AbStatus, formatDate, formatDateTime, isLinkedinStep } from '@lemlist/shared';
+import { LinkedinAgentNotice } from '../../components/linkedin/LinkedinAgentNotice';
 import { Spinner } from '../../components/ui/Spinner';
 import { PageSkeleton } from '../../components/ui/Skeleton';
 import { Button } from '../../components/ui/Button';
@@ -401,6 +402,13 @@ export function CampaignDetailPage() {
           mailbox that stopped authenticating, an exhausted daily allowance,
           a queue where everyone is errored, a schedule that is closed. */}
       <CampaignHealthStrip campaignId={id!} status={campaign.status} />
+
+      {/* LinkedIn steps are done by the extension in the user's own Chrome,
+          so they quietly wait whenever it is closed. Said here, where the
+          campaign would otherwise just look stuck. */}
+      {(campaign.steps || []).some((st: CampaignStep) => isLinkedinStep(st.step_type))
+        && ['running', 'scheduled', 'paused'].includes(campaign.status)
+        && <LinkedinAgentNotice where="campaign" />}
 
       {/* Why this campaign is stopped, or stuck.
           The engine has always known — it computes "every mailbox is at its

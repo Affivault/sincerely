@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
+import { LINKEDIN_WAIT_CONNECTED_MAX_DAYS } from '@lemlist/shared';
 
 /**
  * Columns a client may write on a step. Both add() and update() used to spread
@@ -13,7 +14,7 @@ const STEP_KEYS = [
   'body_text', 'delay_days', 'delay_hours', 'delay_minutes', 'skip_if_replied',
   'condition_field', 'condition_operator', 'condition_value',
   'true_branch_step', 'false_branch_step', 'webhook_event', 'webhook_timeout_hours',
-  'linkedin_note', 'thread_mode',
+  'linkedin_note', 'thread_mode', 'linkedin_wait_days',
 ] as const;
 
 function pickStep(input: any): Record<string, any> {
@@ -23,6 +24,13 @@ function pickStep(input: any): Record<string, any> {
   if ('thread_mode' in out && !['reply', 'new', null].includes(out.thread_mode)) {
     throw new AppError('thread_mode must be reply, new or null', 400);
   }
+  if ('linkedin_wait_days' in out && out.linkedin_wait_days !== null) {
+    const n = Math.round(Number(out.linkedin_wait_days));
+    if (!Number.isFinite(n) || n < 0 || n > LINKEDIN_WAIT_CONNECTED_MAX_DAYS) {
+      throw new AppError(`linkedin_wait_days must be between 0 and ${LINKEDIN_WAIT_CONNECTED_MAX_DAYS}`, 400);
+    }
+    out.linkedin_wait_days = n;
+  }
   return out;
 }
 
@@ -30,11 +38,20 @@ function pickStep(input: any): Record<string, any> {
  * A write that names thread_mode on a database without migration 089 would
  * fail outright. The rest of the step is worth more than that one choice,
  * so it is retried without it (the email then goes out as before 089).
+ * linkedin_wait_days (095) is treated the same way: without it the message
+ * step simply sends as soon as it is due, as it always did.
  */
 function withoutMissingThreadMode<T extends Record<string, any>>(error: { message: string } | null, patch: T): T | null {
-  if (!error || !('thread_mode' in patch) || !/thread_mode/.test(error.message)) return null;
-  const { thread_mode: _dropped, ...rest } = patch;
-  return rest as T;
+  if (!error) return null;
+  const rest: Record<string, any> = { ...patch };
+  let dropped = false;
+  for (const col of ['thread_mode', 'linkedin_wait_days']) {
+    if (col in rest && new RegExp(col).test(error.message)) {
+      delete rest[col];
+      dropped = true;
+    }
+  }
+  return dropped ? (rest as T) : null;
 }
 
 export const campaignStepsService = {

@@ -1043,6 +1043,17 @@ async function evaluateCondition(cc: any, step: any): Promise<boolean> {
       return applyOperator(dcsScore, operator, value);
     }
 
+    case 'linkedin_connected': {
+      // Set by the agent: a message that went out, a "1st" on their card,
+      // or an acceptance check that found the invite accepted (095). Before
+      // 095 the columns are absent and nobody reads as connected, which
+      // routes everyone down the false branch - the safe way round, since
+      // the true branch is usually a message only a connection can get.
+      const c = cc.contacts || {};
+      const connected = !!c.linkedin_connected_at || c.linkedin_invite_status === 'accepted';
+      return applyOperator(connected, operator || 'is_true', value);
+    }
+
     case 'webhook_received': {
       // resumeWebhookWait() and processWebhookTimeouts() both clear
       // waiting_for_webhook/webhook_wait_until, so those alone can't tell a
@@ -1127,8 +1138,12 @@ async function processWebhookWaitStep(cc: any, step: any): Promise<void> {
    with the user's session cookie, which breaks LinkedIn's User Agreement and
    gets accounts restricted. So the engine does the part it can do honestly:
    it works out WHO, WHEN and exactly WHAT to say, personalises it, and parks
-   the contact until a human completes the task. Completing it resumes the
-   sequence — see resumeAfterTask below. */
+   the contact on a task. The browser extension's agent does the task in the
+   user's own session (or the user does, with the agent off). Completing it
+   resumes the sequence — see resumeAfterTask below. */
+
+/** How often a message step waiting for a connection looks again. */
+const LINKEDIN_WAIT_RECHECK_MS = 6 * 60 * 60_000;
 
 const LINKEDIN_VERB: Record<string, string> = {
   linkedin_connect: 'Connect on LinkedIn',
@@ -1163,13 +1178,61 @@ async function processLinkedinStep(cc: any, step: any, steps: any[]): Promise<vo
     return;
   }
 
+  /*
+   * "Wait until connected" (095). A message only reaches a connection, so
+   * sending it - or raising it - before the invite is accepted fails the
+   * task three times and skips it anyway, a day or more apart. Instead the
+   * contact waits on this step, looked at again every few hours (and woken
+   * at once when the agent sees the acceptance), for at most the step's
+   * number of days. Still not connected after that: skipped, with the
+   * reason in the campaign history, and the sequence carries on.
+   */
+  const waitDays = step.step_type === 'linkedin_message' ? Number(step.linkedin_wait_days) || 0 : 0;
+  const connected = !!contact.linkedin_connected_at || contact.linkedin_invite_status === 'accepted';
+  if (waitDays > 0 && !connected) {
+    const since = cc.linkedin_wait_since ? new Date(cc.linkedin_wait_since).getTime() : NaN;
+    const waitedMs = Number.isFinite(since) ? Date.now() - since : 0;
+    if (waitedMs >= waitDays * 86_400_000) {
+      const { data: mine } = await supabaseAdmin
+        .from('campaign_contacts')
+        .update({ linkedin_wait_since: null })
+        .eq('id', cc.id)
+        .eq('status', 'active')
+        .eq('current_step_order', cc.current_step_order || 0)
+        .not('linkedin_wait_since', 'is', null)
+        .select('id')
+        .maybeSingle();
+      if (mine) await skip('not_connected', { waited_days: waitDays });
+      return;
+    }
+    // Guarded like the claim below: a run that moved the contact on owns it.
+    await supabaseAdmin
+      .from('campaign_contacts')
+      .update({
+        current_step_order: step.step_order,
+        next_send_at: new Date(Date.now() + LINKEDIN_WAIT_RECHECK_MS).toISOString(),
+        ...(Number.isFinite(since) ? {} : { linkedin_wait_since: new Date().toISOString() }),
+      })
+      .eq('id', cc.id)
+      .eq('status', 'active')
+      .eq('current_step_order', cc.current_step_order || 0)
+      .not('next_send_at', 'is', null)
+      .lte('next_send_at', new Date().toISOString());
+    return;
+  }
+
   // Claim the contact first, on the same compare-and-swap the email path uses:
   // two workers reaching this step at once must not raise two tasks. The step
   // and the due time are part of the swap for the same reason as there: a
   // contact another run already moved on must not have this step raised again.
+  // A finished wait for a connection is cleared in the same write.
   const { data: claimed } = await supabaseAdmin
     .from('campaign_contacts')
-    .update({ current_step_order: step.step_order, next_send_at: null })
+    .update({
+      current_step_order: step.step_order,
+      next_send_at: null,
+      ...(cc.linkedin_wait_since ? { linkedin_wait_since: null } : {}),
+    })
     .eq('id', cc.id)
     .eq('status', 'active')
     .eq('current_step_order', cc.current_step_order || 0)
