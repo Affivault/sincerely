@@ -17,6 +17,7 @@ import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { usePendingRemoval } from '../../components/ui/UndoBar';
 import { PersonalizationPanel, TimezoneCoverageNote } from '../../components/campaigns/PersonalizationPanel';
 import { CampaignHealthStrip } from '../../components/campaigns/CampaignHealthStrip';
+import { ContactPreviewPanel } from '../../components/campaigns/ContactPreviewPanel';
 import { ImproveCard } from '../../components/campaigns/ImproveCard';
 import { useLaunchPreflight } from '../../components/campaigns/LaunchPreflight';
 import { SequenceStepsPanel } from '../../components/analytics/SequenceStepsPanel';
@@ -56,6 +57,24 @@ type TabId = 'overview' | 'sequence' | 'contacts';
  */
 /** Refresh for figures that change after sending stops: replies, late opens. */
 const LIVE_STATS_MS = 60_000;
+
+/*
+ * What to do about each automatic pause. The bounce advice used to be the
+ * only one, and it was shown for every pause - "clean the list" is the wrong
+ * errand for a campaign that is being reported as spam or going unopened.
+ * An unknown signal (a database without 091) gets the bounce advice, which
+ * was the only automatic pause before it.
+ */
+const PAUSE_TITLE: Record<string, string> = {
+  bounce_rate: 'Sending stopped: too many bounces',
+  complaint_rate: 'Sending stopped: recipients are reporting it as spam',
+  open_collapse: 'Sending stopped: opens have collapsed',
+};
+const PAUSE_ADVICE: Record<string, string> = {
+  bounce_rate: 'Clean the list - remove or re-verify the addresses that bounced - before you resume.',
+  complaint_rate: 'Look at who it is going to and what it says: people who did not expect to hear from you, or a first line that reads as a pitch, are what get reported. The guard counts afresh from when you resume.',
+  open_collapse: 'Run an inbox placement test or check the mailboxes it sends from before you resume - a sudden fall in opens usually means the spam folder. The guard counts afresh from when you resume.',
+};
 
 const isColleaguePause = (cc: any) => cc.status === 'paused' && String(cc.error_message || '').startsWith('Paused: ');
 
@@ -138,6 +157,23 @@ export function CampaignDetailPage() {
     },
     enabled: !!id && activeTab === 'contacts',
   });
+
+  // A handful of the audience to preview the sequence as, without paging
+  // through everyone the contacts tab loads. Anyone else is a search away.
+  const { data: previewPicks } = useQuery({
+    queryKey: ['campaign-contacts', id, 'preview-picks'],
+    queryFn: async () => (await campaignsApi.getContacts(id!, { limit: 20, page: 1 })).data,
+    enabled: !!id && activeTab === 'sequence',
+    staleTime: 60_000,
+  });
+  const previewAudience = useMemo(() => (previewPicks || [])
+    .filter((cc: any) => cc.contact_id && cc.contact?.email)
+    .map((cc: any) => ({
+      id: cc.contact_id as string,
+      email: cc.contact.email as string,
+      first_name: cc.contact.first_name,
+      last_name: cc.contact.last_name,
+    })), [previewPicks]);
 
   /*
    * Everything on this page that a change of state moves. Pausing used to
@@ -373,11 +409,11 @@ export function CampaignDetailPage() {
           nothing happening is the most common question this product
           generates, and the answer was already in the logs. */}
       {campaign.paused_reason && (
-        <Notice tone="negative" icon={ShieldAlert} title="Sending stopped">
+        <Notice tone="negative" icon={ShieldAlert} title={PAUSE_TITLE[campaign.paused_signal ?? ''] ?? 'Sending stopped'}>
           {campaign.paused_reason}
           <span className="block mt-1 text-[var(--text-tertiary)]">
-            Clean the list - remove or re-verify the addresses that bounced - before you resume.
-            Resuming clears this message.
+            {PAUSE_ADVICE[campaign.paused_signal ?? ''] ?? PAUSE_ADVICE.bounce_rate}
+            {' '}Resuming clears this message.
           </span>
         </Notice>
       )}
@@ -496,6 +532,11 @@ export function CampaignDetailPage() {
                   onEditWording={['running', 'paused', 'scheduled'].includes(campaign.status) ? () => setEditingStep({ step, index }) : undefined}
                 />
               ))}
+
+              {/* The whole sequence as one real person gets it - for a
+                  running campaign, the question is usually "what did Ada
+                  actually receive", and this answers it. */}
+              {id && <ContactPreviewPanel campaignId={id} audience={previewAudience} />}
 
               {/* Which of those steps is actually earning. Here rather than
                   only on the analytics page, because this is where somebody

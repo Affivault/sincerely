@@ -11,6 +11,9 @@ export const campaignRoutes = Router();
 campaignRoutes.get('/', campaignsController.list);
 // Relay drafts a sequence for a list (returns a draft; saves nothing to a campaign).
 campaignRoutes.post('/write-sequence', campaignsController.writeSequence);
+// Every email as one real contact will get it - for a builder that has not
+// saved yet, from the steps it sends (services/campaign-preview).
+campaignRoutes.post('/preview', campaignsController.previewDraft);
 campaignRoutes.get('/:id', campaignsController.get);
 campaignRoutes.post('/', campaignsController.create);
 campaignRoutes.put('/:id', campaignsController.update);
@@ -21,6 +24,7 @@ campaignRoutes.post('/:id/clone', campaignsController.clone);
 
 // What the copy asks for vs. what the audience can answer — read before launch
 campaignRoutes.get('/:id/personalization', campaignsController.personalizationAudit);
+campaignRoutes.post('/:id/preview', campaignsController.preview);
 
 // Settle an A/B test — allowed while running, which is the only useful time
 campaignRoutes.post('/:id/steps/:stepId/promote-variant', campaignsController.promoteAbVariant);

@@ -2,8 +2,15 @@ import { supabaseAdmin } from '../../config/supabase.js';
 import { inboxSyncService } from '../../services/inbox-sync.service.js';
 import { beat } from '../../utils/heartbeat.js';
 import { fetchAllPages } from '../../utils/batch.js';
+import { inboxRemindersService } from '../../services/inbox-reminders.service.js';
 
 const SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+/*
+ * Snoozes and nudges run every minute, not with the five-minute sync:
+ * "snooze until 2pm" that comes back at 2:04 reads as broken. Each tick is
+ * two small indexed statements, so the extra frequency costs nothing.
+ */
+const REMINDER_INTERVAL_MS = 60 * 1000;
 
 /**
  * Periodically run the real inbox sync (inbox-sync.service.ts) for every
@@ -55,14 +62,30 @@ export function startInboxScheduler() {
     }
   }
 
+  /*
+   * Wake snoozed conversations and check due nudges, across every account.
+   * Separate from the sync so a slow mailbox can never hold a snooze past
+   * its time, and with its own heartbeat so the status page can say which
+   * of the two has stopped.
+   */
+  async function remindersTick() {
+    const { woken, fired, answered } = await inboxRemindersService.sweep();
+    if (woken || fired || answered) {
+      console.log(`[InboxScheduler] Reminders: ${woken} snoozed message(s) back, ${fired} nudge(s) fired, ${answered} answered in time`);
+    }
+  }
+
   // Run immediately then on interval — replies should catch up promptly
   // after a deploy, not wait a full cycle.
   beat('inbox', tick);
   const intervalId = setInterval(() => beat('inbox', tick), SYNC_INTERVAL_MS);
+  beat('inbox_reminders', remindersTick);
+  const remindersId = setInterval(() => beat('inbox_reminders', remindersTick), REMINDER_INTERVAL_MS);
 
   return {
     stop: () => {
       clearInterval(intervalId);
+      clearInterval(remindersId);
       console.log('Inbox sync scheduler stopped');
     },
   };

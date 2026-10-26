@@ -18,6 +18,10 @@ import { inboxSyncService, imapHostFor } from './inbox-sync.service.js';
 import { guardImap } from '../utils/imap-guard.js';
 import { selectInChunks } from '../utils/batch.js';
 import { isDraining } from '../utils/heartbeat.js';
+import { notSnoozedFilter, snoozeReady, remindersReady, assignReady, inboxRemindersService, nudgeAtFor } from './inbox-reminders.service.js';
+import { inboxAssignService } from './inbox-assign.service.js';
+import { prepareOutgoingAttachments } from './inbox-attachments.service.js';
+import { isNudgeDays, type AttachmentMeta } from '@lemlist/shared';
 
 /** Reserve a monthly-quota slot before an interactive send; throws if over cap. */
 async function assertSendQuota(userId: string): Promise<void> {
@@ -272,6 +276,8 @@ export const inboxService = {
       .or('is_archived.is.null,is_archived.eq.false');
     // Unread newsletters are not something anybody is behind on.
     if (await mailKindReady()) q = q.or(PEOPLE_FILTER);
+    // Nor is a conversation snoozed until Monday - that is the point of it.
+    if (await snoozeReady()) q = q.or(notSnoozedFilter());
     const { count } = await q;
     return count || 0;
   },
@@ -281,7 +287,7 @@ export const inboxService = {
    * over the whole mailbox with exact head-counts (no rows transferred) so the
    * smart-view / tag badges stay accurate no matter how large the inbox grows.
    */
-  async counts(userId: string): Promise<{ unread: number; needs_triage: number; intents: Record<string, number>; other: number; other_unread: number; sorting: boolean }> {
+  async counts(userId: string): Promise<{ unread: number; needs_triage: number; intents: Record<string, number>; other: number; other_unread: number; sorting: boolean; snoozed: number; assigned_to_me: number }> {
     // Same folder predicate the list uses for "inbox": not archived (null or false).
     const INTENTS = ['interested', 'meeting', 'objection', 'not_now', 'unsubscribe', 'out_of_office', 'bounce'];
 
@@ -290,6 +296,16 @@ export const inboxService = {
     const sorted = await mailKindReady();
     const sorting = sorted ? mailSortService.ensure(userId) : false;
     const people = <T extends { or: (f: string) => T }>(q: T): T => (sorted ? q.or(PEOPLE_FILTER) : q);
+    /*
+     * Snoozed conversations are out of every count below, through the same
+     * filter the list uses (inbox-reminders.service notSnoozedFilter). A
+     * count that includes what the list hides is the bug this app has had
+     * before - the badge and the rows disagreeing - so there is one
+     * predicate, applied once per query here, and nowhere else to drift.
+     */
+    const snoozeOn = await snoozeReady();
+    const awakeFilter = notSnoozedFilter();
+    const awake = <T extends { or: (f: string) => T }>(q: T): T => (snoozeOn ? q.or(awakeFilter) : q);
 
     const otherQ = sorted
       ? supabaseAdmin.from('inbox_messages').select('id', { count: 'exact', head: true })
@@ -333,8 +349,25 @@ export const inboxService = {
         .eq('sara_intent', intent),
     );
 
-    const [otherRes, otherUnreadRes, unreadRes, needsTriageRes, ...intentRes] = await Promise.all([
-      otherQ, otherUnreadQ, people(unreadQ), people(needsTriageQ), ...intentQs.map((q) => people(q)),
+    // Snoozed: the conversations waiting to come back, counted once each.
+    const snoozedQ = snoozeOn
+      ? supabaseAdmin.from('inbox_messages').select('id', { count: 'exact', head: true })
+        .eq('user_id', userId).gt('snoozed_until', new Date().toISOString())
+      : Promise.resolve({ count: 0 } as any);
+    // Assigned to the caller, in their own mailbox or a teammate's.
+    const assignedQ = (await assignReady())
+      ? inboxAssignService.orgUserIds(userId).then((ids) => supabaseAdmin
+        .from('inbox_messages').select('id', { count: 'exact', head: true })
+        .in('user_id', ids).eq('assigned_to', userId).eq('is_read', false)
+        .or('is_archived.is.null,is_archived.eq.false'))
+      : Promise.resolve({ count: 0 } as any);
+
+    const [otherRes, otherUnreadRes, unreadRes, needsTriageRes, snoozedRes, assignedRes, ...intentRes] = await Promise.all([
+      sorted ? awake(otherQ as any) : otherQ,
+      sorted ? awake(otherUnreadQ as any) : otherUnreadQ,
+      awake(people(unreadQ)), awake(people(needsTriageQ)),
+      snoozedQ, assignedQ,
+      ...intentQs.map((q) => awake(people(q))),
     ]);
 
     const intents: Record<string, number> = {};
@@ -350,6 +383,9 @@ export const inboxService = {
       other: otherRes.count || 0,
       other_unread: otherUnreadRes.count || 0,
       sorting,
+      snoozed: (snoozedRes as any).count || 0,
+      // Unread ones only: the badge is for what is waiting, not everything ever handed over.
+      assigned_to_me: (assignedRes as any).count || 0,
     };
   },
 
@@ -376,11 +412,22 @@ export const inboxService = {
     }
     const contactEmail = typeof params.contact_email === 'string' ? params.contact_email.trim() : '';
     const contactScoped = !!contactId || !!contactEmail;
+    const requestedFolder = params.folder || (contactScoped ? 'all' : 'inbox');
+
+    /*
+     * "Assigned to you" is the one view that reaches past the caller's own
+     * mailbox: conversations a teammate in the same organisation handed
+     * over. Membership is resolved now, so somebody who has left the team
+     * stops seeing their old colleagues' mail immediately.
+     */
+    const owners = requestedFolder === 'assigned' && (await assignReady())
+      ? await inboxAssignService.orgUserIds(userId)
+      : [userId];
 
     let query = supabaseAdmin
       .from('inbox_messages')
-      .select('*, contacts(first_name, last_name, email), campaigns(name), smtp_accounts(id, email_address, label)', { count: 'exact' })
-      .eq('user_id', userId);
+      .select('*, contacts(first_name, last_name, email), campaigns(name), smtp_accounts(id, email_address, label)', { count: 'exact' });
+    query = owners.length === 1 ? query.eq('user_id', userId) : query.in('user_id', owners);
 
     // Every message to/from a specific contact (both directions, all folders) —
     // powers the "all past emails" view on the contact page.
@@ -401,15 +448,29 @@ export const inboxService = {
     }
 
     // Folder-based filtering (skipped when scoped to a contact)
-    const folder = params.folder || (contactScoped ? 'all' : 'inbox');
+    const folder = requestedFolder;
     const sorted = await mailKindReady();
+    const snoozeOn = await snoozeReady();
     if (folder === 'inbox') {
       query = query.or('is_archived.is.null,is_archived.eq.false');
       // People only. Mail has its own folder, below.
       if (sorted && !contactScoped) query = query.or(PEOPLE_FILTER);
+      // Snoozed conversations are elsewhere until they come back - by the
+      // same predicate the counts use, so the badge and the rows agree.
+      if (snoozeOn && !contactScoped) query = query.or(notSnoozedFilter());
     } else if (folder === 'other') {
       query = query.or('is_archived.is.null,is_archived.eq.false');
       query = sorted ? query.in('mail_kind', params.mail_kind ? [params.mail_kind] : NON_PERSON_KINDS) : query.eq('id', '00000000-0000-0000-0000-000000000000');
+      if (snoozeOn) query = query.or(notSnoozedFilter());
+    } else if (folder === 'snoozed') {
+      // Waiting to come back. Without the column there is nothing snoozed.
+      query = snoozeOn
+        ? query.gt('snoozed_until', new Date().toISOString())
+        : query.eq('id', '00000000-0000-0000-0000-000000000000');
+    } else if (folder === 'assigned') {
+      query = (await assignReady())
+        ? query.eq('assigned_to', userId).or('is_archived.is.null,is_archived.eq.false')
+        : query.eq('id', '00000000-0000-0000-0000-000000000000');
     } else if (folder === 'starred') {
       query = query.eq('is_starred', true);
     } else if (folder === 'archived') {
@@ -441,6 +502,7 @@ export const inboxService = {
         .is('auto_reply_kind', null)
         .or('is_archived.is.null,is_archived.eq.false');
       if (sorted) query = query.or(PEOPLE_FILTER);
+      if (snoozeOn) query = query.or(notSnoozedFilter());
     }
 
     // Hot leads, needs reply and the other intent views are about people.
@@ -476,6 +538,17 @@ export const inboxService = {
       }
     }
 
+    /*
+     * A conversation that came back - a snooze ended, a nudge fired - sorts
+     * first until it is opened (markThreadRead settles it). Sorting by its
+     * received date would put it back three pages down, which is exactly
+     * where it was when it got forgotten. Snoozed sorts soonest-back first.
+     */
+    if (folder === 'snoozed') {
+      query = query.order('snoozed_until', { ascending: true });
+    } else if ((folder === 'inbox' || folder === 'assigned') && (await remindersReady())) {
+      query = query.order('resurfaced_at', { ascending: false, nullsFirst: false });
+    }
     // id breaks ties, so paging through same-instant rows neither repeats nor skips one.
     query = query.order('received_at', { ascending: false }).order('id', { ascending: false }).range(from, to);
 
@@ -491,6 +564,8 @@ export const inboxService = {
       campaign_name: m.campaigns?.name || null,
       smtp_email: m.smtp_accounts?.email_address || null,
       smtp_label: m.smtp_accounts?.label || null,
+      // A teammate's mail, assigned to the caller: readable, not theirs to act on.
+      read_only: m.user_id !== userId,
       contacts: undefined,
       campaigns: undefined,
       smtp_accounts: undefined,
@@ -500,17 +575,29 @@ export const inboxService = {
   },
 
   async get(userId: string, id: string) {
-    const { data, error } = await supabaseAdmin
+    const fetchAs = (owner: string) => supabaseAdmin
       .from('inbox_messages')
       .select('*, contacts(first_name, last_name, email), campaigns(name), smtp_accounts(id, email_address, label)')
       .eq('id', id)
-      .eq('user_id', userId)
+      .eq('user_id', owner)
       .maybeSingle();
 
+    let { data, error } = await fetchAs(userId);
     if (error) throw new AppError(error.message, 500);
+    // Not theirs: readable only if a teammate assigned it to them.
+    let owner = userId;
+    if (!data) {
+      const assignedFrom = await inboxAssignService.assignedOwner(userId, id);
+      if (assignedFrom) {
+        owner = assignedFrom;
+        ({ data, error } = await fetchAs(owner));
+        if (error) throw new AppError(error.message, 500);
+      }
+    }
     if (!data) throw new AppError('Message not found', 404);
 
     return {
+      read_only: owner !== userId,
       ...data,
       contact_name: data.contacts
         ? [data.contacts.first_name, data.contacts.last_name].filter(Boolean).join(' ') || null
@@ -525,14 +612,27 @@ export const inboxService = {
     };
   },
 
-  async getThread(userId: string, messageId: string) {
-    // Step 1: Fetch the message to get contact info
-    const { data: message } = await supabaseAdmin
+  async getThread(callerId: string, messageId: string) {
+    /*
+     * Whose mailbox the thread is read from. The caller's own, or - for a
+     * conversation a teammate assigned to them - the teammate's, and then
+     * only the thread that message is in.
+     */
+    let userId = callerId;
+    const fetchMessage = (owner: string) => supabaseAdmin
       .from('inbox_messages')
       .select('*, contacts(first_name, last_name, email)')
       .eq('id', messageId)
-      .eq('user_id', userId)
-      .single();
+      .eq('user_id', owner)
+      .maybeSingle();
+    let { data: message } = await fetchMessage(userId);
+    if (!message) {
+      const assignedFrom = await inboxAssignService.assignedOwner(callerId, messageId);
+      if (assignedFrom) {
+        userId = assignedFrom;
+        ({ data: message } = await fetchMessage(userId));
+      }
+    }
 
     if (!message) throw new AppError('Message not found', 404);
 
@@ -548,6 +648,7 @@ export const inboxService = {
           ? [message.contacts.first_name, message.contacts.last_name].filter(Boolean).join(' ') || null
           : null,
         contact_email: message.contacts?.email || null,
+        read_only: userId !== callerId,
         contacts: undefined,
       }];
     }
@@ -577,6 +678,7 @@ export const inboxService = {
       contact_email: m.contacts?.email || null,
       smtp_email: m.smtp_accounts?.email_address || null,
       smtp_label: m.smtp_accounts?.label || null,
+      read_only: userId !== callerId,
       contacts: undefined,
       smtp_accounts: undefined,
     }));
@@ -759,7 +861,11 @@ export const inboxService = {
 
   async markThreadRead(userId: string, messageId: string) {
     const contactEmail = await resolveContactEmail(userId, messageId);
-    if (!contactEmail) return inboxService.markRead(userId, messageId);
+    if (!contactEmail) {
+      await inboxService.markRead(userId, messageId);
+      await inboxRemindersService.settleResurfaced(userId, null, messageId);
+      return;
+    }
     // Case-insensitive match ("John@X.com" vs "john@x.com" are the same
     // mailbox) — ilike with escaped wildcards is equality, ignoring case.
     const pattern = contactEmail.replace(/([%_\\])/g, '\\$1');
@@ -773,9 +879,16 @@ export const inboxService = {
     // The clicked message must never stay unread, even if its addresses are
     // stored in an unexpected shape (e.g. "Name <a@b.com>").
     await inboxService.markRead(userId, messageId);
+    // Seen, so a conversation that came back to the top goes back to its place.
+    await inboxRemindersService.settleResurfaced(userId, contactEmail, messageId);
   },
 
-  async reply(userId: string, messageId: string, body: string, smtpAccountId?: string, bodyHtml?: string) {
+  async reply(userId: string, messageId: string, body: string, smtpAccountId?: string, bodyHtml?: string, extras: SendExtras = {}) {
+    // Checked before anything is sent, so a bad file or a bad reminder
+    // refuses the whole reply rather than sending half of what was meant.
+    const outgoing = prepareOutgoingAttachments(extras.attachments);
+    const nudgeDays = parseNudgeDays(extras.nudge_days);
+
     const { data: original } = await supabaseAdmin
       .from('inbox_messages')
       .select('*')
@@ -813,7 +926,7 @@ export const inboxService = {
     const textBody = body || htmlToText(userHtml);
 
     await assertSendQuota(userId);
-    await sendWithQuotaRefund(userId, () => sendViaSmtp({
+    const sent = await sendWithQuotaRefund(userId, () => sendViaSmtp({
       smtpHost: smtpAccount.smtp_host,
       smtpPort: smtpAccount.smtp_port,
       smtpSecure: smtpAccount.smtp_secure,
@@ -826,9 +939,12 @@ export const inboxService = {
       text: textBody,
       messageId: newMessageId,
       headers: original.message_id ? { 'In-Reply-To': original.message_id, 'References': original.message_id } : {},
+      attachments: outgoing.files,
     }));
 
-    await supabaseAdmin.from('inbox_messages').insert({
+    // This reply is now the last word; an older "no reply yet" is moot.
+    await inboxRemindersService.supersedeNudges(userId, recipient);
+    const recorded = await recordSent({
       user_id: userId,
       campaign_id: original.campaign_id,
       campaign_contact_id: original.campaign_contact_id,
@@ -845,7 +961,7 @@ export const inboxService = {
       direction: 'outbound',
       thread_id: original.thread_id || original.message_id,
       received_at: new Date().toISOString(),
-    });
+    }, outgoing.meta, nudgeDays);
 
     /*
      * The clock stops here, for the whole thread.
@@ -869,7 +985,7 @@ export const inboxService = {
         .eq('id', messageId);
     }
 
-    return { success: true, message_id: newMessageId };
+    return { success: true, message_id: newMessageId, ...sentNotes(sent, recorded) };
   },
 
   async forward(userId: string, messageId: string, toEmail: string, note?: string, smtpAccountId?: string, noteHtmlRaw?: string) {
@@ -938,7 +1054,9 @@ ${original.body_html || `<p>${textToHtml(original.body_text)}</p>`}`;
     return { success: true, message_id: newMessageId };
   },
 
-  async compose(userId: string, input: { to: string; subject: string; body: string; body_html?: string; smtp_account_id?: string }) {
+  async compose(userId: string, input: { to: string; subject: string; body: string; body_html?: string; smtp_account_id?: string } & SendExtras) {
+    const outgoing = prepareOutgoingAttachments(input.attachments);
+    const nudgeDays = parseNudgeDays(input.nudge_days);
     const smtpAccount = await findSmtpAccount(userId, input.smtp_account_id);
 
     let smtpPassword: string;
@@ -953,7 +1071,7 @@ ${original.body_html || `<p>${textToHtml(original.body_text)}</p>`}`;
     const htmlBody = input.body_html || `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.6;color:#1a1a1a;">${textToHtml(input.body)}</div>`;
 
     await assertSendQuota(userId);
-    await sendWithQuotaRefund(userId, () => sendViaSmtp({
+    const sent = await sendWithQuotaRefund(userId, () => sendViaSmtp({
       smtpHost: smtpAccount.smtp_host,
       smtpPort: smtpAccount.smtp_port,
       smtpSecure: smtpAccount.smtp_secure,
@@ -965,6 +1083,7 @@ ${original.body_html || `<p>${textToHtml(original.body_text)}</p>`}`;
       html: htmlBody,
       text: input.body || htmlToText(htmlBody),
       messageId,
+      attachments: outgoing.files,
     }));
 
     // The contact this went to, so it shows in their history by id and not
@@ -976,7 +1095,8 @@ ${original.body_html || `<p>${textToHtml(original.body_text)}</p>`}`;
       .eq('email', String(input.to || '').trim().toLowerCase())
       .maybeSingle();
 
-    const { error: recordError } = await supabaseAdmin.from('inbox_messages').insert({
+    await inboxRemindersService.supersedeNudges(userId, input.to);
+    const recorded = await recordSent({
       user_id: userId,
       smtp_account_id: smtpAccount.id,
       contact_id: recipient?.id ?? null,
@@ -989,16 +1109,11 @@ ${original.body_html || `<p>${textToHtml(original.body_text)}</p>`}`;
       is_read: true,
       direction: 'outbound',
       received_at: new Date().toISOString(),
-    });
+    }, outgoing.meta, nudgeDays);
 
     // The mail has already gone, so this is still a success - but say that
     // it was not recorded, rather than letting it vanish from Sent quietly.
-    if (recordError) {
-      console.error('[Inbox] compose sent but could not be recorded:', recordError.message);
-      return { success: true, message_id: messageId, recorded: false };
-    }
-
-    return { success: true, message_id: messageId, recorded: true };
+    return { success: true, message_id: messageId, recorded: recorded.ok, ...sentNotes(sent, recorded) };
   },
 
   /**
@@ -1279,6 +1394,61 @@ ${original.body_html || `<p>${textToHtml(original.body_text)}</p>`}`;
     return inboxSyncService.syncInbox(userId);
   },
 };
+
+/** What a reply or a new message can carry beyond its text. */
+export interface SendExtras {
+  /** Files from the composer: [{filename, content_type, content_base64}]. */
+  attachments?: unknown;
+  /** "Remind me if no reply in N days" (migration 092). */
+  nudge_days?: unknown;
+}
+
+function parseNudgeDays(raw: unknown): number | null {
+  if (raw === undefined || raw === null || raw === '' || raw === 0) return null;
+  const n = Number(raw);
+  if (!isNudgeDays(n)) throw new AppError('Choose 1, 2, 3, 5, 7 or 14 days for the reminder', 400);
+  return n;
+}
+
+/**
+ * Write the row for mail we just sent, keeping what came with it.
+ *
+ * The attachments' names go on the row (090's column), so the thread shows
+ * what was sent with it. Before 090 or 092 is run the row is still written,
+ * without the part the database cannot hold yet, and the caller is told
+ * which part that was. The email itself has already gone either way.
+ */
+async function recordSent(row: Record<string, unknown>, attachments: AttachmentMeta[], nudgeDays: number | null): Promise<{ ok: boolean; notes: string[] }> {
+  const notes: string[] = [];
+  const full: Record<string, unknown> = { ...row };
+  if (attachments.length) full.attachments = attachments;
+  if (nudgeDays) full.nudge_at = nudgeAtFor(nudgeDays);
+
+  let { error } = await supabaseAdmin.from('inbox_messages').insert(full);
+  if (error && /nudge_at/.test(error.message)) {
+    delete full.nudge_at;
+    notes.push('The reminder could not be saved: run database migration 092 to turn reminders on.');
+    ({ error } = await supabaseAdmin.from('inbox_messages').insert(full));
+  }
+  if (error && /attachments/.test(error.message)) {
+    delete full.attachments;
+    ({ error } = await supabaseAdmin.from('inbox_messages').insert(full));
+  }
+  if (error) {
+    console.error('[Inbox] sent but could not be recorded:', error.message);
+    return { ok: false, notes };
+  }
+  return { ok: true, notes };
+}
+
+/** Anything about a send the person should hear, beyond "sent". */
+function sentNotes(sent: { attachmentsDropped?: boolean } | undefined, recorded: { ok: boolean; notes: string[] }): { warnings?: string[] } {
+  const warnings = [...recorded.notes];
+  if (sent?.attachmentsDropped) {
+    warnings.unshift('Your email went, but without its attachments: the SMTP relay needs redeploying to carry files. Send them again once it is updated.');
+  }
+  return warnings.length ? { warnings } : {};
+}
 
 async function findSmtpAccount(userId: string, preferredId?: string | null): Promise<any> {
   if (preferredId) {

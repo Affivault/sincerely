@@ -25,6 +25,7 @@ import type { InboxSyncResult, SyncFolderRole, SyncWindowMonths } from '@lemlist
 import { repairImapHost } from './mailbox-repair.service.js';
 import { isSenderMismatch } from '@lemlist/shared';
 import { guardImap } from '../utils/imap-guard.js';
+import { inboxRemindersService } from './inbox-reminders.service.js';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Reading a mailbox.
@@ -121,6 +122,20 @@ export function imapHostFor(account: {
   if (host.includes('smtp.outlook') || host.includes('office365')) return 'outlook.office365.com';
   if (host.includes('smtp.')) return host.replace('smtp.', 'imap.');
   return `imap.${(account.email_address || '').split('@')[1] || ''}`;
+}
+
+/**
+ * The attachments a message is listed with, in the order they are listed.
+ *
+ * Exported because the position in this list is how a download names the
+ * file it wants (GET /inbox/:id/attachments/:index). If the download picked
+ * from the parsed message by any other rule - counting inline images, say -
+ * index 2 would hand back a signature logo instead of the contract.
+ */
+export function listedAttachments<T extends { contentDisposition?: string; related?: boolean }>(all: T[] | undefined | null): T[] {
+  return (all || [])
+    .filter((a) => a.contentDisposition !== 'inline' && !a.related)
+    .slice(0, 50);
 }
 
 /**
@@ -380,9 +395,7 @@ async function ingest(msg: any, ctx: IngestContext): Promise<boolean> {
     bodyText = parsed.text || '';
     bodyHtml = parsed.html || undefined;
     parsedHeaders = parsed.headers;
-    attachments = (parsed.attachments || [])
-      .filter((a: any) => a.contentDisposition !== 'inline' && !a.related)
-      .slice(0, 50)
+    attachments = listedAttachments(parsed.attachments)
       .map((a: any) => ({
         filename: String(a.filename || 'attachment').slice(0, 200),
         content_type: String(a.contentType || 'application/octet-stream').slice(0, 100),
@@ -575,6 +588,18 @@ async function ingest(msg: any, ctx: IngestContext): Promise<boolean> {
   if (insErr || !saved?.id) {
     console.error('[InboxSync] Insert failed:', insErr?.message);
     return false;
+  }
+
+  /*
+   * They answered: any "remind me if no reply" on our mail to them is
+   * settled, and a snoozed conversation with them comes back now rather
+   * than when the snooze ends. Not for an out-of-office - "I'm away" is
+   * precisely when the reminder is still wanted. Best-effort: the minute
+   * sweep re-checks nudges before firing one.
+   */
+  if (!outbound && !autoReply.kind && !bounceNotice && (!mailKind || mailKind === 'person')) {
+    inboxRemindersService.onInbound(userId, fromEmail).catch((e: any) =>
+      console.warn('[InboxSync] could not settle reminders:', e?.message || e));
   }
 
   /*

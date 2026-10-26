@@ -8,8 +8,9 @@
                            cannot send, replies that stopped syncing, every
                            mailbox resting, a spam complaint, a reply check
                            that failed (whatever the status page raises)
-     campaign_alerts       what happens to a campaign without you: the
-                           bounce guard pausing it, it finishing, and
+     campaign_alerts       what happens to a campaign without you: a
+                           guard pausing it (bounces, spam complaints, an
+                           open-rate collapse), it finishing, and
                            Relay proposing or settling a test on it.
                            Never your own launch, pause or resume.
      reply_notifications   somebody replied - one email per reply, at most
@@ -66,14 +67,37 @@ export function notificationFor(event: string, data: Record<string, any>): Notif
       };
     case 'campaign.paused':
       // Only when nobody pressed Pause: you know about your own clicks.
-      if (data.reason !== 'bounce_rate') return null;
-      return {
-        setting: 'campaign_alerts',
-        subject: `Paused automatically: ${campaignName(data)}`,
-        text: `The bounce guard paused "${campaignName(data)}": ${data.bounced ?? 'too many'} of ${data.sent ?? 'its'} recent sends bounced, which damages your sending domain if it carries on. Check the list, then resume it from the campaign.`,
-        href,
-        dedupeKey: `paused:${cid}`,
-      };
+      // Each guard explains itself in its own terms, because "paused" alone
+      // sends you looking in the wrong place - a bounce is the list, a
+      // complaint is the copy or the audience, an open collapse is the inbox.
+      if (data.reason === 'bounce_rate') {
+        return {
+          setting: 'campaign_alerts',
+          subject: `Paused automatically: ${campaignName(data)}`,
+          text: `The bounce guard paused "${campaignName(data)}": ${data.bounced ?? 'too many'} of ${data.sent ?? 'its'} recent sends bounced, which damages your sending domain if it carries on. Check the list, then resume it from the campaign.`,
+          href,
+          dedupeKey: `paused:${cid}`,
+        };
+      }
+      if (data.reason === 'complaint_rate') {
+        return {
+          setting: 'campaign_alerts',
+          subject: `Paused automatically: ${campaignName(data)} (spam complaints)`,
+          text: `"${campaignName(data)}" was paused because ${data.complaints ?? 'several'} of ${data.sent ?? 'its'} recipients marked it as spam - ${data.complaint_rate ?? '?'}%, above your ${data.threshold_percent ?? '?'}% limit. Gmail and Yahoo start filtering a sender at about 0.3%.\n\nLook at who it is going to and what it says, then resume it from the campaign.`,
+          href,
+          dedupeKey: `paused:${cid}`,
+        };
+      }
+      if (data.reason === 'open_collapse') {
+        return {
+          setting: 'campaign_alerts',
+          subject: `Paused automatically: ${campaignName(data)} (opens collapsed)`,
+          text: `Opens on "${campaignName(data)}" fell from ${data.baseline_rate ?? '?'}% to ${data.recent_rate ?? '?'}% over its most recent sends. A drop that sudden usually means mail has started landing in spam.\n\nRun an inbox placement test or check the mailboxes it sends from, then resume it from the campaign.`,
+          href,
+          dedupeKey: `paused:${cid}`,
+        };
+      }
+      return null;
     case 'campaign.completed':
       return { setting: 'campaign_alerts', subject: `Finished: ${campaignName(data)}`, text: `Everybody in "${campaignName(data)}" has been through the whole sequence, replied, or been stopped. It has finished.`, href, dedupeKey: `completed:${cid}` };
     case 'relay.test_proposed':

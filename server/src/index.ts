@@ -15,6 +15,7 @@ import { startImproveScheduler } from './jobs/schedulers/improve.scheduler.js';
 import { startSignalsScheduler } from './jobs/schedulers/signals.scheduler.js';
 import { startProspectRulesScheduler } from './jobs/schedulers/prospect-rules.scheduler.js';
 import { startAbPromoteScheduler } from './jobs/schedulers/ab-promote.scheduler.js';
+import { startCampaignGuardScheduler } from './jobs/schedulers/campaign-guard.scheduler.js';
 import { startBookingReminderScheduler } from './jobs/schedulers/booking-reminder.scheduler.js';
 import { startDomainReverifyScheduler } from './jobs/schedulers/domain-reverify.scheduler.js';
 
@@ -170,6 +171,15 @@ const server = app.listen(port, () => {
     console.log('A/B auto-promote scheduler started');
   } catch (err: any) {
     console.warn('A/B auto-promote scheduler failed to start:', err.message);
+  }
+
+  // Pause a campaign whose opens collapse - the spam-folder signal (cross-tenant).
+  try {
+    const campaignGuard = startCampaignGuardScheduler();
+    if (campaignGuard) disposers.push(() => campaignGuard.stop());
+    console.log('Campaign guard scheduler started');
+  } catch (err: any) {
+    console.warn('Campaign guard scheduler failed to start:', err.message);
   }
 
   // Re-check sending/tracking domains that are marked verified, so a DKIM

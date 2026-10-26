@@ -1,7 +1,16 @@
 import { apiClient } from './client';
 import type { BulkTriageResult, TriageInput, TriageResult } from '@lemlist/shared';
 import type { MailKind, RelayReviewItem } from '@lemlist/shared';
-import type { InboxMessage, InboxMessageWithContext, InboxCounts, PaginatedResponse, InboxSyncResult, InboxSyncProgress } from '@lemlist/shared';
+import type { InboxMessage, InboxMessageWithContext, InboxCounts, PaginatedResponse, InboxSyncResult, InboxSyncProgress, InboxTeammate, OutgoingAttachment } from '@lemlist/shared';
+
+/** Files and a "remind me if no reply" that ride along with a send. */
+export interface SendExtras {
+  attachments?: OutgoingAttachment[];
+  nudge_days?: number | null;
+}
+
+/** Sending with files can take a while on a slow uplink; the default 30s is for JSON. */
+const SEND_TIMEOUT_MS = 120_000;
 
 export const inboxApi = {
   /**
@@ -152,8 +161,12 @@ export const inboxApi = {
     await apiClient.put(`/inbox/${id}/read-thread`);
   },
 
-  reply: async (id: string, body: string, smtp_account_id?: string, body_html?: string) => {
-    const { data } = await apiClient.post<{ success: boolean; message_id: string }>(`/inbox/${id}/reply`, { body, body_html, smtp_account_id });
+  reply: async (id: string, body: string, smtp_account_id?: string, body_html?: string, extras: SendExtras = {}) => {
+    const { data } = await apiClient.post<{ success: boolean; message_id: string; warnings?: string[] }>(
+      `/inbox/${id}/reply`,
+      { body, body_html, smtp_account_id, ...extras },
+      extras.attachments?.length ? { timeout: SEND_TIMEOUT_MS } : undefined,
+    );
     return data;
   },
 
@@ -167,8 +180,68 @@ export const inboxApi = {
     return data;
   },
 
-  compose: async (input: { to: string; subject: string; body: string; body_html?: string; smtp_account_id?: string }) => {
-    const { data } = await apiClient.post<{ success: boolean; message_id: string; recorded?: boolean }>('/inbox/compose', input);
+  compose: async (input: { to: string; subject: string; body: string; body_html?: string; smtp_account_id?: string } & SendExtras) => {
+    const { data } = await apiClient.post<{ success: boolean; message_id: string; recorded?: boolean; warnings?: string[] }>(
+      '/inbox/compose',
+      input,
+      input.attachments?.length ? { timeout: SEND_TIMEOUT_MS } : undefined,
+    );
+    return data;
+  },
+
+  /**
+   * One attachment, fetched from the mailbox it is in and saved. Through the
+   * API client rather than a plain link, because the request has to carry
+   * the session's bearer token.
+   */
+  downloadAttachment: async (id: string, index: number, filename: string) => {
+    let res;
+    try {
+      res = await apiClient.get<Blob>(`/inbox/${id}/attachments/${index}`, { responseType: 'blob', timeout: 90_000 });
+    } catch (err: any) {
+      // A blob request gets its error body as a blob too; read the reason
+      // out of it so the person sees "moved in your mailbox", not "Error".
+      const body = err?.response?.data;
+      if (body instanceof Blob) {
+        const text = await body.text().catch(() => '');
+        let message = '';
+        try { message = JSON.parse(text)?.error || ''; } catch { /* not JSON */ }
+        throw new Error(message || 'Could not download that attachment');
+      }
+      throw err;
+    }
+    const url = URL.createObjectURL(res.data);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename || 'attachment';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    // Revoked on the next tick: revoking at once can cancel the download in Safari.
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+  },
+
+  /** Snooze the conversation until a time; null brings it back now. */
+  snooze: async (id: string, until: string | null) => {
+    const { data } = await apiClient.put<{ snoozed_until: string | null; messages: number }>(`/inbox/${id}/snooze`, { until });
+    return data;
+  },
+
+  /** "Remind me if no reply in N days" on a sent message; null clears it. */
+  nudge: async (id: string, days: number | null) => {
+    const { data } = await apiClient.put<{ nudge_at: string | null }>(`/inbox/${id}/nudge`, { days });
+    return data;
+  },
+
+  /** Hand the conversation to a teammate; null unassigns. */
+  assign: async (id: string, assignee: string | null) => {
+    const { data } = await apiClient.put<{ assigned_to: string | null; messages: number }>(`/inbox/${id}/assign`, { assignee });
+    return data;
+  },
+
+  /** Who a conversation can be assigned to. Empty for a solo account. */
+  teammates: async () => {
+    const { data } = await apiClient.get<InboxTeammate[]>('/inbox/teammates');
     return data;
   },
 

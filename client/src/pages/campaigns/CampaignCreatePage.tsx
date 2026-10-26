@@ -24,6 +24,8 @@ import { FlowBuilder } from '../../components/campaigns/FlowBuilder';
 import { PersonalizationDropdown } from '../../components/campaigns/PersonalizationDropdown';
 import { RichTextEditor } from '../../components/ui/RichTextEditor';
 import type { FlowStep } from '../../components/campaigns/FlowBuilder';
+import { ContactPreviewPanel } from '../../components/campaigns/ContactPreviewPanel';
+import { BlackoutDatesEditor } from '../../components/shared/BlackoutDatesEditor';
 import { PreflightDialog, type Refusal } from '../../components/campaigns/LaunchPreflight';
 import { cn } from '../../lib/utils';
 import { parseDatetimeLocalInTimezone, formatDatetimeLocalInTimezone } from '../../lib/timezone';
@@ -366,6 +368,26 @@ export function CampaignCreatePage() {
     return contactPool.filter((c: any) => selected.has(c.id));
   }, [contactPool, selectedContactIds]);
 
+  // What the whole-sequence preview renders: the builder as it stands, so a
+  // subject changed a moment ago is the one shown, saved or not.
+  const previewDraft = useMemo(() => ({
+    steps: steps.map((s, i) => ({
+      id: s.id ?? null,
+      step_type: String(s.step_type),
+      // Saved in this order (saveCampaign numbers them by position).
+      step_order: i,
+      subject: s.subject ?? null,
+      subject_b: s.subject_b ?? null,
+      body_html: s.body_html ?? null,
+      body_html_b: s.body_html_b ?? null,
+      thread_mode: (s as any).thread_mode ?? null,
+    })),
+    sender_pool_ids: senderPoolIds,
+    smtp_account_id: campaignForm.smtp_account_id ?? null,
+    audience_contact_ids: selectedContactIds,
+    include_unsubscribe: campaignForm.include_unsubscribe === true,
+  }), [steps, senderPoolIds, campaignForm.smtp_account_id, campaignForm.include_unsubscribe, selectedContactIds]);
+
   // Who the preview says it is from: the chosen mailbox, else the first in
   // the rotation - never "Your Name", which no recipient will ever see.
   const previewSender = useMemo(() => {
@@ -544,6 +566,7 @@ export function CampaignCreatePage() {
         track_opens: existingCampaign.track_opens ?? true,
         track_clicks: existingCampaign.track_clicks ?? true,
         include_unsubscribe: existingCampaign.include_unsubscribe ?? false,
+        blackout_dates: existingCampaign.blackout_dates ?? [],
       });
       if (existingCampaign.steps) {
         setSteps(
@@ -1525,6 +1548,17 @@ export function CampaignCreatePage() {
                         })}
                       </div>
                     </Field>
+
+                    {/* On top of the account's own list in Settings - a
+                        launch day the client is closed, a region's holiday
+                        that only this audience keeps. */}
+                    <Field label="Extra closed days" hint="Nothing goes out on these, on top of the closed days in Settings.">
+                      <BlackoutDatesEditor
+                        idPrefix="campaign"
+                        value={campaignForm.blackout_dates || []}
+                        onChange={(next) => setCampaignForm({ ...campaignForm, blackout_dates: next })}
+                      />
+                    </Field>
                   </div>
                 </SectionCard>
 
@@ -2346,6 +2380,15 @@ export function CampaignCreatePage() {
                   </SectionCard>
                 </div>
 
+                {/* The last look before it goes: the whole sequence as one
+                    real person on the list gets it, rendered by the send
+                    path from what is on screen now, saved or not. */}
+                <ContactPreviewPanel
+                  campaignId={isEdit ? id! : null}
+                  audience={selectedContactsPreview}
+                  draft={previewDraft}
+                />
+
                 {/* Capacity over time visualization */}
                 {totalSends > 0 && (
                   <SectionCard
@@ -2376,6 +2419,9 @@ export function CampaignCreatePage() {
                       { label: 'Stop on reply', value: campaignForm.stop_on_reply !== false ? 'Enabled' : 'Disabled' },
                       { label: 'Tracking', value: [campaignForm.track_opens !== false && 'Opens', campaignForm.track_clicks !== false && 'Clicks'].filter(Boolean).join(', ') || 'None' },
                       { label: 'Unsubscribe link', value: campaignForm.include_unsubscribe ? 'Included' : 'Not included' },
+                      (campaignForm.blackout_dates || []).length > 0
+                        ? { label: 'Extra closed days', value: `${(campaignForm.blackout_dates || []).length}, on top of your account's` }
+                        : null,
                       senderPoolIds.length > 0 ? { label: 'Sender rotation', value: `${senderPoolIds.length} accounts` } : null,
                     ].filter(Boolean).map(({ label, value }: any) => (
                       <div key={label}>

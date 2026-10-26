@@ -23,6 +23,7 @@ export type CampaignIssueId =
   | 'all_errored'
   | 'nothing_left'
   | 'outside_schedule'
+  | 'closed_day'
   | 'no_schedule';
 
 export interface CampaignIssue {

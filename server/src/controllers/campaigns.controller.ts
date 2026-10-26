@@ -16,6 +16,7 @@ import { getInboundWebhookToken } from '../utils/inbound-webhook-token.js';
 import { env } from '../config/env.js';
 import { selectInChunks } from '../utils/batch.js';
 import { previewWithSampleData, htmlToText } from '../services/sequence.service.js';
+import { previewAsContact } from '../services/campaign-preview.service.js';
 
 /* Writing with Claude costs money per call; a stuck button or a loop should
    not. Twenty drafts an hour is far beyond anyone iterating by hand. */
@@ -88,6 +89,38 @@ export const campaignsController = {
   async personalizationAudit(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       res.json(await campaignsService.personalizationAudit(req.userId!, req.params.id));
+    } catch (err) { next(err); }
+  },
+
+  /** The saved campaign, as one contact will receive it. */
+  async preview(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const b = req.body || {};
+      res.json(await previewAsContact(req.userId!, {
+        campaignId: req.params.id,
+        contactId: String(b.contact_id || ''),
+        // A draft open in the builder previews what is on screen, not what was last saved.
+        steps: Array.isArray(b.steps) ? b.steps : null,
+        senderPoolIds: Array.isArray(b.sender_pool_ids) ? b.sender_pool_ids : null,
+        smtpAccountId: typeof b.smtp_account_id === 'string' ? b.smtp_account_id : null,
+        audienceContactIds: Array.isArray(b.audience_contact_ids) ? b.audience_contact_ids : null,
+        includeUnsubscribe: typeof b.include_unsubscribe === 'boolean' ? b.include_unsubscribe : null,
+      }));
+    } catch (err) { next(err); }
+  },
+
+  /** A campaign that does not exist yet: the builder sends everything it has. */
+  async previewDraft(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const b = req.body || {};
+      res.json(await previewAsContact(req.userId!, {
+        contactId: String(b.contact_id || ''),
+        steps: Array.isArray(b.steps) ? b.steps : [],
+        senderPoolIds: Array.isArray(b.sender_pool_ids) ? b.sender_pool_ids : [],
+        smtpAccountId: typeof b.smtp_account_id === 'string' ? b.smtp_account_id : null,
+        audienceContactIds: Array.isArray(b.audience_contact_ids) ? b.audience_contact_ids : [],
+        includeUnsubscribe: b.include_unsubscribe === true,
+      }));
     } catch (err) { next(err); }
   },
 

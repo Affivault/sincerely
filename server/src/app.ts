@@ -36,6 +36,14 @@ app.use(morgan('dev'));
 // mounted BEFORE express.json() and outside the authenticated routes.
 app.post('/api/billing/webhook', express.raw({ type: 'application/json' }), billingController.webhook);
 
+/*
+ * A reply or a new message from the inbox may carry up to 10 MB of files
+ * (OUTGOING_ATTACHMENT_LIMIT_BYTES), which arrive base64-encoded in the JSON
+ * body - a third larger again. Only these two routes get the room; every
+ * other route keeps the 10 MB ceiling below. Parsed here first, the general
+ * parser sees the body already read and leaves it alone.
+ */
+app.use(['/api/v1/inbox/compose', /^\/api\/v1\/inbox\/[^/]+\/reply$/], express.json({ limit: '15mb' }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 

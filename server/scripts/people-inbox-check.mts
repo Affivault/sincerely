@@ -83,7 +83,9 @@ console.log('\nwired through');
   is('auto-unsubscribe needs a short, unambiguous reply', /freshLength <= 400/.test(sara));
   is('Claude reads first, rules are the fallback', /if \(aiAvailable\(\) && fresh\)/.test(sara) && /const ruled = classifyReply/.test(sara));
   const inbox = src('services/inbox.service.ts');
-  is('inbox counts are about people', /people\(unreadQ\), people\(needsTriageQ\)/.test(inbox));
+  // The counts also go through awake() since snoozed conversations are out
+  // of every count (migration 092); people() is still applied to each.
+  is('inbox counts are about people', /(?:awake\()?people\(unreadQ\)\)?, (?:awake\()?people\(needsTriageQ\)/.test(inbox));
   is('Other mail has its own folder', /folder === 'other'/.test(inbox));
   is('the reply queue behind Flow is people only', /peopleOnly \? PEOPLE_FILTER/.test(src('services/reply-queue.service.ts')));
   is('wrongly unsubscribed people are offered back, not resubscribed silently', /async relayReview\(/.test(src('services/mail-sort.service.ts')));

@@ -7,7 +7,7 @@ import { useState, useRef, useEffect, useCallback, useMemo, useId } from 'react'
 import { usePopover } from '../../hooks/usePopover';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { inboxApi } from '../../api/inbox.api';
+import { inboxApi, type SendExtras } from '../../api/inbox.api';
 import { smtpApi } from '../../api/smtp.api';
 import { ReferralCard } from '../../components/inbox/ReferralCard';
 import { templateApi } from '../../api/template.api';
@@ -36,6 +36,8 @@ import { InboxNotices, MailKindBar } from '../../components/inbox/PeopleFirstNot
 import { keepPrevious } from '../../lib/listQuery';
 import { Refreshing } from '../../components/ui/Refreshing';
 import { useOptimisticRow } from '../../lib/optimistic';
+import { AttachButton, AttachmentChips, useOutgoingAttachments } from '../../components/inbox/OutgoingAttachments';
+import { AssignMenu, AssigneeBadge, NudgeMenu, NudgeSelect, SnoozeMenu } from '../../components/inbox/ConversationControls';
 import {
   Search,
   Star,
@@ -94,16 +96,18 @@ import {
   History as HistoryIcon,
   ArrowRight,
   Paperclip,
+  AlarmClock,
+  BellRing,
 } from 'lucide-react';
 
 import {
   DEAL_STAGES, TRIAGE_DECISIONS, BULK_TRIAGE_LIMIT,
   type DealStage, type TriageDecision, formatDate, formatDayMonth, formatFullDateTime, formatMonthYear, formatTime, formatWeekday, formatWeekdayDate, formatMoney, formatDayMonthTime, REPLY_INTENT_LABELS,
   previewText, senderLabel as sharedSenderLabel, companyFromEmail as sharedCompanyFromEmail,
-  MAIL_KIND_LABELS, type MailKind } from '@lemlist/shared';
+  MAIL_KIND_LABELS, type MailKind, type InboxTeammate, formatBytes } from '@lemlist/shared';
 
 /* ─── Types ────────────────────────────────────────── */
-type Folder = 'inbox' | 'starred' | 'sent' | 'archived' | 'scheduled' | 'needs_triage' | 'other';
+type Folder = 'inbox' | 'starred' | 'sent' | 'archived' | 'scheduled' | 'needs_triage' | 'other' | 'snoozed' | 'assigned';
 
 interface ConversationThread {
   contactEmail: string;
@@ -112,6 +116,13 @@ interface ConversationThread {
   messageCount: number;
   hasUnread: boolean;
   isStarred: boolean;
+  /** One of ours in it was checked and found unanswered (a nudge fired). */
+  noReplyYet: boolean;
+  /** Why it is back at the top, if it is. */
+  resurfaced: 'snooze' | 'nudge' | null;
+  resurfacedAt: string | null;
+  /** Who it is assigned to, if anybody. */
+  assignedTo: string | null;
 }
 
 interface SmtpAccount {
@@ -166,6 +177,17 @@ interface Message {
   triage_decision?: TriageDecision | null;
   /** The lead or follow-up that decision made, so undo can remove exactly it. */
   triage_ref?: string | null;
+  /** Out of the inbox until then. */
+  snoozed_until?: string | null;
+  /** On mail we sent: when to check for an answer, and whether none came. */
+  nudge_at?: string | null;
+  nudge_fired_at?: string | null;
+  /** A snooze ended or a nudge fired; held at the top until opened. */
+  resurfaced_at?: string | null;
+  resurfaced_reason?: 'snooze' | 'nudge' | null;
+  assigned_to?: string | null;
+  /** A teammate's mail, assigned to you: readable here, not yours to act on. */
+  read_only?: boolean;
 }
 
 /* ─── Helpers ──────────────────────────────────────── */
@@ -399,28 +421,63 @@ const INTENT_DOTS: Record<string, string> = {
 };
 
 /*
- * What came attached. The files stay in the mailbox they arrived in, so
- * this names them and says where to open them, rather than a reply that
- * says "see attached" sitting there with nothing attached.
+ * What came attached. The names and sizes are kept with the message; the
+ * files stay in the mailbox they arrived in, and clicking one fetches it
+ * from there (GET /inbox/:id/attachments/:index).
  */
-function AttachmentList({ items }: { items?: Array<{ filename: string; content_type: string; size: number }> | null }) {
+function AttachmentList({ items, messageId, canDownload = true }: {
+  items?: Array<{ filename: string; content_type: string; size: number }> | null;
+  messageId: string;
+  canDownload?: boolean;
+}) {
+  const [busy, setBusy] = useState<number | null>(null);
   if (!items || items.length === 0) return null;
-  const size = (b: number) => (b >= 1_048_576 ? `${(b / 1_048_576).toFixed(1)} MB` : b >= 1024 ? `${Math.round(b / 1024)} KB` : `${b} B`);
+  const download = async (i: number, filename: string) => {
+    if (busy !== null) return;
+    setBusy(i);
+    try {
+      await inboxApi.downloadAttachment(messageId, i, filename);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || err?.message || 'Could not download that attachment');
+    } finally {
+      setBusy(null);
+    }
+  };
   return (
     <div className="mx-5 mb-4 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2.5">
       <p className="flex items-center gap-1.5 text-caption font-semibold text-[var(--text-secondary)]">
         <Paperclip className="h-3.5 w-3.5" aria-hidden="true" />
         {items.length === 1 ? '1 attachment' : `${items.length} attachments`}
       </p>
-      <ul className="mt-1.5 space-y-1">
+      <ul className="mt-1.5 space-y-0.5">
         {items.map((a, i) => (
-          <li key={`${a.filename}-${i}`} className="flex items-center justify-between gap-3 text-caption">
-            <span className="truncate text-[var(--text-primary)]" title={a.filename}>{a.filename}</span>
-            <span className="flex-shrink-0 tabular text-[var(--text-tertiary)]">{size(a.size)}</span>
+          <li key={`${a.filename}-${i}`}>
+            {canDownload ? (
+              <button
+                type="button"
+                onClick={() => download(i, a.filename)}
+                disabled={busy !== null}
+                title={`Download ${a.filename}`}
+                className="group w-full flex items-center justify-between gap-3 rounded-md px-1 -mx-1 py-0.5 text-caption text-left hover:bg-[var(--bg-hover)] disabled:cursor-wait"
+              >
+                <span className="truncate text-[var(--indigo-text)] group-hover:underline">{a.filename}</span>
+                <span className="flex flex-shrink-0 items-center gap-1.5 tabular text-[var(--text-tertiary)]">
+                  {busy === i && <Loader2 className="h-3 w-3 animate-spin" aria-label="Downloading" />}
+                  {formatBytes(a.size)}
+                </span>
+              </button>
+            ) : (
+              <span className="flex items-center justify-between gap-3 text-caption">
+                <span className="truncate text-[var(--text-primary)]" title={a.filename}>{a.filename}</span>
+                <span className="flex-shrink-0 tabular text-[var(--text-tertiary)]">{formatBytes(a.size)}</span>
+              </span>
+            )}
           </li>
         ))}
       </ul>
-      <p className="mt-1.5 text-micro text-[var(--text-tertiary)]">Open the email in your mailbox to download these.</p>
+      {!canDownload && (
+        <p className="mt-1.5 text-micro text-[var(--text-tertiary)]">These are in a teammate&apos;s mailbox; ask them, or open it there.</p>
+      )}
     </div>
   );
 }
@@ -469,16 +526,22 @@ function SenderSelect({ accounts, value, onChange }: {
 }
 
 /* ─── Compose Modal ───────────────────────────────── */
-function ComposeModal({ onClose, onSend, onSchedule, sending, smtpAccounts, templates }: {
+function ComposeModal({ onClose, onSend, onSchedule, sending, smtpAccounts, templates, initialTo, initialSubject }: {
   onClose: () => void;
-  onSend: (data: { to: string; subject: string; body: string; body_html?: string; smtp_account_id?: string }) => void;
+  onSend: (data: { to: string; subject: string; body: string; body_html?: string; smtp_account_id?: string } & SendExtras) => void;
   onSchedule: (data: { to: string; subject: string; body: string; body_html?: string; smtp_account_id?: string; scheduled_at: string }) => void;
   sending?: boolean;
   smtpAccounts: SmtpAccount[];
   templates?: { id: string; name: string; subject: string; body_html: string }[];
+  /** Prefilled, e.g. writing to the contact of a teammate's conversation. */
+  initialTo?: string;
+  initialSubject?: string;
 }) {
-  const [to, setTo] = useState('');
-  const [subject, setSubject] = useState('');
+  const [to, setTo] = useState(initialTo || '');
+  const [subject, setSubject] = useState(initialSubject || '');
+  const files = useOutgoingAttachments();
+  const [nudgeDays, setNudgeDays] = useState<number | null>(null);
+  const [reading, setReading] = useState(false);
   const [senderId, setSenderId] = useState(smtpAccounts[0]?.id || '');
   const [expanded, setExpanded] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
@@ -498,7 +561,7 @@ function ComposeModal({ onClose, onSend, onSchedule, sending, smtpAccounts, temp
     }
   }, [smtpAccounts, senderId]);
 
-  const canSend = to && subject && !editor.isEmpty && !sending && smtpAccounts.length > 0;
+  const canSend = to && subject && !editor.isEmpty && !sending && !reading && smtpAccounts.length > 0;
 
   const handleSchedule = (scheduledAt: string) => {
     if (to && subject && !editor.isEmpty) {
@@ -578,6 +641,7 @@ function ComposeModal({ onClose, onSend, onSchedule, sending, smtpAccounts, temp
           {sig.on && (
             <SignaturePreview html={sig.sigHtml!} onRemove={() => sig.setOn(false)} />
           )}
+          <AttachmentChips state={files} />
         </div>
 
         {/* Action bar — Discard left, Schedule + Send right */}
@@ -585,6 +649,8 @@ function ComposeModal({ onClose, onSend, onSchedule, sending, smtpAccounts, temp
           <div className="flex items-center gap-1 min-w-0">
             <button onClick={onClose} className="h-9 px-3 rounded-lg text-strong font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors">Discard</button>
             <SignatureButton available={sig.available} on={sig.on} onToggle={sig.toggle} />
+            <AttachButton state={files} disabled={sending} />
+            <span className="hidden md:inline-flex"><NudgeSelect value={nudgeDays} onChange={setNudgeDays} disabled={sending} /></span>
           </div>
           <div className="flex items-center gap-2">
             <div className="relative">
@@ -593,13 +659,15 @@ function ComposeModal({ onClose, onSend, onSchedule, sending, smtpAccounts, temp
                 aria-haspopup="true"
                 aria-expanded={showSchedule}
                 aria-controls={showSchedule ? scheduleId : undefined}
-                disabled={!canSend}
+                // Scheduled mail is stored as a row and sent later; it has
+                // nowhere to keep files until then, so it carries none.
+                disabled={!canSend || files.count > 0}
+                title={files.count > 0 ? 'Scheduled emails cannot carry attachments yet - send now, or remove the files' : 'Schedule send'}
                 className={`flex items-center gap-1.5 h-9 px-3 rounded-lg text-strong font-medium transition-all disabled:opacity-40 ${
                   showSchedule
                     ? 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)] border border-[rgba(47,63,156,0.25)]'
                     : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] border border-[var(--border-default)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
                 }`}
-                title="Schedule send"
               >
                 <CalendarClock className="h-3.5 w-3.5" />
                 <span>Schedule</span>
@@ -608,11 +676,22 @@ function ComposeModal({ onClose, onSend, onSchedule, sending, smtpAccounts, temp
               {showSchedule && <ScheduleSendPicker id={scheduleId} onSchedule={handleSchedule} onClose={() => setShowSchedule(false)} />}
             </div>
             <button
-              onClick={() => {
-                if (canSend) {
-                  const b = withSignature(editor.html, editor.text, sig.sigHtml, sig.on);
-                  onSend({ to, subject, body: b.body, body_html: b.body_html, smtp_account_id: senderId || undefined });
+              onClick={async () => {
+                if (!canSend) return;
+                const b = withSignature(editor.html, editor.text, sig.sigHtml, sig.on);
+                let attachments: SendExtras['attachments'];
+                if (files.count > 0) {
+                  setReading(true);
+                  try {
+                    attachments = await files.toPayload();
+                  } catch {
+                    toast.error('One of the files could not be read. Remove it and attach it again.');
+                    return;
+                  } finally {
+                    setReading(false);
+                  }
                 }
+                onSend({ to, subject, body: b.body, body_html: b.body_html, smtp_account_id: senderId || undefined, attachments, nudge_days: nudgeDays });
               }}
               disabled={!canSend}
               className="flex items-center gap-2 h-9 px-4 rounded-lg bg-[var(--indigo)] text-white text-strong font-semibold hover:bg-[var(--indigo-hover)] transition-colors disabled:opacity-40 shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_2px_rgba(24,25,29,0.35)]"
@@ -1305,7 +1384,7 @@ function TimelineMessage({ msg, threadSubject, isCurrent, expanded, onToggle }: 
             </div>
           }>
             <EmailBody html={msg.body_html} text={msg.body_text} />
-            <AttachmentList items={msg.attachments} />
+            <AttachmentList items={msg.attachments} messageId={msg.id} canDownload={!msg.read_only} />
           </ErrorBoundary>
         )}
       </div>
@@ -2055,6 +2134,7 @@ function groupConversations(messages: Message[]): ConversationThread[] {
     msgs.sort((a, b) => new Date(b.received_at).getTime() - new Date(a.received_at).getTime());
     const latest = msgs[0];
     return {
+      ...conversationFlags(msgs),
       contactEmail: key,
       contactName: latest.contact_name,
       latestMessage: latest,
@@ -2062,7 +2142,34 @@ function groupConversations(messages: Message[]): ConversationThread[] {
       hasUnread: msgs.some(m => !m.is_read),
       isStarred: msgs.some(m => m.is_starred),
     };
-  }).sort((a, b) => new Date(b.latestMessage.received_at).getTime() - new Date(a.latestMessage.received_at).getTime());
+  }).sort((a, b) => sortTime(b) - sortTime(a));
+}
+
+/*
+ * What a conversation says about itself beyond its newest message.
+ *
+ * "No reply yet" sits on the message we sent, which is not always the
+ * newest one (an out-of-office may have arrived after it), so it is read
+ * across the conversation.
+ */
+function conversationFlags(msgs: Message[]): Pick<ConversationThread, 'noReplyYet' | 'resurfaced' | 'resurfacedAt' | 'assignedTo'> {
+  const back = msgs.find((m) => m.resurfaced_at);
+  return {
+    noReplyYet: msgs.some((m) => !!m.nudge_fired_at),
+    resurfaced: back?.resurfaced_reason ?? null,
+    resurfacedAt: back?.resurfaced_at ?? null,
+    assignedTo: msgs.find((m) => m.assigned_to)?.assigned_to ?? null,
+  };
+}
+
+/*
+ * Where a conversation sorts: its newest message, or the moment it came
+ * back if a snooze or a nudge brought it back - the server sorts those
+ * first, and re-sorting here by received date alone would undo that.
+ */
+function sortTime(c: ConversationThread): number {
+  const back = c.resurfacedAt ? new Date(c.resurfacedAt).getTime() : 0;
+  return Math.max(new Date(c.latestMessage.received_at).getTime(), back);
 }
 
 /**
@@ -2080,6 +2187,7 @@ function asIndividualRows(messages: Message[]): ConversationThread[] {
   return messages
     .filter((m) => m.sara_status !== 'scheduled')
     .map((m) => ({
+      ...conversationFlags([m]),
       contactEmail: threadEmailOf(m) || m.id,
       contactName: m.contact_name,
       latestMessage: m,
@@ -2088,6 +2196,42 @@ function asIndividualRows(messages: Message[]): ConversationThread[] {
       isStarred: !!m.is_starred,
     }))
     .sort((a, b) => new Date(b.latestMessage.received_at).getTime() - new Date(a.latestMessage.received_at).getTime());
+}
+
+/*
+ * What a row says about where the conversation stands: back from a snooze,
+ * still unanswered after a reminder, snoozed until when, and whose it is.
+ * Small, because the row is mostly for what they said.
+ */
+function ConversationMarkers({ conv, folder, assignee }: {
+  conv: ConversationThread;
+  folder: Folder;
+  assignee?: InboxTeammate;
+}) {
+  const until = conv.latestMessage.snoozed_until;
+  return (
+    <>
+      {conv.noReplyYet && (
+        <span
+          className="inline-flex items-center gap-1 text-micro font-semibold px-1.5 py-0.5 rounded bg-amber-500/12 text-amber-700 dark:text-amber-400 flex-shrink-0"
+          title="You asked to be reminded if they did not reply, and they have not. Cleared as soon as they do."
+        >
+          <BellRing className="h-2.5 w-2.5" aria-hidden="true" />No reply yet
+        </span>
+      )}
+      {conv.resurfaced === 'snooze' && !conv.noReplyYet && (
+        <span className="inline-flex items-center gap-1 text-micro font-semibold px-1.5 py-0.5 rounded bg-[var(--indigo-subtle)] text-[var(--indigo-text)] flex-shrink-0" title="Back from a snooze">
+          <AlarmClock className="h-2.5 w-2.5" aria-hidden="true" />Back
+        </span>
+      )}
+      {folder === 'snoozed' && until && (
+        <span className="inline-flex items-center gap-1 text-micro font-medium px-1.5 py-0.5 rounded bg-[var(--bg-elevated)] text-[var(--text-tertiary)] flex-shrink-0 tabular" title="Comes back to your inbox then">
+          <AlarmClock className="h-2.5 w-2.5" aria-hidden="true" />{formatDayMonthTime(new Date(until))}
+        </span>
+      )}
+      {assignee && <AssigneeBadge email={assignee.email} me={assignee.is_me} />}
+    </>
+  );
 }
 
 /* ─── Sidebar navigation config ───────────────────── */
@@ -2287,6 +2431,12 @@ export function InboxPage() {
   const moreMenu = usePopover(moreOpen, () => setMoreOpen(false));
   const replyComposerRef = useRef<HTMLDivElement>(null);
   const replyEditor = useRichTextEditorRef();
+  // Files and a reminder on the reply being written; both reset with it.
+  const replyFiles = useOutgoingAttachments();
+  const [replyNudge, setReplyNudge] = useState<number | null>(null);
+  const [readingFiles, setReadingFiles] = useState(false);
+  /** Writing to a teammate's contact from your own mailbox. */
+  const [composePrefill, setComposePrefill] = useState<{ to: string; subject: string } | null>(null);
 
   /* ── SMTP accounts for sender selection ── */
   const { data: smtpAccountsRaw } = useQuery({
@@ -2355,8 +2505,24 @@ export function InboxPage() {
     c.needs_triage = countsData?.needs_triage || 0;
     c.hot = (intents.interested || 0) + (intents.meeting || 0);
     c.needs_reply = (intents.interested || 0) + (intents.objection || 0) + (intents.meeting || 0);
+    c.snoozed = countsData?.snoozed || 0;
+    c.assigned = countsData?.assigned_to_me || 0;
     return c;
   }, [countsData]);
+
+  /*
+   * Teammates a conversation can be handed to. Empty for a solo account,
+   * and then every piece of the assignment UI stays out of the way - an
+   * "Assign" button with nobody to assign to is a question with no answer.
+   */
+  const { data: teammatesRaw } = useQuery({
+    queryKey: ['inbox-teammates'],
+    queryFn: inboxApi.teammates,
+    staleTime: 5 * 60_000,
+  });
+  const teammates: InboxTeammate[] = Array.isArray(teammatesRaw) ? teammatesRaw : [];
+  const hasTeam = teammates.length > 1;
+  const teammateEmail = useCallback((id: string | null | undefined) => teammates.find((t) => t.user_id === id), [teammates]);
 
   const { data: selectedMsg } = useQuery({
     queryKey: ['inbox', 'detail', selectedId],
@@ -2565,9 +2731,54 @@ export function InboxPage() {
   });
 
   const replyMut = useMutation({
-    mutationFn: ({ id, body, smtp_account_id, body_html }: { id: string; body: string; smtp_account_id?: string; body_html?: string }) => inboxApi.reply(id, body, smtp_account_id, body_html),
-    onSuccess: () => { invalidate(); setReplyMode(null); setReplySenderId(''); toast.success('Reply sent'); },
+    mutationFn: ({ id, body, smtp_account_id, body_html, extras }: { id: string; body: string; smtp_account_id?: string; body_html?: string; extras?: SendExtras }) =>
+      inboxApi.reply(id, body, smtp_account_id, body_html, extras),
+    onSuccess: (data) => {
+      invalidate();
+      setReplyMode(null);
+      setReplySenderId('');
+      toast.success('Reply sent');
+      // Sent, but something about it did not land (files the relay dropped,
+      // a reminder the database cannot hold yet): said, not swallowed.
+      for (const w of data.warnings || []) toast.error(w, { duration: 8000 });
+    },
     onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to send reply'),
+  });
+
+  /* Snooze, remind-if-no-reply and assignment act on the whole conversation. */
+  const snoozeMut = useMutation({
+    mutationFn: ({ id, until }: { id: string; until: string | null }) => inboxApi.snooze(id, until),
+    onSuccess: (data, v) => {
+      invalidate();
+      if (data.snoozed_until) {
+        // Gone from the inbox, so move on rather than leave it open.
+        if (folder !== 'snoozed') setSelectedId(null);
+        toast.success(`Snoozed until ${formatDayMonthTime(new Date(data.snoozed_until))}`);
+        offerUndo('Snoozed', () => inboxApi.snooze(v.id, null), [['inbox']]);
+      } else {
+        toast.success('Back in your inbox');
+      }
+    },
+    onError: (err: any) => toast.error(err.response?.data?.error || 'Could not snooze that'),
+  });
+
+  const nudgeMut = useMutation({
+    mutationFn: ({ id, days }: { id: string; days: number | null }) => inboxApi.nudge(id, days),
+    onSuccess: (data) => {
+      invalidate();
+      toast.success(data.nudge_at ? `We'll remind you on ${formatDayMonthTime(new Date(data.nudge_at))} if they haven't replied` : 'Reminder removed');
+    },
+    onError: (err: any) => toast.error(err.response?.data?.error || 'Could not set the reminder'),
+  });
+
+  const assignMut = useMutation({
+    mutationFn: ({ id, assignee }: { id: string; assignee: string | null }) => inboxApi.assign(id, assignee),
+    onSuccess: (data) => {
+      invalidate();
+      const who = teammateEmail(data.assigned_to);
+      toast.success(!data.assigned_to ? 'Unassigned' : who?.is_me ? 'Assigned to you' : `Assigned to ${who?.email || 'your teammate'}`);
+    },
+    onError: (err: any) => toast.error(err.response?.data?.error || 'Could not assign that'),
   });
 
   const forwardMut = useMutation({
@@ -2578,7 +2789,13 @@ export function InboxPage() {
 
   const composeMut = useMutation({
     mutationFn: inboxApi.compose,
-    onSuccess: () => { invalidate(); setShowCompose(false); toast.success('Message sent'); },
+    onSuccess: (data) => {
+      invalidate();
+      setShowCompose(false);
+      setComposePrefill(null);
+      toast.success('Message sent');
+      for (const w of data.warnings || []) toast.error(w, { duration: 8000 });
+    },
     onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to send — check your SMTP accounts'),
   });
 
@@ -2653,6 +2870,9 @@ export function InboxPage() {
       };
     });
 
+    // A teammate's conversation is theirs to mark read, not ours.
+    if (msg.read_only) return;
+
     // Persist server-side, then re-sync lists + badge counts. On failure the
     // optimistic "read" flip above is wrong — re-invalidate so the cache is
     // pulled back in line with the server instead of staying stuck showing
@@ -2679,6 +2899,9 @@ export function InboxPage() {
       // this, Discard (or a successful send, which also sets replyMode null)
       // could leave stale content that gets sent on the next reply/forward.
       replyEditor.reset();
+      // Same for files and the reminder: they belong to the reply just closed.
+      replyFiles.clear();
+      setReplyNudge(null);
     } else {
       setTimeout(() => replyComposerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 80);
     }
@@ -2879,6 +3102,8 @@ export function InboxPage() {
     { id: 'sent', label: 'Sent', icon: SendHorizontal },
     { id: 'scheduled', label: 'Scheduled', icon: Clock },
     { id: 'archived', label: 'Archived', icon: Archive },
+    { id: 'snoozed', label: 'Snoozed', icon: AlarmClock },
+    { id: 'assigned', label: 'Assigned to you', icon: UsersIcon },
   ];
 
   // Handler to insert AI-generated content into the reply editor
@@ -2926,6 +3151,8 @@ export function InboxPage() {
        * same keypress as its own archive key.
        */
       if (!acceptsShortcut(e.target)) return;
+      // A teammate's conversation is read-only here: nothing to reply from or archive.
+      if (currentMsg.read_only && (e.key === 'r' || e.key === 'e')) return;
       if (e.key === 'r') {
         setReplyMode('reply');
         setReplySenderId(currentMsg.smtp_account_id || smtpAccounts[0]?.id || '');
@@ -3006,6 +3233,21 @@ export function InboxPage() {
       || 'Contact')
     : null;
 
+  /*
+   * The message a "remind me if no reply" belongs on: ours, and the last
+   * word in the conversation. If they wrote after it there is nothing to
+   * be reminded about. An out-of-office after it does not count as them
+   * writing, the same rule the server applies.
+   */
+  const lastSent: Message | null = useMemo(() => {
+    for (let i = fullThread.length - 1; i >= 0; i--) {
+      const m = fullThread[i];
+      if (m.direction === 'outbound') return m.sara_status === 'scheduled' ? null : m;
+      if (!m.auto_reply_kind) return null;
+    }
+    return null;
+  }, [fullThread]);
+
   const copyContactEmail = useCallback(() => {
     if (!threadContactEmail) return;
     navigator.clipboard.writeText(threadContactEmail)
@@ -3014,7 +3256,7 @@ export function InboxPage() {
   }, [threadContactEmail]);
 
   /* ── View model: one tab strip drives folder + smart-view state ── */
-  type ViewId = 'inbox' | 'unread' | 'needs' | 'hot' | 'starred' | 'sent' | 'scheduled' | 'archived' | 'needs_triage' | 'other';
+  type ViewId = 'inbox' | 'unread' | 'needs' | 'hot' | 'starred' | 'sent' | 'scheduled' | 'archived' | 'needs_triage' | 'other' | 'snoozed' | 'assigned';
   const activeView: ViewId =
     folder === 'inbox'
       ? (unreadOnly ? 'unread' : quickFilter === 'needs_reply' ? 'needs' : quickFilter === 'hot' ? 'hot' : 'inbox')
@@ -3039,7 +3281,7 @@ export function InboxPage() {
      the person to find. Read once, then dropped from the address. */
   const viewParam = searchParams.get('view');
   useEffect(() => {
-    const known: ViewId[] = ['inbox', 'unread', 'needs', 'hot', 'starred', 'sent', 'scheduled', 'archived', 'needs_triage', 'other'];
+    const known: ViewId[] = ['inbox', 'unread', 'needs', 'hot', 'starred', 'sent', 'scheduled', 'archived', 'needs_triage', 'other', 'snoozed', 'assigned'];
     if (!viewParam || !known.includes(viewParam as ViewId)) return;
     setView(viewParam as ViewId);
     setSearchParams((prev) => { const next = new URLSearchParams(prev); next.delete('view'); return next; }, { replace: true });
@@ -3073,6 +3315,43 @@ export function InboxPage() {
                 <kbd className="kbd ml-1">Esc</kbd> close
               </span>
               <div className="flex-1" />
+              {currentMsg.read_only ? (
+                /* A teammate's conversation: theirs to answer from their
+                   mailbox. Writing to the person from your own is the one
+                   thing that can honestly be offered here. */
+                <button
+                  onClick={() => {
+                    setReplyMode(null);
+                    setComposePrefill({ to: threadContactEmail || '', subject: `Re: ${(threadSubject || '').replace(/^((re|fwd?|fw)\s*:\s*)+/i, '')}` });
+                    setShowCompose(true);
+                  }}
+                  className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[var(--indigo-subtle)] text-[var(--indigo-text)] text-body font-semibold hover:bg-[rgba(47,63,156,0.14)] transition-colors"
+                >
+                  <Pencil className="h-3.5 w-3.5" /> Write from your mailbox
+                </button>
+              ) : (
+              <>
+              {hasTeam && (
+                <AssignMenu
+                  teammates={teammates}
+                  assignedTo={currentMsg.assigned_to}
+                  pending={assignMut.isPending}
+                  onAssign={(assignee) => assignMut.mutate({ id: currentMsg.id, assignee })}
+                />
+              )}
+              {lastSent && (
+                <NudgeMenu
+                  nudgeAt={lastSent.nudge_at}
+                  fired={!!lastSent.nudge_fired_at}
+                  pending={nudgeMut.isPending}
+                  onSet={(days) => nudgeMut.mutate({ id: lastSent.id, days })}
+                />
+              )}
+              <SnoozeMenu
+                snoozedUntil={currentMsg.snoozed_until}
+                pending={snoozeMut.isPending}
+                onSnooze={(until) => snoozeMut.mutate({ id: currentMsg.id, until })}
+              />
               <button
                 onClick={() => { setShowCompose(false); setReplyMode('reply'); setReplySenderId(currentMsg.smtp_account_id || smtpAccounts[0]?.id || ''); }}
                 className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[var(--indigo-subtle)] text-[var(--indigo-text)] text-body font-semibold hover:bg-[rgba(47,63,156,0.14)] transition-colors"
@@ -3095,6 +3374,8 @@ export function InboxPage() {
               >
                 {currentMsg.is_read ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
+              </>
+              )}
               <span className="h-4 w-px bg-[var(--border-subtle)] hidden xl:block" />
               <button aria-label={showContext ? 'Hide contact details' : 'Show contact details'}
                 onClick={() => setShowContext(v => !v)}
@@ -3262,6 +3543,15 @@ export function InboxPage() {
                 </div>
 
                 {/* ── Composer dock — sits inside the thread's message column so it flows with the emails above ── */}
+                {currentMsg.read_only ? (
+                  <div className="flex-shrink-0 bg-[var(--bg-app)] pt-1 pb-5">
+                    <div className="max-w-[860px] mx-auto px-3 sm:px-8">
+                      <Notice tone="info" title="Assigned to you from a teammate's mailbox">
+                        {`This conversation is in ${currentMsg.smtp_email || 'a teammate'}'s mailbox. You can read it here; replies go from the mailbox it is in, so write from your own or ask them to answer.`}
+                      </Notice>
+                    </div>
+                  </div>
+                ) : (
                 <div className="flex-shrink-0 bg-[var(--bg-app)] pt-1 pb-5">
                   <div className="max-w-[860px] mx-auto px-3 sm:px-8">
                   {/* The indent lines the composer up with the messages; on a phone it
@@ -3352,6 +3642,7 @@ export function InboxPage() {
                         {replySig.on && (
                           <SignaturePreview html={replySig.sigHtml!} onRemove={() => replySig.setOn(false)} />
                         )}
+                        {replyMode === 'reply' && <AttachmentChips state={replyFiles} />}
                       </div>
 
                       {/* AI Assist Bar */}
@@ -3369,6 +3660,14 @@ export function InboxPage() {
                         <div className="flex items-center gap-1 min-w-0">
                           <button onClick={() => setReplyMode(null)} className="h-9 px-2 sm:px-3 rounded-lg text-strong font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors">Discard</button>
                           <SignatureButton available={replySig.available} on={replySig.on} onToggle={replySig.toggle} />
+                          {/* Files and the reminder go with a reply; a forward
+                              carries the original as it was. */}
+                          {replyMode === 'reply' && (
+                            <>
+                              <AttachButton state={replyFiles} disabled={replyMut.isPending} />
+                              <span className="hidden lg:inline-flex"><NudgeSelect value={replyNudge} onChange={setReplyNudge} disabled={replyMut.isPending} /></span>
+                            </>
+                          )}
                         </div>
                         <div className="flex items-center gap-2">
                           {replyMode === 'reply' && (
@@ -3378,13 +3677,15 @@ export function InboxPage() {
                                 aria-haspopup="true"
                                 aria-expanded={showReplySchedule}
                                 aria-controls={showReplySchedule ? replyScheduleId : undefined}
-                                disabled={replyEditor.isEmpty || replyMut.isPending}
+                                // A scheduled reply is stored and sent later, with
+                                // nowhere to keep files until then.
+                                disabled={replyEditor.isEmpty || replyMut.isPending || replyFiles.count > 0}
                                 className={`flex items-center gap-1.5 h-9 px-3 rounded-lg text-strong font-medium transition-all disabled:opacity-40 ${
                                   showReplySchedule
                                     ? 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)] border border-[rgba(47,63,156,0.25)]'
                                     : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] border border-[var(--border-default)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
                                 }`}
-                                title="Schedule send"
+                                title={replyFiles.count > 0 ? 'Scheduled replies cannot carry attachments yet - send now, or remove the files' : 'Schedule send'}
                               >
                                 <CalendarClock className="h-3.5 w-3.5" />
                                 <span className="hidden sm:inline">Schedule</span>
@@ -3405,18 +3706,30 @@ export function InboxPage() {
                             </div>
                           )}
                           <button
-                            onClick={() => {
+                            onClick={async () => {
                               const sid = replySenderId || undefined;
                               if (replyMode === 'reply' && !replyEditor.isEmpty) {
                                 const b = withSignature(replyEditor.html, replyEditor.text, replySig.sigHtml, replySig.on);
-                                replyMut.mutate({ id: currentMsg.id, body: b.body, body_html: b.body_html, smtp_account_id: sid });
+                                let attachments: SendExtras['attachments'];
+                                if (replyFiles.count > 0) {
+                                  setReadingFiles(true);
+                                  try {
+                                    attachments = await replyFiles.toPayload();
+                                  } catch {
+                                    toast.error('One of the files could not be read. Remove it and attach it again.');
+                                    return;
+                                  } finally {
+                                    setReadingFiles(false);
+                                  }
+                                }
+                                replyMut.mutate({ id: currentMsg.id, body: b.body, body_html: b.body_html, smtp_account_id: sid, extras: { attachments, nudge_days: replyNudge } });
                               } else if (replyMode === 'forward' && forwardTo.trim()) {
                                 const b = withSignature(replyEditor.html || '', replyEditor.text || '', replySig.sigHtml, replySig.on);
                                 forwardMut.mutate({ id: currentMsg.id, to: forwardTo.trim(), note: b.body || undefined, body_html: b.body_html || undefined, smtp_account_id: sid });
                               }
                             }}
                             disabled={
-                              (replyMode === 'reply' ? replyEditor.isEmpty || replyMut.isPending : !forwardTo.trim() || forwardMut.isPending)
+                              (replyMode === 'reply' ? replyEditor.isEmpty || replyMut.isPending || readingFiles : !forwardTo.trim() || forwardMut.isPending)
                             }
                             className="flex items-center gap-2 h-9 px-3 sm:px-4 rounded-lg bg-[var(--indigo)] text-white text-strong font-semibold whitespace-nowrap hover:bg-[var(--indigo-hover)] transition-colors disabled:opacity-40 shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_2px_rgba(24,25,29,0.35)]"
                           >
@@ -3448,6 +3761,7 @@ export function InboxPage() {
                   </div>
                   </div>
                 </div>
+                )}
               </div>
 
               {/* Contact context rail */}
@@ -3511,9 +3825,12 @@ export function InboxPage() {
               row never runs off the edge and pushes Compose away. */}
           <div className="relative flex-shrink-0 self-stretch flex items-stretch">
             {(() => {
-              const MORE: Array<{ id: ViewId; label: string }> = [
+              const MORE: Array<{ id: ViewId; label: string; count?: number }> = [
+                // Only with a team: on a solo account nothing is ever assigned.
+                ...(hasTeam ? [{ id: 'assigned' as const, label: 'Assigned to you', count: viewCounts.assigned }] : []),
                 { id: 'hot', label: 'Hot leads' },
                 { id: 'unread', label: 'Unread' },
+                { id: 'snoozed', label: 'Snoozed', count: viewCounts.snoozed },
                 { id: 'scheduled', label: 'Scheduled' },
                 { id: 'starred', label: 'Starred' },
                 { id: 'sent', label: 'Sent' },
@@ -3548,8 +3865,11 @@ export function InboxPage() {
                               activeView === m.id ? 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)] font-medium' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
                             )}
                           >
-                            {m.label}
-                            {activeView === m.id && <Check className="h-3.5 w-3.5" />}
+                            <span>{m.label}</span>
+                            <span className="flex items-center gap-1.5">
+                              {!!m.count && <span className="text-micro font-semibold tabular text-[var(--text-tertiary)]">{m.count > 999 ? '999+' : m.count}</span>}
+                              {activeView === m.id && <Check className="h-3.5 w-3.5" />}
+                            </span>
                           </button>
                         ))}
                       </div>
@@ -3836,6 +4156,8 @@ export function InboxPage() {
                       : unreadOnly ? "You're all caught up."
                       : tagFilter !== 'all' ? `No messages tagged as "${TAG_OPTIONS.find(t => t.value === tagFilter)?.label}".`
                       : quickFilter !== 'all' ? 'Try a different view.'
+                      : folder === 'snoozed' ? 'Nothing is snoozed. Snooze a conversation to have it come back when you are ready for it.'
+                      : folder === 'assigned' ? 'Nothing is assigned to you right now.'
                       : `Your ${folder} is empty — replies will land here.`
                   }
                 />
@@ -3898,6 +4220,7 @@ export function InboxPage() {
                             </span>
                             {conv.messageCount > 1 && <span className="text-caption text-[var(--text-tertiary)] tabular flex-shrink-0">{conv.messageCount}</span>}
                             {conv.isStarred && <Star className="h-3 w-3 text-amber-500 fill-amber-500 flex-shrink-0 self-center" />}
+                            <span className="flex items-center gap-1 self-center min-w-0"><ConversationMarkers conv={conv} folder={folder} assignee={hasTeam ? teammateEmail(conv.assignedTo) : undefined} /></span>
                             <span className="ml-auto flex-shrink-0 text-caption text-[var(--text-tertiary)] tabular">{timeAgo(msg.received_at)}</span>
                           </span>
                           <span className={cn('mt-0.5 block line-clamp-2 text-body leading-snug', conv.hasUnread ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]')}>
@@ -3977,6 +4300,7 @@ export function InboxPage() {
                           <span className="text-micro font-semibold px-1 py-0.5 rounded bg-[var(--bg-elevated)] text-[var(--text-tertiary)] flex-shrink-0 tabular">{conv.messageCount}</span>
                         )}
                         {conv.isStarred && <Star className="h-3 w-3 text-amber-400 fill-amber-400 flex-shrink-0" />}
+                        <ConversationMarkers conv={conv} folder={folder} assignee={hasTeam ? teammateEmail(conv.assignedTo) : undefined} />
                         {/* Marked rather than hidden. It still belongs in the
                             thread — it just isn't someone answering you, and a
                             row that looks like a reply and isn't is how a
@@ -4084,7 +4408,7 @@ export function InboxPage() {
 
                       {/* The two things done most, on the row itself - where a
                           pointer can hover. Keys do the same: r replies, e archives. */}
-                      {!isOutbound && !isMail(msg) && (
+                      {!isOutbound && !isMail(msg) && !msg.read_only && (
                         <span
                           className="pointer-events-none absolute inset-y-0 right-0 hidden items-center gap-1 bg-gradient-to-l from-[var(--bg-hover)] from-70% to-transparent pl-10 pr-3 opacity-0 transition-opacity [@media(hover:hover)]:md:flex group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100"
                           onClick={(e) => e.stopPropagation()}
@@ -4176,7 +4500,9 @@ export function InboxPage() {
 
       {showCompose && (
         <ComposeModal
-          onClose={() => setShowCompose(false)}
+          initialTo={composePrefill?.to}
+          initialSubject={composePrefill?.subject}
+          onClose={() => { setShowCompose(false); setComposePrefill(null); }}
           onSend={data => composeMut.mutate(data)}
           onSchedule={data => scheduleComposeMut.mutate(data)}
           sending={composeMut.isPending || scheduleComposeMut.isPending}

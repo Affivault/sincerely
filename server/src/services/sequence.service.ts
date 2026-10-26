@@ -12,7 +12,8 @@ import { settingsService } from './settings.service.js';
 import { guardAfterBounce } from './bounce-guard.service.js';
 import * as domainThrottle from './domain-throttle.service.js';
 import { providerHeldUntil } from './autopilot.service.js';
-import { isLinkedinStep, inferTimezone } from '@lemlist/shared';
+import { isLinkedinStep, inferTimezone, isBlackoutDay } from '@lemlist/shared';
+import { campaignBlackoutDates } from './blackout.service.js';
 import { stepHasVariantB, assignVariant, classifyRejection } from '@lemlist/shared';
 import { classifySendFailure, stallReasonFor } from '../utils/send-failure.js';
 import { isDraining } from '../utils/heartbeat.js';
@@ -53,10 +54,16 @@ function effectiveTimezone(campaign: any, campaignContact?: any): string {
 /**
  * Check if current time is within the send window and active days, on
  * whichever clock applies to this contact.
+ *
+ * `blackout` is the account's and the campaign's closed days (091). One of
+ * them shuts the whole local calendar day, even inside an overnight window
+ * opened the evening before: "no email on Christmas Day" means none that
+ * arrives on it, not none that starts on it.
  */
-function isWithinSendWindow(campaign: any, campaignContact?: any): boolean {
+export function isWithinSendWindow(campaign: any, campaignContact?: any, blackout: readonly string[] = []): boolean {
   const tz = effectiveTimezone(campaign, campaignContact);
   const now = nowInTimezone(tz);
+  if (isBlackoutDay(blackout, now.year, now.month, now.day)) return false;
 
   const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
   const sendDays: string[] = campaign.send_days || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
@@ -88,10 +95,15 @@ function isWithinSendWindow(campaign: any, campaignContact?: any): boolean {
 }
 
 /**
- * Calculate when the next valid send window opens (in real UTC time).
- * Looks up to 7 days ahead to find the next active day + window start.
+ * Calculate when the next valid send window opens (in real UTC time): the
+ * next active day that is not a closed day, at the window's start.
+ *
+ * Looked a week ahead when every week had an open day in it. A run of closed
+ * days (a fortnight's shutdown over Christmas) can push the next one further,
+ * so it now looks up to a year and a little - still only a few hundred date
+ * comparisons, and a campaign closed for longer than that is not sending.
  */
-function getNextSendWindowStart(campaign: any, campaignContact?: any): Date {
+export function getNextSendWindowStart(campaign: any, campaignContact?: any, blackout: readonly string[] = []): Date {
   const tz = effectiveTimezone(campaign, campaignContact);
   const now = nowInTimezone(tz);
 
@@ -103,7 +115,8 @@ function getNextSendWindowStart(campaign: any, campaignContact?: any): Date {
 
   // If today is an active day and we're before the window start, schedule for today
   const todayName = dayNames[now.weekday];
-  if (sendDays.includes(todayName) && currentTime < windowStart) {
+  if (sendDays.includes(todayName) && currentTime < windowStart
+    && !isBlackoutDay(blackout, now.year, now.month, now.day)) {
     return tzWallTimeToUtc(now.year, now.month, now.day, startH, startM, tz);
   }
 
@@ -113,8 +126,10 @@ function getNextSendWindowStart(campaign: any, campaignContact?: any): Date {
   // each following day and read it back in `tz` - but from UTC+12 eastwards
   // (New Zealand, Tonga, Kiribati) noon UTC is already the day after, so
   // tomorrow was skipped and Tuesday's follow-ups went out on Wednesday.
-  for (let daysAhead = 1; daysAhead <= 7; daysAhead++) {
+  const horizon = blackout.length > 0 ? 400 : 7;
+  for (let daysAhead = 1; daysAhead <= horizon; daysAhead++) {
     const next = new Date(Date.UTC(now.year, now.month - 1, now.day + daysAhead));
+    if (isBlackoutDay(blackout, next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate())) continue;
     if (sendDays.includes(dayNames[next.getUTCDay()])) {
       return tzWallTimeToUtc(
         next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate(), startH, startM, tz,
@@ -385,10 +400,11 @@ async function _processNextStepInner(campaignContactId: string): Promise<void> {
     cc.contact_timezone = await ensureContactTimezone(cc.id, cc.contacts);
   }
 
-  // Check send window (skip if outside active hours/days)
-  if (!isWithinSendWindow(cc.campaigns, cc)) {
+  // Check send window (skip if outside active hours/days, or on a closed day)
+  const blackout = await campaignBlackoutDates(cc.campaigns);
+  if (!isWithinSendWindow(cc.campaigns, cc, blackout)) {
     // Reschedule to the start of the next valid send window
-    const nextWindow = getNextSendWindowStart(cc.campaigns, cc);
+    const nextWindow = getNextSendWindowStart(cc.campaigns, cc, blackout);
     await supabaseAdmin
       .from('campaign_contacts')
       .update({ next_send_at: nextWindow.toISOString() })
@@ -553,7 +569,7 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
   if (dailyLimit > 0 && !(await reserveCampaignDailySend(cc.campaign_id, dailyPeriodStart, dailyLimit))) {
     // Reschedule to next send window so the sequence worker doesn't re-pick
     // this contact every 30 seconds until midnight.
-    const nextWindow = getNextSendWindowStart(cc.campaigns, cc);
+    const nextWindow = getNextSendWindowStart(cc.campaigns, cc, await campaignBlackoutDates(cc.campaigns));
     await supabaseAdmin
       .from('campaign_contacts')
       .update({ next_send_at: nextWindow.toISOString() })

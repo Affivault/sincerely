@@ -56,6 +56,19 @@ export interface InboxMessage {
   triage_ref: string | null;
   received_at: string;
   created_at: string;
+  /** Names, types and sizes of what came (or went) attached (migration 090). */
+  attachments?: Array<{ filename: string; content_type: string; size: number }> | null;
+  /** Out of the inbox until then (071; the inbox reads it since 092). */
+  snoozed_until?: string | null;
+  /** On a message we sent: when to check for an answer (092). */
+  nudge_at?: string | null;
+  /** Set when that check found none - the "No reply yet" marker (092). */
+  nudge_fired_at?: string | null;
+  /** When a snooze ended or a nudge fired; holds the row at the top until read (092). */
+  resurfaced_at?: string | null;
+  resurfaced_reason?: 'snooze' | 'nudge' | null;
+  /** The teammate answering this conversation (071). */
+  assigned_to?: string | null;
 }
 
 export interface InboxMessageWithContext extends InboxMessage {
@@ -119,6 +132,18 @@ export interface InboxCounts {
   other_unread?: number;
   /** True while mail stored before sorting existed is being sorted. */
   sorting?: boolean;
+  /** Conversations snoozed for later; out of every other count. */
+  snoozed?: number;
+  /** Conversations assigned to the caller, from their own or a teammate's mailbox. */
+  assigned_to_me?: number;
+}
+
+/** A teammate a conversation can be handed to. Only sent when there is more than one. */
+export interface InboxTeammate {
+  user_id: string;
+  email: string;
+  role: 'owner' | 'admin' | 'member';
+  is_me: boolean;
 }
 
 /** Someone Relay unsubscribed on a reading it has since changed its mind about. */

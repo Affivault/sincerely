@@ -76,7 +76,31 @@ export default async function handler(req: VercelReq, res: VercelRes) {
     headers,
     reply_to,
     timeout_ms,
+    attachments,
   } = body;
+
+  /*
+   * Files from an inbox reply or a new message, base64 in the JSON body.
+   * The server keeps what it sends here under Vercel's 4.5 MB request limit
+   * and sends larger ones directly instead. Checked here as well, so a
+   * malformed entry is refused rather than delivered as an empty file.
+   */
+  const files: Array<{ filename: string; contentType: string; content: Buffer }> = [];
+  if (attachments !== undefined && attachments !== null) {
+    if (!Array.isArray(attachments) || attachments.length > 10) {
+      return res.status(400).json({ error: 'attachments must be a list of at most 10 files' });
+    }
+    for (const a of attachments) {
+      if (!a || typeof a.content_base64 !== 'string' || !a.content_base64) {
+        return res.status(400).json({ error: 'Each attachment needs content_base64' });
+      }
+      files.push({
+        filename: String(a.filename || 'attachment').replace(/[\r\n"\\/]/g, '_').slice(0, 200),
+        contentType: typeof a.content_type === 'string' ? a.content_type : 'application/octet-stream',
+        content: Buffer.from(a.content_base64, 'base64'),
+      });
+    }
+  }
 
   // Validate required fields
   if (!smtp_host || !smtp_port || !smtp_user || !smtp_pass || !from || !to || !subject) {
@@ -138,6 +162,7 @@ export default async function handler(req: VercelReq, res: VercelRes) {
         messageId: message_id || undefined,
         headers: headers || undefined,
         replyTo: reply_to || undefined,
+        attachments: files.length ? files : undefined,
       });
       // If the hard deadline wins the race below, this promise is abandoned
       // but keeps running — a later rejection (e.g. connection reset) would
@@ -158,6 +183,10 @@ export default async function handler(req: VercelReq, res: VercelRes) {
         messageId: info.messageId,
         accepted: info.accepted,
         rejected: info.rejected,
+        // How many files went with it. The server compares this with what it
+        // sent: a relay older than this field drops attachments silently,
+        // and its answer lacking the count is the only way to notice.
+        attachments: files.length,
       });
     } finally {
       // Without this, a fast sendMail() leaves the deadline timer pending for

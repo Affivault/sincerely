@@ -32,6 +32,14 @@ export interface UserSettings {
   /** Auto-pause a campaign whose bounce rate is damaging the sending domain. */
   bounce_guard_enabled: boolean;
   bounce_guard_threshold: number;
+  /** Auto-pause a campaign recipients mark as spam past this percent of sends. */
+  complaint_guard_enabled?: boolean;
+  complaint_guard_threshold?: number;
+  /** Auto-pause a campaign whose human opens fall this many percent below its usual rate. */
+  open_guard_enabled?: boolean;
+  open_guard_drop?: number;
+  /** Days nothing is sent, account-wide. YYYY-MM-DD once, MM-DD every year. */
+  blackout_dates?: string[];
   /** Most sends to one recipient company per hour. 0 = no limit. */
   domain_hourly_limit: number;
   /** Prospects move to Contacts on their own when they engage. Off = by hand only. */

@@ -4,6 +4,9 @@ import { stripeService } from './stripe.service.js';
 import type { SenderIdentity } from '@lemlist/shared';
 import { invalidateGuardSettings } from './bounce-guard.service.js';
 import { invalidateDomainLimit } from './domain-throttle.service.js';
+import { invalidateSignalGuardSettings } from './signal-guard.service.js';
+import { invalidateBlackoutDates } from './blackout.service.js';
+import { normalizeBlackoutDates } from '@lemlist/shared';
 
 export interface UserSettings {
   id: string;
@@ -43,6 +46,16 @@ export interface UserSettings {
   bounce_guard_enabled: boolean;
   /** Percent. The guard also needs a minimum sample before it can act. */
   bounce_guard_threshold: number;
+  /** Auto-pause a campaign whose recipients mark it as spam (091). */
+  complaint_guard_enabled: boolean;
+  /** Percent of sends reported as spam. Judged on the 95% lower bound, after a minimum sample. */
+  complaint_guard_threshold: number;
+  /** Auto-pause a campaign whose human open rate suddenly collapses (091). */
+  open_guard_enabled: boolean;
+  /** Percent the recent open rate has to fall below the campaign's own earlier rate. */
+  open_guard_drop: number;
+  /** Days nothing is sent, account-wide (091). See shared/blackout. */
+  blackout_dates: string[];
   /** Most sends to one recipient company per hour. 0 = no limit. */
   domain_hourly_limit: number;
   /** Prospects move to Contacts on their own when they engage (087). Off = by hand only. */
@@ -94,6 +107,15 @@ const DEFAULTS: Omit<UserSettings, 'id' | 'user_id' | 'created_at' | 'updated_at
   // ones that do not know they need it.
   bounce_guard_enabled: true,
   bounce_guard_threshold: 8,
+  // On, for the same reason. 0.3% is the line Gmail and Yahoo publish for
+  // bulk senders; past it they filter, and cold email lives well under it.
+  complaint_guard_enabled: true,
+  complaint_guard_threshold: 0.3,
+  // A halving and more of the campaign's own open rate, not an absolute
+  // floor: what is normal varies tenfold between audiences, a cliff does not.
+  open_guard_enabled: true,
+  open_guard_drop: 60,
+  blackout_dates: [],
   // Five an hour to one organisation is unremarkable to a gateway and still
   // works through a large company over a day.
   domain_hourly_limit: 5,
@@ -108,6 +130,13 @@ const DEFAULTS: Omit<UserSettings, 'id' | 'user_id' | 'created_at' | 'updated_at
  *  or any unknown key) is dropped so a crafted payload can't touch them. */
 const UPDATABLE_KEYS = new Set(Object.keys(DEFAULTS));
 
+/*
+ * One retry per column that may not exist yet. Was four, which a single
+ * migration adding five columns (091) would exhaust: a new account on a
+ * database a step behind could then not get a settings row at all.
+ */
+const MAX_STRIP_ATTEMPTS = 12;
+
 /**
  * When code ships before its migration, a write can hit a column that doesn't
  * exist yet ("column X of relation user_settings does not exist"). Strip the
@@ -115,7 +144,10 @@ const UPDATABLE_KEYS = new Set(Object.keys(DEFAULTS));
  * whole settings save.
  */
 function stripMissingColumn(errorMessage: string, obj: Record<string, any>): boolean {
-  const m = /column "([a-zA-Z0-9_]+)"/.exec(errorMessage || '');
+  // Postgres says `column "x" ...`; PostgREST, before it ever reaches
+  // Postgres, says `Could not find the 'x' column ... in the schema cache`.
+  const m = /column "([a-zA-Z0-9_]+)"/.exec(errorMessage || '')
+    || /the '([a-zA-Z0-9_]+)' column/.exec(errorMessage || '');
   if (m && m[1] in obj) {
     delete obj[m[1]];
     return true;
@@ -135,7 +167,7 @@ export const settingsService = {
       // No row found — create default settings for this user. Retry with
       // fewer keys when a default targets a not-yet-migrated column.
       const row: Record<string, any> = { user_id: userId, ...DEFAULTS };
-      for (let attempt = 0; attempt < 4; attempt++) {
+      for (let attempt = 0; attempt < MAX_STRIP_ATTEMPTS; attempt++) {
         const { data: newRow, error: insertError } = await supabaseAdmin
           .from('user_settings')
           .insert(row)
@@ -173,6 +205,23 @@ export const settingsService = {
     for (const k of ['contact_auto_promote', 'contact_promote_on_meeting', 'contact_promote_on_deal']) {
       if (k in filtered && typeof filtered[k] !== 'boolean') throw new AppError(`${k} must be true or false`, 400);
     }
+    if ('blackout_dates' in filtered) {
+      if (!Array.isArray(filtered.blackout_dates)) throw new AppError('blackout_dates must be a list of dates', 400);
+      filtered.blackout_dates = normalizeBlackoutDates(filtered.blackout_dates);
+    }
+    for (const k of ['complaint_guard_enabled', 'open_guard_enabled']) {
+      if (k in filtered && typeof filtered[k] !== 'boolean') throw new AppError(`${k} must be true or false`, 400);
+    }
+    // Clamped rather than refused: a number typed slightly out of range is
+    // somebody adjusting a dial, and the nearest sane value is what they meant.
+    if ('complaint_guard_threshold' in filtered) {
+      const n = Number(filtered.complaint_guard_threshold);
+      filtered.complaint_guard_threshold = Number.isFinite(n) ? Math.min(5, Math.max(0.05, n)) : DEFAULTS.complaint_guard_threshold;
+    }
+    if ('open_guard_drop' in filtered) {
+      const n = Number(filtered.open_guard_drop);
+      filtered.open_guard_drop = Number.isFinite(n) ? Math.min(95, Math.max(20, Math.round(n))) : DEFAULTS.open_guard_drop;
+    }
     if ('relay_offer' in filtered) filtered.relay_offer = String(filtered.relay_offer ?? '').slice(0, 2000);
     if (Object.keys(filtered).length === 0) return settingsService.get(userId);
 
@@ -180,9 +229,11 @@ export const settingsService = {
     // may the bounce guard's threshold — both are memoised on the send path.
     invalidateSenderIdentity(userId);
     invalidateGuardSettings(userId);
+    invalidateSignalGuardSettings(userId);
+    invalidateBlackoutDates(userId);
     invalidateDomainLimit(userId);
 
-    for (let attempt = 0; attempt < 4; attempt++) {
+    for (let attempt = 0; attempt < MAX_STRIP_ATTEMPTS; attempt++) {
       const { data, error } = await supabaseAdmin
         .from('user_settings')
         .update(filtered)

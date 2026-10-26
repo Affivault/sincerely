@@ -5,6 +5,9 @@ import { AuthRequest } from '../middleware/auth.middleware.js';
 import { triageService } from '../services/triage.service.js';
 import { inboxService } from '../services/inbox.service.js';
 import { inboxSyncService } from '../services/inbox-sync.service.js';
+import { inboxAttachmentsService, contentDisposition } from '../services/inbox-attachments.service.js';
+import { inboxRemindersService } from '../services/inbox-reminders.service.js';
+import { inboxAssignService } from '../services/inbox-assign.service.js';
 
 export const inboxController = {
   async unreadCount(req: AuthRequest, res: Response, next: NextFunction) {
@@ -167,9 +170,9 @@ export const inboxController = {
 
   async reply(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const { body: replyBody, body_html, smtp_account_id } = req.body;
+      const { body: replyBody, body_html, smtp_account_id, attachments, nudge_days } = req.body;
       if (!replyBody && !body_html) return res.status(400).json({ error: 'Reply body is required' });
-      const result = await inboxService.reply(req.userId!, req.params.id, replyBody || '', smtp_account_id, body_html);
+      const result = await inboxService.reply(req.userId!, req.params.id, replyBody || '', smtp_account_id, body_html, { attachments, nudge_days });
       res.json(result);
     } catch (err) { next(err); }
   },
@@ -194,9 +197,9 @@ export const inboxController = {
 
   async compose(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const { to, subject, body: composeBody, body_html, smtp_account_id } = req.body;
+      const { to, subject, body: composeBody, body_html, smtp_account_id, attachments, nudge_days } = req.body;
       if (!to || !subject || (!composeBody && !body_html)) return res.status(400).json({ error: 'To, subject, and body are required' });
-      const result = await inboxService.compose(req.userId!, { to, subject, body: composeBody || '', body_html, smtp_account_id });
+      const result = await inboxService.compose(req.userId!, { to, subject, body: composeBody || '', body_html, smtp_account_id, attachments, nudge_days });
       res.json(result);
     } catch (err) { next(err); }
   },
@@ -253,6 +256,65 @@ export const inboxController = {
       console.error('[InboxSync] Controller error:', err.message);
       res.json({ synced: 0, newMessages: 0, backfilled: 0, more: false, errors: [err.message || 'Sync failed'] });
     }
+  },
+
+  /**
+   * One attachment of one of the caller's messages, fetched from their
+   * mailbox and streamed back as a download.
+   */
+  async downloadAttachment(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const index = Number(req.params.index);
+      const file = await inboxAttachmentsService.download(req.userId!, req.params.id, index);
+      res.setHeader('Content-Type', file.contentType);
+      res.setHeader('Content-Length', String(file.content.length));
+      // Always a download, never rendered: an HTML or SVG attachment shown
+      // inline would run with this API's origin.
+      res.setHeader('Content-Disposition', contentDisposition(file.filename));
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Cache-Control', 'private, no-store');
+      res.end(file.content);
+    } catch (err) { next(err); }
+  },
+
+  /** Snooze the conversation until a time; until: null wakes it now. */
+  async snooze(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const { until } = req.body ?? {};
+      if (until !== null && typeof until !== 'string') {
+        return res.status(400).json({ error: 'until must be an ISO timestamp, or null to wake it' });
+      }
+      res.json(await inboxRemindersService.snoozeThread(req.userId!, req.params.id, until || null));
+    } catch (err) { next(err); }
+  },
+
+  /** "Remind me if no reply in N days" on a sent message; days: null clears it. */
+  async nudge(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const { days } = req.body ?? {};
+      if (days !== null && typeof days !== 'number') {
+        return res.status(400).json({ error: 'days must be a number, or null to clear the reminder' });
+      }
+      res.json(await inboxRemindersService.setNudge(req.userId!, req.params.id, days));
+    } catch (err) { next(err); }
+  },
+
+  /** Hand the conversation to a teammate (or yourself); assignee: null unassigns. */
+  async assign(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const { assignee } = req.body ?? {};
+      if (assignee !== null && typeof assignee !== 'string') {
+        return res.status(400).json({ error: 'assignee must be a user id, or null to unassign' });
+      }
+      res.json(await inboxAssignService.assignThread(req.userId!, req.params.id, assignee));
+    } catch (err) { next(err); }
+  },
+
+  /** Who a conversation can be assigned to. Empty for a solo account. */
+  async teammates(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      res.json(await inboxAssignService.teammates(req.userId!));
+    } catch (err) { next(err); }
   },
 
   /** How far back each mailbox reaches, and whether it is still fetching. */
