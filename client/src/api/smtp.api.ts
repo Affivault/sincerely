@@ -91,6 +91,10 @@ export const smtpApi = {
   /** Every mailbox's sending health, judged on the server in one read. */
   health: async () => {
     const { data } = await apiClient.get<SendingHealthReport>('/smtp-accounts/health');
+    // A body without a mailbox list (an older server, an error page parsed as
+    // JSON) is an error, so the page says it could not load rather than
+    // rendering half a report.
+    if (!data || !Array.isArray((data as any).mailboxes)) throw new Error('Sending health could not be loaded');
     return data;
   },
 
