@@ -18,6 +18,7 @@ export * from './segment-revenue.js';
 export * from './query-state.js';
 export * from './analytics.types.js';
 export * from './inbox.types.js';
+export * from './inbox-reminders.js';
 export * from './inbox-sync.types.js';
 export * from './asset.types.js';
 export * from './webhook.types.js';

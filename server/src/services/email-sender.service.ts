@@ -7,7 +7,7 @@ import { resolveHostIp } from '../utils/dns-doh.js';
 import { fireEvent } from './webhook.service.js';
 import * as sse from './sse.service.js';
 import { checkAndAutoCompleteCampaign, htmlToText } from './sequence.service.js';
-import { autopilotAllowance, baseSubject } from '@lemlist/shared';
+import { autopilotAllowance, baseSubject, RELAY_ATTACHMENT_LIMIT_BYTES } from '@lemlist/shared';
 import { renderMergeTags, spin } from '@lemlist/shared';
 import { personaliseBookingLinks } from '../utils/booking-token.js';
 import { settingsService } from './settings.service.js';
@@ -50,6 +50,15 @@ interface SmtpSendParams {
    * include a link to the file as well.
    */
   icsEvent?: { method: 'REQUEST' | 'CANCEL'; content: string };
+  /**
+   * Files sent with the message - replies and new mail from the inbox only.
+   *
+   * Campaign sends never pass these (sendCampaignEmail does not take them):
+   * a cold email with an attachment is the surest way into spam, and one
+   * sequence step's file multiplied across a few thousand contacts is a
+   * bandwidth bill nobody meant to run up.
+   */
+  attachments?: Array<{ filename: string; contentType: string; content: Buffer }>;
 }
 
 /**
@@ -129,6 +138,13 @@ interface SmtpSendResult {
   messageId: string;
   accepted?: string[];
   rejected?: string[];
+  /**
+   * The relay answered without saying it carried the attachments - a relay
+   * deployed before attachments existed, which drops fields it does not
+   * know. The message went; the files did not. Surfaced so the person is
+   * told, rather than finding out from the recipient.
+   */
+  attachmentsDropped?: boolean;
 }
 
 /**
@@ -149,6 +165,29 @@ export function formatFromHeader(name: string | null | undefined, email: string)
  */
 export async function sendViaSmtp(params: SmtpSendParams): Promise<SmtpSendResult> {
   if (env.SMTP_RELAY_URL && env.SMTP_RELAY_SECRET) {
+    /*
+     * The relay cannot carry large files: Vercel refuses a request body
+     * over 4.5 MB before the function runs, and base64 in JSON costs a
+     * third again. Over RELAY_ATTACHMENT_LIMIT_BYTES the only route left is
+     * a direct send. On a host that blocks SMTP (the reason the relay is
+     * set) that fails, and the error then says why the relay was not used,
+     * instead of a bare timeout that reads as a mailbox fault.
+     */
+    const attached = (params.attachments || []).reduce((n, a) => n + a.content.length, 0);
+    if (attached > RELAY_ATTACHMENT_LIMIT_BYTES) {
+      console.warn(`[EmailSender] ${Math.round(attached / 1024)} KB of attachments is over what the relay can carry; sending direct`);
+      try {
+        return await sendDirect(params);
+      } catch (err: any) {
+        const wrapped: any = new Error(
+          `Attachments over ${Math.round(RELAY_ATTACHMENT_LIMIT_BYTES / 1048576)} MB cannot go through the SMTP relay, `
+          + `and sending them directly failed: ${err?.message || err}. Send smaller files, or a link to them.`,
+        );
+        wrapped.code = err?.code;
+        wrapped.responseCode = err?.responseCode;
+        throw wrapped;
+      }
+    }
     return sendViaRelay(params);
   }
   return sendDirect(params);
@@ -243,6 +282,15 @@ async function sendViaRelay(params: SmtpSendParams): Promise<SmtpSendResult> {
       message_id: params.messageId,
       headers: params.headers,
       timeout_ms: params.timeoutMs,
+      // Base64, because the body is JSON. The relay answers with how many
+      // it attached, which is how an out-of-date relay is noticed below.
+      ...(params.attachments?.length ? {
+        attachments: params.attachments.map((a) => ({
+          filename: a.filename,
+          content_type: a.contentType,
+          content_base64: a.content.toString('base64'),
+        })),
+      } : {}),
     }), controller.signal);
     response = result.response;
     if (result.redirected) {
@@ -325,10 +373,20 @@ async function sendViaRelay(params: SmtpSendParams): Promise<SmtpSendResult> {
     throw relayError;
   }
 
+  const sentFiles = params.attachments?.length || 0;
+  const attachmentsDropped = sentFiles > 0 && data.attachments !== sentFiles;
+  if (attachmentsDropped) {
+    console.error(
+      `[SMTP Relay] Sent ${params.messageId || ''} without its ${sentFiles} attachment(s): the relay did not report carrying them. `
+      + 'Redeploy the relay (api/send-email.ts) so it is the current version.',
+    );
+  }
+
   return {
     messageId: data.messageId || params.messageId || '',
     accepted: data.accepted,
     rejected: data.rejected,
+    ...(attachmentsDropped ? { attachmentsDropped } : {}),
   };
 }
 
@@ -372,6 +430,9 @@ async function sendDirect(params: SmtpSendParams): Promise<SmtpSendResult> {
       // what a client that cannot render it inline falls back to offering.
       icalEvent: params.icsEvent
         ? { method: params.icsEvent.method, filename: 'invite.ics', content: params.icsEvent.content }
+        : undefined,
+      attachments: params.attachments?.length
+        ? params.attachments.map((a) => ({ filename: a.filename, contentType: a.contentType, content: a.content }))
         : undefined,
     });
   } finally {

@@ -24,6 +24,8 @@ inboxRoutes.get('/sync/progress', inboxController.syncProgress);
 // routes so it can never be read as an id called "triage".
 inboxRoutes.post('/triage/bulk', inboxController.triageMany);
 inboxRoutes.post('/triage/bulk-undo', inboxController.untriageMany);
+// Who a conversation can be handed to; static, so never read as an id.
+inboxRoutes.get('/teammates', inboxController.teammates);
 
 // Parameterized routes
 inboxRoutes.get('/:id', inboxController.get);
@@ -47,6 +49,11 @@ inboxRoutes.post('/:id/ai-reply-assist', inboxController.aiReplyAssist);
 inboxRoutes.post('/:id/schedule-reply', inboxController.scheduleReply);
 inboxRoutes.delete('/:id/schedule', inboxController.cancelScheduled);
 inboxRoutes.put('/:id/schedule', inboxController.rescheduleScheduled);
+// What came attached, fetched from the mailbox it is in.
+inboxRoutes.get('/:id/attachments/:index', inboxController.downloadAttachment);
+inboxRoutes.put('/:id/snooze', inboxController.snooze);
+inboxRoutes.put('/:id/nudge', inboxController.nudge);
+inboxRoutes.put('/:id/assign', inboxController.assign);
 
 /* ── A reply that hands you on to somebody else (services/referral) ── */
 inboxRoutes.post('/:id/referral/draft', async (req: AuthRequest, res: Response, next: NextFunction) => {

@@ -19,7 +19,8 @@ import type { ReplyCheckResult } from './reply-check.js';
 export type JobId =
   | 'sending' | 'inbox' | 'autopilot' | 'warmup_send' | 'warmup_engage' | 'verification'
   | 'booking_reminders' | 'placement' | 'standing_searches' | 'ab_promote'
-  | 'sse_maintenance' | 'domain_reverify' | 'watchdog' | 'digest' | 'reply_check' | 'improve' | 'signals';
+  | 'sse_maintenance' | 'domain_reverify' | 'watchdog' | 'digest' | 'reply_check' | 'improve' | 'signals'
+  | 'inbox_reminders';
 
 export interface JobDef {
   id: JobId;
@@ -36,6 +37,7 @@ const S = 1000, M = 60 * S, H = 60 * M;
 export const JOBS: JobDef[] = [
   { id: 'sending', label: 'Sending', what: 'Campaign emails go out on schedule', everyMs: 30 * S, core: true },
   { id: 'inbox', label: 'Inbox sync', what: 'Replies arrive in the inbox and stop sequences', everyMs: 5 * M, core: true },
+  { id: 'inbox_reminders', label: 'Snoozes and nudges', what: 'Snoozed conversations come back, and unanswered ones you asked about resurface', everyMs: M, core: false },
   { id: 'autopilot', label: 'Deliverability autopilot', what: 'Struggling mailboxes are rested; bounce notices are read', everyMs: 10 * M, core: true },
   { id: 'warmup_send', label: 'Warm-up sending', what: 'Warm-up mail builds new mailboxes a reputation', everyMs: 12 * M, core: true },
   { id: 'warmup_engage', label: 'Warm-up engagement', what: 'Warm-up mail is opened, replied to and rescued from spam', everyMs: 10 * M, core: false },

@@ -295,6 +295,7 @@ function judge(name: string, returned: unknown, threw: unknown) {
 const [
   contacts, campaigns, campaignSteps, campaignContacts, crm, calendar, booking, calsync, leads, lists, companies,
   template, segments, tags, smtp, inbox, triage, webhook, integrations, asset, apikey, settings, suppression,
+  inboxReminders, inboxAssign, inboxAttachments,
 ] = await Promise.all([
   import('../src/services/contacts.service.js'),
   import('../src/services/campaigns.service.js'),
@@ -319,6 +320,9 @@ const [
   import('../src/services/apikey.service.js'),
   import('../src/services/settings.service.js'),
   import('../src/services/suppression.service.js'),
+  import('../src/services/inbox-reminders.service.js'),
+  import('../src/services/inbox-assign.service.js'),
+  import('../src/services/inbox-attachments.service.js'),
 ]);
 
 const S = (m: any, key: string) => (m as any)[key];
@@ -464,6 +468,12 @@ const cases: Case[] = [
   { name: 'inbox.setTag',            on: inboxService, method: 'setTag',          args: [INTRUDER, ID.message, 'interested'] },
   { name: 'inbox.markThreadRead',    on: inboxService, method: 'markThreadRead',  args: [INTRUDER, ID.message] },
   { name: 'inbox.archiveThread',     on: inboxService, method: 'archiveThread',   args: [INTRUDER, ID.message] },
+  // Snooze, nudge and assignment act on the caller's own rows; the
+  // attachment download fetches from the caller's own mailbox only.
+  { name: 'inbox.snoozeThread',      on: S(inboxReminders, 'inboxRemindersService'), method: 'snoozeThread', args: [INTRUDER, ID.message, new Date(Date.now() + 86_400_000).toISOString()] },
+  { name: 'inbox.setNudge',          on: S(inboxReminders, 'inboxRemindersService'), method: 'setNudge',     args: [INTRUDER, ID.message, 3] },
+  { name: 'inbox.assignThread',      on: S(inboxAssign, 'inboxAssignService'),       method: 'assignThread', args: [INTRUDER, ID.message, INTRUDER] },
+  { name: 'inbox.downloadAttachment', on: S(inboxAttachments, 'inboxAttachmentsService'), method: 'download', args: [INTRUDER, ID.message, 0] },
 
   // Triage
   { name: 'triage.triage',           on: triageService, method: 'triage', args: [INTRUDER, ID.message, { decision: 'interested' }] },
