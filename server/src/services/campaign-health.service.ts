@@ -1,8 +1,9 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
-import { warmupAllowance, autopilotAllowance, emailDomain, isSendable } from '@lemlist/shared';
+import { warmupAllowance, autopilotAllowance, emailDomain, isSendable, isBlackoutDay, partsInTimezone } from '@lemlist/shared';
 import type { CampaignHealth, CampaignIssue, CampaignReach, SmtpAccount } from '@lemlist/shared';
 import * as bounceGuard from './bounce-guard.service.js';
+import { campaignBlackoutDates } from './blackout.service.js';
 
 /**
  * Whether a running campaign is actually running.
@@ -236,7 +237,22 @@ export const campaignHealthService = {
 
     /* ---- the clock ---- */
     const windowOpen = insideWindow(campaign);
-    if (windowOpen === null && campaign.status === 'running') {
+    // A closed day (091) explains a quiet campaign better than "outside the
+    // window" does, and is the one the user set themselves - say that.
+    const today = (() => {
+      try { return partsInTimezone(new Date(), campaign.timezone || 'UTC'); } catch { return null; }
+    })();
+    const closedToday = !!today && campaign.status === 'running' && stillGoing > 0
+      && isBlackoutDay(await campaignBlackoutDates(campaign), today.year, today.month, today.day);
+    if (closedToday) {
+      issues.push({
+        id: 'closed_day',
+        level: 'attention',
+        headline: 'Today is one of your closed days.',
+        detail: 'Nothing goes out on a date in your blackout list. Sending picks up again on the next open day.',
+        fix: { label: 'Closed days', href: '/settings?tab=preferences' },
+      });
+    } else if (windowOpen === null && campaign.status === 'running') {
       issues.push({
         id: 'no_schedule',
         level: 'attention',

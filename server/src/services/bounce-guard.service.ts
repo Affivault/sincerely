@@ -1,7 +1,7 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { wilsonLowerBound } from '../utils/stats.js';
 import { fireEvent } from './webhook.service.js';
-import type { BounceVerdict } from '@lemlist/shared';
+import type { AutoPauseSignal, BounceVerdict } from '@lemlist/shared';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Stop a campaign that is burning the sending domain.
@@ -158,38 +158,18 @@ export async function guardAfterBounce(
     const verdict = await assessCampaign(userId, campaignId);
     if (!verdict.trip) return verdict;
 
-    // Conditioned on 'running' so two concurrent bounce handlers cannot both
-    // pause it, and so a campaign the user paused a moment ago is not
-    // relabelled with a reason they did not cause.
-    const { data: paused, error } = await supabaseAdmin
-      .from('campaigns')
-      .update({
-        status: 'paused',
-        paused_reason: `Paused automatically: ${verdict.note} Sending through a bounce rate this high damages your sending domain.`,
-        paused_at: new Date().toISOString(),
-      })
-      .eq('id', campaignId)
-      .eq('status', 'running')
-      .select('id, name')
-      .maybeSingle();
-
-    let didPause = !!paused;
-    if (error) {
-      // A pre-045 database has no paused_reason column. Pausing still matters
-      // more than explaining, so retry without the explanation.
-      if (/paused_reason|paused_at/.test(error.message)) {
-        const { data: fallback } = await supabaseAdmin
-          .from('campaigns')
-          .update({ status: 'paused' })
-          .eq('id', campaignId)
-          .eq('status', 'running')
-          .select('id');
-        didPause = !!fallback && fallback.length > 0;
-      } else {
-        console.error(`[BounceGuard] Could not pause campaign ${campaignId}:`, error.message);
-        return verdict;
-      }
-    }
+    const didPause = await autoPause(
+      userId,
+      campaignId,
+      'bounce_rate',
+      `Paused automatically: ${verdict.note} Sending through a bounce rate this high damages your sending domain.`,
+      {
+        sent: verdict.sent,
+        bounced: verdict.bounced,
+        bounce_rate: Math.round(verdict.rate * 1000) / 10,
+        threshold_percent: verdict.thresholdPercent,
+      },
+    );
 
     if (didPause) {
       console.warn(
@@ -197,14 +177,6 @@ export async function guardAfterBounce(
         `(${(verdict.rate * 100).toFixed(1)}%, lower bound ${(verdict.confidentRate * 100).toFixed(1)}%, ` +
         `limit ${verdict.thresholdPercent}%)`,
       );
-      fireEvent(userId, 'campaign.paused', {
-        campaign_id: campaignId,
-        reason: 'bounce_rate',
-        sent: verdict.sent,
-        bounced: verdict.bounced,
-        bounce_rate: Math.round(verdict.rate * 1000) / 10,
-        threshold_percent: verdict.thresholdPercent,
-      }).catch(() => {});
     }
 
     return verdict;
@@ -212,4 +184,58 @@ export async function guardAfterBounce(
     console.error(`[BounceGuard] Check failed for campaign ${campaignId}:`, err?.message || err);
     return null;
   }
+}
+
+/**
+ * Pause a running campaign on the user's behalf, say why on the campaign,
+ * and raise campaign.paused with the reason - which is what emails the
+ * owner (shared/notify, "Campaign alerts") and tells Slack and webhooks.
+ *
+ * Shared by every guard (bounces here; spam complaints and the open-rate
+ * collapse in signal-guard) so they all pause the same way: one place that
+ * copes with an older database, one shape of event for the alert.
+ *
+ * Conditioned on 'running' so two concurrent handlers cannot both pause it,
+ * and so a campaign the user paused a moment ago is not relabelled with a
+ * reason they did not cause. Returns whether this call did the pausing.
+ */
+export async function autoPause(
+  userId: string,
+  campaignId: string,
+  signal: AutoPauseSignal,
+  reason: string,
+  facts: Record<string, unknown>,
+): Promise<boolean> {
+  const now = new Date().toISOString();
+  const attempt = (patch: Record<string, unknown>) => supabaseAdmin
+    .from('campaigns')
+    .update({ status: 'paused', ...patch })
+    .eq('id', campaignId)
+    .eq('status', 'running')
+    .select('id, name');
+
+  // Newest columns first, shedding them as an older database refuses:
+  // paused_signal arrives with 091, paused_reason and paused_at with 045.
+  // Pausing matters more than explaining, so the last try is the bare pause.
+  let { data, error } = await attempt({ paused_reason: reason, paused_at: now, paused_signal: signal });
+  if (error && /paused_signal/.test(error.message)) {
+    ({ data, error } = await attempt({ paused_reason: reason, paused_at: now }));
+  }
+  if (error && /paused_reason|paused_at/.test(error.message)) {
+    ({ data, error } = await attempt({}));
+  }
+  if (error) {
+    console.error(`[Guard] Could not pause campaign ${campaignId} (${signal}):`, error.message);
+    return false;
+  }
+  const paused = (data || [])[0] as { id: string; name: string } | undefined;
+  if (!paused) return false;
+
+  fireEvent(userId, 'campaign.paused', {
+    campaign_id: campaignId,
+    campaign_name: paused.name,
+    reason: signal,
+    ...facts,
+  }).catch(() => {});
+  return true;
 }

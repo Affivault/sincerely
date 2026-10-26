@@ -13,6 +13,7 @@ import { PLACEHOLDER } from '@lemlist/shared';
 import { RelayEngineNote } from '../../components/inbox/PeopleFirstNotices';
 import { NotificationTryOut } from '../../components/settings/NotificationTryOut';
 import { Chip } from '../../components/ui/Chip';
+import { BlackoutDatesEditor } from '../../components/shared/BlackoutDatesEditor';
 import {
   User,
   Mail,
@@ -123,6 +124,13 @@ export function SettingsPage() {
   const [pauseCompany, setPauseCompany] = useState(true);
   const [bounceGuard, setBounceGuard] = useState(true);
   const [bounceThreshold, setBounceThreshold] = useState(8);
+  // The other two brakes beside it: spam complaints and an open-rate cliff.
+  const [complaintGuard, setComplaintGuard] = useState(true);
+  const [complaintThreshold, setComplaintThreshold] = useState(0.3);
+  const [openGuard, setOpenGuard] = useState(true);
+  const [openDrop, setOpenDrop] = useState(60);
+  // Days nothing is sent, account-wide (shared/blackout).
+  const [blackoutDates, setBlackoutDates] = useState<string[]>([]);
   const [domainLimit, setDomainLimit] = useState(5);
   const [autoVerifyContacts, setAutoVerifyContacts] = useState(true);
   // When a prospect becomes a contact without anyone moving them.
@@ -187,6 +195,11 @@ export function SettingsPage() {
       setPauseCompany((settings as any).pause_company_on_reply ?? true);
       setBounceGuard((settings as any).bounce_guard_enabled ?? true);
       setBounceThreshold(Number((settings as any).bounce_guard_threshold ?? 8));
+      setComplaintGuard(settings.complaint_guard_enabled ?? true);
+      setComplaintThreshold(Number(settings.complaint_guard_threshold ?? 0.3));
+      setOpenGuard(settings.open_guard_enabled ?? true);
+      setOpenDrop(Number(settings.open_guard_drop ?? 60));
+      setBlackoutDates(Array.isArray(settings.blackout_dates) ? settings.blackout_dates : []);
       setDomainLimit(Number((settings as any).domain_hourly_limit ?? 5));
       setAutoVerifyContacts((settings as any).auto_verify_contacts ?? true);
       setAutoPromote(settings.contact_auto_promote ?? true);
@@ -257,6 +270,11 @@ export function SettingsPage() {
       pause_company_on_reply: pauseCompany,
       bounce_guard_enabled: bounceGuard,
       bounce_guard_threshold: bounceThreshold,
+      complaint_guard_enabled: complaintGuard,
+      complaint_guard_threshold: complaintThreshold,
+      open_guard_enabled: openGuard,
+      open_guard_drop: openDrop,
+      blackout_dates: blackoutDates,
       domain_hourly_limit: domainLimit,
       ai_tagging_enabled: aiTaggingEnabled,
       auto_verify_contacts: autoVerifyContacts,
@@ -764,6 +782,21 @@ export function SettingsPage() {
                   </p>
                 </div>
 
+                {/* Closed days. Every campaign skips them; a campaign can add
+                    its own on top in the builder. */}
+                <div className="pt-2">
+                  <span className="block text-strong font-medium text-[var(--text-secondary)] mb-1">Closed days</span>
+                  <p className="text-body text-[var(--text-tertiary)] mb-3 leading-snug">
+                    No campaign sends on these dates. Emails due on one wait for the next open day, on each
+                    campaign&rsquo;s own clock &mdash; or the recipient&rsquo;s, when a campaign sends in their time zone.
+                  </p>
+                  <BlackoutDatesEditor
+                    idPrefix="settings"
+                    value={blackoutDates}
+                    onChange={(next) => { setBlackoutDates(next); markChanged(); }}
+                  />
+                </div>
+
                 <div className="pt-2">
                   <span className="block text-strong font-medium text-[var(--text-secondary)] mb-1.5">Deliverability</span>
                   <ToggleSetting
@@ -1012,6 +1045,68 @@ export function SettingsPage() {
                           <span className="text-body text-[var(--text-secondary)]">% bounced</span>
                           <span className="text-caption text-[var(--text-tertiary)]">
                             A healthy list bounces at 2&ndash;3%. Needs 20 sends before it can act.
+                          </span>
+                        </label>
+                      )}
+
+                      {/* The same brake for the two other signs that mail has
+                          stopped being welcome. Recommended values are the
+                          defaults; both judge on a confidence bound after a
+                          minimum sample, like the bounce guard. */}
+                      <ToggleSetting
+                        label="Stop a campaign people report as spam"
+                        description="Gmail and Yahoo start filtering a sender whose mail is reported more than about 3 times in 1,000. This pauses the campaign before it gets there, and emails you why."
+                        checked={complaintGuard}
+                        onChange={(v) => { setComplaintGuard(v); markChanged(); }}
+                      />
+                      {complaintGuard && (
+                        <label className="flex flex-wrap items-center gap-3 pl-1">
+                          <span className="text-body text-[var(--text-secondary)]">Pause above</span>
+                          <input
+                            type="number"
+                            min={0.05}
+                            max={5}
+                            step={0.05}
+                            value={complaintThreshold}
+                            onChange={(e) => {
+                              const next = Number(e.target.value);
+                              setComplaintThreshold(Number.isFinite(next) && next > 0 ? next : 0.3);
+                              markChanged();
+                            }}
+                            className="w-20 h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 text-body text-[var(--text-primary)] tabular focus:border-[var(--indigo)] focus:outline-none"
+                          />
+                          <span className="text-body text-[var(--text-secondary)]">% reported as spam</span>
+                          <span className="text-caption text-[var(--text-tertiary)]">
+                            Recommended 0.3%. Needs 100 sends and 2 complaints before it can act.
+                          </span>
+                        </label>
+                      )}
+                      <ToggleSetting
+                        label="Stop a campaign whose opens collapse"
+                        description="Opens falling off a cliff is usually the first sign that mail has started landing in spam. Only real opens count - privacy proxies and scanners are left out - and it does nothing when open tracking is off."
+                        checked={openGuard}
+                        onChange={(v) => { setOpenGuard(v); markChanged(); }}
+                      />
+                      {openGuard && (
+                        <label className="flex flex-wrap items-center gap-3 pl-1">
+                          <span className="text-body text-[var(--text-secondary)]">Pause when opens fall</span>
+                          <input
+                            type="number"
+                            min={20}
+                            max={95}
+                            step={5}
+                            value={openDrop}
+                            onChange={(e) => {
+                              const next = Number(e.target.value);
+                              setOpenDrop(Number.isFinite(next) && next > 0 ? next : 60);
+                              markChanged();
+                            }}
+                            className="w-16 h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 text-body text-[var(--text-primary)] tabular focus:border-[var(--indigo)] focus:outline-none"
+                          />
+                          <span className="text-body text-[var(--text-secondary)]">% below the campaign&rsquo;s usual rate</span>
+                          <span className="w-full text-caption text-[var(--text-tertiary)] leading-snug">
+                            Recommended 60%. Compared step for step against the campaign&rsquo;s own earlier sends, on emails
+                            at least a day old, once there are 100 recent and 200 earlier ones.
                           </span>
                         </label>
                       )}

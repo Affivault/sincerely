@@ -30,6 +30,13 @@ export interface Campaign {
   /** Why the engine currently cannot send. Cleared by the next send. */
   stall_reason?: string | null;
   stall_since?: string | null;
+  /** Which guard paused it, when one did (091). Null for a pause you made. */
+  paused_signal?: AutoPauseSignal | null;
+  /**
+   * Days this campaign never sends, on top of the account's own list (091).
+   * YYYY-MM-DD for one day, MM-DD for that day every year - see shared/blackout.
+   */
+  blackout_dates?: string[];
   track_opens: boolean;
   track_clicks: boolean;
   include_unsubscribe: boolean;
@@ -130,6 +137,7 @@ export interface CreateCampaignInput {
   track_opens?: boolean;
   track_clicks?: boolean;
   include_unsubscribe?: boolean;
+  blackout_dates?: string[];
 }
 
 export interface CreateStepInput {
@@ -188,6 +196,56 @@ export interface BounceVerdict {
   thresholdPercent: number;
   trip: boolean;
   note: string;
+}
+
+/** What paused a campaign on the user's behalf. */
+export type AutoPauseSignal = 'bounce_rate' | 'complaint_rate' | 'open_collapse';
+
+/* ── Preview as a real contact ─────────────────────────────────────── */
+
+/** One email of the sequence, exactly as this contact would get it. */
+export interface PreviewEmail {
+  /** Null for a step the builder has not saved yet. */
+  step_id: string | null;
+  step_order: number;
+  /** 1-based position among the email steps. */
+  position: number;
+  subject: string;
+  html: string;
+  /** A reply in the first email's thread ("Re: ..."), or a new email. */
+  thread: ThreadMode;
+  /** Which arm of an A/B test this contact is in; null when it is not a test. */
+  variant: 'a' | 'b' | null;
+  /** Tags that come out blank for this contact - no value and no fallback. */
+  blanks: string[];
+  /** When it already went to them; the subject shown is then the one sent. */
+  sent_at: string | null;
+  /** Why the send would refuse this step, in plain words. */
+  problem: string | null;
+}
+
+export interface CampaignPreview {
+  contact: { id: string; email: string; name: string; company: string | null };
+  /** In the campaign already. When not, wording variants can differ at enrolment. */
+  enrolled: boolean;
+  sender: {
+    from_name: string;
+    email: string;
+    /** How many mailboxes the campaign rotates through. 1 = always this one. */
+    rotation: number;
+    /** Follow-ups come from the mailbox that sent the first email. */
+    pinned: boolean;
+  } | null;
+  emails: PreviewEmail[];
+  /** Across the whole audience: who would get a gap, by tag. */
+  audience: {
+    total: number;
+    with_gaps: number;
+    tags: Array<{ name: string; label: string; missing: number }>;
+    /** Counted over the first `total` only - the audience is larger. */
+    capped: boolean;
+  };
+  has_booking_link: boolean;
 }
 
 export interface TimezoneCoverage {

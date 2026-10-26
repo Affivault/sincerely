@@ -6,7 +6,7 @@ import { fireEvent } from './webhook.service.js';
 import { processDueSteps } from './sequence.service.js';
 import { settingsService } from './settings.service.js';
 import { readinessService } from './readiness.service.js';
-import { extractTags, TAG_LABELS, TAG_SOURCE_FIELD, SENDER_TAGS, LINK_TAGS, launchGate } from '@lemlist/shared';
+import { extractTags, TAG_LABELS, TAG_SOURCE_FIELD, SENDER_TAGS, LINK_TAGS, launchGate, normalizeBlackoutDates } from '@lemlist/shared';
 import type { PersonalizationAudit, PersonalizationTag, TimezoneCoverage } from '@lemlist/shared';
 
 /**
@@ -25,6 +25,7 @@ const UPDATABLE_CAMPAIGN_FIELDS = new Set([
   'dcs_threshold', 'daily_limit',
   'delay_between_emails', 'delay_between_emails_min', 'delay_between_emails_max',
   'stop_on_reply', 'ab_auto_promote', 'send_in_recipient_timezone', 'track_opens', 'track_clicks', 'include_unsubscribe',
+  'blackout_dates',
 ]);
 
 /*
@@ -40,7 +41,28 @@ function pickCampaignFields(input: any, allowed: Set<string>): Record<string, an
   for (const [key, value] of Object.entries(input || {})) {
     if (allowed.has(key)) out[key] = value;
   }
+  // Stored clean, so the sequence engine never has to wonder what a
+  // malformed entry meant (shared/blackout).
+  if ('blackout_dates' in out) out.blackout_dates = normalizeBlackoutDates(out.blackout_dates);
   return out;
+}
+
+/**
+ * A campaign write that may name blackout_dates against a database without
+ * 091. The closed days are the one field a not-yet-migrated database can
+ * live without - the account's list is the main one - so the write goes
+ * through without them rather than failing the whole save.
+ */
+async function writeCampaign<T>(
+  fields: Record<string, any>,
+  run: (fields: Record<string, any>) => PromiseLike<{ data: T | null; error: { message: string } | null }>,
+): Promise<{ data: T | null; error: { message: string } | null }> {
+  const first = await run(fields);
+  if (first.error && 'blackout_dates' in fields && /blackout_dates/.test(first.error.message)) {
+    const { blackout_dates: _dropped, ...rest } = fields;
+    return run(rest);
+  }
+  return first;
 }
 
 interface ListParams {
@@ -288,11 +310,10 @@ export const campaignsService = {
       await this.assertSmtpAccountOwnership(userId, input.smtp_account_id);
     }
 
-    const { data, error } = await supabaseAdmin
-      .from('campaigns')
-      .insert({ ...pickCampaignFields(input, CREATABLE_CAMPAIGN_FIELDS), user_id: userId, status: 'draft' })
-      .select()
-      .single();
+    const { data, error } = await writeCampaign(
+      { ...pickCampaignFields(input, CREATABLE_CAMPAIGN_FIELDS), user_id: userId, status: 'draft' },
+      (row) => supabaseAdmin.from('campaigns').insert(row).select().single(),
+    );
 
     if (error) throw new AppError(error.message, 500);
     fireEvent(userId, 'campaign.created', { campaign: data }).catch((err: any) => console.error('[Campaign] Webhook error:', err?.message ?? String(err)));
@@ -317,13 +338,10 @@ export const campaignsService = {
       await this.assertSmtpAccountOwnership(userId, input.smtp_account_id);
     }
 
-    const { data, error } = await supabaseAdmin
-      .from('campaigns')
-      .update(pickCampaignFields(input, UPDATABLE_CAMPAIGN_FIELDS))
-      .eq('id', id)
-      .eq('user_id', userId)
-      .select()
-      .single();
+    const { data, error } = await writeCampaign(
+      pickCampaignFields(input, UPDATABLE_CAMPAIGN_FIELDS),
+      (patch) => supabaseAdmin.from('campaigns').update(patch).eq('id', id).eq('user_id', userId).select().single(),
+    );
 
     if (error) throw new AppError(error.message, 500);
     fireEvent(userId, 'campaign.updated', { campaign: data }).catch((err: any) => console.error('[Campaign] Webhook error:', err?.message ?? String(err)));
@@ -792,10 +810,14 @@ export const campaignsService = {
     // fixed. Retried without the columns for a database that predates 045.
     let { data, error } = await supabaseAdmin
       .from('campaigns')
-      .update({ status: 'paused', paused_reason: null, paused_at: new Date().toISOString() })
+      .update({ status: 'paused', paused_reason: null, paused_signal: null, paused_at: new Date().toISOString() })
       .eq('id', id)
       .select()
       .single();
+    if (error && /paused_signal/.test(error.message)) {
+      ({ data, error } = await supabaseAdmin
+        .from('campaigns').update({ status: 'paused', paused_reason: null, paused_at: new Date().toISOString() }).eq('id', id).select().single());
+    }
     if (error && /paused_reason|paused_at/.test(error.message)) {
       ({ data, error } = await supabaseAdmin
         .from('campaigns').update({ status: 'paused' }).eq('id', id).select().single());
@@ -815,12 +837,24 @@ export const campaignsService = {
     // Resuming is the user saying the problem is dealt with, so clear both the
     // reason it was stopped and any stall recorded before that. Whatever is
     // still wrong will be recorded again on the next failed send.
+    //
+    // When a spam-complaint or open-rate guard paused it, the guards also
+    // start counting afresh from now (guard_since, 091): the evidence that
+    // paused it is what the user just dealt with, and judging it again on
+    // that would pause it again on the next tick.
+    const signal = (campaign as any).paused_signal as string | null | undefined;
+    const freshStart = signal === 'complaint_rate' || signal === 'open_collapse'
+      ? { guard_since: new Date().toISOString() } : {};
     let { data, error } = await supabaseAdmin
       .from('campaigns')
-      .update({ status: 'running', paused_reason: null, stall_reason: null, stall_since: null })
+      .update({ status: 'running', paused_reason: null, paused_signal: null, stall_reason: null, stall_since: null, ...freshStart })
       .eq('id', id)
       .select()
       .single();
+    if (error && /paused_signal|guard_since/.test(error.message)) {
+      ({ data, error } = await supabaseAdmin
+        .from('campaigns').update({ status: 'running', paused_reason: null, stall_reason: null, stall_since: null }).eq('id', id).select().single());
+    }
     if (error && /paused_reason|stall_reason|stall_since/.test(error.message)) {
       ({ data, error } = await supabaseAdmin
         .from('campaigns').update({ status: 'running' }).eq('id', id).select().single());
@@ -909,6 +943,9 @@ export const campaignsService = {
         dcs_threshold: original.dcs_threshold,
         ab_auto_promote: original.ab_auto_promote,
         send_in_recipient_timezone: original.send_in_recipient_timezone,
+        // Only when the original has the column (091): naming it against a
+        // database without it would fail the whole copy.
+        ...(original.blackout_dates !== undefined ? { blackout_dates: original.blackout_dates } : {}),
       })
       .select()
       .single();

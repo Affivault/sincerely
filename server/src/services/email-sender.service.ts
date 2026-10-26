@@ -8,7 +8,7 @@ import { fireEvent } from './webhook.service.js';
 import * as sse from './sse.service.js';
 import { checkAndAutoCompleteCampaign, htmlToText } from './sequence.service.js';
 import { autopilotAllowance, baseSubject, RELAY_ATTACHMENT_LIMIT_BYTES } from '@lemlist/shared';
-import { renderMergeTags, spin } from '@lemlist/shared';
+import { renderMergeTags, spin, type SenderIdentity } from '@lemlist/shared';
 import { personaliseBookingLinks } from '../utils/booking-token.js';
 import { settingsService } from './settings.service.js';
 import { trackingBaseUrl } from './tracking-domain.service.js';
@@ -458,6 +458,52 @@ interface SendEmailParams {
   ab_variant?: 'a' | 'b';
 }
 
+/**
+ * The last steps of turning a step's copy into this recipient's email: the
+ * unsubscribe link, the sender's own tags, and the wording spintax picks.
+ *
+ * Its own function so the preview (campaign-preview) renders through the
+ * very code a send does - a preview with its own idea of these steps is how
+ * the editor once showed a perfect email while the prospect got raw braces.
+ * Everything after this (booking-link naming, click wrapping, the pixel)
+ * belongs to one particular send and is not the copy.
+ */
+export function finishRecipientCopy(input: {
+  subject: string;
+  html: string;
+  sender: SenderIdentity;
+  /** `${stepId}:${campaignContactId}:${part}` on a send. */
+  spinSeed: (part: 'subject' | 'body') => string;
+  unsubscribeUrl: string;
+  includeUnsubscribe: boolean;
+}): { subject: string; html: string } {
+  const { unsubscribeUrl } = input;
+  let html = input.html.replace(/\{\{unsubscribe_link\}\}/gi, unsubscribeUrl);
+  if (input.includeUnsubscribe && !input.html.match(/\{\{unsubscribe_link\}\}/i)) {
+    const footer = `<div style="margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;text-align:center;font-size:11px;color:#9ca3af;"><a href="${unsubscribeUrl}" style="color:#9ca3af;text-decoration:underline;">Unsubscribe</a></div>`;
+    html = html.includes('</body>') ? html.replace('</body>', `${footer}</body>`) : html + footer;
+  }
+
+  // Being the last stage before the wire, filling the sender's tags also
+  // sweeps up anything still in braces. A tag this platform cannot answer
+  // is a tag the prospect must never be shown.
+  const fill = (text: string) => renderMergeTags(text, { sender: input.sender });
+
+  // Then spintax, last of all: `{Hi|Hey}` picks one wording per recipient so
+  // a thousand-contact campaign doesn't leave a thousand byte-identical
+  // bodies, which is exactly the pattern filters score against and which
+  // quietly undoes the reputation-spreading the sharding engine is doing.
+  //
+  // Seeded by step and contact, so the choice is stable: a follow-up quoting
+  // the first email, and a retry after a transient SMTP failure, must not
+  // arrive rephrased. Subject and body get different seeds so their choices
+  // are independent — but both are fixed for this recipient.
+  return {
+    subject: spin(fill(input.subject), input.spinSeed('subject')),
+    html: spin(fill(html), input.spinSeed('body')),
+  };
+}
+
 function generateTrackingId(campaignContactId: string, stepId: string): string {
   const payload = `${campaignContactId}:${stepId}`;
   const hmac = crypto.createHmac('sha256', env.TRACKING_SECRET).update(payload).digest('hex').slice(0, 16);
@@ -751,41 +797,26 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
     : env.TRACKING_BASE_URL;
 
   const unsubUrl = `${trackingBase}/api/track/unsubscribe/${trackingId}`;
-  if (campaign.include_unsubscribe === true) {
-    finalHtml = finalHtml.replace(/\{\{unsubscribe_link\}\}/gi, unsubUrl);
-    if (!bodyHtml.match(/\{\{unsubscribe_link\}\}/i)) {
-      const footer = `<div style="margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;text-align:center;font-size:11px;color:#9ca3af;"><a href="${unsubUrl}" style="color:#9ca3af;text-decoration:underline;">Unsubscribe</a></div>`;
-      finalHtml = finalHtml.includes('</body>')
-        ? finalHtml.replace('</body>', `${footer}</body>`)
-        : finalHtml + footer;
-    }
-  } else {
-    finalHtml = finalHtml.replace(/\{\{unsubscribe_link\}\}/gi, unsubUrl);
-  }
 
   // The sequence engine deferred the {{sender_*}} tags because none of this
   // was settled yet: which mailbox would win SSE selection, and so what name
-  // the recipient would see. It is settled now, so fill them — and, being the
-  // last stage before the wire, sweep up anything still in braces. A tag this
-  // platform cannot answer is a tag the prospect must never be shown.
+  // the recipient would see. It is settled now, so fill them.
   const senderIdentity = {
     ...(campaign.user_id ? await settingsService.senderIdentity(campaign.user_id) : {}),
     email: smtpAccount.email_address,
   };
   const fillSenderTags = (text: string) => renderMergeTags(text, { sender: senderIdentity });
 
-  // Then spintax, last of all: `{Hi|Hey}` picks one wording per recipient so
-  // a thousand-contact campaign doesn't leave a thousand byte-identical
-  // bodies, which is exactly the pattern filters score against and which
-  // quietly undoes the reputation-spreading the sharding engine is doing.
-  //
-  // Seeded by step and contact, so the choice is stable: a follow-up quoting
-  // the first email, and a retry after a transient SMTP failure, must not
-  // arrive rephrased. Subject and body get different seeds so their choices
-  // are independent — but both are fixed for this recipient.
-  const spinFor = (part: string) => `${stepId}:${campaignContactId}:${part}`;
-  const finalSubject = spin(fillSenderTags(sendSubject), spinFor('subject'));
-  finalHtml = spin(fillSenderTags(finalHtml), spinFor('body'));
+  const finished = finishRecipientCopy({
+    subject: sendSubject,
+    html: bodyHtml,
+    sender: senderIdentity,
+    spinSeed: (part) => `${stepId}:${campaignContactId}:${part}`,
+    unsubscribeUrl: unsubUrl,
+    includeUnsubscribe: campaign.include_unsubscribe === true,
+  });
+  const finalSubject = finished.subject;
+  finalHtml = finished.html;
 
   /*
    * Name the send on any booking link in the body.

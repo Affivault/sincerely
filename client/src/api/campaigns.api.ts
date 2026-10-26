@@ -11,6 +11,7 @@ import type {
   UpdateStepInput,
   PaginatedResponse,
   PersonalizationAudit,
+  CampaignPreview,
   CampaignHealth,
   CampaignReach,
   EnrolResult,
@@ -24,6 +25,21 @@ export interface WrittenSequence {
   leads: number;
   personalized: number;
   personalize_requested: boolean;
+}
+
+/** What the preview is asked about. Everything but contact_id is the builder's unsaved state. */
+export interface PreviewRequest {
+  contact_id: string;
+  steps?: Array<{
+    id?: string | null; step_type: string; step_order: number;
+    subject?: string | null; subject_b?: string | null;
+    body_html?: string | null; body_html_b?: string | null;
+    thread_mode?: 'reply' | 'new' | null;
+  }>;
+  sender_pool_ids?: string[];
+  smtp_account_id?: string | null;
+  audience_contact_ids?: string[];
+  include_unsubscribe?: boolean;
 }
 
 export const campaignsApi = {
@@ -69,6 +85,16 @@ export const campaignsApi = {
   /** What the copy asks for vs. what the audience can answer. */
   personalization: async (id: string) => {
     const { data } = await apiClient.get<PersonalizationAudit>(`/campaigns/${id}/personalization`);
+    return data;
+  },
+
+  /**
+   * Every email, as one real contact will get it. Without a campaign id the
+   * builder's unsaved steps, mailboxes and audience go in the body instead.
+   */
+  preview: async (campaignId: string | null, input: PreviewRequest) => {
+    const url = campaignId ? `/campaigns/${campaignId}/preview` : '/campaigns/preview';
+    const { data } = await apiClient.post<CampaignPreview>(url, input, { timeout: 60_000 });
     return data;
   },
 

@@ -11,6 +11,8 @@
        its first complaint and rests it on a second (shared/autopilot)
      - you are told: Slack/webhooks get email.complained, and so does your
        inbox when "Email notifications" is on
+     - the campaign is paused when its complaints pass your limit
+       (signal-guard), the way a bounce rate pauses it
 
    Idempotent: one person's complaint about one enrolment is recorded once,
    however many times the report is read. Never throws into the sync.
@@ -21,6 +23,7 @@ import type { ComplaintReport, ComplaintSummary } from '@lemlist/shared';
 import { suppressionService } from './suppression.service.js';
 import { fireEvent } from './webhook.service.js';
 import { checkAndAutoCompleteCampaign } from './sequence.service.js';
+import { guardAfterComplaint } from './signal-guard.service.js';
 
 export interface ComplaintTarget {
   email: string;
@@ -143,6 +146,9 @@ export async function intakeComplaint(userId: string, report: ComplaintReport, i
         },
       });
       if (error) console.error(`[Complaint] Could not record complaint for ${t.email}: ${error.message}`);
+      // The evidence just changed, so this is when to ask whether the
+      // campaign as a whole is being reported - not on a schedule hours late.
+      else await guardAfterComplaint(userId, t.campaign_id);
     }
 
     // Whatever else happens, they are never emailed again.

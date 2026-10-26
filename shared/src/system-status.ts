@@ -20,7 +20,7 @@ export type JobId =
   | 'sending' | 'inbox' | 'autopilot' | 'warmup_send' | 'warmup_engage' | 'verification'
   | 'booking_reminders' | 'placement' | 'standing_searches' | 'ab_promote'
   | 'sse_maintenance' | 'domain_reverify' | 'watchdog' | 'digest' | 'reply_check' | 'improve' | 'signals'
-  | 'inbox_reminders';
+  | 'inbox_reminders' | 'campaign_guard';
 
 export interface JobDef {
   id: JobId;
@@ -52,6 +52,7 @@ export const JOBS: JobDef[] = [
   { id: 'digest', label: 'Weekly digest', what: 'Monday\'s summary email goes out', everyMs: 30 * M, core: false },
   { id: 'improve', label: 'Campaign improvement', what: 'Relay writes, runs and settles tests on campaigns that asked for it', everyMs: H, core: false },
   { id: 'signals', label: 'Moments', what: 'Finds people and companies where something just changed, from your own data and the websites you watch', everyMs: H, core: false },
+  { id: 'campaign_guard', label: 'Open-rate guard', what: 'A campaign whose opens collapse is paused before it does more damage', everyMs: 30 * M, core: false },
   { id: 'reply_check', label: 'Daily reply check', what: 'Proves once a day that a reply stops a sequence', everyMs: H, core: false },
 ];
 

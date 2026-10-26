@@ -78,3 +78,5 @@ export * from './experiments.js';
 export * from './writing.js';
 export * from './signals.js';
 export * from './sending-pace.js';
+export * from './blackout.js';
+export * from './signal-guard.js';
