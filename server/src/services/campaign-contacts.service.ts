@@ -6,6 +6,7 @@ import { getPagination, formatPaginatedResponse } from '../utils/pagination.js';
 import { contactsOnOpenDeals } from './lifecycle.service.js';
 import { listsService } from './lists.service.js';
 import { chunk, fetchAllPages, selectInChunks } from '../utils/batch.js';
+import { campaignContactIdsFor, closeOpenChannelTasks } from './channel-tasks.service.js';
 
 export const campaignContactsService = {
   async list(campaignId: string, params: { page?: number; limit?: number }) {
@@ -412,6 +413,13 @@ export const campaignContactsService = {
 
   async remove(campaignId: string, contactIds: string[]) {
     if (!Array.isArray(contactIds) || contactIds.length === 0) return;
+
+    // Their queued LinkedIn touches go with them. Read before the delete,
+    // because the task only knows the enrolment id, and once that row is
+    // gone the agent would still find the task and act on somebody who is
+    // no longer in the campaign.
+    const enrolments = await campaignContactIdsFor(campaignId, contactIds);
+    if (enrolments.length) await closeOpenChannelTasks(enrolments, 'Closed: removed from the campaign');
 
     for (const slice of chunk([...new Set(contactIds)])) {
       const { error } = await supabaseAdmin

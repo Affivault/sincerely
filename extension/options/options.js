@@ -395,6 +395,9 @@ const AGENT_LABEL = {
   outside_work_days: 'Outside your working days — waiting.',
   outside_work_hours: 'Outside your working hours — waiting.',
   daily_limit_reached: "Today's limit reached — resumes tomorrow.",
+  weekly_limit_reached: "This week's invite limit reached — invites resume next week.",
+  waiting: 'Waiting a moment before the next step, as a person would.',
+  logged_out: 'LinkedIn is signed out in this browser. Sign in, then resume in Sincerely.',
   nothing_due: 'Connected. Nothing due right now.',
   working: 'Working on a step…',
   done_one: 'Finished a step.',
@@ -404,9 +407,9 @@ const AGENT_LABEL = {
 };
 
 const AGENT_TONE = {
-  blocked: 'error', error: 'error',
+  blocked: 'error', error: 'error', logged_out: 'error',
   no_key: 'warn', disabled: 'warn', paused: 'warn', paused_local: 'warn',
-  nothing_due: 'success', done_one: 'success', working: 'success',
+  nothing_due: 'success', done_one: 'success', working: 'success', waiting: 'success',
 };
 
 async function renderAgent() {

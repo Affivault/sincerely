@@ -181,7 +181,13 @@ function TaskRow({ task, onEdit, onToggle, onSnooze }: {
           </button>
         </p>
         <div className="flex items-center gap-2 mt-0.5 text-caption text-[var(--text-tertiary)]">
-          <span className={cn('font-medium', DUE_TONE[due.tone])}>{due.text}</span>
+          {/* A LinkedIn step closed without being done (they replied, it was
+              skipped) reads as done otherwise; this says what happened. */}
+          {linkedin && task.is_done && task.last_error ? (
+            <span className="font-medium truncate">{task.last_error}</span>
+          ) : (
+            <span className={cn('font-medium', DUE_TONE[due.tone])}>{due.text}</span>
+          )}
           {contactName && (
             <>
               <span className="text-[var(--text-tertiary)]">·</span>

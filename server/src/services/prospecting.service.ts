@@ -3,7 +3,7 @@ import { AppError } from '../middleware/error.middleware.js';
 import { billingService } from './billing.service.js';
 import { listsService } from './lists.service.js';
 import { getActiveProvider } from './prospect-providers.js';
-import { PLANS } from '@lemlist/shared';
+import { PLANS, normalizeLinkedinUrl } from '@lemlist/shared';
 import type {
   ProspectCreditsSummary,
   ProspectPerson,
@@ -211,7 +211,7 @@ export const prospectingService = {
       last_name: snap.last_name || null,
       company: snap.company || null,
       job_title: snap.job_title || null,
-      linkedin_url: snap.linkedin_url || null,
+      linkedin_url: normalizeLinkedinUrl(snap.linkedin_url),
       website: snap.company_domain || null,
       location: snap.location || null,
       source: 'prospector',

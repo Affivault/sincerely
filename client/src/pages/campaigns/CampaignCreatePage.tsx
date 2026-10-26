@@ -476,6 +476,9 @@ export function CampaignCreatePage() {
       subject: s.subject || '',
       body_html: s.body_html || '',
       body_text: s.body_text || '',
+      // A template saved from a campaign with an invite step carries its
+      // note; dropping it here loaded the step with an empty one.
+      ...(s.linkedin_note ? { linkedin_note: s.linkedin_note } : {}),
     }));
     setSteps(newSteps);
     setShowTemplatePicker(false);
@@ -579,6 +582,9 @@ export function CampaignCreatePage() {
             body_html: s.body_html || '',
             body_html_b: s.body_html_b || '',
             body_text: s.body_text || '',
+            // Without it an invite step opened for editing showed an empty
+            // note box, as though the invite had none.
+            linkedin_note: s.linkedin_note ?? undefined,
             delay_days: s.delay_days,
             delay_hours: s.delay_hours,
             delay_minutes: s.delay_minutes,

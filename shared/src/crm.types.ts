@@ -215,6 +215,8 @@ export interface CrmTask {
   target_url?: string | null;
   campaign_contact_id?: string | null;
   campaign_step_id?: string | null;
+  /** Why the agent could not do it, or why the task was closed undone. */
+  last_error?: string | null;
 
   /** Embedded when the API is asked for linked records. */
   contact?: { id: string; email: string; first_name: string | null; last_name: string | null; company: string | null } | null;

@@ -915,10 +915,15 @@ export async function agentDone(taskId) {
   });
 }
 
-/** `fatal` stops the agent — a checkpoint is not something to retry into. */
-export async function agentFailed(taskId, reason, fatal = false) {
+/**
+ * `fatal` stops the agent — a checkpoint is not something to retry into.
+ * `kind` says the failure is about the account rather than this task
+ * ('logged_out', 'restricted', 'weekly_limit'), or 'released' to hand an
+ * unattempted claim back, so the task does not lose one of its attempts.
+ */
+export async function agentFailed(taskId, reason, fatal = false, kind = null) {
   return request(`/linkedin/agent/tasks/${encodeURIComponent(taskId)}/failed`, {
     method: 'POST',
-    body: { reason: String(reason || '').slice(0, 500), fatal: !!fatal },
+    body: { reason: String(reason || '').slice(0, 500), fatal: !!fatal, ...(kind ? { kind } : {}) },
   });
 }

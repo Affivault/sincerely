@@ -30,7 +30,11 @@ linkedinRoutes.post('/agent/tasks/:id/done', async (req: AuthRequest, res: Respo
 
 linkedinRoutes.post('/agent/tasks/:id/failed', async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const { reason, fatal } = req.body || {};
-    res.json(await linkedinAgentService.fail(req.userId!, req.params.id, reason, !!fatal));
+    // kind says whether the failure is about the account (signed out,
+    // restricted, LinkedIn's weekly limit) rather than about this task.
+    const { reason, fatal, kind } = req.body || {};
+    res.json(await linkedinAgentService.fail(
+      req.userId!, req.params.id, reason, !!fatal, typeof kind === 'string' ? kind : null,
+    ));
   } catch (e) { next(e); }
 });

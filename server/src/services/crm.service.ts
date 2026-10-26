@@ -3,6 +3,7 @@ import { fetchAllPages } from '../utils/batch.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { widenWindowStart } from './calendar.service.js';
 import { resumeAfterTask } from './sequence.service.js';
+import { skipAndResume } from './channel-tasks.service.js';
 import { eventTimeProblem, hasEconomics, totalContractValue } from '@lemlist/shared';
 import { contactIdsOnDeal, promoteToContact, promoteToCustomer } from './lifecycle.service.js';
 
@@ -723,6 +724,9 @@ export const crmService = {
     // Ticking sets the completion time; un-ticking clears it, so a re-opened
     // task can't linger in yesterday's "done" pile.
     if (input.is_done === true) input.completed_at = new Date().toISOString();
+    // Done by hand clears whatever the agent last tripped on, so the task
+    // list doesn't present an old failure as the reason it was closed.
+    if (input.is_done === true) input.last_error = null;
     if (input.is_done === false) input.completed_at = null;
     const { data, error } = await supabaseAdmin
       .from('crm_tasks')
@@ -745,8 +749,26 @@ export const crmService = {
   },
 
   async deleteTask(userId: string, id: string) {
+    // Deleting a LinkedIn touch a sequence raised is the user saying "not
+    // this one", but its contact is parked on the task and nothing else can
+    // wake it. Read first: once the row is gone so is the link to the step.
+    const { data: task } = await supabaseAdmin
+      .from('crm_tasks')
+      .select('id, is_done, channel, contact_id, campaign_contact_id, campaign_step_id')
+      .eq('id', id)
+      .eq('user_id', userId)
+      .maybeSingle();
+
     const { error } = await supabaseAdmin.from('crm_tasks').delete().eq('id', id).eq('user_id', userId);
     if (error) throw new AppError(error.message, 500);
+
+    // skipAndResume only moves a contact still waiting on this very task, so
+    // a task already ticked off (its contact long moved on) changes nothing.
+    // Never able to fail the delete that has already happened.
+    if (task?.campaign_contact_id) {
+      skipAndResume(task as any, 'task_deleted').catch((e) =>
+        console.warn('[CRM] sequence resume after delete failed:', e?.message));
+    }
   },
 
   /* ── Events (calendar) ── */
