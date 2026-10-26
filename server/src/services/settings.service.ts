@@ -66,6 +66,11 @@ export interface UserSettings {
   contact_promote_on_meeting: boolean;
   /** Made a lead, or added to a deal. */
   contact_promote_on_deal: boolean;
+  /** Send the no-show follow-up on its own (096). Off: the app offers it instead. */
+  no_show_auto_send: boolean;
+  /** The follow-up's wording. Empty means the built-in one (shared/no-show). */
+  no_show_subject: string;
+  no_show_body: string;
   created_at: string;
   updated_at: string;
 }
@@ -124,6 +129,11 @@ const DEFAULTS: Omit<UserSettings, 'id' | 'user_id' | 'created_at' | 'updated_at
   contact_promote_on_reply: 'any',
   contact_promote_on_meeting: true,
   contact_promote_on_deal: true,
+  // Off: an email that goes out by itself in the account's name is a
+  // decision for the account, so the app offers to send it instead.
+  no_show_auto_send: false,
+  no_show_subject: '',
+  no_show_body: '',
 };
 
 /** Columns a client may write. Everything else (id, user_id, timestamps —
@@ -222,6 +232,11 @@ export const settingsService = {
       const n = Number(filtered.open_guard_drop);
       filtered.open_guard_drop = Number.isFinite(n) ? Math.min(95, Math.max(20, Math.round(n))) : DEFAULTS.open_guard_drop;
     }
+    if ('no_show_auto_send' in filtered && typeof filtered.no_show_auto_send !== 'boolean') {
+      throw new AppError('no_show_auto_send must be true or false', 400);
+    }
+    if ('no_show_subject' in filtered) filtered.no_show_subject = String(filtered.no_show_subject ?? '').slice(0, 200);
+    if ('no_show_body' in filtered) filtered.no_show_body = String(filtered.no_show_body ?? '').slice(0, 5000);
     if ('relay_offer' in filtered) filtered.relay_offer = String(filtered.relay_offer ?? '').slice(0, 2000);
     if (Object.keys(filtered).length === 0) return settingsService.get(userId);
 

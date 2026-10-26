@@ -79,9 +79,11 @@ import {
   Activity,
   Sparkles,
   UserPlus,
+  Flame,
+  PenLine,
 } from 'lucide-react';
 
-type ContactSortKey = 'first_name' | 'email' | 'company' | 'dcs_score' | 'created_at';
+type ContactSortKey = 'first_name' | 'email' | 'company' | 'dcs_score' | 'created_at' | 'engagement_score';
 type StatusFilter = '' | 'valid' | 'risky' | 'invalid' | 'not_found' | 'unverified';
 
 /** How a status filter reads once it is a chip rather than a pill you pressed. */
@@ -130,6 +132,12 @@ import type { CreateContactInput, ContactWithTags, ContactList, Tag } from '@lem
 import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from '../../lib/constants';
 import { keepPrevious } from '../../lib/listQuery';
 import { Refreshing } from '../../components/ui/Refreshing';
+import { Notice } from '../../components/ui/Notice';
+import { EngagementCell } from '../../components/contacts/Engagement';
+import { DuplicatesBanner } from '../../components/contacts/Duplicates';
+import { SavedViewsBar } from '../../components/contacts/SavedViews';
+import { BulkEditModal } from '../../components/contacts/BulkEditModal';
+import type { SavedViewConfig } from '@lemlist/shared';
 
 const FOLDER_COLORS = ['#3F8763', '#3B4AA3', '#B88124', '#A3507A', '#3D7F89', '#6E4E8E', '#BE4A3B', '#84CC16'];
 
@@ -531,7 +539,7 @@ function CompanyFilter({ value, options, onChange }: {
 /* Configurable table columns, mapped to our contact fields (the same set
    surfaced during CSV import). The Contact identity column is always shown;
    these are the optional middle columns the user can toggle + reorder-by-default. */
-type ColumnId = 'email' | 'status' | 'lifecycle' | 'company' | 'location' | 'job_title' | 'phone' | 'website' | 'linkedin_url' | 'tags' | 'lists' | 'added' | 'health';
+type ColumnId = 'email' | 'status' | 'lifecycle' | 'engagement' | 'company' | 'location' | 'job_title' | 'phone' | 'website' | 'linkedin_url' | 'tags' | 'lists' | 'added' | 'health';
 interface ColumnDef {
   id: ColumnId;
   label: string;
@@ -551,7 +559,7 @@ const DEFAULT_COL_W = 160;
  * sentence - and a filler column sat empty at the end of the row.
  */
 const COL_DEFAULT_W: Record<string, number> = {
-  email: 240, status: 120, lifecycle: 120, company: 180, location: 170, added: 120,
+  email: 240, status: 120, lifecycle: 120, engagement: 130, company: 180, location: 170, added: 120,
 };
 const MIN_COL_W = 88;
 const MAX_COL_W = 640;
@@ -586,6 +594,9 @@ const ALL_COLUMNS: ColumnDef[] = [
   ) },
   { id: 'status',      label: 'Status',    icon: ShieldCheck, sortKey: 'dcs_score',  render: (c) => <VerificationBadge c={c} /> },
   { id: 'lifecycle',   label: 'Stage',     icon: Sparkles,                           render: (c) => <LifecycleCell c={c} /> },
+  // 0-100 from replies, meetings, clicks and human opens, fading with time
+  // (shared/engagement). Sortable, so "who is warm" is one click.
+  { id: 'engagement',  label: 'Engagement', icon: Flame,      sortKey: 'engagement_score', render: (c) => <EngagementCell score={c.engagement_score} factors={c.engagement_factors} /> },
   { id: 'company',     label: 'Company',   icon: Building2,   sortKey: 'company',    tdClass: 'max-w-[200px]', render: (c) => <CompanyCell company={c.company} website={c.website} email={c.email} /> },
   { id: 'location',    label: 'Location',  icon: MapPin,                             tdClass: 'max-w-[200px]', render: (c) => <TextCell v={c.location} /> },
   { id: 'job_title',   label: 'Job title', icon: Briefcase,                          tdClass: 'max-w-[180px]', render: (c) => <TextCell v={c.job_title} /> },
@@ -597,7 +608,7 @@ const ALL_COLUMNS: ColumnDef[] = [
   { id: 'added',       label: 'Added',     icon: Clock,       sortKey: 'created_at', render: (c) => <span className="text-caption text-[var(--text-tertiary)]" title={formatDate(c.created_at)}>{formatRelativeTime(c.created_at)}</span> },
   { id: 'health',      label: 'Health',    icon: Activity,    sortKey: 'dcs_score',  render: (c) => <HealthCell c={c} /> },
 ];
-const DEFAULT_COLUMNS: ColumnId[] = ['email', 'status', 'lifecycle', 'company', 'location', 'tags', 'lists', 'added'];
+const DEFAULT_COLUMNS: ColumnId[] = ['email', 'status', 'lifecycle', 'engagement', 'company', 'location', 'tags', 'lists', 'added'];
 
 /* Set the first time Stage is inserted into an older saved layout, so it is
    offered once rather than reappearing every time somebody hides it. */
@@ -946,6 +957,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
 
   // Bulk tag + move state
   const [showTagModal, setShowTagModal] = useState(false);
+  const [showBulkEdit, setShowBulkEdit] = useState(false);
   const [tagMode, setTagMode] = useState<'add' | 'remove'>('add');
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [tagSel, setTagSel] = useState<Set<string>>(new Set());
@@ -1276,6 +1288,40 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
     setCompanyFilter(null);
     setLifecyclePersisted(listKind === 'lead' ? 'all' : 'engaged');
     setPage(1);
+  };
+
+  /*
+   * What a saved view captures and restores: the same things the filter
+   * chips above describe, plus the sort and the list you are in.
+   */
+  const currentView: SavedViewConfig = {
+    lifecycle,
+    search: debouncedSearch.trim() || undefined,
+    status: statusFilter || undefined,
+    company: companyFilter,
+    list_id: activeListId,
+    sort_by: sortBy,
+    sort_dir: sortDir,
+  };
+  const applyView = (cfg: SavedViewConfig) => {
+    setLifecyclePersisted(cfg.lifecycle ?? (listKind === 'lead' ? 'all' : 'engaged'));
+    setSearch(cfg.search ?? '');
+    setStatusFilter((cfg.status ?? '') as StatusFilter);
+    setCompanyFilter(cfg.company ?? null);
+    setSortBy((cfg.sort_by ?? 'created_at') as ContactSortKey);
+    setSortDir(cfg.sort_dir ?? 'desc');
+    setSelectedContacts(new Set());
+    setPage(1);
+    const nextList = cfg.list_id ?? null;
+    // Recorded as already seen, so changing list here does not trip the
+    // "new list clears the status filter" rule a moment later and undo the
+    // status this view just restored.
+    setPrevActiveListId(nextList);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (nextList) next.set('list', nextList); else next.delete('list');
+      return next;
+    });
   };
 
   const allSelected = contacts.length > 0 && contacts.every((c: any) => selectedContacts.has(c.id));
@@ -1893,6 +1939,15 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
         document.body
       )}
 
+      {showBulkEdit && (
+        <BulkEditModal
+          ids={Array.from(selectedContacts)}
+          tags={tags}
+          onClose={() => setShowBulkEdit(false)}
+          onDone={() => setSelectedContacts(new Set())}
+        />
+      )}
+
       {/* Folder modal */}
       {folderModalOpen && (
         <ListFolderModal
@@ -1904,6 +1959,11 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
 
       {/* Main content */}
       <div className="flex-1 min-w-0 space-y-4">
+        <DuplicatesBanner />
+        <SavedViewsBar page={listKind} current={currentView} onApply={applyView} />
+        {(contactsData as any)?.sort_unavailable && (
+          <Notice tone="attention">{(contactsData as any).sort_unavailable}</Notice>
+        )}
         {/*
           Prospects and contacts, kept apart.
 
@@ -2201,6 +2261,10 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
               <button onClick={() => { setTagMode('remove'); setTagSel(new Set()); setShowTagModal(true); }} className="btn-secondary text-strong h-8 rounded-lg">
                 <TagIcon className="h-3.5 w-3.5" />
                 Remove tags
+              </button>
+              <button onClick={() => setShowBulkEdit(true)} className="btn-secondary text-strong h-8 rounded-lg" title="Set or clear a field, a custom field or tags on everyone selected">
+                <PenLine className="h-3.5 w-3.5" />
+                Edit fields
               </button>
               <button onClick={() => setShowAddToListModal(true)} className="btn-secondary text-strong h-8 rounded-lg">
                 <FolderOpen className="h-3.5 w-3.5" />

@@ -18,6 +18,7 @@ import { startAbPromoteScheduler } from './jobs/schedulers/ab-promote.scheduler.
 import { startCampaignGuardScheduler } from './jobs/schedulers/campaign-guard.scheduler.js';
 import { startBookingReminderScheduler } from './jobs/schedulers/booking-reminder.scheduler.js';
 import { startDomainReverifyScheduler } from './jobs/schedulers/domain-reverify.scheduler.js';
+import { startEngagementScheduler } from './jobs/schedulers/engagement.scheduler.js';
 
 const port = parseInt(env.PORT, 10);
 
@@ -180,6 +181,15 @@ const server = app.listen(port, () => {
     console.log('Campaign guard scheduler started');
   } catch (err: any) {
     console.warn('Campaign guard scheduler failed to start:', err.message);
+  }
+
+  // Keep contacts' engagement scores current as activity arrives and fades (cross-tenant).
+  try {
+    const engagement = startEngagementScheduler();
+    if (engagement) disposers.push(() => engagement.stop());
+    console.log('Engagement scheduler started');
+  } catch (err: any) {
+    console.warn('Engagement scheduler failed to start:', err.message);
   }
 
   // Re-check sending/tracking domains that are marked verified, so a DKIM

@@ -10,7 +10,7 @@ import { usePendingRemoval } from '../ui/UndoBar';
 import { Avatar } from '../shared/Avatar';
 import { cn } from '../../lib/utils';
 import {
-  Phone, Users, Mail, CheckSquare, Flag, RotateCw, Link2, X, MapPin, Trash2, Ban,
+  Phone, Users, Mail, CheckSquare, Flag, RotateCw, Link2, X, MapPin, Trash2, Ban, UserX, Send,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type {
@@ -19,6 +19,7 @@ import type {
 import { TASK_TYPES, PLACEHOLDER, MIN_SEARCH_LENGTH, durationLabel, eventTimeProblem, firstBlocker, formatDayMonth, formatTime, formatWeekday } from '@lemlist/shared';
 import { keepPrevious } from '../../lib/listQuery';
 import { Refreshing } from '../ui/Refreshing';
+import { NoShowFollowUpDialog, sayNoShowOutcome } from './NoShow';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Shared CRM building blocks.
@@ -566,6 +567,26 @@ export function MeetingModal({
   const started = !!form.starts_at && new Date(form.starts_at).getTime() < Date.now();
 
   /*
+   * Did not turn up. Only offered once the meeting has started and while it
+   * is still on - a cancelled meeting was never going to be attended. The
+   * server logs it on the contact and either sends the rebook email (if
+   * the account switched that on) or says it can be offered, in which case
+   * this dialog hands over to the follow-up dialog.
+   */
+  const noShow = (seed.status as string) === 'no_show';
+  const [followUpFor, setFollowUpFor] = useState<string | null>(null);
+  const markNoShow = useMutation({
+    mutationFn: () => crmApi.markNoShow(event!.id!),
+    onSuccess: (outcome) => {
+      invalidate();
+      sayNoShowOutcome(outcome);
+      if (outcome.followup === 'offer') setFollowUpFor(event!.id!);
+      else onClose();
+    },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Could not mark it'),
+  });
+
+  /*
    * The same rule the API applies, in the same words, before the round trip.
    * An all-day meeting has no end, so there is nothing to compare.
    */
@@ -577,6 +598,8 @@ export function MeetingModal({
     [!form.title.trim(), 'Give this meeting a title'],
     [!!timeProblem, timeProblem || ''],
   ]);
+
+  if (followUpFor) return <NoShowFollowUpDialog eventId={followUpFor} onClose={onClose} />;
 
   return (
     <Modal
@@ -612,6 +635,35 @@ export function MeetingModal({
                 <Ban className="h-3.5 w-3.5" />
                 {cancelled ? 'Reinstate' : 'Call it off'}
               </button>
+              {started && !cancelled && !noShow && (
+                <button
+                  onClick={() => markNoShow.mutate()}
+                  disabled={markNoShow.isPending}
+                  className="inline-flex items-center gap-1.5 text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:underline disabled:opacity-40"
+                  title="They did not turn up. Logged on their history, with an offer to send a rebook email."
+                  data-no-show
+                >
+                  <UserX className="h-3.5 w-3.5" /> No-show
+                </button>
+              )}
+              {noShow && !(seed as any).no_show_followup_sent_at && (
+                <button
+                  onClick={() => setFollowUpFor(event!.id!)}
+                  className="inline-flex items-center gap-1.5 text-body font-medium text-[var(--indigo-text)] hover:underline"
+                >
+                  <Send className="h-3.5 w-3.5" /> Send rebook email
+                </button>
+              )}
+              {noShow && (
+                <button
+                  onClick={() => setStatus.mutate('confirmed')}
+                  disabled={setStatus.isPending}
+                  className="inline-flex items-center gap-1.5 text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:underline disabled:opacity-40"
+                  title="Marked as a no-show by mistake"
+                >
+                  They came after all
+                </button>
+              )}
               <button
                 onClick={() => {
                   onClose();

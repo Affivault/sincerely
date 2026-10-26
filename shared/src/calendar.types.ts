@@ -22,7 +22,8 @@ export const EVENT_LOCATION_KINDS: { id: EventLocationKind; label: string; hint:
   { id: 'other',     label: 'Something else', hint: 'Anything that is none of the above.' },
 ];
 
-export type CalendarEventStatus = 'confirmed' | 'tentative' | 'cancelled';
+/** 'no_show' arrived with migration 096: it happened on the calendar, they did not. */
+export type CalendarEventStatus = 'confirmed' | 'tentative' | 'cancelled' | 'no_show';
 
 /** A kind of meeting: its name, its colour, and how long it usually runs. */
 export interface CalendarEventType {
