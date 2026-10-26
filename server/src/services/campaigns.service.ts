@@ -79,7 +79,10 @@ export const LIVE_EDITABLE_STEP_FIELDS = new Set(['subject', 'subject_b', 'body_
   // are read at the moment a contact reaches the step - the wait when the
   // step before it is sent, the mode when it is sent - so a change reaches
   // everybody who has not got that far yet and nobody else.
-  'delay_days', 'delay_hours', 'delay_minutes', 'thread_mode']);
+  'delay_days', 'delay_hours', 'delay_minutes', 'thread_mode',
+  // How long a message step waits for a connection: read each time the
+  // step comes due, so a change applies to whoever is waiting on it.
+  'linkedin_wait_days']);
 
 function sameValue(a: unknown, b: unknown): boolean {
   if ((a === null || a === undefined || a === '') && (b === null || b === undefined || b === '')) return true;
@@ -986,6 +989,7 @@ export const campaignsService = {
         webhook_timeout_hours: s.webhook_timeout_hours,
         linkedin_note: s.linkedin_note,
         ...(s.thread_mode !== undefined ? { thread_mode: s.thread_mode } : {}),
+        ...(s.linkedin_wait_days !== undefined ? { linkedin_wait_days: s.linkedin_wait_days } : {}),
       }));
       const { error: stepsError } = await supabaseAdmin.from('campaign_steps').insert(stepRows);
       if (stepsError) throw new AppError(`Failed to clone campaign steps: ${stepsError.message}`, 500);

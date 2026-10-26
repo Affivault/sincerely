@@ -479,6 +479,7 @@ export function CampaignCreatePage() {
       // A template saved from a campaign with an invite step carries its
       // note; dropping it here loaded the step with an empty one.
       ...(s.linkedin_note ? { linkedin_note: s.linkedin_note } : {}),
+      ...(s.linkedin_wait_days ? { linkedin_wait_days: s.linkedin_wait_days } : {}),
     }));
     setSteps(newSteps);
     setShowTemplatePicker(false);
@@ -585,6 +586,9 @@ export function CampaignCreatePage() {
             // Without it an invite step opened for editing showed an empty
             // note box, as though the invite had none.
             linkedin_note: s.linkedin_note ?? undefined,
+            // Kept on reload, or reopening a campaign would quietly switch a
+            // message step's wait for the connection off.
+            linkedin_wait_days: s.linkedin_wait_days ?? undefined,
             delay_days: s.delay_days,
             delay_hours: s.delay_hours,
             delay_minutes: s.delay_minutes,

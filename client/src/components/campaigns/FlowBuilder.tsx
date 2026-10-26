@@ -22,7 +22,7 @@ import {
   AlertTriangle,
   Linkedin,
 } from 'lucide-react';
-import { StepType, ConditionField, ConditionOperator, isLinkedinStep, LINKEDIN_NOTE_MAX } from '@lemlist/shared';
+import { StepType, ConditionField, ConditionOperator, isLinkedinStep, LINKEDIN_NOTE_MAX, LINKEDIN_WAIT_CONNECTED_MAX_DAYS } from '@lemlist/shared';
 import type { CreateStepInput } from '@lemlist/shared';
 import { campaignsApi } from '../../api/campaigns.api';
 import { cn } from '../../lib/utils';
@@ -128,7 +128,16 @@ const conditionFieldOptions = [
   { value: ConditionField.SaraIntent, label: 'Relay Intent', icon: Brain },
   { value: ConditionField.DcsScore, label: 'DCS Score', icon: ShieldCheck },
   { value: ConditionField.WebhookReceived, label: 'Webhook Received', icon: Webhook },
+  // Set by the LinkedIn agent when it sees the invite accepted. Lets a
+  // sequence message the people who connected and email the rest.
+  { value: ConditionField.LinkedinConnected, label: 'LinkedIn: connected', icon: Linkedin },
 ];
+
+/** Yes/no fields: the value box means nothing for them. */
+const BOOLEAN_FIELDS = new Set<string>([
+  ConditionField.Opened, ConditionField.Clicked, ConditionField.Replied,
+  ConditionField.WebhookReceived, ConditionField.LinkedinConnected,
+]);
 
 const conditionOperatorOptions = [
   { value: ConditionOperator.IsTrue, label: 'Is True' },
@@ -318,6 +327,9 @@ function FlowNode({
       }
       return 'Configure condition...';
     }
+    if (step.step_type === 'linkedin_message' && (step.linkedin_wait_days || 0) > 0) {
+      return `Waits up to ${step.linkedin_wait_days} days for them to connect`;
+    }
     if (step.step_type === 'webhook_wait') {
       return step.webhook_event
         ? `Wait for: ${step.webhook_event} (${step.webhook_timeout_hours || 72}h timeout)`
@@ -489,6 +501,36 @@ function FlowNode({
                       <p className="mt-1 text-micro text-[var(--text-tertiary)]">
                         Only reaches people you're already connected to — put an invite step before this one.
                       </p>
+                      {/* A message to somebody who has not accepted yet cannot
+                          be sent, so by default it waits for the acceptance
+                          instead of failing. */}
+                      <label className="mt-2 flex flex-wrap items-center gap-2 text-caption text-[var(--text-secondary)]">
+                        <input
+                          type="checkbox"
+                          checked={(step.linkedin_wait_days || 0) > 0}
+                          onChange={(e) => onUpdate({ linkedin_wait_days: e.target.checked ? 14 : 0 })}
+                          className="h-3.5 w-3.5 accent-[var(--indigo)]"
+                        />
+                        Wait until they accept the invite, for up to
+                        <input
+                          type="number"
+                          aria-label="Days to wait for a connection"
+                          min={1}
+                          max={LINKEDIN_WAIT_CONNECTED_MAX_DAYS}
+                          disabled={!((step.linkedin_wait_days || 0) > 0)}
+                          value={step.linkedin_wait_days || 14}
+                          onChange={(e) => onUpdate({
+                            linkedin_wait_days: Math.max(1, Math.min(LINKEDIN_WAIT_CONNECTED_MAX_DAYS, parseInt(e.target.value) || 1)),
+                          })}
+                          className="w-12 h-6 text-center rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-caption tabular disabled:opacity-50"
+                        />
+                        days
+                      </label>
+                      <p className="mt-1 text-micro text-[var(--text-tertiary)]">
+                        {(step.linkedin_wait_days || 0) > 0
+                          ? 'Still not connected by then: the message is skipped and the sequence carries on, with the reason in the campaign history.'
+                          : 'Off: the message is tried as soon as it is due, and skipped if they have not connected.'}
+                      </p>
                     </div>
                   )}
 
@@ -501,9 +543,9 @@ function FlowNode({
                   <div className="flex items-start gap-2 rounded-lg border border-sky-500/25 bg-sky-500/[0.06] px-2.5 py-2">
                     <Linkedin className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400 flex-shrink-0 mt-0.5" />
                     <p className="text-micro text-[var(--text-secondary)] leading-snug">
-                      LinkedIn has no API for this, so the step lands in your Activities queue when it's due —
-                      personalised, with the profile one click away. Tick it off and the sequence carries on.
-                      Leads without a LinkedIn URL skip the step.
+                      The LinkedIn agent in your Chrome does this when it's due, at a human pace and inside your
+                      daily limits. With the agent off, it waits in Activities for you instead. Leads without a
+                      LinkedIn URL skip the step.
                     </p>
                   </div>
                 </div>
@@ -542,7 +584,14 @@ function FlowNode({
                     <select
                       aria-label="Condition field"
                       value={step.condition_field || ''}
-                      onChange={(e) => onUpdate({ condition_field: (e.target.value || undefined) as ConditionField | undefined })}
+                      onChange={(e) => {
+                        const field = (e.target.value || undefined) as ConditionField | undefined;
+                        // "If connected" reads as a yes/no question; picking it
+                        // should not leave the step one choice short of working.
+                        onUpdate(field === ConditionField.LinkedinConnected && !step.condition_operator
+                          ? { condition_field: field, condition_operator: ConditionOperator.IsTrue }
+                          : { condition_field: field });
+                      }}
                       className="w-full h-9 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 text-strong focus:border-[var(--text-primary)] focus:ring-2 focus:ring-[var(--text-primary)]/20"
                     >
                       <option value="">Select field...</option>
@@ -573,11 +622,18 @@ function FlowNode({
                         aria-label="Value"
                         value={step.condition_value || ''}
                         onChange={(e) => onUpdate({ condition_value: e.target.value })}
-                        placeholder="e.g., interested"
-                        className="w-full h-9 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 text-strong focus:border-[var(--text-primary)] focus:ring-2 focus:ring-[var(--text-primary)]/20"
+                        placeholder={BOOLEAN_FIELDS.has(step.condition_field || '') ? 'Not needed' : 'e.g., interested'}
+                        disabled={BOOLEAN_FIELDS.has(step.condition_field || '') && (step.condition_operator === ConditionOperator.IsTrue || step.condition_operator === ConditionOperator.IsFalse)}
+                        className="w-full h-9 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 text-strong focus:border-[var(--text-primary)] focus:ring-2 focus:ring-[var(--text-primary)]/20 disabled:opacity-50"
                       />
                     </div>
                   </div>
+                  {step.condition_field === ConditionField.LinkedinConnected && (
+                    <p className="text-caption text-[var(--text-tertiary)] leading-snug">
+                      True once the LinkedIn agent has seen them accept your invite (or you were already connected).
+                      Put a wait before this step to give them time: the agent checks pending invites about once a day.
+                    </p>
+                  )}
                   <div className="grid grid-cols-2 gap-3 pt-1">
                     <div className="p-2.5 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
                       <p className="text-body font-semibold text-emerald-700 dark:text-emerald-400">✓ True branch</p>
@@ -775,6 +831,9 @@ export function FlowBuilder({ steps, onStepsChange, onEditStep, editingStep, cam
     // subject and no HTML); a visit carries nothing at all.
     linkedin_note: type === StepType.LinkedinConnect ? '' : undefined,
     body_text: type === StepType.LinkedinMessage ? '' : undefined,
+    // A new message step waits for the invite before it: a message to
+    // somebody not yet connected cannot be sent at all.
+    linkedin_wait_days: type === StepType.LinkedinMessage ? 14 : undefined,
   });
 
   // Condition steps store true_branch_step/false_branch_step as raw array

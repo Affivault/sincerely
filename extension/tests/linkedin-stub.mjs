@@ -332,6 +332,158 @@ const AGENT_PUBLIC_PROFILE = `<!doctype html><html><head><title>Ada Park | Linke
   </main>
 </body></html>`;
 
+/**
+ * A first-degree connection, shaped as LinkedIn ships the top card: the
+ * "· 1st" badge, a headline, a location line and the current-company
+ * button. The acceptance check reads it as accepted, and the enrichment
+ * reads the card - never the sidebar, whose headlines are other people's.
+ */
+const AGENT_ACCEPTED_PROFILE = `<!doctype html><html><head><title>Ines Duarte | LinkedIn</title></head>
+<body>
+  <main>
+    <section class="pv-top-card">
+      <h1>Ines Duarte</h1>
+      <span class="dist-value">1st</span>
+      <div class="text-body-medium break-words">Head of Growth at Acme Robotics</div>
+      <span class="text-body-small inline t-black--light">Lisbon, Portugal</span>
+      <button aria-label="Current company: Acme Robotics. Click to skip to experience card"><span>Acme Robotics</span></button>
+      <button aria-label="Message Ines Duarte"><span aria-hidden="true">Message</span></button>
+    </section>
+    <section class="pymk">
+      <h2>People you may know</h2>
+      <div class="text-body-medium">Chief Everything at Sidebar Corp</div>
+      <span class="text-body-small inline t-black--light">Nowhere, Atlantis</span>
+      <button data-sidebar aria-label="Invite Kim Else to connect"><span aria-hidden="true">Connect</span></button>
+    </section>
+  </main>${ASIDE}
+  <script>${AGENT_LIB}</script>
+</body></html>`;
+
+/**
+ * An invite still pending. Pending opens LinkedIn's confirm dialog, and
+ * Withdraw in it turns the card back to Connect. The aside carries
+ * somebody else's Pending, which must never be the one clicked.
+ */
+const AGENT_PENDING_PROFILE = `<!doctype html><html><head><title>Theo Pike | LinkedIn</title></head>
+<body>
+  <main>
+    <section class="pv-top-card">
+      <h1>Theo Pike</h1>
+      <span class="dist-value">2nd</span>
+      <div class="text-body-medium break-words">Founder, Pike and Co</div>
+      <button id="pending" aria-label="Pending, click to withdraw invitation sent to Theo Pike"><span aria-hidden="true">Pending</span></button>
+    </section>${SIDEBAR}
+  </main>${ASIDE}
+  <script>${AGENT_LIB}
+    window.__agent.withdrawn = 0;
+    document.getElementById('pending').addEventListener('click', function () {
+      var modal = document.createElement('div');
+      modal.setAttribute('role', 'dialog');
+      modal.innerHTML = '<h2>Withdraw invitation</h2><p>If you withdraw now, you will not be able to resend for up to 3 weeks.</p>' +
+        '<button id="cancel"><span>Cancel</span></button><button id="confirm-withdraw" aria-label="Withdraw"><span>Withdraw</span></button>';
+      document.body.appendChild(modal);
+      document.getElementById('cancel').addEventListener('click', function () { modal.remove(); });
+      document.getElementById('confirm-withdraw').addEventListener('click', function () {
+        window.__agent.withdrawn += 1;
+        modal.remove();
+        var p = document.getElementById('pending');
+        p.outerHTML = '<button id="connect" aria-label="Invite Theo Pike to connect"><span aria-hidden="true">Connect</span></button>';
+      });
+    });
+  </script>
+</body></html>`;
+
+/** No invite out any more: Connect is back on the card. */
+const AGENT_DECLINED_PROFILE = `<!doctype html><html><head><title>Lou Marr | LinkedIn</title></head>
+<body>
+  <main>
+    <section class="pv-top-card">
+      <h1>Lou Marr</h1>
+      <div class="text-body-medium break-words">Engineer</div>
+      <button aria-label="Invite Lou Marr to connect"><span aria-hidden="true">Connect</span></button>
+    </section>${SIDEBAR}
+  </main>${ASIDE}
+  <script>${AGENT_LIB}</script>
+</body></html>`;
+
+/**
+ * The messaging page: a conversation list and a thread pane that renders
+ * whichever conversation was clicked, a moment later, as LinkedIn's does.
+ *
+ *   Rowan Fitz  - watched; we wrote, then two messages from them. Reported.
+ *   Kim Else    - not on the watchlist. Never opened.
+ *   Jonas Berg  - watched, but "You: ..." - we spoke last. Never opened.
+ *
+ * A thread for somebody else is open when the page loads, which is the
+ * pane a careless reader reports as the first watched person's.
+ */
+const THREADS = {
+  'rowan-thread': {
+    name: 'Rowan Fitz',
+    events: [
+      { mine: true, sender: 'Me Myself', id: 'urn:li:msg:1', text: 'Thanks for connecting, Rowan. Worth a chat about platform teams?' },
+      { mine: false, sender: 'Rowan Fitz', id: 'urn:li:msg:2', text: 'Hi! Yes, happy to talk.' },
+      { mine: false, sender: null, id: 'urn:li:msg:3', text: 'Does Thursday work?' },
+    ],
+  },
+  'kim-thread': { name: 'Kim Else', events: [{ mine: false, sender: 'Kim Else', id: 'urn:li:msg:9', text: 'Unrelated hello' }] },
+  'jonas-thread': {
+    name: 'Jonas Berg',
+    events: [
+      { mine: false, sender: 'Jonas Berg', id: 'urn:li:msg:20', text: 'Old message from Jonas' },
+      { mine: true, sender: 'Me Myself', id: 'urn:li:msg:21', text: 'Our follow-up' },
+    ],
+  },
+  'priya-thread': { name: 'Priya Raman', events: [{ mine: false, sender: 'Priya Raman', id: 'urn:li:msg:30', text: 'Not who you are looking for' }] },
+};
+
+const MESSAGING_PAGE = `<!doctype html><html><head><title>Messaging | LinkedIn</title></head>
+<body>
+  <nav id="global-nav"><a href="/feed/">Home</a></nav>
+  <main>
+    <div class="msg-conversations-container">
+      <ul class="msg-conversations-container__conversations-list">
+        <li class="msg-conversation-listitem"><a href="/messaging/thread/kim-thread/" data-thread="kim-thread">
+          <h3 class="msg-conversation-listitem__participant-names">Kim Else</h3>
+          <p class="msg-conversation-card__message-snippet">Kim: Unrelated hello</p></a></li>
+        <li class="msg-conversation-listitem"><a href="/messaging/thread/rowan-thread/" data-thread="rowan-thread">
+          <h3 class="msg-conversation-listitem__participant-names">Rowan Fitz</h3>
+          <p class="msg-conversation-card__message-snippet">Rowan: Does Thursday work?</p></a></li>
+        <li class="msg-conversation-listitem"><a href="/messaging/thread/jonas-thread/" data-thread="jonas-thread">
+          <h3 class="msg-conversation-listitem__participant-names">Jonas Berg</h3>
+          <p class="msg-conversation-card__message-snippet">You: Our follow-up</p></a></li>
+      </ul>
+    </div>
+    <div id="pane"></div>
+  </main>
+  <script>
+    var THREADS = ${JSON.stringify(THREADS)};
+    window.__inbox = { opened: [] };
+    function render(id) {
+      var t = THREADS[id];
+      var html = '<div class="msg-convo-wrapper"><h2 class="msg-entity-lockup__entity-title">' + t.name + '</h2>' +
+        '<ul class="msg-s-message-list">';
+      t.events.forEach(function (e) {
+        html += '<li class="msg-s-message-list__event">' +
+          (e.sender ? '<span class="msg-s-message-group__name">' + e.sender + '</span>' : '') +
+          '<time datetime="2026-10-20T10:00:00Z"></time>' +
+          '<div class="msg-s-event-listitem ' + (e.mine ? 'msg-s-event-listitem--self' : 'msg-s-event-listitem--other') +
+          '" data-event-urn="' + e.id + '"><p class="msg-s-event-listitem__body">' + e.text + '</p></div></li>';
+      });
+      document.getElementById('pane').innerHTML = html + '</ul></div>';
+    }
+    render('priya-thread');
+    document.querySelectorAll('a[data-thread]').forEach(function (a) {
+      a.addEventListener('click', function (ev) {
+        ev.preventDefault();
+        var id = a.getAttribute('data-thread');
+        window.__inbox.opened.push(id);
+        setTimeout(function () { render(id); }, 250);
+      });
+    });
+  </script>
+</body></html>`;
+
 /** Where a signed-out tab ends up. act.js is never injected here. */
 const AUTHWALL = `<!doctype html><html><head><title>Sign Up | LinkedIn</title></head>
 <body><main><h1>Join LinkedIn</h1><a href="/login">Sign in</a></main></body></html>`;
@@ -692,6 +844,10 @@ createServer({ key, cert }, (req, res) => {
   if (url.pathname.includes('/in/agent-inmail')) return res.end(AGENT_INMAIL_PROFILE);
   if (url.pathname.includes('/in/agent-nonote')) return res.end(AGENT_NONOTE_PROFILE);
   if (url.pathname.includes('/in/agent-public')) return res.end(AGENT_PUBLIC_PROFILE);
+  if (url.pathname.includes('/in/agent-accepted')) return res.end(AGENT_ACCEPTED_PROFILE);
+  if (url.pathname.includes('/in/agent-pending')) return res.end(AGENT_PENDING_PROFILE);
+  if (url.pathname.includes('/in/agent-declined')) return res.end(AGENT_DECLINED_PROFILE);
+  if (url.pathname.startsWith('/messaging')) return res.end(MESSAGING_PAGE);
   if (url.pathname.startsWith('/authwall')) return res.end(AUTHWALL);
   if (url.pathname.includes(LATE_SLUG)) return res.end(LATE_ANCHOR_PROFILE);
   if (url.pathname.includes(TAP_SLUG)) return res.end(TAP_ONLY_PROFILE);

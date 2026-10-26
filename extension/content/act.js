@@ -2,8 +2,10 @@
  * LinkedIn agent — the hands.
  *
  * Runs on a profile page and does one thing: click the button a person would
- * click. It reads nothing it doesn't need and sends nothing anywhere — the
- * service worker asked it to act, and it answers ok or not.
+ * click. On the messaging page it reads, and nothing else: replies from
+ * the people a campaign is talking to. It reads nothing it doesn't need and
+ * sends nothing anywhere: the service worker asked it to act, and it answers
+ * with what happened.
  *
  * It stops the moment LinkedIn shows a checkpoint, a warning, or a limit
  * notice. Those are not conditions to retry into; retrying into one is the
@@ -217,7 +219,7 @@
       return { ok: false, reason: `The note is ${text.length} characters; LinkedIn allows ${NOTE_MAX}. Nothing was sent.` };
     }
 
-    if (buttonByText(PENDING, card)) return { ok: true, already: true };
+    if (buttonByText(PENDING, card)) return { ok: true, already: true, state: 'pending' };
 
     let btn = buttonByText(CONNECT, card);
     let viaMore = false;
@@ -235,15 +237,15 @@
           const pendingInMenu = buttonByText(PENDING, opened.menu);
           const connected = buttonByText([/^remove connection/, /^remove your connection/], opened.menu);
           await closeMore(opened);
-          if (pendingInMenu) return { ok: true, already: true };
-          if (connected) return { ok: true, already: true };
+          if (pendingInMenu) return { ok: true, already: true, state: 'pending' };
+          if (connected) return { ok: true, already: true, state: 'accepted' };
         }
       }
     }
     if (!btn) {
       // No Connect anywhere, Message on the card: a first-degree connection,
       // which is what the step wanted. Move on rather than fail.
-      if (buttonByText([/^message$/, /^message .*/], card)) return { ok: true, already: true };
+      if (buttonByText([/^message$/, /^message .*/], card)) return { ok: true, already: true, state: 'accepted' };
       return { ok: false, reason: 'No Connect button on this profile' };
     }
 
@@ -404,6 +406,224 @@
     return { ok: true };
   }
 
+  /* ── What the top card says ──────────────────────────────────────────
+     Read on any profile visit the agent is making anyway, so a contact's
+     blank title, company and location fill themselves in at no extra page
+     load. Only the card is read: the sidebar is full of other people's
+     headlines. The server decides what to keep and never overwrites. */
+
+  function textOf(el) {
+    return String(el?.innerText || el?.textContent || '').replace(/\s+/g, ' ').trim();
+  }
+
+  function profileFacts() {
+    const card = topCard();
+    if (!card) return null;
+    const own = (el) => el && inScope(el, card) ? el : null;
+    const headline = textOf(own(card.querySelector('.text-body-medium, [data-test-headline]')));
+    const location = textOf(own(card.querySelector(
+      '[data-test-location], .pv-text-details__left-panel .text-body-small.inline, .text-body-small.inline.t-black--light',
+    )));
+    // "Current company: Northwind Capital. Click to skip to experience card"
+    const current = own(card.querySelector('[aria-label^="Current company"], [data-test-current-company]'));
+    let company = '';
+    if (current) {
+      const label = current.getAttribute('aria-label') || '';
+      company = (/^current company:\s*(.+?)(?:\.\s|$)/i.exec(label)?.[1] || textOf(current)).trim();
+    }
+    // The degree badge: "· 1st", "2nd", "3rd+".
+    const badge = textOf(own(card.querySelector('.dist-value, [data-test-distance]')))
+      || (/·\s*(1st|2nd|3rd)/i.exec(textOf(card))?.[1] || '');
+    const degree = /1st/i.test(badge) ? 1 : /2nd/i.test(badge) ? 2 : /3rd/i.test(badge) ? 3 : null;
+    const facts = {
+      headline: headline.slice(0, 300) || null,
+      location: location.slice(0, 200) || null,
+      company: company.slice(0, 200) || null,
+      degree,
+    };
+    return Object.values(facts).some((v) => v !== null) ? facts : null;
+  }
+
+  /* ── Was the invite accepted? ────────────────────────────────────────
+     The card answers it: "1st", or Remove connection under More, means
+     accepted; Pending means still waiting; Connect means there is no
+     invite any more (withdrawn, or never sent). Nothing is clicked except
+     More, and More is closed again. */
+
+  const REMOVE_CONNECTION = [/^remove connection/, /^remove your connection/];
+
+  async function inviteState() {
+    const card = topCard();
+    if (!card) return { ok: false, reason: 'Could not find the profile card on this page' };
+    if (profileFacts()?.degree === 1) return { ok: true, state: 'accepted' };
+    if (buttonByText(PENDING, card)) return { ok: true, state: 'pending', where: 'card' };
+
+    const opened = await openMore(card);
+    if (opened) {
+      const pending = buttonByText(PENDING, opened.menu);
+      const removable = buttonByText(REMOVE_CONNECTION, opened.menu);
+      const connectable = buttonByText(CONNECT, opened.menu);
+      await closeMore(opened);
+      if (removable) return { ok: true, state: 'accepted' };
+      if (pending) return { ok: true, state: 'pending', where: 'more' };
+      if (connectable) return { ok: true, state: 'not_connected' };
+    }
+    if (buttonByText(CONNECT, card)) return { ok: true, state: 'not_connected' };
+    return { ok: false, reason: 'Could not tell from this profile whether the invite was accepted' };
+  }
+
+  /* ── Withdraw a stale invite ─────────────────────────────────────────
+     Pending, then Withdraw in the dialog LinkedIn opens to confirm. Only
+     reported done once the card has stopped saying Pending. */
+
+  async function withdraw() {
+    const seen = await inviteState();
+    if (!seen.ok || seen.state !== 'pending') {
+      // Accepted in the meantime, or no invite left to withdraw: nothing to do.
+      if (seen.ok && seen.state === 'not_connected') return { ok: true, state: 'withdrawn', already: true };
+      return seen;
+    }
+    const card = topCard();
+    let opened = null;
+    let btn = buttonByText(PENDING, card);
+    if (!btn) {
+      opened = await openMore(card);
+      btn = opened ? buttonByText(PENDING, opened.menu) : null;
+    }
+    if (!btn) return { ok: false, state: 'pending', reason: 'Could not find the Pending button' };
+
+    const before = dialogs();
+    btn.click();
+    await beat();
+    const dialog = await waitFor(() => newDialog(before), 6000);
+    if (!dialog) {
+      await closeMore(opened);
+      return { ok: false, state: 'pending', reason: 'The withdraw dialog did not open' };
+    }
+    const confirm = await waitFor(() => buttonByText([/^withdraw$/, /^withdraw invitation$/], dialog), 5000);
+    if (!confirm) return { ok: false, state: 'pending', reason: 'LinkedIn did not offer Withdraw' };
+    confirm.click();
+    await sleep(1500);
+
+    const blocked = blocker();
+    if (blocked) return stopped(blocked);
+
+    const gone = await waitFor(() => (buttonByText(PENDING, card) ? null : card), 6000);
+    if (!gone) return { ok: false, state: 'pending', reason: 'Clicked Withdraw, but the invite still shows as pending' };
+    if (opened) {
+      const after = await openMore(card);
+      const still = after ? buttonByText(PENDING, after.menu) : null;
+      await closeMore(after);
+      if (still) return { ok: false, state: 'pending', reason: 'Clicked Withdraw, but the invite still shows as pending' };
+    }
+    return { ok: true, state: 'withdrawn' };
+  }
+
+  /* ── Replies, from the messaging list ────────────────────────────────
+     Only conversations with somebody on the watchlist the server sent are
+     opened, at most `max` of them, and only when the last word in the list
+     is theirs ("You: ..." means we spoke last and there is nothing new).
+     From each, the messages they sent after our last one are reported:
+     that is what a reply is. Nothing is typed and nothing is sent.
+
+     Every lookup is scoped: names to the conversation list, messages to
+     the open thread, whose header must name the person before anything in
+     it is read, so a thread left open for somebody else is never reported
+     as theirs. */
+
+  const personKey = (raw) => norm(raw).replace(/[^\p{L}\p{N} ]/gu, '').replace(/\s+/g, ' ').trim();
+
+  function conversationList() {
+    return document.querySelector(
+      '.msg-conversations-container__conversations-list, [data-test-conversation-list], .msg-conversations-container ul',
+    );
+  }
+
+  function threadPane() {
+    return [...document.querySelectorAll('.msg-convo-wrapper, .msg-thread, [data-test-thread]')]
+      .find((el) => visible(el) && el.querySelector('.msg-s-message-list, [data-test-message-list]')) || null;
+  }
+
+  function threadTitle(pane) {
+    return personKey(textOf(pane?.querySelector(
+      '.msg-entity-lockup__entity-title, .msg-thread__link-to-profile, [data-test-thread-title], h2',
+    )));
+  }
+
+  function readThread(pane, who) {
+    const list = pane.querySelector('.msg-s-message-list, [data-test-message-list]');
+    const events = [...list.querySelectorAll('.msg-s-event-listitem, [data-test-event]')];
+    let sender = null;
+    const read = [];
+    for (const ev of events) {
+      // LinkedIn names the sender at the start of each run of messages.
+      const group = ev.closest('.msg-s-message-list__event, li') || ev;
+      const named = textOf(group.querySelector('.msg-s-message-group__name, [data-test-sender]'));
+      if (named) sender = personKey(named);
+      const theirs = ev.classList.contains('msg-s-event-listitem--other')
+        || (!ev.classList.contains('msg-s-event-listitem--self') && !!sender && sender === who);
+      const text = textOf(ev.querySelector('.msg-s-event-listitem__body, [data-test-body]'));
+      if (!text) continue;
+      read.push({
+        theirs,
+        id: ev.getAttribute('data-event-urn') || ev.getAttribute('data-test-event-id') || null,
+        text: text.slice(0, 5000),
+        at: group.querySelector('time[datetime]')?.getAttribute('datetime') || null,
+      });
+    }
+    let lastOurs = -1;
+    read.forEach((m, i) => { if (!m.theirs) lastOurs = i; });
+    return read.slice(lastOurs + 1).filter((m) => m.theirs).slice(-10)
+      .map(({ id, text, at }) => ({ id, text, at }));
+  }
+
+  async function readInbox(watch, max) {
+    const list = await waitFor(conversationList, 8000);
+    if (!list) return { ok: false, reason: 'The LinkedIn messaging list did not load' };
+
+    const wanted = new Map();
+    for (const w of Array.isArray(watch) ? watch : []) {
+      const key = personKey(w?.name);
+      if (key && w?.contact_id) wanted.set(key, w.contact_id);
+    }
+
+    const limit = Math.max(1, Math.min(10, Number(max) || 5));
+    const items = [...list.querySelectorAll('li')].filter((li) => li.querySelector('a[href*="/messaging/thread/"]'));
+    const conversations = [];
+    let opened = 0;
+    for (const li of items) {
+      if (opened >= limit) break;
+      const name = personKey(textOf(li.querySelector(
+        '.msg-conversation-listitem__participant-names, .msg-conversation-card__participant-names, [data-test-participant], h3',
+      )));
+      const contactId = wanted.get(name);
+      if (!contactId) continue;
+      const snippet = norm(textOf(li.querySelector(
+        '.msg-conversation-card__message-snippet, .msg-conversation-listitem__message-snippet, [data-test-snippet]',
+      )));
+      if (snippet.startsWith('you:')) continue;
+
+      const link = li.querySelector('a[href*="/messaging/thread/"]');
+      const threadId = /\/messaging\/thread\/([^/?#]+)/.exec(link.getAttribute('href') || '')?.[1] || null;
+      opened += 1;
+      link.click();
+      await beat();
+      const pane = await waitFor(() => {
+        const p = threadPane();
+        return p && threadTitle(p) === name ? p : null;
+      }, 8000);
+      if (!pane) continue;
+
+      const blocked = blocker();
+      if (blocked) return stopped(blocked);
+
+      const messages = readThread(pane, name);
+      if (messages.length) conversations.push({ contact_id: contactId, thread_id: threadId, messages });
+      await beat();
+    }
+    return { ok: true, conversations, scanned: opened };
+  }
+
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (msg?.type !== 'AGENT_ACT') return false;
 
@@ -416,11 +636,25 @@
       await sleep(1200 + Math.random() * 1500);
 
       try {
-        const { channel, message: text, contact_name: contactName } = msg.action || {};
-        if (channel === 'linkedin_connect') sendResponse(await connect(text));
-        else if (channel === 'linkedin_message') sendResponse(await message(text, contactName));
-        else if (channel === 'linkedin_visit') sendResponse(await visit());
-        else sendResponse({ ok: false, reason: `Unknown action: ${channel}` });
+        const action = msg.action || {};
+        const { channel, message: text, contact_name: contactName } = action;
+        let result;
+        if (channel === 'linkedin_connect') result = await connect(text);
+        else if (channel === 'linkedin_message') result = await message(text, contactName);
+        else if (channel === 'linkedin_visit') result = await visit();
+        else if (channel === 'linkedin_check') result = await inviteState();
+        else if (channel === 'linkedin_withdraw') result = await withdraw();
+        else if (channel === 'linkedin_inbox') result = await readInbox(action.watch, action.max_threads);
+        else result = { ok: false, reason: `Unknown action: ${channel}` };
+
+        // The top card rides along with anything that was on a profile,
+        // when the server has room for enrichment today. An account stop
+        // reports nothing else: the page it is on is not the profile.
+        if (action.capture_profile && channel !== 'linkedin_inbox' && !result.fatal) {
+          const facts = profileFacts();
+          if (facts) result = { ...result, profile: facts };
+        }
+        sendResponse(result);
       } catch (err) {
         sendResponse({ ok: false, reason: String(err?.message || err) });
       }

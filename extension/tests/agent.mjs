@@ -265,6 +265,102 @@ try {
   }
 
   /* ================================================================ */
+  /* Upkeep: acceptance checks, withdrawals, enrichment, replies      */
+  /* ================================================================ */
+
+  // A first-degree card: accepted, and the top card read for enrichment.
+  {
+    const { reply: r } = await actOn('agent-accepted', {
+      channel: 'linkedin_check', contact_name: 'Ines Duarte', capture_profile: true,
+    });
+    check('a "1st" badge reads as an accepted invite', r?.ok === true && r?.state === 'accepted', JSON.stringify(r));
+    check('the headline is read from the top card',
+      r?.profile?.headline === 'Head of Growth at Acme Robotics', JSON.stringify(r?.profile));
+    check('with the location and current company', r?.profile?.location === 'Lisbon, Portugal'
+      && r?.profile?.company === 'Acme Robotics' && r?.profile?.degree === 1, JSON.stringify(r?.profile));
+    check("and nothing from the sidebar's people", !JSON.stringify(r?.profile || {}).includes('Sidebar')
+      && !JSON.stringify(r?.profile || {}).includes('Atlantis'), JSON.stringify(r?.profile));
+  }
+
+  // Enrichment is only read when the server has room for it today.
+  {
+    const { reply: r } = await actOn('agent-accepted', { channel: 'linkedin_check', contact_name: 'Ines Duarte' });
+    check('no profile is read without capture_profile', r?.ok === true && !r?.profile, JSON.stringify(r));
+  }
+
+  {
+    const { reply: r, st } = await actOn('agent-pending', { channel: 'linkedin_check', contact_name: 'Theo Pike' });
+    check('Pending on the card reads as still pending', r?.ok === true && r?.state === 'pending', JSON.stringify(r));
+    check('and checking clicks nothing', st?.withdrawn === 0 && st?.sidebarClicks === 0, JSON.stringify(st));
+  }
+
+  {
+    const { reply: r } = await actOn('agent-declined', { channel: 'linkedin_check', contact_name: 'Lou Marr' });
+    check('Connect back on the card reads as no invite out', r?.ok === true && r?.state === 'not_connected', JSON.stringify(r));
+  }
+
+  // Withdraw: Pending, then Withdraw in the confirm dialog.
+  {
+    const { reply: r, st } = await actOn('agent-pending', { channel: 'linkedin_withdraw', contact_name: 'Theo Pike' });
+    check('a stale invite is withdrawn', r?.ok === true && r?.state === 'withdrawn' && !r?.already, JSON.stringify(r));
+    check('exactly once, through its own Pending button',
+      st?.withdrawn === 1 && st?.sidebarClicks === 0, JSON.stringify(st));
+  }
+
+  {
+    const { reply: r, st } = await actOn('agent-accepted', { channel: 'linkedin_withdraw', contact_name: 'Ines Duarte' });
+    check('an invite accepted in the meantime is not withdrawn',
+      r?.ok === true && r?.state === 'accepted' && st?.sidebarClicks === 0, JSON.stringify(r));
+  }
+
+  // An invite to a first-degree connection says which kind of "already".
+  {
+    const { reply: r } = await actOn('agent-first', { channel: 'linkedin_connect', message: '', contact_name: 'Jonas Berg' });
+    check('"already connected" is reported as accepted', r?.state === 'accepted', JSON.stringify(r));
+  }
+
+  // Replies, from the messaging list.
+  {
+    const p = await context.newPage();
+    await p.goto('https://www.linkedin.com/messaging/');
+    await p.waitForLoadState('load');
+    await p.waitForTimeout(300);
+    const r = await worker.evaluate(async () => {
+      const [t] = await chrome.tabs.query({ url: 'https://www.linkedin.com/messaging/*' });
+      if (!t) return { ok: false, reason: 'no tab' };
+      try {
+        return await chrome.tabs.sendMessage(t.id, {
+          type: 'AGENT_ACT',
+          action: {
+            channel: 'linkedin_inbox',
+            max_threads: 5,
+            watch: [
+              { contact_id: 'c-rowan', name: 'Rowan Fitz' },
+              { contact_id: 'c-jonas', name: 'Jonas Berg' },
+            ],
+          },
+        });
+      } catch (err) {
+        return { ok: false, reason: `sendMessage failed: ${err?.message || err}` };
+      }
+    });
+    const opened = await p.evaluate(() => window.__inbox?.opened || []);
+    await p.close();
+    const convo = r?.conversations?.[0];
+    check('the inbox read succeeds', r?.ok === true, JSON.stringify(r));
+    check('one reply is found, for the watched person who wrote last',
+      r?.conversations?.length === 1 && convo?.contact_id === 'c-rowan' && convo?.thread_id === 'rowan-thread',
+      JSON.stringify(r));
+    check('it carries what they wrote after our message, and not our message',
+      JSON.stringify((convo?.messages || []).map((m) => m.text)) === JSON.stringify(['Hi! Yes, happy to talk.', 'Does Thursday work?']),
+      JSON.stringify(convo?.messages));
+    check('with LinkedIn\'s own message ids, for the dedupe',
+      (convo?.messages || []).map((m) => m.id).join(',') === 'urn:li:msg:2,urn:li:msg:3', JSON.stringify(convo?.messages));
+    check('nobody off the watchlist was opened, nor a thread where we spoke last',
+      JSON.stringify(opened) === JSON.stringify(['rowan-thread']), JSON.stringify(opened));
+  }
+
+  /* ================================================================ */
   /* The worker's own loop: ask, open, act, report                    */
   /* ================================================================ */
 
@@ -372,6 +468,41 @@ try {
   check('once it is over, the stored action is carried out and reported', acted, JSON.stringify(await agentStats()));
   const left = await worker.evaluate(async () => (await chrome.storage.local.get('agentPending')).agentPending || null);
   check('and the stored action is cleared', left === null, JSON.stringify(left));
+
+  /* ---------------- upkeep through the loop: reported, not "done" ---------------- */
+
+  await fetch(`${MOCK}/__queue-agent-action?kind=check&contactId=c-ines&capture=1&profileUrl=${encodeURIComponent('https://www.linkedin.com/in/agent-accepted/')}`);
+  await tickUntil(async () => (await agentStats()).reports.some((x) => x.kind === 'check'));
+  {
+    const st = await agentStats();
+    const rep = st.reports.find((x) => x.kind === 'check');
+    check('the worker says it can do upkeep when it asks', st.caps.every((c) => c.split(',').includes('upkeep')), JSON.stringify(st.caps));
+    check('an acceptance check is reported against its contact',
+      rep?.contact_id === 'c-ines' && rep?.result?.ok === true && rep?.result?.state === 'accepted', JSON.stringify(rep));
+    check('with the top card for enrichment', rep?.result?.profile?.company === 'Acme Robotics', JSON.stringify(rep?.result));
+    check('and no task is marked done for it', !st.done.includes('null') && !st.done.includes('undefined'), JSON.stringify(st.done));
+  }
+
+  await fetch(`${MOCK}/__queue-agent-action?kind=inbox`);
+  await tickUntil(async () => (await agentStats()).reports.some((x) => x.kind === 'inbox'));
+  {
+    const st = await agentStats();
+    const rep = st.reports.find((x) => x.kind === 'inbox');
+    check('an inbox read opens the messaging page and reports the reply',
+      rep?.result?.ok === true && rep?.result?.conversations?.[0]?.contact_id === 'c-rowan', JSON.stringify(rep));
+    const leftOpenNow = await worker.evaluate(async () => (await chrome.tabs.query({ url: 'https://www.linkedin.com/*' })).length);
+    check('and closes the tab again', leftOpenNow === 0, `${leftOpenNow} left open`);
+  }
+
+  /* ---------------- a step done with enrichment carries the card ---------------- */
+
+  await fetch(`${MOCK}/__queue-agent-action?taskId=t4&channel=linkedin_visit&capture=1&profileUrl=${encodeURIComponent('https://www.linkedin.com/in/agent-accepted/')}`);
+  await tickUntil(async () => (await agentStats()).done.includes('t4'));
+  {
+    const st = await agentStats();
+    const body = (st.doneBodies || []).find((b) => b.taskId === 't4');
+    check('a visit reports the top card with its "done"', body?.profile?.headline === 'Head of Growth at Acme Robotics', JSON.stringify(body));
+  }
 } finally {
   await context.close();
   stub.kill();

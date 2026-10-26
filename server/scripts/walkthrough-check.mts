@@ -41,7 +41,10 @@ console.log('\nthe wording of a live campaign can be fixed');
   const ctl = readS('controllers/campaigns.controller.ts');
   is('wording is editable after launch', /LIVE_EDITABLE_STEP_FIELDS = new Set\(\['subject', 'subject_b', 'body_html', 'body_html_b', 'body_text', 'linkedin_note',/.test(svc));
   // Timing too: a wait is read when the contact reaches the step before it.
-  is('and so is a follow-up\'s timing', /'delay_days', 'delay_hours', 'delay_minutes', 'thread_mode'\]\)/.test(svc));
+  // The set now ends with linkedin_wait_days (095), a LinkedIn message
+  // step's wait for a connection, so the timing fields are matched without
+  // insisting they close the list.
+  is('and so is a follow-up\'s timing', /'delay_days', 'delay_hours', 'delay_minutes', 'thread_mode'[,\]]/.test(svc));
   is('updating a step goes through that rule', /editableStepPatch\(req\.userId!, req\.params\.id, req\.params\.stepId, req\.body\)/.test(ctl));
   is('adding, removing and reordering stay draft-only', (ctl.match(/assertEditableSteps/g) || []).length === 3);
   is('a structural change is refused by name', /Only the wording and timing of a step can change once a campaign has launched/.test(svc));

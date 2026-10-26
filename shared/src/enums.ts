@@ -38,6 +38,8 @@ export enum ConditionField {
   SaraIntent = 'sara_intent',
   DcsScore = 'dcs_score',
   WebhookReceived = 'webhook_received',
+  /** The LinkedIn invite was accepted - the agent saw them as a 1st-degree connection. */
+  LinkedinConnected = 'linkedin_connected',
 }
 
 export enum ConditionOperator {

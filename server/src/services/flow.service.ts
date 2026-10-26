@@ -34,6 +34,28 @@ function fullName(c: any): string | null {
   return n || null;
 }
 
+/**
+ * Today's open tasks. LinkedIn steps are left out while the agent is on:
+ * it is doing them, and a to-do list full of chores somebody else is
+ * already handling is how the real ones get lost. With the agent off they
+ * are the user's to do, and they show.
+ */
+async function tasksForToday(userId: string, dayEnd: Date) {
+  const { data: agent } = await supabaseAdmin
+    .from('linkedin_settings')
+    .select('enabled')
+    .eq('user_id', userId)
+    .maybeSingle()
+    .then((r) => r, () => ({ data: null }));
+  let q = supabaseAdmin.from('crm_tasks')
+    .select('id, title, due_date, priority, deal_id, contact_name')
+    .eq('user_id', userId)
+    .eq('is_done', false)
+    .lt('due_date', dayEnd.toISOString());
+  if (agent?.enabled) q = q.is('channel', null);
+  return q.order('due_date', { ascending: true }).limit(100);
+}
+
 export async function buildFlow(userId: string): Promise<FlowSummary> {
   const now = Date.now();
   let tz = 'UTC';
@@ -53,13 +75,7 @@ export async function buildFlow(userId: string): Promise<FlowSummary> {
       .gte('starts_at', new Date(dayStart.getTime() - 86_400_000).toISOString())
       .lt('starts_at', dayEnd.toISOString())
       .order('starts_at', { ascending: true }),
-    supabaseAdmin.from('crm_tasks')
-      .select('id, title, due_date, priority, deal_id, contact_name')
-      .eq('user_id', userId)
-      .eq('is_done', false)
-      .lt('due_date', dayEnd.toISOString())
-      .order('due_date', { ascending: true })
-      .limit(100),
+    tasksForToday(userId, dayEnd),
   ]);
 
   /* ─── Replies ─────────────────────────────────────────────────────── */

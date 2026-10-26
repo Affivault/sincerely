@@ -21,6 +21,11 @@ export interface InboxMessage {
    */
   auto_reply_kind: 'out_of_office' | 'auto_reply' | null;
   /**
+   * Where it arrived (095). Null or 'email' is a mailbox; 'linkedin' is a
+   * LinkedIn message the browser agent read, which is answered on LinkedIn.
+   */
+  channel?: 'email' | 'linkedin' | null;
+  /**
    * Whether a person wrote this, or it is mail: a newsletter, a
    * notification, a receipt, or something between your own mailboxes.
    * Only people reach the inbox, the counts and Relay. Null on rows stored

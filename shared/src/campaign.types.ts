@@ -60,6 +60,8 @@ export interface CampaignStep {
   skip_if_replied: boolean;
   /** Connection-request note (linkedin_connect only), max 300 chars. */
   linkedin_note?: string | null;
+  /** linkedin_message only (095): wait up to this many days for the invite to be accepted. */
+  linkedin_wait_days?: number | null;
   /** How a follow-up email goes out (089). Unset: a reply when its subject is blank. */
   thread_mode?: ThreadMode | null;
   condition_field: ConditionField | null;
@@ -162,6 +164,8 @@ export interface CreateStepInput {
   send_at_local_time?: string;
   /** Connection-request note (linkedin_connect only), max 300 chars. */
   linkedin_note?: string;
+  /** linkedin_message only: wait up to this many days for a connection. 0 or unset sends at once. */
+  linkedin_wait_days?: number | null;
   thread_mode?: ThreadMode | null;
 }
 

@@ -98,6 +98,8 @@ import {
   Paperclip,
   AlarmClock,
   BellRing,
+  Linkedin,
+  ExternalLink,
 } from 'lucide-react';
 
 import {
@@ -145,6 +147,10 @@ interface Message {
   is_read: boolean;
   /** Set when a machine sent it — never counted as a reply. */
   auto_reply_kind?: 'out_of_office' | 'auto_reply' | null;
+  /** 'linkedin' for a LinkedIn message the agent read (095); otherwise email. */
+  channel?: 'email' | 'linkedin' | null;
+  /** The conversation it belongs to; 'linkedin:<thread>' for a LinkedIn one. */
+  thread_id?: string | null;
   /** The mailbox folder it was synced from (INBOX, Sent, Junk...). */
   imap_folder?: string | null;
   /** What came attached - names and sizes; the files stay in the mailbox (090). */
@@ -217,6 +223,30 @@ function senderName(msg: Message): string {
 }
 
 /** True when this is mail rather than a person writing. */
+/**
+ * Where a LinkedIn message's conversation lives on LinkedIn. The agent
+ * files it with thread_id 'linkedin:<thread>'; without one, the messaging
+ * home is the nearest place to answer from.
+ */
+function linkedinThreadUrl(msg: { thread_id?: string | null }): string {
+  const id = /^linkedin:([\w:.-]+)$/.exec(msg.thread_id || '')?.[1];
+  return id && !id.startsWith('contact-')
+    ? `https://www.linkedin.com/messaging/thread/${encodeURIComponent(id)}/`
+    : 'https://www.linkedin.com/messaging/';
+}
+
+/** A small mark that says a message came in on LinkedIn, not by email. */
+function LinkedinBadge() {
+  return (
+    <span
+      className="inline-flex items-center gap-1 text-micro font-semibold px-1.5 py-0.5 rounded bg-sky-500/12 text-sky-700 dark:text-sky-400 flex-shrink-0"
+      title="Read from LinkedIn by the agent. Answer it on LinkedIn."
+    >
+      <Linkedin className="h-2.5 w-2.5" />LinkedIn
+    </span>
+  );
+}
+
 function isMail(msg: { mail_kind?: MailKind | null }): boolean {
   return !!msg.mail_kind && msg.mail_kind !== 'person';
 }
@@ -3557,7 +3587,25 @@ export function InboxPage() {
                   {/* The indent lines the composer up with the messages; on a phone it
                       only took 48px from the one box that needs every one of them. */}
                   <div className="sm:pl-12">
-                  {replyMode ? (
+                  {currentMsg.channel === 'linkedin' ? (
+                    /* There is no mailbox behind a LinkedIn message, and the
+                       server refuses an email reply to one, so the composer
+                       is replaced by the way to answer where they wrote. */
+                    <div className="w-full flex flex-wrap items-center gap-2.5 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-sm)] px-3 py-2.5">
+                      <Linkedin className="h-4 w-4 text-sky-600 dark:text-sky-400 flex-shrink-0" />
+                      <span className="flex-1 min-w-0 text-strong text-[var(--text-secondary)]">
+                        {threadContactName || 'They'} wrote on LinkedIn. Their sequence has stopped; answer them there.
+                      </span>
+                      <a
+                        href={linkedinThreadUrl(currentMsg)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-[var(--indigo-subtle)] text-[var(--indigo-text)] text-body font-semibold hover:bg-[rgba(47,63,156,0.14)] transition-colors"
+                      >
+                        Reply on LinkedIn <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                    </div>
+                  ) : replyMode ? (
                     <div
                       ref={replyComposerRef}
                       className="w-full flex flex-col max-h-[64vh] rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)] overflow-hidden"
@@ -4220,7 +4268,7 @@ export function InboxPage() {
                             </span>
                             {conv.messageCount > 1 && <span className="text-caption text-[var(--text-tertiary)] tabular flex-shrink-0">{conv.messageCount}</span>}
                             {conv.isStarred && <Star className="h-3 w-3 text-amber-500 fill-amber-500 flex-shrink-0 self-center" />}
-                            <span className="flex items-center gap-1 self-center min-w-0"><ConversationMarkers conv={conv} folder={folder} assignee={hasTeam ? teammateEmail(conv.assignedTo) : undefined} /></span>
+                            <span className="flex items-center gap-1 self-center min-w-0"><ConversationMarkers conv={conv} folder={folder} assignee={hasTeam ? teammateEmail(conv.assignedTo) : undefined} />{msg.channel === 'linkedin' && <LinkedinBadge />}</span>
                             <span className="ml-auto flex-shrink-0 text-caption text-[var(--text-tertiary)] tabular">{timeAgo(msg.received_at)}</span>
                           </span>
                           <span className={cn('mt-0.5 block line-clamp-2 text-body leading-snug', conv.hasUnread ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]')}>
@@ -4301,6 +4349,7 @@ export function InboxPage() {
                         )}
                         {conv.isStarred && <Star className="h-3 w-3 text-amber-400 fill-amber-400 flex-shrink-0" />}
                         <ConversationMarkers conv={conv} folder={folder} assignee={hasTeam ? teammateEmail(conv.assignedTo) : undefined} />
+                        {msg.channel === 'linkedin' && <LinkedinBadge />}
                         {/* Marked rather than hidden. It still belongs in the
                             thread — it just isn't someone answering you, and a
                             row that looks like a reply and isn't is how a
