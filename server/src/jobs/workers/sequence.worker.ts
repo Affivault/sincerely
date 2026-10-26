@@ -1,5 +1,6 @@
 import { processDueSteps, processWebhookTimeouts, promoteDueScheduledCampaigns, reapStrandedContacts } from '../../services/sequence.service.js';
 import { processScheduledEmails, reapStuckScheduledSends } from '../../services/inbox.service.js';
+import { sweepChannelTasks } from '../../services/channel-tasks.service.js';
 import { beat } from '../../utils/heartbeat.js';
 
 /**
@@ -51,6 +52,9 @@ async function tick() {
       lastReapAt = Date.now();
       await stage(failures, 'Stranded contacts', reapStrandedContacts, (n) => `Recovered ${n} stranded contact(s)`);
       await stage(failures, 'Stuck scheduled emails', reapStuckScheduledSends, (n) => `Marked ${n} interrupted scheduled email(s) failed`);
+      // LinkedIn tasks nobody is going to do: the contact left, the agent gave
+      // up, or it sat undone past the user's limit. Each parks a contact.
+      await stage(failures, 'LinkedIn tasks', sweepChannelTasks, (n) => `Closed or skipped ${n} LinkedIn task(s)`);
     }
     // Scheduled campaigns whose start time has come, before anything is
     // picked up, so their contacts are due on this same tick.

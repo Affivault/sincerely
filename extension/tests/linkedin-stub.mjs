@@ -103,27 +103,51 @@ const profile = (slug, name, headline) => `<!doctype html><html><head><title>${n
  * testing sees "connect invite rowan fitz to connect" and matches neither.
  */
 const AGENT_SLUG = 'agent-target';
-const AGENT_PROFILE = `<!doctype html><html><head><title>Rowan Fitz | LinkedIn</title></head>
-<body>
-  <main>
-    <h1>Rowan Fitz</h1>
-    <div class="text-body-medium break-words">VP Engineering at Northwind Capital</div>
-    <button aria-label="Message Rowan Fitz"><span aria-hidden="true">Message</span></button>
-    <button id="connect" aria-label="Invite Rowan Fitz to connect"><span aria-hidden="true">Connect</span></button>
-  </main>
-  <script>
-    window.__agent = { invitesSent: 0, note: null, noteOpened: 0 };
-    document.getElementById('connect').addEventListener('click', function () {
+
+/**
+ * Everything around a top card that the agent must never touch.
+ *
+ * Real profiles carry "People you may know" and "People also viewed", full of
+ * other people's Connect buttons labelled "Invite <them> to connect" - the
+ * same label the agent looks for. Any click on one is counted, and every
+ * agent test asserts the count stays at zero.
+ */
+const SIDEBAR = `
+    <section class="pymk">
+      <h2>People you may know</h2>
+      <button data-sidebar aria-label="Invite Kim Else to connect"><span aria-hidden="true">Connect</span></button>
+      <button data-sidebar aria-label="Message Kim Else"><span aria-hidden="true">Message</span></button>
+    </section>`;
+const ASIDE = `
+  <aside>
+    <h2>People also viewed</h2>
+    <button data-sidebar aria-label="Invite Sam Other to connect"><span aria-hidden="true">Connect</span></button>
+    <button data-sidebar aria-label="Pending, click to withdraw invitation sent to Sam Other"><span>Pending</span></button>
+  </aside>`;
+
+/**
+ * Shared page script for the agent profiles: LinkedIn's invite modal, its
+ * docked conversation windows, and the counters the tests read back.
+ */
+const AGENT_LIB = `
+    window.__agent = { invitesSent: 0, note: null, noteOpened: 0, sidebarClicks: 0, messages: [], inmailSent: 0 };
+    document.querySelectorAll('[data-sidebar]').forEach(function (b) {
+      b.addEventListener('click', function () { window.__agent.sidebarClicks += 1; });
+    });
+    function openInvite(opts, onSent) {
       if (document.getElementById('invite-modal')) return;
       var modal = document.createElement('div');
       modal.id = 'invite-modal';
       modal.setAttribute('role', 'dialog');
-      modal.innerHTML =
-        '<h2>Add a note to your invitation?</h2>' +
-        '<button id="add-note" aria-label="Add a note to your invitation"><span>Add a note</span></button>' +
-        '<button id="send-btn" aria-label="Send now"><span>Send</span></button>';
+      modal.innerHTML = opts && opts.noNote
+        ? '<h2>You can send a limited number of personalized invitations</h2>' +
+          '<button id="send-btn" aria-label="Send without a note"><span>Send without a note</span></button>'
+        : '<h2>Add a note to your invitation?</h2>' +
+          '<button id="add-note" aria-label="Add a note to your invitation"><span>Add a note</span></button>' +
+          '<button id="send-btn" aria-label="Send now"><span>Send</span></button>';
       document.body.appendChild(modal);
-      document.getElementById('add-note').addEventListener('click', function () {
+      var add = document.getElementById('add-note');
+      if (add) add.addEventListener('click', function () {
         window.__agent.noteOpened += 1;
         if (document.getElementById('custom-message')) return;
         var field = document.createElement('textarea');
@@ -136,10 +160,181 @@ const AGENT_PROFILE = `<!doctype html><html><head><title>Rowan Fitz | LinkedIn</
         window.__agent.note = field ? field.value : null;
         window.__agent.invitesSent += 1;
         modal.remove();
+        if (onSent) onSent();
+      });
+    }
+    function openConversation(name, opts) {
+      var open = Array.prototype.find.call(
+        document.querySelectorAll('.msg-overlay-conversation-bubble'),
+        function (b) { return b.dataset.to === name; });
+      if (open) return;
+      var inmail = !!(opts && opts.inmail);
+      var b = document.createElement('div');
+      b.className = 'msg-overlay-conversation-bubble';
+      b.dataset.to = name;
+      b.innerHTML =
+        '<header class="msg-overlay-bubble-header"><h2 class="msg-overlay-bubble-header__title">' +
+        (inmail ? 'New message' : name) + '</h2></header>' +
+        (inmail ? '<input name="subject" placeholder="Subject (optional)">' : '') +
+        '<div class="msg-form__contenteditable" contenteditable="true" role="textbox" style="min-height:20px"></div>' +
+        '<button class="send" disabled>Send</button>';
+      document.body.appendChild(b);
+      var box = b.querySelector('[contenteditable]');
+      var send = b.querySelector('.send');
+      box.addEventListener('input', function () { send.disabled = !box.textContent.trim(); });
+      send.addEventListener('click', function () {
+        if (inmail) window.__agent.inmailSent += 1;
+        window.__agent.messages.push({ to: name, text: box.textContent });
+        box.textContent = '';
+        send.disabled = true;
+      });
+    }
+    function wireMore() {
+      var more = document.getElementById('more');
+      var menu = document.getElementById('more-menu');
+      if (!more || !menu) return;
+      more.addEventListener('click', function () {
+        var open = menu.style.display !== 'none';
+        menu.style.display = open ? 'none' : 'block';
+        more.setAttribute('aria-expanded', open ? 'false' : 'true');
+      });
+    }
+    wireMore();`;
+
+const AGENT_PROFILE = `<!doctype html><html><head><title>Rowan Fitz | LinkedIn</title></head>
+<body>
+  <main>
+    <section class="pv-top-card">
+      <h1>Rowan Fitz</h1>
+      <div class="text-body-medium break-words">VP Engineering at Northwind Capital</div>
+      <button aria-label="Message Rowan Fitz"><span aria-hidden="true">Message</span></button>
+      <button id="connect" aria-label="Invite Rowan Fitz to connect"><span aria-hidden="true">Connect</span></button>
+    </section>${SIDEBAR}
+  </main>${ASIDE}
+  <script>${AGENT_LIB}
+    document.getElementById('connect').addEventListener('click', function () {
+      openInvite({}, function () {
+        // LinkedIn swaps Connect for Pending once the invite is real.
+        var c = document.getElementById('connect');
+        c.outerHTML = '<button id="pending" aria-label="Pending, click to withdraw invitation sent to Rowan Fitz"><span aria-hidden="true">Pending</span></button>';
       });
     });
   </script>
 </body></html>`;
+
+/**
+ * Connect under "More". The card shows Message (Premium and open profiles
+ * do), so a check that reads Message-without-Connect as "already
+ * connected" skips the invite this person was meant to get.
+ */
+const AGENT_MORE_PROFILE = `<!doctype html><html><head><title>Mara Quinn | LinkedIn</title></head>
+<body>
+  <main>
+    <section class="pv-top-card">
+      <h1>Mara Quinn</h1>
+      <div class="text-body-medium break-words">COO at Brightline</div>
+      <button aria-label="Message Mara Quinn"><span aria-hidden="true">Message</span></button>
+      <div class="artdeco-dropdown">
+        <button id="more" aria-label="More actions" aria-expanded="false" aria-controls="more-menu"><span aria-hidden="true">More</span></button>
+        <div id="more-menu" class="artdeco-dropdown__content" style="display:none">
+          <div role="button" class="artdeco-dropdown__item" aria-label="Save to PDF"><span>Save to PDF</span></div>
+          <div role="button" id="menu-connect" class="artdeco-dropdown__item" aria-label="Invite Mara Quinn to connect"><span>Connect</span></div>
+        </div>
+      </div>
+    </section>${SIDEBAR}
+  </main>${ASIDE}
+  <script>${AGENT_LIB}
+    document.getElementById('menu-connect').addEventListener('click', function () {
+      document.getElementById('more').click();
+      openInvite({}, function () {
+        var item = document.getElementById('menu-connect');
+        item.setAttribute('aria-label', 'Withdraw invitation sent to Mara Quinn');
+        item.innerHTML = '<span>Pending</span>';
+      });
+    });
+  </script>
+</body></html>`;
+
+/**
+ * A first-degree connection: Message on the card, no Connect anywhere of
+ * theirs, "Remove connection" under More - and a conversation with somebody
+ * else already open, which is the window a careless agent types into.
+ */
+const AGENT_FIRST_PROFILE = `<!doctype html><html><head><title>Jonas Berg | LinkedIn</title></head>
+<body>
+  <main>
+    <section class="pv-top-card">
+      <h1>Jonas Berg</h1>
+      <div class="text-body-medium break-words">Head of Data at Meridian Labs</div>
+      <button id="message" aria-label="Message Jonas Berg"><span aria-hidden="true">Message</span></button>
+      <div class="artdeco-dropdown">
+        <button id="more" aria-label="More actions" aria-expanded="false" aria-controls="more-menu"><span aria-hidden="true">More</span></button>
+        <div id="more-menu" class="artdeco-dropdown__content" style="display:none">
+          <div role="button" class="artdeco-dropdown__item" aria-label="Save to PDF"><span>Save to PDF</span></div>
+          <div role="button" class="artdeco-dropdown__item" aria-label="Remove your connection to Jonas Berg"><span>Remove connection</span></div>
+        </div>
+      </div>
+    </section>${SIDEBAR}
+  </main>${ASIDE}
+  <script>${AGENT_LIB}
+    openConversation('Priya Raman');
+    document.getElementById('message').addEventListener('click', function () {
+      setTimeout(function () { openConversation('Jonas Berg'); }, 200);
+    });
+  </script>
+</body></html>`;
+
+/** Message on a stranger: LinkedIn offers InMail, which spends credits. */
+const AGENT_INMAIL_PROFILE = `<!doctype html><html><head><title>Lena Fox | LinkedIn</title></head>
+<body>
+  <main>
+    <section class="pv-top-card">
+      <h1>Lena Fox</h1>
+      <div class="text-body-medium break-words">Founder at Fox and Field</div>
+      <button id="message" aria-label="Message Lena Fox"><span aria-hidden="true">Message</span></button>
+    </section>${SIDEBAR}
+  </main>${ASIDE}
+  <script>${AGENT_LIB}
+    document.getElementById('message').addEventListener('click', function () {
+      setTimeout(function () { openConversation('Lena Fox', { inmail: true }); }, 200);
+    });
+  </script>
+</body></html>`;
+
+/** Out of personalised invites: the modal offers only "Send without a note". */
+const AGENT_NONOTE_PROFILE = `<!doctype html><html><head><title>Theo Marsh | LinkedIn</title></head>
+<body>
+  <main>
+    <section class="pv-top-card">
+      <h1>Theo Marsh</h1>
+      <div class="text-body-medium break-words">CTO at Harbor</div>
+      <button id="connect" aria-label="Invite Theo Marsh to connect"><span aria-hidden="true">Connect</span></button>
+    </section>${SIDEBAR}
+  </main>${ASIDE}
+  <script>${AGENT_LIB}
+    document.getElementById('connect').addEventListener('click', function () {
+      openInvite({ noNote: true });
+    });
+  </script>
+</body></html>`;
+
+/** The public profile LinkedIn shows a signed-out visitor. */
+const AGENT_PUBLIC_PROFILE = `<!doctype html><html><head><title>Ada Park | LinkedIn</title></head>
+<body>
+  <header>
+    <nav><a href="/signup">Join now</a> <a href="/login">Sign in</a></nav>
+  </header>
+  <main>
+    <section class="top-card-layout">
+      <h1>Ada Park</h1>
+      <button aria-label="Sign in to connect with Ada Park">Connect</button>
+    </section>
+  </main>
+</body></html>`;
+
+/** Where a signed-out tab ends up. act.js is never injected here. */
+const AUTHWALL = `<!doctype html><html><head><title>Sign Up | LinkedIn</title></head>
+<body><main><h1>Join LinkedIn</h1><a href="/login">Sign in</a></main></body></html>`;
 
 /*
  * Markup variants, one per shape LinkedIn actually ships.
@@ -466,6 +661,12 @@ createServer({ key, cert }, (req, res) => {
     }, delay);
   }
 
+  // Signed out: LinkedIn bounces a profile visit to its authwall.
+  if (url.pathname.includes('/in/agent-signedout')) {
+    res.writeHead(302, { Location: '/authwall?sessionRedirect=1' });
+    return res.end();
+  }
+
   // A JSESSIONID is what the scraper reads as the CSRF token; without it the
   // Voyager route is skipped entirely, which would make the quiet profile pass
   // for the wrong reason.
@@ -486,6 +687,12 @@ createServer({ key, cert }, (req, res) => {
     if (url.pathname.includes(slug)) return res.end(variantPage(slug));
   }
   if (url.pathname.includes(AGENT_SLUG)) return res.end(AGENT_PROFILE);
+  if (url.pathname.includes('/in/agent-more')) return res.end(AGENT_MORE_PROFILE);
+  if (url.pathname.includes('/in/agent-first')) return res.end(AGENT_FIRST_PROFILE);
+  if (url.pathname.includes('/in/agent-inmail')) return res.end(AGENT_INMAIL_PROFILE);
+  if (url.pathname.includes('/in/agent-nonote')) return res.end(AGENT_NONOTE_PROFILE);
+  if (url.pathname.includes('/in/agent-public')) return res.end(AGENT_PUBLIC_PROFILE);
+  if (url.pathname.startsWith('/authwall')) return res.end(AUTHWALL);
   if (url.pathname.includes(LATE_SLUG)) return res.end(LATE_ANCHOR_PROFILE);
   if (url.pathname.includes(TAP_SLUG)) return res.end(TAP_ONLY_PROFILE);
   if (url.pathname.includes(ROUTER_SLUG)) return res.end(ROUTER_ONLY_PROFILE);

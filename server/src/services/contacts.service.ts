@@ -1,4 +1,4 @@
-import { REPLY_CHECK_CONTACT_DOMAIN } from '@lemlist/shared';
+import { REPLY_CHECK_CONTACT_DOMAIN, normalizeLinkedinUrl } from '@lemlist/shared';
 import { enrichmentService } from './enrichment.service.js';
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
@@ -32,6 +32,9 @@ function pickUpdatable(input: any): Record<string, any> {
   for (const key of UPDATABLE_CONTACT_FIELDS) {
     if (input[key] !== undefined) out[key] = input[key];
   }
+  // A profile saved without its scheme is read as a relative link by every
+  // page that renders it, and the LinkedIn agent cannot open it at all.
+  if (out.linkedin_url !== undefined) out.linkedin_url = normalizeLinkedinUrl(out.linkedin_url);
   return out;
 }
 
@@ -603,7 +606,7 @@ export const contactsService = {
         if (v == null) continue;
         const trimmed = typeof v === 'string' ? v.trim() : v;
         if (trimmed === '') continue;
-        row[k] = trimmed;
+        row[k] = k === 'linkedin_url' ? normalizeLinkedinUrl(trimmed) : trimmed;
       }
 
       // Arbitrary custom attributes (from custom-mapped CSV columns / API)

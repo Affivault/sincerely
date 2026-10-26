@@ -4,6 +4,7 @@ import { AppError } from '../middleware/error.middleware.js';
 import { getPagination, formatPaginatedResponse } from '../utils/pagination.js';
 import { fireEvent } from './webhook.service.js';
 import { processDueSteps } from './sequence.service.js';
+import { closeChannelTasksForCampaign } from './channel-tasks.service.js';
 import { settingsService } from './settings.service.js';
 import { readinessService } from './readiness.service.js';
 import { extractTags, TAG_LABELS, TAG_SOURCE_FIELD, SENDER_TAGS, LINK_TAGS, launchGate, normalizeBlackoutDates } from '@lemlist/shared';
@@ -349,6 +350,14 @@ export const campaignsService = {
   },
 
   async delete(userId: string, id: string) {
+    // Its LinkedIn tasks outlive it otherwise: crm_tasks has no foreign key
+    // to the enrolments, so they stayed in the queue and the agent kept
+    // sending invites for a campaign that no longer exists. Closed first,
+    // and only for a campaign this user owns.
+    const { data: owned } = await supabaseAdmin
+      .from('campaigns').select('id').eq('id', id).eq('user_id', userId).maybeSingle();
+    if (owned) await closeChannelTasksForCampaign(id, 'Closed: the campaign was deleted');
+
     const { error } = await supabaseAdmin
       .from('campaigns')
       .delete()
@@ -912,6 +921,9 @@ export const campaignsService = {
       .single();
 
     if (error) throw new AppError(error.message, 500);
+    // A cancelled campaign never runs again, so its queued LinkedIn touches
+    // are work nobody wants done.
+    await closeChannelTasksForCampaign(id, 'Closed: the campaign was cancelled');
     fireEvent(userId, 'campaign.cancelled', { campaign: data }).catch((err: any) => console.error('[Campaign] Webhook error:', err?.message ?? String(err)));
     return data;
   },

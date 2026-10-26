@@ -12,7 +12,7 @@ import { settingsService } from './settings.service.js';
 import { guardAfterBounce } from './bounce-guard.service.js';
 import * as domainThrottle from './domain-throttle.service.js';
 import { providerHeldUntil } from './autopilot.service.js';
-import { isLinkedinStep, inferTimezone, isBlackoutDay } from '@lemlist/shared';
+import { isLinkedinStep, inferTimezone, isBlackoutDay, normalizeLinkedinUrl, isLinkedinProfileUrl, LINKEDIN_NOTE_MAX } from '@lemlist/shared';
 import { campaignBlackoutDates } from './blackout.service.js';
 import { stepHasVariantB, assignVariant, classifyRejection } from '@lemlist/shared';
 import { classifySendFailure, stallReasonFor } from '../utils/send-failure.js';
@@ -1140,29 +1140,41 @@ async function processLinkedinStep(cc: any, step: any, steps: any[]): Promise<vo
   const contact = cc.contacts || {};
   const name = [contact.first_name, contact.last_name].filter(Boolean).join(' ') || contact.email;
 
-  // No profile means the step can't be done at all. Skipping and moving on
-  // beats parking the contact forever on work nobody can complete.
-  if (!contact.linkedin_url) {
+  const skip = async (reason: string, extra: Record<string, any> = {}) => {
     await supabaseAdmin.from('campaign_activities').insert({
       campaign_id: cc.campaign_id,
       campaign_contact_id: cc.id,
       contact_id: cc.contact_id,
       step_id: step.id,
       activity_type: 'skipped',
-      metadata: { step_order: step.step_order, step_type: step.step_type, reason: 'no_linkedin_url' },
+      metadata: { step_order: step.step_order, step_type: step.step_type, reason, ...extra },
     }).then(() => {}, () => {});
     await advanceToNextStep(cc.id, step.step_order, steps);
+  };
+
+  // No profile means the step can't be done at all. Skipping and moving on
+  // beats parking the contact forever on work nobody can complete. A URL
+  // saved without its scheme is still a profile, so it is repaired rather
+  // than skipped; anything that still isn't a LinkedIn address after that
+  // would open a tab somewhere else entirely.
+  const profileUrl = normalizeLinkedinUrl(contact.linkedin_url);
+  if (!profileUrl || !isLinkedinProfileUrl(profileUrl)) {
+    await skip(profileUrl ? 'invalid_linkedin_url' : 'no_linkedin_url');
     return;
   }
 
   // Claim the contact first, on the same compare-and-swap the email path uses:
-  // two workers reaching this step at once must not raise two tasks.
+  // two workers reaching this step at once must not raise two tasks. The step
+  // and the due time are part of the swap for the same reason as there: a
+  // contact another run already moved on must not have this step raised again.
   const { data: claimed } = await supabaseAdmin
     .from('campaign_contacts')
     .update({ current_step_order: step.step_order, next_send_at: null })
     .eq('id', cc.id)
     .eq('status', 'active')
+    .eq('current_step_order', cc.current_step_order || 0)
     .not('next_send_at', 'is', null)
+    .lte('next_send_at', new Date().toISOString())
     .select('id')
     .maybeSingle();
   if (!claimed) return;
@@ -1178,6 +1190,15 @@ async function processLinkedinStep(cc: any, step: any, steps: any[]): Promise<vo
     : step.body_text || step.body_html || '';
   const message = personalize(linkedinCopy, { contact, sender, spinSeed: `${step.id}:${cc.contact_id}` });
 
+  // The builder counts the template, not what a long company name turns it
+  // into. LinkedIn refuses a note over the limit, and cutting it off mid-word
+  // sends something nobody wrote, so this person's invite is skipped and
+  // the history says exactly why.
+  if (step.step_type === 'linkedin_connect' && message.length > LINKEDIN_NOTE_MAX) {
+    await skip('note_too_long', { length: message.length, limit: LINKEDIN_NOTE_MAX });
+    return;
+  }
+
   const { data: task, error } = await supabaseAdmin
     .from('crm_tasks')
     .insert({
@@ -1189,7 +1210,7 @@ async function processLinkedinStep(cc: any, step: any, steps: any[]): Promise<vo
       contact_name: name,
       channel: step.step_type,
       payload: message || null,
-      target_url: contact.linkedin_url,
+      target_url: profileUrl,
       campaign_contact_id: cc.id,
       campaign_step_id: step.id,
     })
@@ -1250,10 +1271,22 @@ export async function resumeAfterTask(taskId: string): Promise<void> {
     return;
   }
 
-  await supabaseAdmin
+  // Conditional on still waiting for this task. Done, skipped, deleted and
+  // the overdue sweep can all reach here for the same task at once, and only
+  // the one that unparks the contact may advance it: two advances would
+  // skip a step nobody chose to skip.
+  const { data: mine, error: clearErr } = await supabaseAdmin
     .from('campaign_contacts')
     .update({ waiting_for_task_id: null })
-    .eq('id', cc.id);
+    .eq('id', cc.id)
+    .eq('waiting_for_task_id', taskId)
+    .select('id')
+    .maybeSingle();
+  if (clearErr) {
+    console.error(`[Sequence] resumeAfterTask: could not unpark contact ${cc.id}: ${clearErr.message}`);
+    return;
+  }
+  if (!mine) return;
 
   // advanceToNextStep owns the delay arithmetic for whatever comes next, so
   // the LinkedIn path doesn't get its own copy of that logic to drift.
@@ -1687,6 +1720,23 @@ export async function markReplied(campaignContactId: string): Promise<boolean> {
     return false;
   }
   if (!data) return false; // already in a terminal state — leave it alone
+
+  // A LinkedIn touch still queued for them would go out after they answered:
+  // an invite, or a "just following up", to somebody already in conversation.
+  // Closed rather than resumed, since a replied contact has no next step. The
+  // agent's claim checks the contact too; this keeps the manual queue on the
+  // Activities page honest as well.
+  const { error: taskErr } = await supabaseAdmin
+    .from('crm_tasks')
+    .update({
+      is_done: true,
+      completed_at: new Date().toISOString(),
+      locked_until: null,
+      last_error: 'Closed: they replied',
+    })
+    .eq('campaign_contact_id', campaignContactId)
+    .eq('is_done', false);
+  if (taskErr) console.warn(`[Sequence] Could not close LinkedIn tasks for replied contact ${campaignContactId}:`, taskErr.message);
 
   checkAndAutoCompleteCampaign(data.campaign_id).catch(() => {});
   return true;

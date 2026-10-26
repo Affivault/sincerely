@@ -124,6 +124,11 @@ try {
     state?.note === 'Enjoyed your post on platform teams.',
     JSON.stringify(state),
   );
+  check(
+    "nobody in the sidebar was clicked, though their buttons say 'Invite ... to connect' too",
+    state?.sidebarClicks === 0,
+    JSON.stringify(state),
+  );
 
   /* ---------------- already connected is not a failure ---------------- */
 
@@ -166,6 +171,98 @@ try {
   );
 
   await page.close();
+
+  /* ---------------- the profile shapes that used to go wrong ---------------- */
+
+  /** Open a stub profile, send it one action from the worker, read back its counters. */
+  async function actOn(slug, action) {
+    const p = await context.newPage();
+    await p.goto(`https://www.linkedin.com/in/${slug}/`);
+    await p.waitForLoadState('load');
+    await p.waitForTimeout(300);
+    const reply = await worker.evaluate(async ([s, a]) => {
+      const [t] = await chrome.tabs.query({ url: `https://www.linkedin.com/in/${s}/*` });
+      if (!t) return { ok: false, reason: 'no tab' };
+      try {
+        return await chrome.tabs.sendMessage(t.id, { type: 'AGENT_ACT', action: a });
+      } catch (err) {
+        return { ok: false, reason: `sendMessage failed: ${err?.message || err}` };
+      }
+    }, [slug, action]);
+    const st = await p.evaluate(() => window.__agent || null);
+    await p.close();
+    return { reply, st };
+  }
+
+  // Connect lives under More, and the card shows Message: the shape that was
+  // read as "already connected", skipping the invite altogether.
+  {
+    const { reply: r, st } = await actOn('agent-more', {
+      channel: 'linkedin_connect', message: 'Good to meet you, Mara.', contact_name: 'Mara Quinn',
+    });
+    check('Connect under More is found and sent, not mistaken for a connection',
+      r?.ok === true && !r?.already && st?.invitesSent === 1, JSON.stringify({ r, st }));
+    check('with its note', st?.note === 'Good to meet you, Mara.', JSON.stringify(st));
+    check('and only reported once LinkedIn shows it pending (in the More menu)', r?.ok === true, JSON.stringify(r));
+    check('the sidebar on that profile was left alone', st?.sidebarClicks === 0, JSON.stringify(st));
+  }
+
+  // A first-degree connection with a sidebar full of invite buttons.
+  {
+    const { reply: r, st } = await actOn('agent-first', {
+      channel: 'linkedin_connect', message: '', contact_name: 'Jonas Berg',
+    });
+    check('a first-degree connection is done, not a failure', r?.ok === true && r?.already === true, JSON.stringify(r));
+    check('and no invite went anywhere, sidebar included',
+      st?.invitesSent === 0 && st?.sidebarClicks === 0, JSON.stringify(st));
+  }
+
+  // A conversation with somebody else is already open when Message is clicked.
+  {
+    const { reply: r, st } = await actOn('agent-first', {
+      channel: 'linkedin_message', message: 'Hello Jonas, quick one.', contact_name: 'Jonas Berg',
+    });
+    check('the message is sent', r?.ok === true, JSON.stringify(r));
+    const to = (st?.messages || []).map((m) => m.to);
+    check('into the window for this person, not the one already open',
+      to.length === 1 && to[0] === 'Jonas Berg' && st.messages[0].text === 'Hello Jonas, quick one.',
+      JSON.stringify(st?.messages));
+  }
+
+  // Message on a stranger opens InMail, which spends credits.
+  {
+    const { reply: r, st } = await actOn('agent-inmail', {
+      channel: 'linkedin_message', message: 'Hi Lena', contact_name: 'Lena Fox',
+    });
+    check('InMail is refused cleanly', r?.ok === false && /inmail/i.test(r?.reason || '') && !r?.fatal, JSON.stringify(r));
+    check('and nothing is sent', st?.inmailSent === 0 && (st?.messages || []).length === 0, JSON.stringify(st));
+  }
+
+  // Out of personalised invites: only "Send without a note" is offered.
+  {
+    const { reply: r, st } = await actOn('agent-nonote', {
+      channel: 'linkedin_connect', message: 'A note that matters', contact_name: 'Theo Marsh',
+    });
+    check('a requested note that cannot be added fails with that reason',
+      r?.ok === false && /add a note/i.test(r?.reason || ''), JSON.stringify(r));
+    check('rather than sending the invite without it', st?.invitesSent === 0, JSON.stringify(st));
+  }
+
+  // A note over LinkedIn's limit is never cut down and sent.
+  {
+    const { reply: r, st } = await actOn('agent-nonote', {
+      channel: 'linkedin_connect', message: 'x'.repeat(301), contact_name: 'Theo Marsh',
+    });
+    check('a note over 300 characters fails clearly', r?.ok === false && /300/.test(r?.reason || ''), JSON.stringify(r));
+    check('before anything is clicked', st?.invitesSent === 0, JSON.stringify(st));
+  }
+
+  // The public profile a signed-out browser gets.
+  {
+    const { reply: r } = await actOn('agent-public', { channel: 'linkedin_visit', title: 'Visit' });
+    check('a signed-out profile stops the agent as logged out',
+      r?.ok === false && r?.fatal === true && r?.kind === 'logged_out', JSON.stringify(r));
+  }
 
   /* ================================================================ */
   /* The worker's own loop: ask, open, act, report                    */
@@ -228,6 +325,53 @@ try {
     agentState?.status === 'done_one',
     JSON.stringify(agentState),
   );
+
+  /** Keep poking the worker until `done` says so; a tick may already be running. */
+  async function tickUntil(done, timeoutMs = 40000) {
+    const until = Date.now() + timeoutMs;
+    while (Date.now() < until) {
+      if (await done()) return true;
+      await driver.evaluate(() => chrome.runtime.sendMessage({ type: 'AGENT_TICK_NOW', payload: {} })).catch(() => {});
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+    return done();
+  }
+  const agentStats = async () => (await fetch(`${MOCK}/__agent-stats`)).json();
+
+  /* ---------------- signed out: redirected to the authwall ---------------- */
+
+  await fetch(`${MOCK}/__queue-agent-action?taskId=t2&channel=linkedin_visit&profileUrl=${encodeURIComponent('https://www.linkedin.com/in/agent-signedout/')}`);
+  await tickUntil(async () => (await agentStats()).failed.some((f) => f.taskId === 't2'));
+  {
+    const st = await agentStats();
+    const f = st.failed.find((x) => x.taskId === 't2');
+    check('a redirect to the sign-in wall is reported as logged out, not as a broken task',
+      f?.fatal === true && f?.kind === 'logged_out', JSON.stringify(st.failed));
+  }
+
+  /* ---------------- a long gap survives the worker sleeping ---------------- */
+
+  await fetch(`${MOCK}/__queue-agent-action?taskId=t3&channel=linkedin_visit&gap=120`);
+  const parked = await tickUntil(async () => !!(await worker.evaluate(async () =>
+    (await chrome.storage.local.get('agentPending')).agentPending)));
+  const pending = await worker.evaluate(async () => (await chrome.storage.local.get('agentPending')).agentPending);
+  const alarm = await worker.evaluate(() => chrome.alarms.get('sincerely-agent-act'));
+  check('a gap longer than the worker lives is written down, not held in a timer',
+    parked && pending?.action?.task_id === 't3' && pending.actAt - Date.now() > 60_000, JSON.stringify(pending));
+  check('with an alarm to wake the worker when it is over', !!alarm && Math.abs(alarm.scheduledTime - pending?.actAt) < 2000,
+    JSON.stringify(alarm));
+  check('and a claim that outlasts the gap', pending?.leaseUntil > pending?.actAt, JSON.stringify(pending));
+  check('nothing is done before the gap is over', !(await agentStats()).done.includes('t3'));
+
+  // Fast-forward: the gap is over, as if the alarm had just fired.
+  await worker.evaluate(async () => {
+    const { agentPending } = await chrome.storage.local.get('agentPending');
+    await chrome.storage.local.set({ agentPending: { ...agentPending, actAt: Date.now() - 1 } });
+  });
+  const acted = await tickUntil(async () => (await agentStats()).done.includes('t3'));
+  check('once it is over, the stored action is carried out and reported', acted, JSON.stringify(await agentStats()));
+  const left = await worker.evaluate(async () => (await chrome.storage.local.get('agentPending')).agentPending || null);
+  check('and the stored action is cleared', left === null, JSON.stringify(left));
 } finally {
   await context.close();
   stub.kill();

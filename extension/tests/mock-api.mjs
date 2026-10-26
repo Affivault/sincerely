@@ -292,7 +292,12 @@ const server = createServer(async (req, res) => {
       channel: url.searchParams.get('channel') || 'linkedin_visit',
       profile_url: url.searchParams.get('profileUrl') || 'https://www.linkedin.com/in/agent-target/',
       message: url.searchParams.get('message') || '',
+      contact_name: url.searchParams.get('contactName') || null,
       title: 'Agent action',
+      // The gap the server would ask for before this action, in seconds.
+      // Zero by default so the loop tests don't wait; a long one exercises
+      // the gap that has to survive the worker being shut down.
+      gap: Number(url.searchParams.get('gap') || 0),
     });
     return json(res, 200, { queued: agent.queue.length });
   }
@@ -785,7 +790,8 @@ const server = createServer(async (req, res) => {
     return json(res, 200, {
       action,
       reason: action ? null : 'nothing_due',
-      gap: { min_seconds: 0, max_seconds: 0 },
+      gap: { min_seconds: action?.gap || 0, max_seconds: action?.gap || 0 },
+      lease_seconds: (action?.gap || 0) + 900,
     });
   }
   if (req.method === 'POST' && /^\/linkedin\/agent\/tasks\/[^/]+\/done$/.test(path)) {
@@ -793,7 +799,7 @@ const server = createServer(async (req, res) => {
     return json(res, 200, { ok: true });
   }
   if (req.method === 'POST' && /^\/linkedin\/agent\/tasks\/[^/]+\/failed$/.test(path)) {
-    agent.failed.push({ taskId: path.split('/')[4], reason: body?.reason, fatal: Boolean(body?.fatal) });
+    agent.failed.push({ taskId: path.split('/')[4], reason: body?.reason, fatal: Boolean(body?.fatal), kind: body?.kind || null });
     return json(res, 200, { ok: true });
   }
 

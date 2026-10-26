@@ -2207,8 +2207,41 @@ const AGENT_IDLE_MINUTES = 1;
 /** A profile that never finishes loading must not hang the agent forever. */
 const AGENT_ACT_TIMEOUT_MS = 60_000;
 
+/** The one-shot alarm that wakes the worker when a gap is over. */
+const AGENT_ACT_ALARM = 'sincerely-agent-act';
+/**
+ * Shorter gaps than this are waited out in memory. A sleeping MV3 worker is
+ * killed after about thirty seconds idle, which is also the shortest alarm
+ * Chrome will fire, so anything longer is written down and resumed by alarm.
+ */
+const AGENT_INLINE_GAP_MS = 25_000;
+/** Used when the server does not say how long its claim holds. */
+const AGENT_DEFAULT_LEASE_MS = 5 * 60_000;
+
 /** Guards against a slow tick overlapping the next alarm. */
 let agentBusy = false;
+
+/**
+ * Where LinkedIn sent the tab, when that is itself the answer: a sign-in
+ * page or a checkpoint means stop the agent, not fail the task.
+ */
+function accountProblemAt(url) {
+  let path = '';
+  try { path = new URL(url).pathname; } catch { return null; }
+  if (/^\/checkpoint\//.test(path)) {
+    return {
+      ok: false, fatal: true, kind: 'restricted',
+      reason: 'LinkedIn asked for a security check. Clear it in your browser, then resume the agent in Sincerely.',
+    };
+  }
+  if (/^\/(login|uas\/login|authwall|signup)\b/.test(path)) {
+    return {
+      ok: false, fatal: true, kind: 'logged_out',
+      reason: 'LinkedIn is signed out in this browser. Sign in, then resume the agent in Sincerely.',
+    };
+  }
+  return null;
+}
 
 async function agentState(patch) {
   const prev = (await chrome.storage.local.get('agentState')).agentState || {};
@@ -2269,11 +2302,20 @@ async function agentPerform(action) {
       const dispatch = async () => {
         if (dispatched) return;
         dispatched = true;
+        // A signed-out browser is sent to /login or /authwall, where the
+        // page script is never injected. Reported as "page script
+        // unavailable" that spent the task's attempts on something wrong
+        // with the account, not with the task.
+        const landed = await chrome.tabs.get(tab.id).catch(() => null);
+        const problem = accountProblemAt(landed?.url);
+        if (problem) { finish(problem); return; }
         try {
           const reply = await chrome.tabs.sendMessage(tab.id, { type: 'AGENT_ACT', action });
           finish(reply || { ok: false, reason: 'No answer from the page' });
         } catch (err) {
-          finish({ ok: false, reason: `Page script unavailable: ${err?.message || err}` });
+          const now = await chrome.tabs.get(tab.id).catch(() => null);
+          finish(accountProblemAt(now?.url)
+            || { ok: false, reason: `Page script unavailable: ${err?.message || err}` });
         }
       };
 
@@ -2302,13 +2344,84 @@ async function agentPerform(action) {
   }
 }
 
+/**
+ * The action waiting out its gap, written down rather than held in memory.
+ *
+ * The gap used to be a setTimeout of up to the server's max_gap_seconds
+ * (minutes, often), and an MV3 worker idle for about thirty seconds is shut
+ * down with every timer in it. The action was simply never taken: the
+ * claim lapsed, the task was handed out again, and the same thing happened
+ * the next time. Stored with its due time and a one-shot alarm, it survives
+ * the worker sleeping, and the minute alarm picks it up even if the
+ * one-shot is lost.
+ */
+async function pendingAction() {
+  return (await chrome.storage.local.get('agentPending')).agentPending || null;
+}
+
+async function clearPending() {
+  await chrome.storage.local.remove('agentPending');
+  await chrome.alarms.clear(AGENT_ACT_ALARM).catch(() => {});
+}
+
+/** Do the action, report it, and say how it went. */
+async function agentAct(action) {
+  await agentState({ status: 'working', current: action.title, error: null });
+  const result = await agentPerform(action);
+
+  if (result.ok) {
+    await api.agentDone(action.task_id);
+    await agentState({ status: 'done_one', last: action.title, error: null });
+  } else {
+    await api.agentFailed(action.task_id, result.reason, result.fatal, result.kind || null);
+    await agentState({
+      status: result.fatal ? (result.kind === 'logged_out' ? 'logged_out' : 'blocked') : 'skipped_one',
+      last: result.reason,
+      error: null,
+    });
+    if (result.fatal) {
+      notify(result.kind === 'logged_out' ? 'Sign in to LinkedIn' : 'LinkedIn paused the agent', result.reason);
+    }
+  }
+}
+
 async function agentTick() {
   if (agentBusy) return;
   agentBusy = true;
   try {
     const { apiKey, agentPaused } = await getSettings();
     if (!apiKey) { await agentState({ status: 'no_key' }); return; }
-    if (agentPaused) { await agentState({ status: 'paused_local' }); return; }
+
+    const pending = await pendingAction();
+    if (agentPaused) {
+      // Paused here with a claim in hand: give it back unspent, so it is
+      // neither held until the lease runs out nor charged an attempt.
+      if (pending) {
+        await clearPending();
+        await api.agentFailed(pending.action.task_id, 'Paused on this machine', false, 'released').catch(() => {});
+      }
+      await agentState({ status: 'paused_local' });
+      return;
+    }
+
+    if (pending) {
+      const now = Date.now();
+      if (now >= pending.leaseUntil) {
+        // Asleep past the claim (laptop lid, browser closed). The server may
+        // already have handed this task to another browser; acting now could
+        // send it twice. Dropped without a word: the claim has lapsed on its
+        // own, and releasing it now could release somebody else's.
+        await clearPending();
+      } else if (now < pending.actAt) {
+        chrome.alarms.create(AGENT_ACT_ALARM, { when: pending.actAt });
+        await agentState({ status: 'waiting', current: pending.action.title, error: null });
+        return;
+      } else {
+        await clearPending();
+        await agentAct(pending.action);
+        return;
+      }
+    }
 
     const next = await api.agentNext();
 
@@ -2317,28 +2430,28 @@ async function agentTick() {
       return;
     }
 
-    await agentState({ status: 'working', current: next.action.title, error: null });
-
     // The wait goes BEFORE the action, not after: it separates this action
     // from the previous one regardless of how long that one took.
-    await new Promise((r) => setTimeout(r, agentGap(next.gap)));
-
-    const result = await agentPerform(next.action);
-
-    if (result.ok) {
-      await api.agentDone(next.action.task_id);
-      await agentState({ status: 'done_one', last: next.action.title, error: null });
-    } else {
-      await api.agentFailed(next.action.task_id, result.reason, result.fatal);
-      await agentState({
-        status: result.fatal ? 'blocked' : 'skipped_one',
-        last: result.reason,
-        error: null,
-      });
-      if (result.fatal) {
-        notify('LinkedIn paused the agent', result.reason);
-      }
+    const gapMs = agentGap(next.gap);
+    if (gapMs <= AGENT_INLINE_GAP_MS) {
+      await new Promise((r) => setTimeout(r, gapMs));
+      await agentAct(next.action);
+      return;
     }
+
+    const leaseMs = (Number(next.lease_seconds) || 0) * 1000 || AGENT_DEFAULT_LEASE_MS;
+    const claimedAt = Date.now();
+    await chrome.storage.local.set({
+      agentPending: {
+        action: next.action,
+        actAt: claimedAt + gapMs,
+        // A minute short of the server's lease, so the action is never
+        // started on a claim that is about to lapse.
+        leaseUntil: claimedAt + Math.max(gapMs + 30_000, leaseMs - 60_000),
+      },
+    });
+    chrome.alarms.create(AGENT_ACT_ALARM, { when: claimedAt + gapMs });
+    await agentState({ status: 'waiting', current: next.action.title, error: null });
   } catch (err) {
     // An auth problem is worth saying out loud; a transient one isn't.
     await agentState({ status: 'error', error: String(err?.message || err) });
@@ -2352,7 +2465,7 @@ function startAgent() {
 }
 
 chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === AGENT_ALARM) agentTick();
+  if (alarm.name === AGENT_ALARM || alarm.name === AGENT_ACT_ALARM) agentTick();
 });
 
 /* ------------------------------------------------------------------ */

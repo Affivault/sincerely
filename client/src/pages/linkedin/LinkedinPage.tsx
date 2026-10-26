@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { linkedinApi, type LinkedinSettings } from '../../api/linkedin.api';
@@ -8,6 +8,9 @@ import { PageSkeleton } from '../../components/ui/Skeleton';
 import { cn } from '../../lib/utils';
 import { Linkedin, ShieldCheck, Clock, Gauge, AlertTriangle, ExternalLink, Play, Pause } from 'lucide-react';
 import toast from 'react-hot-toast';
+import {
+  LINKEDIN_WEEKLY_CONNECT_DEFAULT, LINKEDIN_WEEKLY_CONNECT_MAX, LINKEDIN_SKIP_AFTER_DAYS_DEFAULT,
+} from '@lemlist/shared';
 
 /* ═══════════════════════════════════════════════════════════════════════
    LinkedIn.
@@ -18,6 +21,11 @@ import toast from 'react-hot-toast';
    software — because the failure mode isn't "a step didn't send", it's
    "LinkedIn restricted the account".
    ═══════════════════════════════════════════════════════════════════════ */
+
+/** The zone this browser is in, which is almost always the user's own. */
+const BROWSER_TZ = (() => {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch { return 'UTC'; }
+})();
 
 const DAYS = [
   { n: 1, label: 'Mon' }, { n: 2, label: 'Tue' }, { n: 3, label: 'Wed' },
@@ -90,6 +98,33 @@ export function LinkedinPage() {
     onError: (e: any) => toast.error(e?.response?.data?.error || 'Could not save that'),
   });
 
+  /*
+   * Every account starts on 'UTC', the column default, and nothing ever
+   * offered a way to change it - so the working hours below were UTC hours
+   * for everyone, and the agent ran at night for anyone far from London.
+   * When the saved zone is still that default and the browser knows better,
+   * the browser's zone is staged as an unsaved change: visible, and one
+   * click from saved, rather than written behind the user's back.
+   */
+  const staged = useRef(false);
+  useEffect(() => {
+    if (staged.current || !data) return;
+    staged.current = true;
+    if (data.settings.timezone === 'UTC' && BROWSER_TZ !== 'UTC') {
+      setDraft((d) => ({ timezone: BROWSER_TZ, ...d }));
+    }
+  }, [data]);
+
+  const savedZone = data?.settings.timezone || 'UTC';
+  const zones = useMemo(() => {
+    // The saved and browser zones are always offered: some browsers leave
+    // "UTC" out of this list, and a select without its value shows the
+    // first entry instead.
+    let all: string[] = [];
+    try { all = ((Intl as any).supportedValuesOf?.('timeZone') as string[] | undefined) || []; } catch { /* old browser */ }
+    return [...new Set([savedZone, BROWSER_TZ, 'UTC', ...all])];
+  }, [savedZone]);
+
   const needsMigration = (error as any)?.response?.status === 503;
 
   if (needsMigration) {
@@ -112,7 +147,10 @@ export function LinkedinPage() {
   const s = { ...data.settings, ...draft };
   const set = (patch: Partial<LinkedinSettings>) => setDraft((d) => ({ ...d, ...patch }));
   const dirty = Object.keys(draft).length > 0;
-  const pausedNow = !!s.paused_until && new Date(s.paused_until) > new Date();
+  const needsResume = !!data.needs_resume;
+  const pausedNow = needsResume || (!!s.paused_until && new Date(s.paused_until) > new Date());
+  const loggedOut = data.settings.pause_kind === 'logged_out';
+  const has093 = data.settings.weekly_connect_limit !== undefined;
 
   return (
     <>
@@ -157,7 +195,7 @@ export function LinkedinPage() {
         <span className="text-caption text-[var(--text-tertiary)]">
           <span className="tabular font-semibold text-[var(--text-secondary)]">{data.queued}</span> step{data.queued === 1 ? '' : 's'} waiting
         </span>
-        {pausedNow && (
+        {pausedNow && !needsResume && (
           <button
             onClick={() => saveQuick.mutate({ paused_until: null, pause_reason: null } as any)}
             className="text-caption font-semibold text-[var(--indigo-text)] hover:underline"
@@ -167,10 +205,58 @@ export function LinkedinPage() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      {/* A pause that waits for a person. LinkedIn showed a checkpoint or a
+          restriction, or the browser is signed out; resuming on a timer
+          would walk straight back into it. */}
+      {needsResume && (
+        <div className="panel p-4 border-amber-500/40">
+          <div className="flex items-start gap-2.5">
+            <AlertTriangle className="h-4 w-4 text-amber-500 flex-shrink-0 mt-0.5" />
+            <div className="min-w-0 flex-1">
+              <p className="text-body font-semibold text-[var(--text-primary)]">
+                {loggedOut ? 'LinkedIn is signed out in your browser' : 'LinkedIn wants you to take a look'}
+              </p>
+              <p className="text-body text-[var(--text-secondary)] mt-1 leading-relaxed">
+                {loggedOut
+                  ? 'The agent opened a profile and LinkedIn asked it to sign in. Nothing was sent and no step was used up. Sign in to LinkedIn in this browser, then resume.'
+                  : 'LinkedIn showed a security check or a restriction notice, so the agent stopped and stays stopped until you resume it. Open LinkedIn, clear whatever it is asking for, and give it a day if it mentions a restriction.'}
+              </p>
+              {s.pause_reason && !loggedOut && (
+                <p className="text-caption text-amber-600 dark:text-amber-400 mt-1">{s.pause_reason}</p>
+              )}
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => saveQuick.mutate({ paused_until: null, pause_reason: null })}
+                  disabled={saveQuick.isPending}
+                  className="btn-primary"
+                >
+                  <Play className="h-3.5 w-3.5" />
+                  {loggedOut ? "I've signed in, resume" : "I've checked LinkedIn, resume"}
+                </button>
+                <a
+                  href="https://www.linkedin.com/feed/"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn-secondary"
+                >
+                  Open LinkedIn <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className={cn('grid grid-cols-1 gap-3', data.week ? 'sm:grid-cols-2 lg:grid-cols-4' : 'sm:grid-cols-3')}>
         <Meter label="Invites today" used={data.today.connects} limit={s.daily_connect_limit} tone="var(--indigo)" />
         <Meter label="Messages today" used={data.today.messages} limit={s.daily_message_limit} tone="#0ea5e9" />
         <Meter label="Profile visits today" used={data.today.visits} limit={s.daily_visit_limit} tone="#10b981" />
+        {data.week && (
+          <Meter
+            label="Invites this week" used={data.week.connects}
+            limit={s.weekly_connect_limit ?? LINKEDIN_WEEKLY_CONNECT_DEFAULT} tone="#8b5cf6"
+          />
+        )}
       </div>
 
       {/* Why this is shaped the way it is */}
@@ -219,6 +305,25 @@ export function LinkedinPage() {
             onChange={(n) => set({ daily_visit_limit: n })} suffix="a day"
           />
         </div>
+        {/* The week is what LinkedIn actually measures. Fifteen a day on
+            every working day is 75; the cap stops a raised daily limit or a
+            seven-day week from quietly reaching the point accounts get
+            flagged at. */}
+        <div className="mt-4">
+          {has093 ? (
+            <NumberField
+              label="Connection requests per week"
+              value={s.weekly_connect_limit ?? LINKEDIN_WEEKLY_CONNECT_DEFAULT}
+              min={0} max={LINKEDIN_WEEKLY_CONNECT_MAX}
+              onChange={(n) => set({ weekly_connect_limit: n })} suffix="a week"
+              hint={`Counted Monday to Sunday in your timezone. ${LINKEDIN_WEEKLY_CONNECT_MAX} at most.`}
+            />
+          ) : (
+            <p className="text-caption text-[var(--text-tertiary)]">
+              A weekly invite cap arrives with migration <span className="font-mono">093_linkedin_agent_hardening.sql</span>.
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Pacing */}
@@ -255,7 +360,32 @@ export function LinkedinPage() {
                 className="h-8 rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
               />
             </span>
-            <span className="block mt-1 text-micro text-[var(--text-tertiary)]">In {s.timezone}.</span>
+          </label>
+
+          <label className="block">
+            <span className="block text-caption font-medium text-[var(--text-secondary)] mb-1">Timezone</span>
+            <select
+              value={s.timezone || 'UTC'}
+              onChange={(e) => set({ timezone: e.target.value })}
+              className="h-8 w-full max-w-xs rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+            >
+              {zones.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
+            </select>
+            <span className="block mt-1 text-micro text-[var(--text-tertiary)]">
+              Working hours and days, and when the daily count resets, are in this zone.
+              {s.timezone !== BROWSER_TZ && (
+                <>
+                  {' '}
+                  <button
+                    type="button"
+                    onClick={() => set({ timezone: BROWSER_TZ })}
+                    className="font-medium text-[var(--indigo-text)] hover:underline"
+                  >
+                    Use {BROWSER_TZ}
+                  </button>
+                </>
+              )}
+            </span>
           </label>
 
           <div>
@@ -285,6 +415,32 @@ export function LinkedinPage() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* What happens to a step nobody does */}
+      <div className="panel p-4">
+        <div className="flex items-center gap-2 mb-1">
+          <Clock className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
+          <h2 className="text-body font-semibold text-[var(--text-primary)]">Steps nobody gets to</h2>
+        </div>
+        <p className="text-caption text-[var(--text-tertiary)] mb-3 max-w-2xl">
+          A LinkedIn step waits for the agent or for you. Left undone, it holds that person's sequence still,
+          so after this long it is skipped and the next step goes ahead. While the extension is running,
+          a long queue is just the limits working, and nothing is skipped.
+        </p>
+        {has093 ? (
+          <NumberField
+            label="Skip an undone LinkedIn step after"
+            value={s.skip_task_after_days ?? LINKEDIN_SKIP_AFTER_DAYS_DEFAULT}
+            min={0} max={90}
+            onChange={(n) => set({ skip_task_after_days: n })} suffix="days"
+            hint="0 never skips: the sequence waits for as long as the step does."
+          />
+        ) : (
+          <p className="text-caption text-[var(--text-tertiary)]">
+            Needs migration <span className="font-mono">093_linkedin_agent_hardening.sql</span>.
+          </p>
+        )}
       </div>
 
       {dirty && (
