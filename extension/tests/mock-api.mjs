@@ -126,6 +126,8 @@ function reset() {
   prospector.provider = 'pdl';
   prospector.remaining = 25;
   prospector.reveals = new Set();
+  prospector.searches = [];
+  prospector.revealBodies = [];
   coldStart.armed = false;
   coldStart.delayed = 0;
   mintedKeys = [];
@@ -135,7 +137,10 @@ function reset() {
 }
 
 /** Prospector fixture — a provider, a credit balance, and two people. */
-const prospector = { provider: 'pdl', remaining: 25, reveals: new Set() };
+const prospector = { provider: 'pdl', remaining: 25, reveals: new Set(), searches: [], revealBodies: [] };
+
+/** Which lead list feeds which campaign, for a reveal's enrolled_in. */
+const LIST_CAMPAIGNS = { L1: { id: 'c1', name: 'Q3 Brokers Outreach' } };
 const PROSPECT_PEOPLE = [
   {
     id: 'p-sam',
@@ -145,6 +150,7 @@ const PROSPECT_PEOPLE = [
     full_name: 'Sam Rivera',
     job_title: 'Head of Growth',
     company: 'Northwind Capital',
+    company_domain: 'northwind.io',
     location: 'London',
     linkedin_url: 'https://www.linkedin.com/in/sam-rivera/',
     has_email: true,
@@ -160,6 +166,19 @@ const PROSPECT_PEOPLE = [
     location: 'London',
     linkedin_url: 'https://www.linkedin.com/in/no-mailbox/',
     has_email: false,
+  },
+  {
+    id: 'p-lee',
+    provider: 'pdl',
+    first_name: 'Lee',
+    last_name: 'Okafor',
+    full_name: 'Lee Okafor',
+    job_title: 'Chief Executive Officer',
+    company: 'Northwind Capital',
+    company_domain: 'northwind.io',
+    location: 'Manchester',
+    linkedin_url: 'https://www.linkedin.com/in/lee-okafor/',
+    has_email: true,
   },
 ];
 reset();
@@ -342,6 +361,9 @@ const server = createServer(async (req, res) => {
   if (req.method === 'GET' && url.pathname === '/__set-prospector') {
     prospector.provider = url.searchParams.get('provider') === 'none' ? null : 'pdl';
     return json(res, 200, { provider: prospector.provider });
+  }
+  if (req.method === 'GET' && url.pathname === '/__prospector') {
+    return json(res, 200, { searches: prospector.searches, reveals: prospector.revealBodies, remaining: prospector.remaining });
   }
   if (req.method === 'GET' && url.pathname === '/__tag-applications') {
     return json(res, 200, { applications: tagApplications, tags });
@@ -702,19 +724,41 @@ const server = createServer(async (req, res) => {
     if (!prospector.provider) {
       return json(res, 503, { error: 'No prospect data provider is configured. Add an ICYPEAS_API_KEY (or PDL_API_KEY) to enable the prospector.' });
     }
+    prospector.searches.push({ filters: body.filters || {}, page: body.page || 1 });
     const keywords = String(body.filters?.keywords || '').toLowerCase();
-    const results = PROSPECT_PEOPLE.filter((p) => !keywords || p.full_name.toLowerCase().includes(keywords)).map(
-      (p) => ({ ...p, already_revealed: prospector.reveals.has(p.id) })
-    );
-    return json(res, 200, { results, page: 1, total: results.length, provider: prospector.provider });
+    const companies = (body.filters?.companies || []).map((c) => String(c).toLowerCase());
+    const titles = (body.filters?.titles || []).map((t) => String(t).toLowerCase());
+    const results = PROSPECT_PEOPLE
+      .filter((p) => !keywords || p.full_name.toLowerCase().includes(keywords))
+      // A domain matches the company's domain, a name its name, as the
+      // providers do; people with no domain match any company by name only.
+      // A name lookup (the profile's "Find their email") is matched on the
+      // name alone, as before; the company and title filters are for the
+      // company panel's searches.
+      .filter((p) => keywords || !companies.length || companies.some((c) =>
+        c === String(p.company_domain || '').toLowerCase() || String(p.company || '').toLowerCase().includes(c)))
+      .filter((p) => keywords || !titles.length || titles.some((t) => String(p.job_title || '').toLowerCase().includes(t)))
+      .map((p) => ({ ...p, already_revealed: prospector.reveals.has(p.id) }));
+    return json(res, 200, { results, page: body.page || 1, total: results.length, provider: prospector.provider });
   }
   if (req.method === 'POST' && path === '/prospecting/reveal') {
     if (!prospector.provider) return json(res, 503, { error: 'No prospect data provider is configured.' });
     const person = PROSPECT_PEOPLE.find((p) => p.id === body.provider_person_id);
     if (!person) return json(res, 400, { error: 'provider_person_id is required' });
+    prospector.revealBodies.push(body);
+    /* Filed on the list, and enrolled into the campaigns that draw from it,
+       as prospectingService.reveal does. */
+    const fileOnList = (contactId) => {
+      if (!body.list_id || !contactId) return [];
+      const members = listMembers.get(body.list_id) || new Set();
+      members.add(contactId);
+      listMembers.set(body.list_id, members);
+      const list = lists.find((l) => l.id === body.list_id);
+      return list && LIST_CAMPAIGNS[body.list_id] ? [LIST_CAMPAIGNS[body.list_id]] : [];
+    };
 
     if (prospector.reveals.has(person.id)) {
-      return json(res, 200, { found: true, email: `${person.first_name}.${person.last_name}@northwind.example.org`.toLowerCase(), contact_id: 'k9', already_revealed: true, credits: { remaining: prospector.remaining } });
+      return json(res, 200, { found: true, email: `${person.first_name}.${person.last_name}@northwind.example.org`.toLowerCase(), contact_id: `k-${person.id}`, already_revealed: true, credits: { remaining: prospector.remaining }, enrolled_in: fileOnList(`k-${person.id}`) });
     }
     // No email on record → automatic refund, nothing saved.
     if (!person.has_email) {
@@ -723,8 +767,12 @@ const server = createServer(async (req, res) => {
     prospector.remaining -= 1;
     prospector.reveals.add(person.id);
     const email = `${person.first_name}.${person.last_name}@northwind.example.org`.toLowerCase();
-    contacts.push({ id: 'k9', email, first_name: person.first_name, last_name: person.last_name, company: person.company, job_title: person.job_title });
-    return json(res, 200, { found: true, email, contact_id: 'k9', credits: { remaining: prospector.remaining } });
+    // Built from the snapshot the caller sent, as the server does: without it
+    // the contact has an address and nothing else.
+    const snap = body.person || {};
+    const id = `k-${person.id}`;
+    contacts.push({ id, email, first_name: snap.first_name || null, last_name: snap.last_name || null, company: snap.company || null, job_title: snap.job_title || null });
+    return json(res, 200, { found: true, email, contact_id: id, credits: { remaining: prospector.remaining }, enrolled_in: fileOnList(id) });
   }
   // Tags
   if (req.method === 'GET' && path === '/tags') return json(res, 200, tags);

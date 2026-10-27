@@ -162,10 +162,15 @@ body {
   flex: 0 0 auto;
   border-radius: 50%;
   font-size: 12px;
-  font-weight: 700;
-  color: #fff;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
-  background: var(--gradient-brand);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  /* Pale pigment ground, initials in the same pigment: lib/avatar.js. */
+  color: var(--av-fg, var(--text-secondary));
+  background: var(--av-bg, var(--bg-elevated));
+}
+.dark .avatar {
+  color: var(--av-fg-dark, var(--text-secondary));
+  background: var(--av-bg-dark, var(--bg-elevated));
 }
 
 .identity-text {
@@ -233,29 +238,29 @@ body {
   background: currentColor;
 }
 .pill-valid {
-  color: #047857;
-  background: rgba(16, 185, 129, 0.12);
+  color: var(--success);
+  background: var(--success-bg);
 }
 .pill-risky {
-  color: #b45309;
-  background: rgba(245, 158, 11, 0.12);
+  color: var(--warning);
+  background: var(--warning-bg);
 }
 .pill-invalid {
-  color: #be123c;
-  background: rgba(244, 63, 94, 0.12);
+  color: var(--error);
+  background: var(--error-bg);
 }
 .pill-neutral {
   color: var(--text-tertiary);
   background: var(--bg-elevated);
 }
 .dark .pill-valid {
-  color: #34d399;
+  color: var(--success);
 }
 .dark .pill-risky {
-  color: #fbbf24;
+  color: var(--warning);
 }
 .dark .pill-invalid {
-  color: #fb7185;
+  color: var(--error);
 }
 
 /* ── Standing strip ──
@@ -1326,12 +1331,12 @@ body {
   padding: 5px 9px;
   font-size: 11.5px;
   line-height: 1.35;
-  color: #92400e;
-  background: rgba(245, 158, 11, 0.1);
+  color: var(--warning);
+  background: var(--warning-bg);
   border-radius: var(--radius-sm);
 }
 .dark .dest-note {
-  color: #fbbf24;
+  color: var(--warning);
 }
 
 /* The reach line. Deliberately quiet: it is a fact about the destination,
@@ -1356,12 +1361,12 @@ body {
   padding: 1px 6px;
   font-size: 10px;
   font-weight: 500;
-  color: #92400e;
-  background: rgba(245, 158, 11, 0.12);
+  color: var(--warning);
+  background: var(--warning-bg);
   border-radius: 999px;
 }
 .dark .campaign-option .no-send {
-  color: #fbbf24;
+  color: var(--warning);
 }
 
 
@@ -1377,7 +1382,7 @@ body {
   gap: 8px;
   margin: 10px 0 0;
   padding: 7px 9px;
-  background: rgba(245, 158, 11, 0.1);
+  background: var(--warning-bg);
   border-radius: var(--radius-sm);
 }
 
@@ -1387,10 +1392,10 @@ body {
   margin: 0;
   font-size: 11.5px;
   line-height: 1.35;
-  color: #92400e;
+  color: var(--warning);
 }
 .dark .dup-text {
-  color: #fbbf24;
+  color: var(--warning);
 }
 
 .dup-email {
@@ -1407,4 +1412,253 @@ body {
 
 .duplicate .btn-secondary {
   flex: 0 0 auto;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   People at this company
+   The Apollo panel, in the app's paper and ink: who works where you are
+   standing, filterable, tick and save.
+   ══════════════════════════════════════════════════════════════════ */
+
+.company-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 13px;
+}
+.company-body:not(.hidden) {
+  border-top: 1px solid var(--border-subtle);
+  padding: 10px 13px 12px;
+}
+
+/* A square, not a disc: a company is not a person. */
+.company-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--av-fg, var(--text-secondary));
+  background: var(--av-bg, var(--bg-elevated));
+  border: 1px solid var(--border-subtle);
+}
+.dark .company-mark {
+  color: var(--av-fg-dark, var(--text-secondary));
+  background: var(--av-bg-dark, var(--bg-elevated));
+}
+.company-id {
+  flex: 1;
+  min-width: 0;
+}
+.company-id .section-title,
+.company-id .section-sub {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dept-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 8px;
+}
+.chip {
+  height: 24px;
+  padding: 0 9px;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out);
+}
+.chip:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.chip.is-on {
+  color: var(--indigo-text);
+  background: var(--indigo-subtle);
+  border-color: transparent;
+}
+
+.company-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 10px;
+  margin-bottom: 8px;
+  background: var(--bg-app);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+}
+.company-filter:focus-within {
+  border-color: var(--indigo);
+  box-shadow: var(--ring-focus);
+}
+
+.company-total {
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.people-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 340px;
+  overflow-y: auto;
+}
+.surface-sidepanel .people-results {
+  max-height: none;
+}
+
+.person-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 4px;
+  margin: 0 -4px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.person-row:hover {
+  background: var(--bg-hover);
+}
+.person-row.is-disabled {
+  cursor: default;
+}
+.person-row.is-disabled:hover {
+  background: transparent;
+}
+.person-row input {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  margin: 0;
+  accent-color: var(--indigo);
+  cursor: pointer;
+}
+.person-row .avatar {
+  width: 28px;
+  height: 28px;
+  font-size: 10.5px;
+}
+.person-main {
+  flex: 1;
+  min-width: 0;
+}
+.person-line {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+.person-row-name {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.person-li {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+}
+.person-li:hover {
+  color: var(--indigo-text);
+}
+.person-row-meta {
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.person-row-email {
+  font-family: var(--font-data);
+  font-size: 11px;
+  color: var(--success);
+}
+.person-row .badge {
+  flex: 0 0 auto;
+}
+
+.people-empty {
+  padding: 14px 2px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+
+.people-skeleton {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 0;
+}
+.people-skeleton span {
+  display: block;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  animation: sx-pulse 1.2s var(--ease-in-out) infinite;
+}
+@keyframes sx-pulse {
+  50% { opacity: 0.45; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .people-skeleton span { animation: none; }
+}
+
+#company-more {
+  margin-top: 4px;
+}
+
+.company-footer {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+}
+.company-cost {
+  margin: 0 0 8px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-tertiary);
+}
+.company-cost strong {
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+/* A LinkedIn company page has no person on it: the card, its details and
+   the single-person Add are about nobody, so the company panel stands alone
+   and saves through its own button. */
+.company-page .person-card,
+.company-page .details,
+.company-page #no-email-help,
+.company-page #scan-block,
+.company-page #add,
+.company-page #bulk-add {
+  display: none !important;
+}
+.company-page .destination {
+  flex: 1;
+}
+
+.company-site-empty .person-card,
+.company-site-empty .details {
+  display: none !important;
 }

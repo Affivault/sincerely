@@ -442,6 +442,47 @@ Two places use it, both free — no credits, no provider:
 A match on the profile URL is proof. A match on name and company is a guess, and
 the extension labels it as one, because a wrong guess still costs a credit.
 
+## People at this company
+
+The Apollo move, in the sidebar. Open Sincerely on:
+
+- **a company's own website** (any site, say `acme.com/about`): the panel at the
+  top reads **People at Acme**. Press **Find people**.
+- **a company's LinkedIn page** (`linkedin.com/company/acme`): it searches by
+  itself, on the website the page lists, or the company name when it lists
+  none.
+- **somebody's LinkedIn profile, or an email from them**: below the person,
+  **More people at Acme** finds their colleagues.
+
+Filter with the department chips (Leadership, Sales, Marketing, Engineering,
+Ops & finance) or type a job title. Tick people, pick the lead list in the bar
+at the bottom, and **Save**.
+
+What a save does, per person, is exactly what saving from the app's Prospector
+does, because it is the same request (`POST /prospecting/reveal` with the list):
+
+1. Finds their work email. One credit, refunded automatically when none is
+   found; free for anyone already revealed (marked **In Sincerely**).
+2. Creates the contact from the search row, with the search recorded as where
+   they came from, so the Leads page shows their source.
+3. Files them on the chosen lead list, and enrols them into every unfinished
+   campaign on that list.
+
+The panel says what it will cost before anything is spent, and the result says
+how many were saved, which campaign they joined, and how many credits are left.
+
+Searching is free to the user, but every provider search is billed to the
+account, so a website never searches until somebody presses the button (the
+sidebar follows every tab), and results are cached for ten minutes. People
+search needs a data provider on the server (`ICYPEAS_API_KEY`, or PDL); without
+one the panel says so.
+
+**LinkedIn.** The extension reads the profile or company page you are looking
+at, the way you would, and finds emails through the people database rather
+than LinkedIn. It does not crawl LinkedIn in the background or page through
+results on its own. LinkedIn's terms ban automated scraping and it restricts
+accounts that do it, so that line is deliberate.
+
 ## Lists, not campaigns
 
 The extension adds people to **lead lists**. It has no campaign controls at all,
@@ -545,7 +586,9 @@ lib/api.js             API client — auth, error normalising, domain calls
 lib/storage.js         chrome.storage.local wrapper + URL normalising
 lib/theme.css          Design system, ported from client/src/index.css
 lib/theme.js           Light/dark/system resolution, mirroring ThemeContext
-fonts/                 Inter + JetBrains Mono (bundled, never fetched)
+lib/avatar.js          Avatar tones and hash, copied from the app's Avatar.tsx
+lib/company.js         Which company a page is about, for "People at"
+fonts/                 Geist + Geist Mono (bundled, never fetched)
 content/scraper.js     Classic script: LinkedIn/Gmail/generic adapters, floating button
 content/launcher.js    In-page button that opens the sidebar
 content/list-select.js Row checkboxes + bulk bar on search results
@@ -557,19 +600,20 @@ options/               Setup + connection test
 ### Design
 
 `lib/theme.css` is a direct port of `client/src/index.css` — same token names,
-same values, same control geometry (32px controls, 6px radii, Inter at 13.5px,
-warm paper neutrals, `#5B5BF5` indigo). **`client/src/index.css` is the source
-of truth: when a token changes there, change it here too.** The popup and
-options stylesheets only do layout; every colour, border, and control style
-comes from the shared file.
+same values, same control geometry (32px controls, 5px radii, Geist at 13.5px,
+the app's paper neutrals and its one blue-black ink, `#2F3F9C`).
+**`client/src/index.css` is the source of truth: when a token changes there,
+change it here too.** The popup and options stylesheets only do layout; every
+colour, border, and control style comes from the shared file.
 
-Matching the tokens is not the same as matching the product, and the gap showed.
-The app's primary button is `--indigo-grad` with an inner white highlight and a
-coloured drop shadow (see `client/src/components/ui/Button.tsx`); the extension
-had a flat `--indigo` fill, which is most of why it read as a lookalike. The
-gradient, the highlight, the focus ring with its offset, and the category
-accents are all ported now, and the in-page panel — which can't share a
-stylesheet, being in a shadow root — carries the same values inline.
+The app's redesign moved it off indigo gradients onto paper and ink: a flat ink
+primary button, pigment status colours (moss, ochre, brick) rather than neon,
+and avatars as a pale pigment ground with the initials in the same pigment.
+The extension follows all three. Avatar tones come from `lib/avatar.js`, a copy
+of `client/src/components/shared/Avatar.tsx` with the same hash, so a person
+gets the same colour in both places. The in-page pieces (launcher, LinkedIn
+bulk bar, toasts) live in shadow roots and can't share a stylesheet, so they
+carry the same values inline.
 
 Layout follows the app's own rhythm: content sits in cards on `--bg-app`, each
 region carries an uppercase micro-label, and lists show the colour swatch the
@@ -592,9 +636,10 @@ from a `light | dark | system` preference (`lib/theme.js`, mirroring
 origins, so it keeps its own copy of that choice; the picker is on the options
 page.
 
-Inter and JetBrains Mono are bundled as woff2 rather than loaded from Google
+Geist and Geist Mono are bundled as woff2 rather than loaded from Google
 Fonts: an extension that fetches a remote font leaks a request from every page
-it renders on and breaks offline.
+it renders on and breaks offline. They are under the SIL Open Font License,
+which ships beside them as `fonts/GEIST-LICENSE.txt`.
 
 The toolbar icon is generated from `client/public/favicon.png`, the platform's
 own brand mark, so it's the same gradient "S" users see in the app. Both assets

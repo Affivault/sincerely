@@ -352,7 +352,7 @@ try {
   );
   check(
     'membership rows link through to the list in the app',
-    (await popup.getAttribute('.enrolment-name', 'href')) === 'http://localhost:5173/contacts?list=L1',
+    (await popup.getAttribute('.enrolment-name', 'href')) === 'http://localhost:5173/leads?list=L1',
     await popup.getAttribute('.enrolment-name', 'href')
   );
   check(
@@ -361,7 +361,7 @@ try {
   );
   check(
     'avatar colour is derived, not fixed',
-    /linear-gradient/.test(await popup.getAttribute('#avatar', 'style'))
+    /--av-bg:/.test(await popup.getAttribute('#avatar', 'style'))
   );
   check(
     'engagement summary replaces the bare membership count',

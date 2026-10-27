@@ -32,6 +32,8 @@
       // like this actually prospects — and where, until now, the extension
       // put nothing on the page at all.
       if (/^\/sales\/(?:lead|people)\//.test(pathname)) return true;
+      // A company page: the sidebar lists the people who work there.
+      if (/^\/company\//.test(pathname)) return true;
       return false;
     }
     return hostname === 'mail.google.com';
@@ -54,7 +56,7 @@
     const style = document.createElement('style');
     style.textContent = `
       :host { all: initial; }
-      * { box-sizing: border-box; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+      * { box-sizing: border-box; font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
 
       /* Clear of LinkedIn's own right-hand rail, and clear of the sidebar when
          it opens — Chrome insets the page rather than covering it, so a fixed
@@ -63,14 +65,14 @@
         position: fixed; top: 50%; right: 0; transform: translateY(-50%);
         display: flex; align-items: center; gap: 8px;
         height: 40px; padding: 0 12px 0 10px;
-        border: 1px solid #E6E3DE; border-right: 0; border-radius: 10px 0 0 10px;
-        background: #FFFFFF; color: #1B1B1F; cursor: pointer;
+        border: 1px solid #DBDAD4; border-right: 0; border-radius: 10px 0 0 10px;
+        background: #FFFFFF; color: #18191D; cursor: pointer;
         font-size: 13px; font-weight: 500; letter-spacing: -0.01em;
-        box-shadow: -2px 0 12px -4px rgba(27,27,31,.22);
+        box-shadow: -2px 0 12px -4px rgba(24,25,29,.22);
         transition: padding 140ms cubic-bezier(.22,1,.36,1), background 140ms;
       }
-      .launch:hover { background: #FBFAF9; }
-      .launch:focus-visible { outline: 2px solid #5B5BF5; outline-offset: -2px; }
+      .launch:hover { background: #FAFAF8; }
+      .launch:focus-visible { outline: 2px solid #2F3F9C; outline-offset: -2px; }
       .launch img { width: 20px; height: 20px; border-radius: 5px; }
 
       /* The label is the affordance; without it this is an unexplained dot on
@@ -80,14 +82,14 @@
       .dismiss {
         width: 18px; height: 18px; padding: 0; border: 0; border-radius: 5px;
         display: inline-flex; align-items: center; justify-content: center;
-        background: transparent; color: #8F8E97; cursor: pointer; font-size: 13px; line-height: 1;
+        background: transparent; color: #6B6C74; cursor: pointer; font-size: 13px; line-height: 1;
       }
-      .dismiss:hover { background: #EFEDEA; color: #1B1B1F; }
+      .dismiss:hover { background: #EDEDE9; color: #18191D; }
 
       @media (prefers-color-scheme: dark) {
-        .launch { background: #191919; color: #F4F4F3; border-color: #2E2E2E; }
-        .launch:hover { background: #202020; }
-        .dismiss:hover { background: #242424; color: #F4F4F3; }
+        .launch { background: #1A1B1F; color: #EDEDEA; border-color: #303136; }
+        .launch:hover { background: #212226; }
+        .dismiss:hover { background: #25262B; color: #EDEDEA; }
       }
     `;
     shadow.appendChild(style);

@@ -832,10 +832,11 @@ export async function prospectorStatus() {
  * Search the people database. Never returns emails — that's what a reveal is
  * for — so this call is free.
  *
- * @param {{keywords?: string, companies?: string[], titles?: string[]}} filters
+ * @param {{keywords?: string, companies?: string[], titles?: string[], seniorities?: string[]}} filters
+ * @param {number} [page]
  */
-export async function prospectSearch(filters) {
-  return request('/prospecting/search', { method: 'POST', body: { filters, page: 1 } });
+export async function prospectSearch(filters, page = 1) {
+  return request('/prospecting/search', { method: 'POST', body: { filters, page } });
 }
 
 /**
@@ -845,14 +846,24 @@ export async function prospectSearch(filters) {
  * no email is found, so a caller can honestly promise "only charged if we
  * find it". Revealing the same person twice is free.
  *
+ * `person` is the search row. It is what the contact is built from: when the
+ * address came from the search-time cache the server enriches nothing, so a
+ * reveal sent without it saved a contact with no name, title or company.
+ * `listId` files them on a lead list server-side, which also enrols them into
+ * every unfinished campaign on that list (the Prospector's own flow), and
+ * `search` is recorded on the contact as where they came from.
+ *
  * @param {string} providerPersonId
- * @returns {Promise<{found: boolean, email: string|null, contact_id: string|null, already_revealed?: boolean, credits: object}>}
+ * @param {{provider?: string|null, person?: object|null, listId?: string|null, search?: object|null}} [opts]
+ * @returns {Promise<{found: boolean, email: string|null, contact_id: string|null, already_revealed?: boolean, credits: object, enrolled_in?: Array<{id: string, name: string}>}>}
  */
-export async function prospectReveal(providerPersonId) {
-  return request('/prospecting/reveal', {
-    method: 'POST',
-    body: { provider_person_id: providerPersonId },
-  });
+export async function prospectReveal(providerPersonId, opts = {}) {
+  const body = { provider_person_id: providerPersonId };
+  if (opts.provider) body.provider = opts.provider;
+  if (opts.person) body.person = opts.person;
+  if (opts.listId) body.list_id = opts.listId;
+  if (opts.search) body.search = opts.search;
+  return request('/prospecting/reveal', { method: 'POST', body });
 }
 
 /* ------------------------------------------------------------------ */

@@ -36,6 +36,7 @@ obvious the moment you drive the actual extension.
 | Suite | Covers |
 |---|---|
 | `defaults.test.mjs` | The production API host agrees across `storage.js`, the manifest, `.env.example`, the options page and the README. Pure file reads. |
+| `company.test.mjs` | Which company a page is about: registrable domains, the app and search engines excluded, personal email domains ignored. Pure functions. |
 | `harvest.test.mjs` | The site-harvest parser: Cloudflare decoding, obfuscation, link ranking. Pure functions. |
 | `smoke.mjs` | The main path end to end — options page, key validation, content-script injection, the popup's identity/picker/add/remove/suppress flows, bulk add, scanning. |
 | `connect.mjs` | Connecting from the app's own **Connect extension** button. |
@@ -43,6 +44,7 @@ obvious the moment you drive the actual extension.
 | `coldstart.mjs` | A sleeping free-tier host: the first request must wait, not fail. |
 | `panel.mjs` | The in-page panel on LinkedIn — detection, Prospector reveal, adding. |
 | `listbar.mjs` | Row checkboxes and the bulk bar on LinkedIn search results. |
+| `company.mjs` | "People at this company" on a website and a LinkedIn company page: the search is scoped to the domain, every reveal carries the list and the search row, outcomes land on the rows. |
 | `scan.mjs` | Scanning a company site and putting the results on a list. |
 | `fastpath.mjs` | Connect deep-links to the API keys tab; LinkedIn never blocks the UI. |
 | `ratelimit.mjs` | A key that runs out of budget: the client paces itself, waits out a 429 and retries, and still reports a wall that will not lift. |

@@ -12,6 +12,8 @@
 
 import { initTheme } from '../lib/theme.js';
 import { classifyEmail, rankResults } from '../lib/harvest.js';
+import { initialsFor, paintAvatar, clearAvatar } from '../lib/avatar.js';
+import { companyTarget } from '../lib/company.js';
 
 const EMAIL_PATTERN = /^[a-z0-9._%+'-]+@[a-z0-9.-]+\.[a-z]{2,}$/i;
 
@@ -36,22 +38,6 @@ const SOURCE_LABEL = {
   gmail: 'Gmail',
   generic: 'this page',
 };
-
-/**
- * The app's eight avatar gradients and hash, copied from
- * client/src/components/shared/Avatar.tsx so the same person gets the same
- * colour in both places.
- */
-const AVATAR_GRADIENTS = [
-  ['#5B5BF5', '#8B5CF6'],
-  ['#8B5CF6', '#EC4899'],
-  ['#06B6D4', '#5B5BF5'],
-  ['#10B981', '#06B6D4'],
-  ['#F59E0B', '#EF4444'],
-  ['#EF4444', '#EC4899'],
-  ['#5B5BF5', '#06B6D4'],
-  ['#8B5CF6', '#5B5BF5'],
-];
 
 const el = {
   setup: document.getElementById('setup'),
@@ -118,6 +104,24 @@ const el = {
   findAll: document.getElementById('find-all'),
 
   noEmailHelp: document.getElementById('no-email-help'),
+
+  companyBlock: document.getElementById('company-block'),
+  companyMark: document.getElementById('company-mark'),
+  companyTitle: document.getElementById('company-title'),
+  companySub: document.getElementById('company-sub'),
+  companySearch: document.getElementById('company-search'),
+  companyBody: document.getElementById('company-body'),
+  companyChips: [...document.querySelectorAll('#company-block .chip')],
+  companyTitleFilter: document.getElementById('company-title-filter'),
+  companyToolbar: document.getElementById('company-toolbar'),
+  companyAll: document.getElementById('company-all'),
+  companyCount: document.getElementById('company-count'),
+  companyTotal: document.getElementById('company-total'),
+  companyResults: document.getElementById('company-results'),
+  companyMore: document.getElementById('company-more'),
+  companyFooter: document.getElementById('company-footer'),
+  companyCost: document.getElementById('company-cost'),
+  companySave: document.getElementById('company-save'),
   sitePermission: document.getElementById('site-permission'),
   sitePermissionText: document.getElementById('site-permission-text'),
   sitePermissionGrant: document.getElementById('site-permission-grant'),
@@ -195,7 +199,35 @@ const state = {
    * @type {Set<'firstName'|'lastName'|'company'|'jobTitle'>}
    */
   backfilled: new Set(),
+  /** "People at": the company on screen and what a search found there. */
+  company: freshCompanyState(),
 };
+
+/** @returns {object} */
+function freshCompanyState(target = null) {
+  return {
+    /** @type {import('../lib/company.js').CompanyTarget|null} */
+    target,
+    key: target ? `${target.kind}:${target.domain || target.name}`.toLowerCase() : '',
+    department: '',
+    title: '',
+    /** @type {object[]} */
+    results: [],
+    selected: new Set(),
+    /** id -> {state: 'saved'|'no_email'|'failed', email?, error?} after a save */
+    outcomes: new Map(),
+    page: 0,
+    total: 0,
+    searched: false,
+    loading: false,
+    saving: false,
+    credits: null,
+    /** The filters the last search ran with, recorded on each saved contact. */
+    filters: null,
+    /** Guards against a slow search repainting over a newer one. */
+    seq: 0,
+  };
+}
 
 /** Guards against an out-of-order lookup repainting a newer one's result. */
 let lookupSeq = 0;
@@ -273,23 +305,6 @@ function showError(error) {
 /* Identity                                                           */
 /* ------------------------------------------------------------------ */
 
-function hashCode(value) {
-  let h = 0;
-  for (let i = 0; i < value.length; i += 1) h = ((h << 5) - h + value.charCodeAt(i)) | 0;
-  return Math.abs(h);
-}
-
-/** @param {string} [name] @param {string} [email] */
-function initialsFor(name, email) {
-  if (name) {
-    const parts = name.trim().split(/\s+/);
-    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-    return name.slice(0, 2).toUpperCase();
-  }
-  if (email) return email.slice(0, 2).toUpperCase();
-  return '··';
-}
-
 /**
  * Deliverability state, using the same thresholds as the contacts table
  * (emailStatus in client/src/pages/contacts/ContactsListPage.tsx) so a contact
@@ -317,7 +332,7 @@ function verificationFor(contact) {
  * A link that opens somewhere in the web app, or plain text when no app URL is
  * configured — a link to nowhere is worse than no link.
  *
- * @param {string} path Path within the app, e.g. "/contacts?list=abc".
+ * @param {string} path Path within the app, e.g. "/leads?list=abc".
  * @param {string} label
  * @param {string} [title]
  * @returns {HTMLElement}
@@ -367,11 +382,10 @@ function renderIdentity() {
   const placeholder = empty || !name;
   el.avatar.classList.toggle('is-empty', placeholder);
   if (placeholder) {
-    el.avatar.style.background = '';
+    clearAvatar(el.avatar);
     el.avatar.textContent = empty ? '—' : (form.email[0] || '?').toUpperCase();
   } else {
-    const [from, to] = AVATAR_GRADIENTS[hashCode(seed) % AVATAR_GRADIENTS.length];
-    el.avatar.style.background = `linear-gradient(135deg, ${from} 0%, ${to} 100%)`;
+    paintAvatar(el.avatar, seed);
     el.avatar.textContent = initials;
   }
 
@@ -572,6 +586,7 @@ function syncButtons() {
   // Bulk is offered only when the page really does hold several people —
   // otherwise it's a button that does the same as the one above it.
   if (state.scanResults.length > 0) syncScanToolbar();
+  if (state.company.results.length > 0) syncCompanyFooter();
 
   const bulk = pageEmails();
   el.bulkAdd.classList.toggle('hidden', bulk.length < 2);
@@ -955,8 +970,10 @@ function renderStanding() {
 
     // The list name doubles as the way back into the app — the popup can tell
     // you where someone stands, but anything deeper belongs in Sincerely.
+    // Lead lists live under /leads: /contacts lists only contact lists, so a
+    // lead list opened there was missing from its own sidebar.
     const name = openInAppLink(
-      `/contacts?list=${membership.id}`,
+      `/leads?list=${encodeURIComponent(membership.id)}`,
       membership.name || 'Untitled list',
       `Open "${membership.name}" in Sincerely`
     );
@@ -1750,6 +1767,377 @@ async function addScanned() {
 }
 
 /* ------------------------------------------------------------------ */
+/* People at this company                                             */
+/* ------------------------------------------------------------------ */
+
+const LINKEDIN_ICON =
+  '<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><path d="M20.45 20.45h-3.56v-5.57c0-1.33-.02-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.94v5.67H9.35V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28zM5.34 7.43a2.06 2.06 0 1 1 0-4.13 2.06 2.06 0 0 1 0 4.13zM7.12 20.45H3.56V9h3.56v11.45zM22.22 0H1.77C.79 0 0 .77 0 1.73v20.54C0 23.23.79 24 1.77 24h20.45c.98 0 1.78-.77 1.78-1.73V1.73C24 .77 23.2 0 22.22 0z"/></svg>';
+
+/**
+ * Work out which company the page is about and lay the panel out for it.
+ *
+ * Runs on every page read. Same company as before: keep the results, so
+ * moving between profiles at one employer does not throw a search away.
+ */
+function setupCompany() {
+  const target = companyTarget({ person: state.person, tabUrl: state.tabUrl, appUrl: state.appUrl });
+  const key = target ? `${target.kind}:${target.domain || target.name}`.toLowerCase() : '';
+  if (key !== state.company.key) {
+    state.company.seq += 1;
+    state.company = { ...freshCompanyState(target), seq: state.company.seq };
+  } else if (target) {
+    // A later read can add the domain the first one lacked.
+    state.company.target = { ...state.company.target, ...target, domain: target.domain || state.company.target?.domain || null };
+  }
+
+  const companyPage = target?.kind === 'linkedin-company';
+  document.documentElement.classList.toggle('company-page', companyPage);
+  /* On a company's site with nobody on the page, "Nobody detected" and an
+     empty form are noise under the panel that is the point. */
+  const nobody = !state.person?.email && !state.person?.first_name && !state.person?.last_name;
+  document.documentElement.classList.toggle('company-site-empty', target?.kind === 'site' && nobody);
+  el.companyBlock.classList.toggle('hidden', !target);
+  if (!target) return;
+
+  /*
+   * Where it sits says what it is. On a company's own site or LinkedIn page
+   * it is the reason the panel is open, so it goes first. On a profile it is
+   * a follow-on to the person, so it goes after them.
+   */
+  const scanBlock = document.getElementById('scan-block');
+  if (target.kind === 'colleagues') {
+    if (el.companyBlock.nextElementSibling !== scanBlock) el.main.insertBefore(el.companyBlock, scanBlock);
+  } else {
+    const first = document.getElementById('site-permission').nextElementSibling;
+    if (first !== el.companyBlock) el.main.insertBefore(el.companyBlock, first);
+  }
+
+  renderCompanyHead();
+  renderCompanyResults();
+
+  /*
+   * A LinkedIn company page is opened to see who works there, so it searches
+   * by itself. A website does not: the sidebar follows every tab, and each
+   * search is billed to the account even though it is free to the user.
+   */
+  if (companyPage && !state.company.searched && !state.company.loading) searchCompany();
+}
+
+function renderCompanyHead() {
+  const { target, searched, total, loading } = state.company;
+  if (!target) return;
+  paintAvatar(el.companyMark, target.domain || target.name);
+  // One letter for a one-word name: "NO" for Northwind reads as a word.
+  const words = String(target.name || target.domain || '?').trim().split(/\s+/);
+  el.companyMark.textContent = words.length > 1 ? initialsFor(target.name) : words[0].slice(0, 1).toUpperCase();
+  el.companyTitle.textContent = target.kind === 'colleagues' ? `More people at ${target.name}` : `People at ${target.name}`;
+  el.companyTitle.title = el.companyTitle.textContent;
+
+  const bits = [];
+  if (target.domain) bits.push(target.domain);
+  if (searched && !loading) bits.push(`${total.toLocaleString()} found`);
+  else bits.push('Free to search');
+  el.companySub.textContent = bits.join(' · ');
+
+  el.companySearch.classList.toggle('hidden', searched);
+  el.companySearch.disabled = loading;
+  el.companySearch.textContent = loading ? 'Searching…' : 'Find people';
+  el.companyBody.classList.toggle('hidden', !searched && !loading);
+}
+
+/**
+ * Run (or extend) the search.
+ *
+ * @param {{more?: boolean}} [opts] true appends the next page.
+ */
+async function searchCompany({ more = false } = {}) {
+  const company = state.company;
+  if (!company.target || company.loading) return;
+  const seq = ++company.seq;
+  const page = more ? company.page + 1 : 1;
+
+  company.loading = true;
+  if (!more) {
+    company.results = [];
+    company.selected = new Set();
+  }
+  renderCompanyHead();
+  renderCompanyResults();
+
+  const response = await send('COMPANY_PEOPLE', {
+    company: { name: company.target.name, domain: company.target.domain },
+    department: company.department,
+    title: company.title,
+    page,
+  });
+  // A newer search, or a different company, owns the panel now.
+  if (seq !== state.company.seq) return;
+
+  company.loading = false;
+  company.searched = true;
+
+  if (!response.ok) {
+    renderCompanyHead();
+    renderCompanyResults(response.error?.message || 'The search failed.');
+    if (response.error?.code !== 'NO_PROVIDER') showError(response.error);
+    return;
+  }
+
+  const { results, total, credits, filters } = response.data;
+  const seen = new Set(company.results.map((r) => r.id));
+  company.results.push(...results.filter((r) => !seen.has(r.id)));
+  company.page = page;
+  company.total = total;
+  company.credits = credits;
+  company.filters = filters;
+  renderCompanyHead();
+  renderCompanyResults();
+}
+
+/** What a row's state allows: someone with no address on record can't be saved. */
+function canSelect(person) {
+  const outcome = state.company.outcomes.get(person.id);
+  if (outcome?.state === 'saved' || outcome?.state === 'no_email') return false;
+  return person.has_email !== false;
+}
+
+function skeletonRows(count) {
+  const items = [];
+  for (let i = 0; i < count; i += 1) {
+    const li = document.createElement('li');
+    li.className = 'people-skeleton';
+    li.setAttribute('aria-hidden', 'true');
+    for (const [w, h, r] of [[28, 28, '50%'], [`${55 + ((i * 17) % 30)}%`, 10, '']]) {
+      const bar = document.createElement('span');
+      bar.style.width = typeof w === 'number' ? `${w}px` : w;
+      bar.style.height = `${h}px`;
+      if (r) bar.style.borderRadius = r;
+      li.appendChild(bar);
+    }
+    items.push(li);
+  }
+  return items;
+}
+
+/** @param {string} [errorMessage] */
+function renderCompanyResults(errorMessage) {
+  const company = state.company;
+  el.companyResults.textContent = '';
+  for (const chip of el.companyChips) chip.classList.toggle('is-on', chip.dataset.dept === company.department);
+
+  if (company.loading && company.results.length === 0) {
+    el.companyResults.append(...skeletonRows(4));
+  }
+
+  if (!company.loading && company.searched && company.results.length === 0) {
+    const empty = document.createElement('li');
+    empty.className = 'people-empty';
+    empty.textContent = errorMessage
+      || (company.title || company.department
+        ? 'Nobody matches that filter here. Try another department or title.'
+        : `No one at ${company.target?.name || 'this company'} in the people database yet.`);
+    el.companyResults.appendChild(empty);
+  }
+
+  for (const person of company.results) el.companyResults.appendChild(personRow(person));
+
+  if (company.loading && company.results.length > 0) el.companyResults.append(...skeletonRows(2));
+
+  const more = company.searched && !company.loading && company.results.length > 0
+    && company.results.length < company.total && company.page < 40;
+  el.companyMore.classList.toggle('hidden', !more);
+
+  el.companyToolbar.classList.toggle('hidden', company.results.length === 0);
+  el.companyTotal.textContent = company.results.length
+    ? `${company.results.length} of ${company.total.toLocaleString()}`
+    : '';
+  syncCompanyFooter();
+}
+
+/** @param {object} person */
+function personRow(person) {
+  const company = state.company;
+  const outcome = company.outcomes.get(person.id);
+  const selectable = canSelect(person);
+
+  const item = document.createElement('li');
+  item.className = `person-row${selectable ? '' : ' is-disabled'}`;
+  item.dataset.id = person.id;
+
+  const box = document.createElement('input');
+  box.type = 'checkbox';
+  box.checked = company.selected.has(person.id);
+  box.disabled = !selectable || company.saving;
+  box.setAttribute('aria-label', `Select ${person.full_name}`);
+  box.addEventListener('change', () => {
+    if (box.checked) company.selected.add(person.id);
+    else company.selected.delete(person.id);
+    syncCompanyFooter();
+  });
+  item.appendChild(box);
+  // The whole row is the target, as in the app's tables.
+  item.addEventListener('click', (event) => {
+    if (box.disabled || event.target === box || event.target.closest('a')) return;
+    box.checked = !box.checked;
+    box.dispatchEvent(new Event('change'));
+  });
+
+  const avatar = document.createElement('span');
+  avatar.className = 'avatar';
+  avatar.setAttribute('aria-hidden', 'true');
+  paintAvatar(avatar, person.full_name || person.id);
+  avatar.textContent = initialsFor(person.full_name);
+  item.appendChild(avatar);
+
+  const main = document.createElement('div');
+  main.className = 'person-main';
+  const line = document.createElement('div');
+  line.className = 'person-line';
+  const name = document.createElement('span');
+  name.className = 'person-row-name';
+  name.textContent = person.full_name || 'Unnamed';
+  line.appendChild(name);
+  if (person.linkedin_url && /^https:\/\/([a-z]+\.)?linkedin\.com\//i.test(person.linkedin_url)) {
+    const li = document.createElement('a');
+    li.className = 'person-li';
+    li.href = person.linkedin_url;
+    li.target = '_blank';
+    li.rel = 'noopener noreferrer';
+    li.title = 'Open their LinkedIn profile';
+    li.setAttribute('aria-label', `${person.full_name} on LinkedIn`);
+    li.innerHTML = LINKEDIN_ICON;
+    line.appendChild(li);
+  }
+  main.appendChild(line);
+
+  const meta = document.createElement('div');
+  if (outcome?.state === 'saved' && outcome.email) {
+    meta.className = 'person-row-email';
+    meta.textContent = outcome.email;
+  } else {
+    meta.className = 'person-row-meta';
+    meta.textContent = [person.job_title, person.location].filter(Boolean).join(' · ') || person.company || '';
+  }
+  main.appendChild(meta);
+  item.appendChild(main);
+
+  const badge = document.createElement('span');
+  if (outcome?.state === 'saved') {
+    badge.className = 'badge badge-success';
+    badge.textContent = 'Saved';
+  } else if (outcome?.state === 'no_email') {
+    badge.className = 'badge';
+    badge.textContent = 'No email';
+  } else if (outcome?.state === 'failed') {
+    badge.className = 'badge badge-error';
+    badge.textContent = 'Failed';
+    badge.title = outcome.error || '';
+  } else if (person.already_revealed) {
+    badge.className = 'badge badge-info';
+    badge.textContent = 'In Sincerely';
+    badge.title = 'Already revealed: saving them again is free';
+  } else if (person.has_email === false) {
+    badge.className = 'badge';
+    badge.textContent = 'No email';
+    badge.title = 'The data provider has no work email for them';
+  }
+  if (badge.className) item.appendChild(badge);
+  return item;
+}
+
+/** The count, the cost and the button, which all depend on the same three things. */
+function syncCompanyFooter() {
+  const company = state.company;
+  const selectable = company.results.filter(canSelect);
+  const picked = selectable.filter((p) => company.selected.has(p.id));
+  const target = state.lists.find((l) => l.id === state.selectedListId);
+
+  el.companyCount.textContent = picked.length ? `${picked.length} selected` : 'Select all';
+  el.companyAll.checked = picked.length > 0 && picked.length === selectable.length;
+  el.companyAll.indeterminate = picked.length > 0 && picked.length < selectable.length;
+  el.companyAll.disabled = selectable.length === 0 || company.saving;
+
+  el.companyFooter.classList.toggle('hidden', company.results.length === 0);
+  const paid = picked.filter((p) => !p.already_revealed).length;
+  const left = company.credits?.remaining;
+  el.companyCost.textContent = '';
+  if (picked.length === 0) {
+    el.companyCost.textContent = 'Tick the people you want. Saving finds their work email.';
+  } else {
+    const cost = document.createElement('strong');
+    cost.textContent = paid === 0 ? 'Free' : `Up to ${paid} credit${paid === 1 ? '' : 's'}`;
+    el.companyCost.appendChild(cost);
+    el.companyCost.appendChild(document.createTextNode(
+      `${paid ? ', refunded for anyone with no email found' : ', all already revealed'}`
+      + `${Number.isFinite(left) && left >= 0 ? ` · ${left.toLocaleString()} left` : ''}.`
+      + `${target ? ` Lands on "${target.name}"${target.sends ? ' and joins its campaign' : ''}.` : ''}`
+    ));
+  }
+
+  el.companySave.disabled = company.saving || picked.length === 0 || !target;
+  el.companySave.textContent = company.saving
+    ? 'Saving…'
+    : !target
+      ? 'Choose a list below'
+      : picked.length
+        ? `Save ${picked.length} to list`
+        : 'Save to list';
+}
+
+async function saveCompanyPeople() {
+  const company = state.company;
+  const target = state.lists.find((l) => l.id === state.selectedListId);
+  const people = company.results.filter((p) => canSelect(p) && company.selected.has(p.id));
+  if (!target || people.length === 0 || company.saving) return;
+
+  company.saving = true;
+  renderCompanyResults();
+  clearStatus();
+  setStatus(`Saving ${people.length} to "${target.name}"…`, { variant: 'working' });
+
+  const response = await send('PROSPECT_SAVE', {
+    listId: target.id,
+    people,
+    search: company.filters,
+  });
+  company.saving = false;
+
+  if (!response.ok) {
+    renderCompanyResults();
+    showError(response.error);
+    return;
+  }
+
+  const data = response.data;
+  for (const outcome of data.outcomes || []) {
+    company.outcomes.set(outcome.id, outcome);
+    company.selected.delete(outcome.id);
+  }
+  if (Number.isFinite(data.creditsRemaining)) {
+    company.credits = { ...(company.credits || {}), remaining: data.creditsRemaining };
+  }
+  renderCompanyResults();
+
+  const parts = [];
+  parts.push(data.saved
+    ? `Saved ${data.saved} to "${target.name}".`
+    : `Nobody was saved to "${target.name}".`);
+  if (data.enrolledIn?.length) {
+    parts.push(`Enrolled in ${data.enrolledIn.map((c) => `"${c.name}"`).join(', ')}.`);
+  }
+  if (data.noEmail) parts.push(`${data.noEmail} had no work email on record (not charged).`);
+  if (data.failed) parts.push(`${data.failed} failed.`);
+  if (data.stopped) parts.push(data.stopped);
+  if (Number.isFinite(data.creditsRemaining)) parts.push(`${data.creditsRemaining.toLocaleString()} credits left.`);
+  setStatus(parts.join(' '), {
+    variant: data.saved > 0 && !data.failed ? 'success' : data.saved > 0 ? undefined : 'error',
+    actions: data.saved > 0 && state.appUrl
+      ? [{ label: 'Open list', onClick: () => chrome.tabs.create({ url: `${state.appUrl}/leads?list=${encodeURIComponent(target.id)}` }) }]
+      : undefined,
+  });
+}
+
+/* ------------------------------------------------------------------ */
 /* Prospector                                                         */
 /* ------------------------------------------------------------------ */
 
@@ -2213,6 +2601,34 @@ function wireEvents() {
   });
   el.detailsToggle.addEventListener('click', () => toggleDetails());
 
+  el.companySearch.addEventListener('click', () => searchCompany());
+  el.companyMore.addEventListener('click', () => searchCompany({ more: true }));
+  el.companySave.addEventListener('click', saveCompanyPeople);
+  for (const chip of el.companyChips) {
+    chip.addEventListener('click', () => {
+      state.company.department = chip.dataset.dept || '';
+      // One filter at a time: a department and a typed title would fight.
+      state.company.title = '';
+      el.companyTitleFilter.value = '';
+      searchCompany();
+    });
+  }
+  const searchByTitle = debounce(() => {
+    state.company.title = el.companyTitleFilter.value.trim();
+    if (state.company.title) state.company.department = '';
+    searchCompany();
+  }, 500);
+  el.companyTitleFilter.addEventListener('input', searchByTitle);
+  el.companyTitleFilter.addEventListener('keydown', (event) => {
+    // Enter here filters; it must not fall through to the global "add".
+    if (event.key === 'Enter') event.stopPropagation();
+  });
+  el.companyAll.addEventListener('change', () => {
+    const selectable = state.company.results.filter(canSelect);
+    state.company.selected = el.companyAll.checked ? new Set(selectable.map((p) => p.id)) : new Set();
+    renderCompanyResults();
+  });
+
   // Enter adds from anywhere except a textarea or the details fields, where
   // it would be surprising.
   document.addEventListener('keydown', (event) => {
@@ -2360,10 +2776,13 @@ async function loadActiveTab() {
   showPageEmails();
   fillForm(state.person);
   renderAll();
+  setupCompany();
 
-  // If the page gave us nothing usable, the details are where the work is.
+  // If the page gave us nothing usable, the details are where the work is,
+  // unless it is a company's page, where the work is who works there.
   const hasEmail = Boolean(state.person?.email);
-  if (!hasEmail) toggleDetails(true);
+  const onCompany = state.company.target && state.company.target.kind !== 'colleagues';
+  if (!hasEmail && !onCompany) toggleDetails(true);
 
   /*
    * Focus whatever the next action actually is.

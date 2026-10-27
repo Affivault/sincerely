@@ -1461,6 +1461,92 @@
   }
 
   /* ---------------------------------------------------------------- */
+  /* LinkedIn company pages                                           */
+  /* ---------------------------------------------------------------- */
+
+  /*
+   * A company page is not a person, so it gets no name: the generic sweep
+   * would otherwise take the company's h1 as somebody's first and last name.
+   * What it does have is the thing the sidebar's "People at" panel needs, the
+   * company and, when the page shows it, its website.
+   */
+
+  /** The slug of /company/<slug>/, or null off a company page. */
+  function linkedInCompanySlug() {
+    const match = location.pathname.match(/^\/company\/([^/?#]+)/);
+    return match ? decodeURIComponent(match[1]) : null;
+  }
+
+  /** A link's destination host, unwrapping LinkedIn's redirector. */
+  function externalHost(anchor) {
+    try {
+      let url = new URL(anchor.getAttribute('href') || '', location.origin);
+      if (/(^|\.)linkedin\.com$/i.test(url.hostname) && url.pathname.startsWith('/redir/redirect')) {
+        const target = url.searchParams.get('url');
+        if (!target) return null;
+        url = new URL(target);
+      }
+      if (!/^https?:$/.test(url.protocol)) return null;
+      if (/(^|\.)(linkedin\.com|licdn\.com|lnkd\.in|bing\.com|google\.com|microsoft\.com)$/i.test(url.hostname)) return null;
+      return url.hostname.replace(/^www\./i, '').toLowerCase();
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * The company's own website, as the page shows it.
+   *
+   * Only from the top card and the About details, then from a link whose text
+   * says it is the website. Never any outbound link in main: a company page
+   * also carries its feed, and the first article it shared is not its domain.
+   */
+  function linkedInCompanyWebsite() {
+    const scoped = document.querySelectorAll(
+      '.org-top-card a[href], [class*="org-top-card"] a[href], [data-test-id*="website"] a[href], .org-about-module a[href], dl a[href]'
+    );
+    for (const anchor of scoped) {
+      const host = externalHost(anchor);
+      if (host) return host;
+    }
+    for (const anchor of document.querySelectorAll('main a[href]')) {
+      const label = `${anchor.textContent || ''} ${anchor.getAttribute('aria-label') || ''}`.trim();
+      if (!/website|^[a-z0-9-]+(\.[a-z0-9-]+)+\/?$/i.test(label)) continue;
+      const host = externalHost(anchor);
+      if (host) return host;
+    }
+    return null;
+  }
+
+  function scrapeLinkedInCompany() {
+    const slug = linkedInCompanySlug();
+    if (!slug) return null;
+    const name =
+      firstText(['main h1', '.org-top-card-summary__title', 'h1']) ||
+      document.title.split('|')[0].trim() ||
+      null;
+    const domain = linkedInCompanyWebsite();
+    return {
+      first_name: null,
+      last_name: null,
+      full_name: null,
+      email: null,
+      email_candidates: [],
+      company: name,
+      company_domain: domain,
+      job_title: null,
+      linkedin_url: null,
+      company_page: {
+        name,
+        domain,
+        linkedin_url: `${location.origin}/company/${encodeURIComponent(slug)}/`,
+      },
+      source: 'linkedin',
+      source_url: location.href,
+    };
+  }
+
+  /* ---------------------------------------------------------------- */
   /* Sales Navigator                                                  */
   /* ---------------------------------------------------------------- */
 
@@ -1715,6 +1801,11 @@
     const host = location.hostname;
     let result = null;
 
+    if (host.endsWith('linkedin.com') && linkedInCompanySlug()) {
+      // A company has no person to fall back to: never the generic sweep.
+      return scrapeLinkedInCompany();
+    }
+
     if (host.endsWith('linkedin.com')) {
       // Sales Navigator is a different application on the same domain, with
       // its own markup — checked first, because scrapeLinkedIn's /in/ test
@@ -1771,18 +1862,18 @@
     // else's page, where a dark slab would read as a third-party ad.
     style.textContent = `
       :host { all: initial; }
-      * { box-sizing: border-box; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+      * { box-sizing: border-box; font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
       .toast {
         position: fixed; right: 20px; bottom: 68px;
         max-width: 330px; padding: 11px 13px;
         border-radius: 10px;
-        background: #FFFFFF; color: #1B1B1F;
-        border: 1px solid #ECEAE6;
+        background: #FFFFFF; color: #18191D;
+        border: 1px solid #E7E6E1;
         font-size: 12.5px; line-height: 1.5; letter-spacing: -0.005em;
-        box-shadow: 0 1px 2px rgba(27,27,31,.04), 0 8px 20px -6px rgba(27,27,31,.10);
+        box-shadow: 0 1px 2px rgba(24,25,29,.04), 0 8px 20px -6px rgba(24,25,29,.10);
       }
-      .toast.success { background: #ECFDF5; border-color: #D1FAE5; color: #10B981; }
-      .toast.error { background: #FEF2F2; border-color: #FEE2E2; color: #EF4444; }
+      .toast.success { background: #F1F7F3; border-color: #DDEDE3; color: #2F6E50; }
+      .toast.error { background: #FCF3F1; border-color: #F5DDD7; color: #B23A30; }
       .toast .row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
       .toast button {
         height: 26px; padding: 0 9px;
@@ -1794,10 +1885,10 @@
       .toast button:hover { opacity: 1; }
 
       @media (prefers-color-scheme: dark) {
-        .toast { background: #191919; color: #F4F4F3; border-color: #262626;
+        .toast { background: #1A1B1F; color: #EDEDEA; border-color: #26272C;
                  box-shadow: 0 2px 4px -1px rgba(0,0,0,.35), 0 12px 24px -6px rgba(0,0,0,.45); }
-        .toast.success { background: rgba(34,197,94,.10); border-color: rgba(34,197,94,.2); color: #4ADE80; }
-        .toast.error { background: rgba(239,68,68,.10); border-color: rgba(239,68,68,.2); color: #F87171; }
+        .toast.success { background: rgba(95,161,126,.10); border-color: rgba(95,161,126,.18); color: #7DB896; }
+        .toast.error { background: rgba(210,107,92,.10); border-color: rgba(210,107,92,.18); color: #E08A7D; }
       }
     `;
     root.appendChild(style);
