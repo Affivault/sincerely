@@ -3,6 +3,7 @@ import { AppError } from '../middleware/error.middleware.js';
 import { billingService } from './billing.service.js';
 import { listsService } from './lists.service.js';
 import { getActiveProvider } from './prospect-providers.js';
+import { companyDirectoryService } from './company-directory.service.js';
 import { PLANS, normalizeLinkedinUrl } from '@lemlist/shared';
 import type {
   ProspectCreditsSummary,
@@ -82,7 +83,11 @@ async function creditsSummary(userId: string): Promise<ProspectCreditsSummary> {
 export const prospectingService = {
   async status(userId: string): Promise<ProspectorStatus> {
     const provider = getActiveProvider();
-    return { provider: provider?.id ?? null, credits: await creditsSummary(userId) };
+    const [credits, company_directory] = await Promise.all([
+      creditsSummary(userId),
+      companyDirectoryService.status(),
+    ]);
+    return { provider: provider?.id ?? null, credits, company_directory };
   },
 
   async search(userId: string, filters: ProspectSearchFilters, page = 1): Promise<ProspectSearchResponse> {

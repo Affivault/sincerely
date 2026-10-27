@@ -1,4 +1,6 @@
 import { StandingSearches, SaveStandingSearch } from '../../components/prospector/StandingSearches';
+import { ChipInput } from '../../components/prospector/ChipInput';
+import { CompanySearch } from '../../components/prospector/CompanySearch';
 import { useEffect, useRef, useState, useId } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -34,52 +36,6 @@ const SENIORITIES = [
   { value: 'entry', label: 'Entry' },
 ];
 const COMPANY_SIZES = ['1-10', '11-50', '51-200', '201-500', '501-1000', '1001-5000', '5001-10000'];
-
-/** Comma/enter separated chip input for multi-value filters. */
-function ChipInput({
-  label, icon: Icon, values, onChange, placeholder,
-}: {
-  label: string;
-  icon: typeof Search;
-  values: string[];
-  onChange: (v: string[]) => void;
-  placeholder: string;
-}) {
-  const a11yId = useId();
-  const [draft, setDraft] = useState('');
-  const commit = () => {
-    const parts = draft.split(',').map((s) => s.trim()).filter(Boolean);
-    if (parts.length) onChange([...new Set([...values, ...parts])]);
-    setDraft('');
-  };
-  return (
-    <div>
-      <label htmlFor={`${a11yId}-f1`} className="flex items-center gap-1.5 text-caption font-medium text-[var(--text-secondary)] mb-1">
-        <Icon className="h-3 w-3 text-[var(--text-tertiary)]" /> {label}
-      </label>
-      <input id={`${a11yId}-f1`}
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); commit(); } }}
-        onBlur={commit}
-        placeholder={placeholder}
-        className="block w-full h-8 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 text-body text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] hover:border-[var(--border-strong)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[var(--ring-focus)] transition-[border-color,box-shadow]"
-      />
-      {values.length > 0 && (
-        <div className="flex flex-wrap gap-1 mt-1.5">
-          {values.map((v) => (
-            <span key={v} className="inline-flex items-center gap-1 pl-2 pr-1 h-[20px] rounded-md bg-[var(--indigo-subtle)] text-caption font-medium text-[var(--indigo-text)]">
-              {v}
-              <button aria-label={`Remove ${v}`} onClick={() => onChange(values.filter((x) => x !== v))} className="relative rounded hover:bg-[var(--indigo)]/15 p-0.5 after:absolute after:-inset-1.5 after:content-['']">
-                <X className="h-2.5 w-2.5" />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 function CreditsMeter({ allowance, planRemaining, purchased, onBuy }: {
   allowance: number; planRemaining: number; purchased: number; onBuy: () => void;
@@ -180,6 +136,7 @@ export function ProspectorPage() {
   const [companySizes, setCompanySizes] = useState<string[]>([]);
   const [keywords, setKeywords] = useState('');
   const [saveRuleOpen, setSaveRuleOpen] = useState(false);
+  const [tab, setTab] = useState<'people' | 'companies'>('people');
   const [page, setPage] = useState(1);
   const [listId, setListId] = useState('');
   const [results, setResults] = useState<ProspectSearchResponse | null>(null);
@@ -205,8 +162,10 @@ export function ProspectorPage() {
   // results of a newer one (e.g. pressing Enter twice in quick succession).
   const searchRequestIdRef = useRef(0);
 
+  // `f` is passed when the filters were set in this same tick (Find people
+  // from the Companies tab), before React has re-rendered with them.
   const searchMutation = useMutation({
-    mutationFn: ({ p }: { p: number; requestId: number }) => prospectingApi.search(filters, p),
+    mutationFn: ({ p, f }: { p: number; requestId: number; f?: ProspectSearchFilters }) => prospectingApi.search(f ?? filters, p),
     onSuccess: (data, vars) => {
       if (vars.requestId !== searchRequestIdRef.current) return;
       setResults(data);
@@ -290,6 +249,16 @@ export function ProspectorPage() {
 
   const credits = status?.credits;
   const providerReady = !!status?.provider;
+  const directoryReady = !!status?.company_directory?.available;
+
+  // Companies at the picked domains, keeping any title or seniority already set.
+  const findPeopleAt = (domains: string[]) => {
+    setCompanies(domains);
+    setTab('people');
+    if (!providerReady) return;
+    const requestId = ++searchRequestIdRef.current;
+    searchMutation.mutate({ p: 1, requestId, f: { ...filters, companies: domains } });
+  };
   const totalPages = results ? Math.max(1, Math.ceil(Math.min(results.total, 1000) / 25)) : 1;
 
   return (
@@ -340,6 +309,34 @@ export function ProspectorPage() {
         </div>
       )}
 
+      {/* Companies come from our own free directory once it is loaded; people
+          (and their emails) always come from the paid provider. */}
+      {directoryReady && (
+        <div role="tablist" aria-label="Search for" className="inline-flex items-center gap-0.5 p-0.5 mb-4 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
+          {([
+            ['people', 'People', Users],
+            ['companies', 'Companies', Building2],
+          ] as const).map(([id, label, Icon]) => (
+            <button
+              key={id}
+              role="tab"
+              aria-selected={tab === id}
+              onClick={() => setTab(id)}
+              className={cn(
+                'inline-flex items-center gap-1.5 h-7 px-3 rounded-md text-body font-medium transition-colors',
+                tab === id ? 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
+              )}
+            >
+              <Icon className="h-3.5 w-3.5" /> {label}
+              {id === 'companies' && <span className="ml-0.5 inline-flex items-center px-1.5 h-[17px] text-micro font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded">Free</span>}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {tab === 'companies' && directoryReady ? (
+        <CompanySearch onFindPeople={findPeopleAt} />
+      ) : (
       <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4 items-start">
         {/* Filters */}
         <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4 space-y-3.5 lg:sticky lg:top-4">
@@ -642,6 +639,7 @@ export function ProspectorPage() {
           )}
         </div>
       </div>
+      )}
 
       {buyOpen && <BuyCreditsModal onClose={() => setBuyOpen(false)} />}
       {campaignContactIds && <AddToCampaignModal contactIds={campaignContactIds} onClose={() => setCampaignContactIds(null)} />}

@@ -85,7 +85,61 @@ export interface ProspectorStatus {
   /** Configured provider, or null when no data provider API key is set */
   provider: ProspectProviderId | null;
   credits: ProspectCreditsSummary;
+  /** The free company directory (migration 098), when it has been loaded. */
+  company_directory: CompanyDirectoryStatus;
 }
+
+/* ─── Company directory ───────────────────────────────────────────────────
+   Companies searched from our own copy of the People Data Labs Free Company
+   Dataset (CC BY 4.0), so company search costs no provider credits. It holds
+   firmographics only: no people and no emails. Finding people at a company
+   still goes through the people provider. */
+
+export interface CompanyDirectoryStatus {
+  /** True once the table exists and holds at least one company. */
+  available: boolean;
+  /** Rows in the directory (a planner estimate on large tables). */
+  companies: number;
+}
+
+export interface CompanySearchFilters {
+  /** Company names (prefix match) or domains (exact match) */
+  companies?: string[];
+  /** Industries, e.g. ["computer software"] */
+  industries?: string[];
+  /** Country, region or city, e.g. ["United Kingdom", "London"] */
+  locations?: string[];
+  /** Headcount ranges, e.g. ["11-50", "51-200"] */
+  companySizes?: string[];
+}
+
+export interface DirectoryCompany {
+  id: string;
+  name: string;
+  domain: string | null;
+  linkedin_url: string | null;
+  founded: number | null;
+  size: string | null;
+  industry: string | null;
+  country: string | null;
+  region: string | null;
+  locality: string | null;
+}
+
+export interface CompanySearchResponse {
+  results: DirectoryCompany[];
+  page: number;
+  /** Total matches (approximate on large result sets) */
+  total: number;
+}
+
+/** Shown wherever directory results are, as CC BY 4.0 requires. */
+export const COMPANY_DIRECTORY_ATTRIBUTION = {
+  source: 'People Data Labs Free Company Dataset',
+  sourceUrl: 'https://docs.peopledatalabs.com/docs/free-company-dataset',
+  license: 'CC BY 4.0',
+  licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
+};
 
 export interface RevealProspectInput {
   provider: ProspectProviderId;

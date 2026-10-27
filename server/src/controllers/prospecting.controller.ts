@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware.js';
 import { prospectingService } from '../services/prospecting.service.js';
 import { stripeService } from '../services/stripe.service.js';
+import { companyDirectoryService } from '../services/company-directory.service.js';
 
 export const prospectingController = {
   /** GET /prospecting/status — configured provider + this month's credits */
@@ -14,6 +15,14 @@ export const prospectingController = {
     try {
       const { filters, page } = req.body || {};
       res.json(await prospectingService.search(req.userId!, filters || {}, Number(page) || 1));
+    } catch (err) { next(err); }
+  },
+
+  /** POST /prospecting/companies/search — free company search from the directory (no credits) */
+  async searchCompanies(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const { filters, page } = req.body || {};
+      res.json(await companyDirectoryService.search(filters || {}, Number(page) || 1));
     } catch (err) { next(err); }
   },
 
