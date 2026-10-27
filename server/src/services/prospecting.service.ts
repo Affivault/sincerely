@@ -92,6 +92,19 @@ export const prospectingService = {
     return { provider: provider?.id ?? null, credits, company_directory };
   },
 
+  /** How many people the filters match, free: shown live while filters change. */
+  async count(filters: ProspectSearchFilters): Promise<{ total: number | null }> {
+    const provider = getActiveProvider();
+    if (!provider?.count) return { total: null };
+    try {
+      return { total: await provider.count(filters || {}) };
+    } catch (err) {
+      // A count is a hint: a rate limit or a rejected filter must not break the panel.
+      console.warn('[prospecting] count failed:', (err as Error).message);
+      return { total: null };
+    }
+  },
+
   async search(userId: string, filters: ProspectSearchFilters, page = 1): Promise<ProspectSearchResponse> {
     const provider = getActiveProvider();
     if (!provider) {

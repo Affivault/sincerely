@@ -3,6 +3,7 @@ import { AuthRequest } from '../middleware/auth.middleware.js';
 import { prospectingService } from '../services/prospecting.service.js';
 import { stripeService } from '../services/stripe.service.js';
 import { companyDirectoryService } from '../services/company-directory.service.js';
+import { suggestPlaces } from '../services/place-suggest.js';
 
 export const prospectingController = {
   /** GET /prospecting/status — configured provider + this month's credits */
@@ -16,6 +17,16 @@ export const prospectingController = {
       const { filters, page } = req.body || {};
       res.json(await prospectingService.search(req.userId!, filters || {}, Number(page) || 1));
     } catch (err) { next(err); }
+  },
+
+  /** POST /prospecting/count — free match count for the filters (null when the provider can't say) */
+  async count(req: AuthRequest, res: Response, next: NextFunction) {
+    try { res.json(await prospectingService.count((req.body || {}).filters || {})); } catch (err) { next(err); }
+  },
+
+  /** GET /prospecting/suggest/locations?q= — countries, regions, metros and towns for the location filters */
+  async suggestLocations(req: AuthRequest, res: Response, next: NextFunction) {
+    try { res.json(suggestPlaces(String(req.query.q || ''))); } catch (err) { next(err); }
   },
 
   /** POST /prospecting/companies/search — free company search from the directory (no credits) */

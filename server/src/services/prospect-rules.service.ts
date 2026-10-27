@@ -18,7 +18,7 @@ import { prospectingService, enrolIntoListCampaigns } from './prospecting.servic
 import { verifyContact } from './verification.service.js';
 import { campaignContactsService } from './campaign-contacts.service.js';
 import { getActiveProvider } from './prospect-providers.js';
-import { nextRuleRun, type ProspectRule, type ProspectRuleRunResult, type ProspectRuleCadence } from '@lemlist/shared';
+import { nextRuleRun, sanitizeAdvancedFilters, type ProspectRule, type ProspectRuleRunResult, type ProspectRuleCadence } from '@lemlist/shared';
 
 const SELECT = '*, campaign:campaigns(id, name, status)';
 const CADENCES: ProspectRuleCadence[] = ['daily', 'weekdays', 'weekly'];
@@ -35,11 +35,14 @@ function clean(body: any): Record<string, any> {
   if (body.filters !== undefined) {
     if (typeof body.filters !== 'object' || body.filters === null) throw new AppError('filters must be an object', 400);
     const f = body.filters;
-    const list = (v: unknown) => Array.isArray(v) ? v.map((x) => String(x).trim()).filter(Boolean).slice(0, 25) : undefined;
+    // Icypeas takes up to 200 values a field; the advanced filters are kept so
+    // a standing search runs with every filter it was saved with.
+    const list = (v: unknown) => Array.isArray(v) ? v.map((x) => String(x).trim()).filter(Boolean).slice(0, 200) : undefined;
     out.filters = {
       titles: list(f.titles), seniorities: list(f.seniorities), locations: list(f.locations),
       industries: list(f.industries), companies: list(f.companies), companySizes: list(f.companySizes),
       keywords: typeof f.keywords === 'string' ? f.keywords.slice(0, 200) : undefined,
+      advanced: sanitizeAdvancedFilters(f.advanced),
     };
   }
   if (body.campaign_id !== undefined) out.campaign_id = body.campaign_id || null;

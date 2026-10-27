@@ -304,6 +304,7 @@ function answer(method, path, q) {
     ] };
   }
   if (method === 'POST' && path === '/system/reply-check') return replyCheckResult('ok');
+  if (method === 'POST' && path === '/prospecting/count') return { total: 48210 };
   if (method === 'POST' && path === '/results/shares') return { id: 'sh2', token: 'Zq3vXk9TmA0bR7wLp2sY5nC8dE1fG4hJ', title: 'Results - September 2026', period_label: 'September 2026', from: '2026-08-31T23:00:00.000Z', to: '2026-09-30T23:00:00.000Z', show_campaigns: true, views: 0, last_viewed_at: null, created_at: iso(now), revoked_at: null };
   if (method === 'POST' && /^\/inbox\/[^/]+\/referral\/draft$/.test(path)) return { engine: 'ai', subject: 'Sofia suggested I reach out',
     body: "Hi Sam,\n\nSofia suggested I get in touch - she mentioned you look after partnerships at Northbeam.\n\nWe run affiliate partnerships for UK investment platforms, and partners typically see their first funded accounts within a month.\n\nWould a 15-minute call next week be worth it?\n\nAlex" };
@@ -469,7 +470,13 @@ function more(P, q, seg) {
     ] };
     case '/readiness': return { verdict: 'risky', summary: 'Sending works, but one domain is not authenticated.', checks: [{ id: 'domain_auth', group: 'identity', label: 'Domain authentication', status: 'warn', headline: '1 of 2 domains authenticated', detail: 'affivault.io has no SPF or DKIM.', fix: { label: 'Fix DNS', href: '/email-accounts?tab=domains', inline: 'recheck_domains' }, facts: [] }, { id: 'safeguards', group: 'safeguards', label: 'Automatic protection', status: 'warn', headline: 'The bounce guard is switched off.', detail: 'Nothing will stop a campaign that starts bouncing heavily.', fix: { label: 'Turn it on', href: '/settings', inline: 'enable_bounce_guard' }, facts: [] }, { id: 'cap', group: 'capacity', label: 'Daily capacity', status: 'pass', headline: '150 sends a day across 3 mailboxes', detail: null, fix: null, facts: [{ label: 'Today', value: '57 sent' }] }], capacity_today: 150, capacity_ceiling: 150, generated_at: iso(now) };
     case '/prospecting/rules': return [{ ...base, id: 'pr1', name: 'Fintech heads of growth, UK', filters: { titles: ['Head of Growth'], industries: ['Financial services'], locations: ['United Kingdom'] }, campaign_id: 'cmp1', list_id: null, daily_cap: 25, cadence: 'daily', min_score: 70, is_active: true, next_run_at: ahead(0.5), last_run_at: ago(0.5), last_result: { found: 31, enrolled: 25, skipped: 6 }, total_enrolled: 212, campaign: { id: 'cmp1', name: 'Q3 Fintech outreach', status: 'running' } }];
-    case '/prospecting/status': return { provider: 'apollo', credits: { allowance: 1000, used: 212, plan_remaining: 788, purchased: 0, remaining: 788, resets_at: ahead(18) } };
+    case '/prospecting/suggest/locations': return [
+      { value: 'group:dach', label: 'DACH', kind: '3 countries' }, { value: 'GB', label: 'United Kingdom', kind: 'Country' },
+      { value: 'Manchester, United Kingdom', label: 'Manchester, England, United Kingdom', kind: 'Town' },
+      { value: 'Texas, United States', label: 'Texas, United States', kind: 'Region' },
+      { value: 'Greater London', label: 'Greater London, United Kingdom', kind: 'Metro area' },
+    ].filter((s) => !q.get('q') || s.label.toLowerCase().includes(String(q.get('q')).toLowerCase()));
+    case '/prospecting/status': return { provider: 'icypeas', credits: { allowance: 1000, used: 212, plan_remaining: 788, purchased: 0, remaining: 788, resets_at: ahead(18) } };
     case '/sse/dashboard': return mailboxes.map((b, i) => ({ id: b.id, label: b.label, email_address: b.email_address, health_score: b.health_score, sends_today: b.sends_today, daily_send_limit: 50, utilization_pct: Math.round(b.sends_today / 50 * 100), bounce_rate_7d: [0.8, 1.4, 0.4][i], warmup_mode: i === 2, is_available: true }));
     case '/assets/templates': return [];
     case '/assets/templates/presets': return [];
