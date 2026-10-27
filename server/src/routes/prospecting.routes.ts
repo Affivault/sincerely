@@ -8,6 +8,7 @@ export const prospectingRoutes = Router();
 prospectingRoutes.get('/status', prospectingController.status);
 prospectingRoutes.post('/search', prospectingController.search);
 prospectingRoutes.post('/companies/search', prospectingController.searchCompanies);
+prospectingRoutes.get('/destinations', prospectingController.destinations);
 prospectingRoutes.post('/reveal', prospectingController.reveal);
 prospectingRoutes.post('/credits/checkout', prospectingController.buyCredits);
 

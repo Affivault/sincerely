@@ -14,7 +14,7 @@
 
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
-import { prospectingService } from './prospecting.service.js';
+import { prospectingService, enrolIntoListCampaigns } from './prospecting.service.js';
 import { verifyContact } from './verification.service.js';
 import { campaignContactsService } from './campaign-contacts.service.js';
 import { getActiveProvider } from './prospect-providers.js';
@@ -182,7 +182,8 @@ async function runRuleUnlocked(rule: ProspectRule): Promise<ProspectRuleRunResul
         try {
           reveal = await prospectingService.reveal(rule.user_id, {
             provider: provider.id, provider_person_id: person.id, person, list_id: rule.list_id,
-          });
+            search: rule.filters || {},
+          }, { enrolListCampaigns: false });
         } catch (e: any) {
           if (e?.statusCode === 403 || /credits/i.test(e?.message || '')) { result.stopped = 'no_credits'; break outer; }
           throw e;
@@ -200,7 +201,9 @@ async function runRuleUnlocked(rule: ProspectRule): Promise<ProspectRuleRunResul
             result.skipped[reason] = (result.skipped[reason] || 0) + (n as number);
           }
         } else if (rule.list_id) {
-          // Already added by the reveal; counted as placed.
+          // Already in the list from the reveal; now verified, it also joins
+          // any campaign running on that list.
+          await enrolIntoListCampaigns(rule.user_id, rule.list_id, reveal.contact_id);
           result.enrolled++;
         }
       }

@@ -4,9 +4,11 @@ import { billingService } from './billing.service.js';
 import { listsService } from './lists.service.js';
 import { getActiveProvider } from './prospect-providers.js';
 import { companyDirectoryService } from './company-directory.service.js';
-import { PLANS, normalizeLinkedinUrl } from '@lemlist/shared';
+import { PLANS, normalizeLinkedinUrl, describeProspectSearch } from '@lemlist/shared';
+import { campaignContactsService } from './campaign-contacts.service.js';
 import type {
   ProspectCreditsSummary,
+  ProspectDestination,
   ProspectPerson,
   ProspectSearchFilters,
   ProspectSearchResponse,
@@ -126,7 +128,13 @@ export const prospectingService = {
     return { results, page: safePage, total, provider: provider.id };
   },
 
-  async reveal(userId: string, input: RevealProspectInput): Promise<RevealProspectResponse> {
+  /**
+   * `enrolListCampaigns: false` saves to the list without enrolling into the
+   * campaigns it feeds - for standing searches, which verify an address
+   * before deciding whether to enrol it.
+   */
+  async reveal(userId: string, input: RevealProspectInput, opts: { enrolListCampaigns?: boolean } = {}): Promise<RevealProspectResponse> {
+    const enrol = opts.enrolListCampaigns !== false;
     const provider = getActiveProvider();
     if (!provider) throw new AppError('No prospect data provider is configured.', 503);
     if (!input?.provider_person_id) throw new AppError('provider_person_id is required', 400);
@@ -141,17 +149,14 @@ export const prospectingService = {
       .eq('provider_person_id', personId)
       .maybeSingle();
     if (existing) {
-      if (input.list_id && existing.contact_id) {
-        await listsService.addContacts(userId, input.list_id, [existing.contact_id]).catch((err) => {
-          console.warn(`[Prospector] Could not add contact ${existing.contact_id} to list ${input.list_id}: ${err?.message || err}`);
-        });
-      }
+      const enrolledIn = existing.contact_id ? await saveToList(userId, input.list_id, existing.contact_id, enrol) : [];
       return {
         found: !!existing.email,
         email: existing.email,
         contact_id: existing.contact_id,
         already_revealed: true,
         credits: await creditsSummary(userId),
+        enrolled_in: enrolledIn,
       };
     }
 
@@ -220,6 +225,9 @@ export const prospectingService = {
       website: snap.company_domain || null,
       location: snap.location || null,
       source: 'prospector',
+      // Where exactly: the search that found them, shown in Leads.
+      import_source: describeProspectSearch(input.search || {}),
+      imported_at: new Date().toISOString(),
     };
     /*
      * Enrich somebody already known; never overwrite them.
@@ -299,11 +307,7 @@ export const prospectingService = {
       }
     }
 
-    if (input.list_id) {
-      await listsService.addContacts(userId, input.list_id, [contact.id]).catch((err) => {
-        console.warn(`[Prospector] Could not add contact ${contact.id} to list ${input.list_id}: ${err?.message || err}`);
-      });
-    }
+    const enrolledIn = await saveToList(userId, input.list_id, contact.id, enrol);
 
     return {
       found: true,
@@ -311,6 +315,74 @@ export const prospectingService = {
       contact_id: contact.id,
       already_revealed: alreadyRevealed,
       credits: await creditsSummary(userId),
+      enrolled_in: enrolledIn,
     };
   },
+
+  /** Lead lists to save into, each with its folder and the campaigns it feeds. */
+  async destinations(userId: string): Promise<ProspectDestination[]> {
+    const lists = await listsService.list(userId, 'lead');
+    if (!lists.length) return [];
+    const [{ data: folders }, { data: campaigns, error }] = await Promise.all([
+      supabaseAdmin.from('list_folders').select('id, name').eq('user_id', userId).eq('kind', 'lead'),
+      supabaseAdmin
+        .from('campaigns')
+        .select('id, name, status, list_id')
+        .eq('user_id', userId)
+        .in('list_id', lists.map((l: any) => l.id))
+        .not('status', 'in', `(${FINISHED.join(',')})`),
+    ]);
+    if (error) throw new AppError(error.message, 500);
+    const folderName = new Map((folders || []).map((f: any) => [f.id, f.name as string]));
+    return lists.map((l: any) => ({
+      id: l.id,
+      name: l.name,
+      folder: l.folder_id ? folderName.get(l.folder_id) ?? null : null,
+      contact_count: l.contact_count ?? 0,
+      campaigns: (campaigns || []).filter((c: any) => c.list_id === l.id).map((c: any) => ({ id: c.id, name: c.name, status: c.status })),
+    }));
+  },
 };
+
+const FINISHED = ['completed', 'cancelled'];
+
+/*
+ * Prospect -> lead list -> campaign, in one step.
+ *
+ * Saving into a list that a campaign is already using used to stop at the
+ * list: the lead sat there until somebody remembered to press "Import from
+ * list" in the campaign. Now every unfinished campaign bound to the list
+ * takes them straight away, through the same enrolment guards as any other
+ * add (suppressed, unsubscribed, already in a campaign, on an open deal).
+ * A failure here never undoes the reveal: the lead is saved and paid for.
+ */
+async function saveToList(userId: string, listId: string | null | undefined, contactId: string, enrol: boolean): Promise<{ id: string; name: string }[]> {
+  if (!listId) return [];
+  try {
+    await listsService.addContacts(userId, listId, [contactId]);
+  } catch (err: any) {
+    console.warn(`[Prospector] Could not add contact ${contactId} to list ${listId}: ${err?.message || err}`);
+    return [];
+  }
+  return enrol ? enrolIntoListCampaigns(userId, listId, contactId) : [];
+}
+
+/** Enrol one contact into every unfinished campaign bound to a lead list. */
+export async function enrolIntoListCampaigns(userId: string, listId: string, contactId: string): Promise<{ id: string; name: string }[]> {
+  const { data: campaigns } = await supabaseAdmin
+    .from('campaigns')
+    .select('id, name')
+    .eq('user_id', userId)
+    .eq('list_id', listId)
+    .not('status', 'in', `(${FINISHED.join(',')})`);
+  const enrolled: { id: string; name: string }[] = [];
+  for (const campaign of campaigns || []) {
+    try {
+      const result = await campaignContactsService.add(campaign.id, [contactId]);
+      if (result.added > 0) enrolled.push({ id: campaign.id, name: campaign.name });
+    } catch (err: any) {
+      console.warn(`[Prospector] Could not enrol contact ${contactId} in campaign ${campaign.id}: ${err?.message || err}`);
+    }
+  }
+  return enrolled;
+}

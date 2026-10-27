@@ -26,6 +26,11 @@ export const prospectingController = {
     } catch (err) { next(err); }
   },
 
+  /** GET /prospecting/destinations — lead lists to save into, with the campaigns each feeds */
+  async destinations(req: AuthRequest, res: Response, next: NextFunction) {
+    try { res.json(await prospectingService.destinations(req.userId!)); } catch (err) { next(err); }
+  },
+
   /** POST /prospecting/reveal — spend a credit, save the lead as a contact */
   async reveal(req: AuthRequest, res: Response, next: NextFunction) {
     try { res.json(await prospectingService.reveal(req.userId!, req.body || {})); } catch (err) { next(err); }

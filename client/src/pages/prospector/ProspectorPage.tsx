@@ -1,14 +1,14 @@
 import { StandingSearches, SaveStandingSearch } from '../../components/prospector/StandingSearches';
 import { ChipInput } from '../../components/prospector/ChipInput';
 import { CompanySearch } from '../../components/prospector/CompanySearch';
+import { AdvancedFilters } from '../../components/prospector/AdvancedFilters';
+import { DestinationPicker, rememberedListId } from '../../components/prospector/DestinationPicker';
 import { useEffect, useRef, useState, useId } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { prospectingApi } from '../../api/prospecting.api';
-import { listsApi } from '../../api/contacts.api';
 import { Button } from '../../components/ui/Button';
-import { Select } from '../../components/ui/Select';
 import { Modal } from '../../components/ui/Modal';
 import { Spinner } from '../../components/ui/Spinner';
 import { Avatar } from '../../components/shared/Avatar';
@@ -20,10 +20,10 @@ import {
   Lock, Unlock, CheckCircle2, ChevronLeft, ChevronRight, X,
   Linkedin, ArrowUpRight, Coins, KeyRound, FolderOpen, Plus, Megaphone, AlertTriangle, SearchX,
 } from 'lucide-react';
-import { CREDIT_PACKS, formatDayMonth } from '@lemlist/shared';
+import { CREDIT_PACKS, formatDayMonth, countAdvancedFilters } from '@lemlist/shared';
 import { EmptyState } from '../../components/shared/EmptyState';
 import type {
-  ProspectPerson, ProspectSearchFilters, ProspectSearchResponse,
+  ProspectAdvancedValue, ProspectPerson, ProspectSearchFilters, ProspectSearchResponse,
 } from '@lemlist/shared';
 
 const SENIORITIES = [
@@ -135,10 +135,11 @@ export function ProspectorPage() {
   const [seniorities, setSeniorities] = useState<string[]>([]);
   const [companySizes, setCompanySizes] = useState<string[]>([]);
   const [keywords, setKeywords] = useState('');
+  const [advanced, setAdvanced] = useState<Record<string, ProspectAdvancedValue>>({});
   const [saveRuleOpen, setSaveRuleOpen] = useState(false);
   const [tab, setTab] = useState<'people' | 'companies'>('people');
   const [page, setPage] = useState(1);
-  const [listId, setListId] = useState('');
+  const [listId, setListId] = useState(rememberedListId);
   const [results, setResults] = useState<ProspectSearchResponse | null>(null);
   const [revealingId, setRevealingId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -149,14 +150,15 @@ export function ProspectorPage() {
   const suppressRevealToastsRef = useRef(false);
 
   const { data: status, isError: statusError } = useQuery({ queryKey: ['prospecting', 'status'], queryFn: prospectingApi.status, meta: { silentError: true } });
-  // Revealed prospects are outreach material, so only lead lists are offered.
-  const { data: lists } = useQuery({ queryKey: ['lists', 'lead'], queryFn: () => listsApi.list('lead') });
 
   const filters: ProspectSearchFilters = {
     titles, locations, industries, companies, seniorities, companySizes,
     keywords: keywords.trim() || undefined,
+    advanced: countAdvancedFilters(advanced) ? advanced : undefined,
   };
-  const hasFilters = titles.length + locations.length + industries.length + companies.length + seniorities.length + companySizes.length > 0 || !!keywords.trim();
+  const hasFilters = titles.length + locations.length + industries.length + companies.length + seniorities.length + companySizes.length + countAdvancedFilters(advanced) > 0 || !!keywords.trim();
+  // The search that produced the rows on screen, recorded on each saved lead.
+  const lastSearchRef = useRef<ProspectSearchFilters>({});
 
   // Guards against a slower, now-stale search response overwriting the
   // results of a newer one (e.g. pressing Enter twice in quick succession).
@@ -168,6 +170,7 @@ export function ProspectorPage() {
     mutationFn: ({ p, f }: { p: number; requestId: number; f?: ProspectSearchFilters }) => prospectingApi.search(f ?? filters, p),
     onSuccess: (data, vars) => {
       if (vars.requestId !== searchRequestIdRef.current) return;
+      lastSearchRef.current = vars.f ?? filters;
       setResults(data);
       setPage(vars.p);
       setSelectedIds(new Set());
@@ -181,18 +184,21 @@ export function ProspectorPage() {
       provider_person_id: person.id,
       person,
       list_id: listId || null,
+      search: lastSearchRef.current,
     }),
     onMutate: (person) => setRevealingId(person.id),
     onSuccess: (res, person) => {
       qc.invalidateQueries({ queryKey: ['prospecting', 'status'] });
       qc.invalidateQueries({ queryKey: ['contacts'] });
+      if (res.enrolled_in?.length) qc.invalidateQueries({ queryKey: ['campaigns'] });
       if (res.found) {
         setResults((prev) => prev ? {
           ...prev,
           results: prev.results.map((r) => r.id === person.id ? { ...r, already_revealed: true, contact_id: res.contact_id } : r),
         } : prev);
         if (!suppressRevealToastsRef.current) {
-          toast.success(res.already_revealed ? `Already unlocked: ${res.email}` : `Saved ${res.email} to your leads${listId ? ' list' : ''}`);
+          const into = res.enrolled_in?.length ? ` and added to ${res.enrolled_in.map((c) => c.name).join(', ')}` : '';
+          toast.success(res.already_revealed ? `Already unlocked: ${res.email}${into}` : `Saved ${res.email} to your leads${listId ? ' list' : ''}${into}`);
         }
       } else if (!suppressRevealToastsRef.current) {
         toast(`No verified email found for ${person.full_name} — you weren't charged.`, { icon: 'ℹ️' });
@@ -212,12 +218,14 @@ export function ProspectorPage() {
     suppressRevealToastsRef.current = true;
     let remaining = credits ? credits.remaining : -1; // -1 = unlimited
     let revealed = 0, noEmail = 0, failed = 0, skipped = 0;
+    const joined = new Map<string, string>();
     try {
       for (const person of targets) {
         if (remaining === 0) { skipped++; continue; }
         try {
           const res = await revealMutation.mutateAsync(person);
           if (res.found) { revealed++; if (remaining > 0) remaining--; } else { noEmail++; }
+          for (const c of res.enrolled_in || []) joined.set(c.id, c.name);
         } catch {
           failed++;
         }
@@ -232,6 +240,7 @@ export function ProspectorPage() {
     if (noEmail) parts.push(`${noEmail} had no email`);
     if (failed) parts.push(`${failed} failed`);
     if (skipped) parts.push(`${skipped} skipped — out of credits`);
+    if (joined.size) parts.push(`added to ${[...joined.values()].join(', ')}`);
     toast(parts.join(', ') || 'Nothing to reveal', { icon: revealed ? '✅' : 'ℹ️' });
   };
 
@@ -349,7 +358,7 @@ export function ProspectorPage() {
                 onClick={() => {
                   setTitles([]); setLocations([]); setIndustries([]);
                   setCompanies([]); setSeniorities([]); setCompanySizes([]);
-                  setKeywords('');
+                  setKeywords(''); setAdvanced({});
                 }}
                 className="text-caption font-medium text-[var(--text-tertiary)] hover:text-[var(--indigo-text)] transition-colors"
               >
@@ -419,6 +428,8 @@ export function ProspectorPage() {
             />
           </div>
 
+          {status?.provider === 'icypeas' && <AdvancedFilters value={advanced} onChange={setAdvanced} />}
+
           <Button className="w-full" onClick={() => runSearch(1)} disabled={!providerReady || searchMutation.isPending}>
             {searchMutation.isPending ? <><Spinner size="sm" /> Searching…</> : <><Search className="h-3.5 w-3.5" /> Search prospects</>}
           </Button>
@@ -438,25 +449,13 @@ export function ProspectorPage() {
         {/* Results */}
         <div className="min-w-0 space-y-3">
           <StandingSearches />
-          {/* Save-to-list bar */}
-          <div className="flex items-center gap-2.5 mb-3 flex-wrap">
-            <FolderOpen className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
-            <span className="text-body text-[var(--text-secondary)]">Save revealed leads to</span>
-            <div className="w-52">
-              <Select
-                aria-label="Save revealed leads to"
-                options={[{ value: '', label: 'All contacts (no list)' }, ...(lists || []).map((l) => ({ value: l.id, label: l.name }))]}
-                value={listId}
-                onChange={(e) => setListId(e.target.value)}
-              />
-            </div>
-            <span className="flex-1" />
-            {results && (
-              <span className="text-body text-[var(--text-tertiary)] tabular">
-                {results.total.toLocaleString()} match{results.total === 1 ? '' : 'es'}
-              </span>
-            )}
-          </div>
+          {/* Where saved leads go, and the campaigns that list feeds. */}
+          <DestinationPicker listId={listId} onChange={setListId} />
+          {results && (
+            <p className="text-body text-[var(--text-tertiary)] tabular text-right">
+              {results.total.toLocaleString()} match{results.total === 1 ? '' : 'es'}
+            </p>
+          )}
 
           {selectedIds.size > 0 && (
             <div className="flex items-center gap-2.5 mb-3 rounded-lg border border-[var(--indigo)]/25 bg-[var(--indigo-subtle)] px-3 py-2">
