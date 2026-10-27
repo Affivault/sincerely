@@ -10,6 +10,7 @@ import type {
   CompanySearchFilters,
   CompanySearchResponse,
   ProspectDestination,
+  ProspectSuggestion,
 } from '@lemlist/shared';
 
 export const prospectingApi = {
@@ -17,6 +18,13 @@ export const prospectingApi = {
 
   search: async (filters: ProspectSearchFilters, page = 1) =>
     (await apiClient.post<ProspectSearchResponse>('/prospecting/search', { filters, page })).data,
+
+  /** Free match count, shown live as filters change. Null when the provider can't say. */
+  count: async (filters: ProspectSearchFilters, signal?: AbortSignal) =>
+    (await apiClient.post<{ total: number | null }>('/prospecting/count', { filters }, { signal })).data,
+
+  suggestLocations: async (q: string, signal?: AbortSignal) =>
+    (await apiClient.get<ProspectSuggestion[]>('/prospecting/suggest/locations', { params: { q }, signal })).data,
 
   searchCompanies: async (filters: CompanySearchFilters, page = 1) =>
     (await apiClient.post<CompanySearchResponse>('/prospecting/companies/search', { filters, page })).data,

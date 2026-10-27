@@ -1,9 +1,9 @@
 import { StandingSearches, SaveStandingSearch } from '../../components/prospector/StandingSearches';
-import { ChipInput } from '../../components/prospector/ChipInput';
 import { CompanySearch } from '../../components/prospector/CompanySearch';
-import { AdvancedFilters } from '../../components/prospector/AdvancedFilters';
+import { FilterPanel, EMPTY_FILTERS, countFilters, type FilterState } from '../../components/prospector/FilterPanel';
+import { useDebounce } from '../../hooks/useDebounce';
 import { DestinationPicker, rememberedListId } from '../../components/prospector/DestinationPicker';
-import { useEffect, useRef, useState, useId } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -16,26 +16,15 @@ import { AddToCampaignModal } from '../../components/shared/AddToCampaignModal';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { cn } from '../../lib/utils';
 import {
-  Radar, Search, MapPin, Building2, Briefcase, Users, Sparkles,
+  Radar, Search, Building2, Users,
   Lock, Unlock, CheckCircle2, ChevronLeft, ChevronRight, X,
   Linkedin, ArrowUpRight, Coins, KeyRound, FolderOpen, Plus, Megaphone, AlertTriangle, SearchX,
 } from 'lucide-react';
 import { CREDIT_PACKS, formatDayMonth, countAdvancedFilters } from '@lemlist/shared';
 import { EmptyState } from '../../components/shared/EmptyState';
 import type {
-  ProspectAdvancedValue, ProspectPerson, ProspectSearchFilters, ProspectSearchResponse,
+  ProspectPerson, ProspectSearchFilters, ProspectSearchResponse,
 } from '@lemlist/shared';
-
-const SENIORITIES = [
-  { value: 'owner', label: 'Owner' },
-  { value: 'c_suite', label: 'C-Suite' },
-  { value: 'vp', label: 'VP' },
-  { value: 'director', label: 'Director' },
-  { value: 'manager', label: 'Manager' },
-  { value: 'senior', label: 'Senior' },
-  { value: 'entry', label: 'Entry' },
-];
-const COMPANY_SIZES = ['1-10', '11-50', '51-200', '201-500', '501-1000', '1001-5000', '5001-10000'];
 
 function CreditsMeter({ allowance, planRemaining, purchased, onBuy }: {
   allowance: number; planRemaining: number; purchased: number; onBuy: () => void;
@@ -104,7 +93,6 @@ function BuyCreditsModal({ onClose }: { onClose: () => void }) {
 }
 
 export function ProspectorPage() {
-  const a11yId = useId();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -128,14 +116,7 @@ export function ProspectorPage() {
   }, []);
 
   // Filters
-  const [titles, setTitles] = useState<string[]>([]);
-  const [locations, setLocations] = useState<string[]>([]);
-  const [industries, setIndustries] = useState<string[]>([]);
-  const [companies, setCompanies] = useState<string[]>([]);
-  const [seniorities, setSeniorities] = useState<string[]>([]);
-  const [companySizes, setCompanySizes] = useState<string[]>([]);
-  const [keywords, setKeywords] = useState('');
-  const [advanced, setAdvanced] = useState<Record<string, ProspectAdvancedValue>>({});
+  const [form, setForm] = useState<FilterState>(EMPTY_FILTERS);
   const [saveRuleOpen, setSaveRuleOpen] = useState(false);
   const [tab, setTab] = useState<'people' | 'companies'>('people');
   const [page, setPage] = useState(1);
@@ -152,11 +133,13 @@ export function ProspectorPage() {
   const { data: status, isError: statusError } = useQuery({ queryKey: ['prospecting', 'status'], queryFn: prospectingApi.status, meta: { silentError: true } });
 
   const filters: ProspectSearchFilters = {
-    titles, locations, industries, companies, seniorities, companySizes,
-    keywords: keywords.trim() || undefined,
-    advanced: countAdvancedFilters(advanced) ? advanced : undefined,
+    titles: form.titles, locations: form.locations, industries: form.industries, companies: form.companies,
+    seniorities: form.seniorities, companySizes: form.companySizes,
+    keywords: form.keywords.trim() || undefined,
+    advanced: countAdvancedFilters(form.advanced) ? form.advanced : undefined,
   };
-  const hasFilters = titles.length + locations.length + industries.length + companies.length + seniorities.length + companySizes.length + countAdvancedFilters(advanced) > 0 || !!keywords.trim();
+  const activeFilters = countFilters(form);
+  const hasFilters = activeFilters > 0;
   // The search that produced the rows on screen, recorded on each saved lead.
   const lastSearchRef = useRef<ProspectSearchFilters>({});
 
@@ -259,10 +242,23 @@ export function ProspectorPage() {
   const credits = status?.credits;
   const providerReady = !!status?.provider;
   const directoryReady = !!status?.company_directory?.available;
+  const fullFilters = status?.provider === 'icypeas';
+
+  // How many people match, live and free, while filters change.
+  const countKey = useDebounce(JSON.stringify(filters), 600);
+  const { data: liveCount, isFetching: counting } = useQuery({
+    queryKey: ['prospecting', 'count', countKey],
+    queryFn: ({ signal }) => prospectingApi.count(JSON.parse(countKey) as ProspectSearchFilters, signal),
+    enabled: fullFilters && hasFilters,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
+    meta: { silentError: true },
+  });
+  const matchCount = hasFilters ? liveCount?.total ?? null : null;
 
   // Companies at the picked domains, keeping any title or seniority already set.
   const findPeopleAt = (domains: string[]) => {
-    setCompanies(domains);
+    setForm((prev) => ({ ...prev, companies: domains }));
     setTab('people');
     if (!providerReady) return;
     const requestId = ++searchRequestIdRef.current;
@@ -346,104 +342,54 @@ export function ProspectorPage() {
       {tab === 'companies' && directoryReady ? (
         <CompanySearch onFindPeople={findPeopleAt} />
       ) : (
-      <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4 items-start">
-        {/* Filters */}
-        <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4 space-y-3.5 lg:sticky lg:top-4">
-          <div className="flex items-center justify-between">
+      <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-4 items-start">
+        {/* Filters: every one in view, no hidden step. */}
+        {/* On wide screens the panel scrolls on its own, so results stay in view beside it. */}
+        <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] lg:sticky lg:top-4 lg:flex lg:flex-col lg:max-h-[calc(100vh-10rem)]">
+          <div className="flex items-center justify-between px-4 pt-4 pb-3 flex-shrink-0">
             <p className="text-caption font-medium text-[var(--text-tertiary)] flex items-center gap-1.5">
               <Search className="h-3 w-3" /> Filters
+              {activeFilters > 0 && <span className="text-[var(--indigo-text)] tabular">· {activeFilters}</span>}
             </p>
             {hasFilters && (
               <button
-                onClick={() => {
-                  setTitles([]); setLocations([]); setIndustries([]);
-                  setCompanies([]); setSeniorities([]); setCompanySizes([]);
-                  setKeywords(''); setAdvanced({});
-                }}
+                onClick={() => setForm(EMPTY_FILTERS)}
                 className="text-caption font-medium text-[var(--text-tertiary)] hover:text-[var(--indigo-text)] transition-colors"
               >
                 Clear all
               </button>
             )}
           </div>
-          <ChipInput label="Job title" icon={Briefcase} values={titles} onChange={setTitles} placeholder="Head of Growth, CMO…" />
-          <ChipInput label="Location" icon={MapPin} values={locations} onChange={setLocations} placeholder="London, United States…" />
-          <ChipInput label="Industry" icon={Sparkles} values={industries} onChange={setIndustries} placeholder="SaaS, e-commerce…" />
-          <ChipInput label="Company" icon={Building2} values={companies} onChange={setCompanies} placeholder="Name or domain…" />
 
-          <div>
-            <span className="flex items-center gap-1.5 text-caption font-medium text-[var(--text-secondary)] mb-1">
-              <Users className="h-3 w-3 text-[var(--text-tertiary)]" /> Seniority
-            </span>
-            <div className="flex flex-wrap gap-1">
-              {SENIORITIES.map((s) => {
-                const on = seniorities.includes(s.value);
-                return (
-                  <button
-                    key={s.value}
-                    onClick={() => setSeniorities(on ? seniorities.filter((x) => x !== s.value) : [...seniorities, s.value])}
-                    className={cn(
-                      'h-6 px-2 rounded-md text-caption font-medium border transition-colors',
-                      on ? 'bg-[var(--indigo-subtle)] border-[rgba(47,63,156,0.3)] text-[var(--indigo-text)]' : 'border-[var(--border-subtle)] text-[var(--text-tertiary)] hover:border-[var(--border-default)] hover:text-[var(--text-secondary)]'
-                    )}
-                  >
-                    {s.label}
-                  </button>
-                );
-              })}
-            </div>
+          <div className="px-4 pb-4 lg:overflow-y-auto lg:min-h-0 lg:flex-1 [scrollbar-width:thin]">
+            <FilterPanel value={form} onChange={setForm} full={fullFilters} onSubmit={() => runSearch(1)} />
           </div>
 
-          <div>
-            <span className="flex items-center gap-1.5 text-caption font-medium text-[var(--text-secondary)] mb-1">
-              <Building2 className="h-3 w-3 text-[var(--text-tertiary)]" /> Company size
-            </span>
-            <div className="flex flex-wrap gap-1">
-              {COMPANY_SIZES.map((s) => {
-                const on = companySizes.includes(s);
-                return (
-                  <button
-                    key={s}
-                    onClick={() => setCompanySizes(on ? companySizes.filter((x) => x !== s) : [...companySizes, s])}
-                    className={cn(
-                      'h-6 px-2 rounded-md text-caption font-medium border tabular transition-colors',
-                      on ? 'bg-[var(--indigo-subtle)] border-[rgba(47,63,156,0.3)] text-[var(--indigo-text)]' : 'border-[var(--border-subtle)] text-[var(--text-tertiary)] hover:border-[var(--border-default)] hover:text-[var(--text-secondary)]'
-                    )}
-                  >
-                    {s}
-                  </button>
-                );
-              })}
-            </div>
+          {/* Stays in reach however far down the filters go. */}
+          <div className="sticky bottom-0 lg:static flex-shrink-0 rounded-b-xl border-t border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4 space-y-2">
+            {fullFilters && hasFilters && (
+              <p className="text-caption text-[var(--text-tertiary)] tabular flex items-center gap-1.5" aria-live="polite">
+                {matchCount !== null ? (
+                  <><span className="text-strong font-semibold text-[var(--text-primary)]">{matchCount.toLocaleString()}</span> {matchCount === 1 ? 'person matches' : 'people match'}</>
+                ) : counting ? 'Counting matches…' : 'Search to see matches'}
+                {counting && matchCount !== null && <Spinner size="sm" />}
+              </p>
+            )}
+            <Button className="w-full" onClick={() => runSearch(1)} disabled={!providerReady || searchMutation.isPending}>
+              {searchMutation.isPending ? <><Spinner size="sm" /> Searching…</> : <><Search className="h-3.5 w-3.5" /> Search prospects</>}
+            </Button>
+            {/* The same search, working every day without you. */}
+            <button
+              type="button"
+              onClick={() => setSaveRuleOpen(true)}
+              disabled={!hasFilters || !providerReady}
+              className="w-full inline-flex items-center justify-center gap-1.5 h-8 rounded-lg border border-dashed border-[var(--border-default)] text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--indigo-text)] hover:border-[var(--indigo)]/40 disabled:opacity-40 transition-colors"
+              title="Reveal, verify and enrol new matches automatically"
+            >
+              <Radar className="h-3.5 w-3.5" /> Keep this search running
+            </button>
+            <SaveStandingSearch filters={filters} open={saveRuleOpen} onClose={() => setSaveRuleOpen(false)} />
           </div>
-
-          <div>
-            <label htmlFor={`${a11yId}-f1`} className="text-caption font-medium text-[var(--text-secondary)] mb-1 block">Keywords</label>
-            <input id={`${a11yId}-f1`}
-              value={keywords}
-              onChange={(e) => setKeywords(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') runSearch(1); }}
-              placeholder="e.g. outbound, PLG, agency…"
-              className="block w-full h-8 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 text-body text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] hover:border-[var(--border-strong)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[var(--ring-focus)] transition-[border-color,box-shadow]"
-            />
-          </div>
-
-          {status?.provider === 'icypeas' && <AdvancedFilters value={advanced} onChange={setAdvanced} />}
-
-          <Button className="w-full" onClick={() => runSearch(1)} disabled={!providerReady || searchMutation.isPending}>
-            {searchMutation.isPending ? <><Spinner size="sm" /> Searching…</> : <><Search className="h-3.5 w-3.5" /> Search prospects</>}
-          </Button>
-          {/* The same search, working every day without you. */}
-          <button
-            type="button"
-            onClick={() => setSaveRuleOpen(true)}
-            disabled={!hasFilters || !providerReady}
-            className="w-full inline-flex items-center justify-center gap-1.5 h-8 rounded-lg border border-dashed border-[var(--border-default)] text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--indigo-text)] hover:border-[var(--indigo)]/40 disabled:opacity-40 transition-colors"
-            title="Reveal, verify and enrol new matches automatically"
-          >
-            <Radar className="h-3.5 w-3.5" /> Keep this search running
-          </button>
-          <SaveStandingSearch filters={filters} open={saveRuleOpen} onClose={() => setSaveRuleOpen(false)} />
         </div>
 
         {/* Results */}
@@ -481,7 +427,7 @@ export function ProspectorPage() {
               <Radar className="h-8 w-8 text-[var(--text-tertiary)] mx-auto mb-3" />
               <p className="text-heading font-semibold text-[var(--text-primary)]">Find your next customers</p>
               <p className="text-body text-[var(--text-tertiary)] mt-1 max-w-md mx-auto">
-                Filter by job title, location, industry and company size. Each verified email you reveal costs 1 credit and lands in your lead lists — ready for campaigns.
+                Stack as many filters as you like: towns, regions, whole markets, titles, skills, past employers. The match count updates as you go. Each verified email you reveal costs 1 credit and lands in your lead lists, ready for campaigns.
               </p>
             </div>
           ) : results.results.length === 0 ? (

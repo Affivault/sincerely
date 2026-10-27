@@ -7,7 +7,7 @@
 // going to production, and mind their terms on caching/reselling data.
 
 import { env } from '../config/env.js';
-import { PROSPECT_FILTER_FIELDS } from '@lemlist/shared';
+import { PROSPECT_FILTER_FIELDS, expandProspectLocations, prospectValueLabel } from '@lemlist/shared';
 import type { ProspectPerson, ProspectProviderId, ProspectSearchFilters } from '@lemlist/shared';
 
 export interface ProviderSearchResult {
@@ -26,6 +26,8 @@ export interface ProspectProvider {
    * from a name and a company rather than their own person id.
    */
   enrichEmail(personId: string, hint?: Partial<ProspectPerson>): Promise<{ email: string | null; person?: Partial<ProspectPerson> }>;
+  /** How many people match, without spending credits. Null when the provider can't say for free. */
+  count?(filters: ProspectSearchFilters): Promise<number | null>;
 }
 
 const FETCH_TIMEOUT_MS = 20_000;
@@ -111,7 +113,8 @@ export function icypeasQuery(filters: ProspectSearchFilters): Record<string, any
   const jobTitles = titles.length ? titles : seniorityTitles;
   if (jobTitles.length) q.currentJobTitle = include(jobTitles);
 
-  const locations = clean(filters.locations);
+  // Market groups widen to their countries; "UK" goes out as "GB".
+  const locations = expandProspectLocations(clean(filters.locations));
   if (locations.length) q.location = include(locations);
 
   const industries = clean(filters.industries);
@@ -142,6 +145,7 @@ export function icypeasQuery(filters: ProspectSearchFilters): Record<string, any
 }
 
 const FIELD_KINDS = new Map(PROSPECT_FILTER_FIELDS.map((f) => [f.key, f.kind]));
+const LOCATION_FIELDS = new Set(['location', 'profileLocation', 'workLocation', 'currentCompany.location', 'pastCompany.location']);
 const GROWTH_SPANS = new Set(['6months', '12months', '24months']);
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : typeof v === 'string' && v.trim() !== '' && Number.isFinite(Number(v)) ? Number(v) : null);
 
@@ -158,8 +162,12 @@ function applyAdvanced(q: Record<string, any>, advanced: ProspectSearchFilters['
     if (!kind || !raw || typeof raw !== 'object') continue;
     const value = raw as Record<string, any>;
     if (kind === 'text') {
-      const inc = [...new Set([...(q[key]?.include || []), ...clean(Array.isArray(value.include) ? value.include.map(String) : [])])].slice(0, 200);
-      const exc = [...new Set([...(q[key]?.exclude || []), ...clean(Array.isArray(value.exclude) ? value.exclude.map(String) : [])])].slice(0, 200);
+      const read = (v: unknown) => {
+        const list = clean(Array.isArray(v) ? v.map(String) : []);
+        return LOCATION_FIELDS.has(key) ? expandProspectLocations(list) : list;
+      };
+      const inc = [...new Set([...(q[key]?.include || []), ...read(value.include)])].slice(0, 200);
+      const exc = [...new Set([...(q[key]?.exclude || []), ...read(value.exclude)])].slice(0, 200);
       if (!inc.length && !exc.length) continue;
       q[key] = { ...(inc.length ? { include: inc } : {}), ...(exc.length ? { exclude: exc } : {}) };
     } else if (kind === 'range') {
@@ -308,8 +316,34 @@ async function icypeasAwait(searchId: string): Promise<any> {
   throw new Error('Provider error: the email search is taking too long, try again in a minute');
 }
 
+/* Counts are free on Icypeas but rate limited, and the panel asks on every change. */
+const counts = new Map<string, { total: number; at: number }>();
+const COUNT_TTL_MS = 5 * 60 * 1000;
+
+/** The match count from a find-people/count response; the docs don't show its shape. */
+export function icypeasCountFrom(data: any): number | null {
+  for (const v of [data?.total, data?.count, data?.nbResults, data?.item?.total, data?.item?.count, data?.data?.total]) {
+    const n = typeof v === 'number' ? v : typeof v === 'string' && v.trim() !== '' ? Number(v) : NaN;
+    if (Number.isFinite(n) && n >= 0) return n;
+  }
+  return null;
+}
+
 export const icypeasProvider: ProspectProvider = {
   id: 'icypeas',
+  async count(filters) {
+    const query = icypeasQuery(filters);
+    if (!Object.keys(query).length) return null;
+    const key = JSON.stringify(query);
+    const hit = counts.get(key);
+    if (hit && Date.now() - hit.at < COUNT_TTL_MS) return hit.total;
+    const total = icypeasCountFrom(await icypeas('/find-people/count', { query }));
+    if (total !== null) {
+      if (counts.size >= 500) counts.delete(counts.keys().next().value as string);
+      counts.set(key, { total, at: Date.now() });
+    }
+    return total;
+  },
   async search(filters, page, perPage) {
     const query = icypeasQuery(filters);
     const entry = chunksFor(JSON.stringify(query));
@@ -378,8 +412,10 @@ function pdlQuery(filters: ProspectSearchFilters): any {
   terms('job_title_levels', filters.seniorities);
   terms('industry', filters.industries?.map((i) => i.toLowerCase()));
   terms('job_company_size', filters.companySizes);
-  if (filters.locations?.length) {
-    must.push({ bool: { should: filters.locations.map((l) => ({ match: { location_name: l.toLowerCase() } })), minimum_should_match: 1 } });
+  // PDL matches place names, so a group or a two-letter code goes out as country names.
+  const locations = expandProspectLocations(filters.locations).map((l) => (/^[A-Z]{2}$/.test(l) ? prospectValueLabel(l) : l));
+  if (locations.length) {
+    must.push({ bool: { should: locations.map((l) => ({ match: { location_name: l.toLowerCase() } })), minimum_should_match: 1 } });
   }
   if (filters.companies?.length) {
     must.push({
@@ -473,7 +509,8 @@ const apolloProvider: ProspectProvider = {
       per_page: perPage,
       person_titles: filters.titles?.length ? filters.titles : undefined,
       person_seniorities: filters.seniorities?.length ? filters.seniorities : undefined,
-      person_locations: filters.locations?.length ? filters.locations : undefined,
+      person_locations: filters.locations?.length
+        ? expandProspectLocations(filters.locations).map((l) => (/^[A-Z]{2}$/.test(l) ? prospectValueLabel(l) : l)) : undefined,
       organization_num_employees_ranges: filters.companySizes?.length
         ? filters.companySizes.map((r) => r.replace('-', ',')) : undefined,
       q_organization_keyword_tags: filters.industries?.length ? filters.industries : undefined,
