@@ -56,6 +56,54 @@
         </div>
       </section>
 
+      <!-- Who works at the company on screen: its own website, its LinkedIn
+           page, or the employer of the profile being read. Searching is free;
+           saving is a reveal per ticked person, filed on the chosen list and
+           enrolled into its campaigns, exactly as the app's Prospector does. -->
+      <section id="company-block" class="panel block company hidden" aria-labelledby="company-title">
+        <div class="company-head">
+          <span id="company-mark" class="company-mark" aria-hidden="true"></span>
+          <div class="company-id">
+            <p id="company-title" class="section-title">People at this company</p>
+            <p id="company-sub" class="section-sub"></p>
+          </div>
+          <button id="company-search" class="btn-secondary btn-xs" type="button">Find people</button>
+        </div>
+
+        <div id="company-body" class="company-body hidden">
+          <div class="dept-chips" role="group" aria-label="Filter by department">
+            <button class="chip is-on" type="button" data-dept="">Everyone</button>
+            <button class="chip" type="button" data-dept="leadership">Leadership</button>
+            <button class="chip" type="button" data-dept="sales">Sales</button>
+            <button class="chip" type="button" data-dept="marketing">Marketing</button>
+            <button class="chip" type="button" data-dept="engineering">Engineering</button>
+            <button class="chip" type="button" data-dept="operations">Ops &amp; finance</button>
+          </div>
+          <div class="company-filter">
+            <svg class="picker-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="7" />
+              <path d="m20 20-3.5-3.5" />
+            </svg>
+            <input id="company-title-filter" class="picker-input" type="text" placeholder="Job title, e.g. Head of Sales" autocomplete="off" spellcheck="false" aria-label="Filter by job title" />
+          </div>
+
+          <div id="company-toolbar" class="scan-toolbar hidden">
+            <label class="scan-check">
+              <input id="company-all" type="checkbox" />
+              <span id="company-count">0 selected</span>
+            </label>
+            <span id="company-total" class="company-total"></span>
+          </div>
+          <ul id="company-results" class="people-results" aria-live="polite"></ul>
+          <button id="company-more" class="btn-ghost btn-xs btn-block hidden" type="button">Show more</button>
+
+          <div id="company-footer" class="company-footer hidden">
+            <p id="company-cost" class="company-cost"></p>
+            <button id="company-save" class="btn-primary btn-block" type="button" disabled>Save to list</button>
+          </div>
+        </div>
+      </section>
+
       <!-- Who this is, and everything already known about them, in one card. -->
       <section class="person-card">
         <div class="identity">

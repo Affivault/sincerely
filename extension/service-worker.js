@@ -1100,6 +1100,14 @@ async function handleBulkAddProfiles(payload) {
     const people = (payload.people || []).slice(0, BULK_LIMIT);
     if (people.length === 0) throw new ApiError('Nobody selected.', { code: 'NO_PEOPLE' });
 
+    /*
+     * Who was on it already, so the result can distinguish new from repeat:
+     * the server upserts and counts both as a success. Read before anything
+     * is revealed, because a reveal now files the person on the list itself,
+     * and a read taken after it counted every fresh reveal as "already there".
+     */
+    const before = await api.listContactIds(listId).catch(() => null);
+
     // One search per distinct surname up front, rather than one per person
     // inside the loop: 25 people would otherwise cost 25 searches on top of
     // the reveals, and the per-key limit is 100/minute.
@@ -1132,7 +1140,15 @@ async function handleBulkAddProfiles(payload) {
         continue;
       }
 
-      const reveal = await handleProspectReveal({ providerPersonId: found.data.match.id });
+      // Filed and enrolled by the reveal itself, as a Prospector save is; the
+      // add below is then an upsert no-op for them.
+      const reveal = await handleProspectReveal({
+        providerPersonId: found.data.match.id,
+        provider: found.data.match.provider,
+        person: { ...found.data.match, linkedin_url: found.data.match.linkedin_url || person.linkedin_url || null },
+        listId,
+        search: { keywords: [person.first_name, person.last_name].filter(Boolean).join(' '), companies: person.company ? [person.company] : undefined },
+      });
       if (!reveal.ok || !reveal.data.found || !reveal.data.email) {
         noEmail += 1;
         continue;
@@ -1167,9 +1183,6 @@ async function handleBulkAddProfiles(payload) {
      */
     const uniqueIds = [...new Set(contactIds)];
 
-    // Who was on it already, so the result can distinguish new from repeat:
-    // the server upserts and counts both as a success.
-    const before = await api.listContactIds(listId).catch(() => null);
     const result = await api.addToList(listId, uniqueIds);
     // null means the read failed, which is not the same as "nobody was on it".
     // Counting it as the latter reported every repeat as a fresh add.
@@ -1750,11 +1763,9 @@ async function handleProspectFind(payload) {
       ok: true,
       data: {
         match: {
+          ...prospectSnapshot(found.match),
           id: found.match.id,
-          full_name: found.match.full_name,
-          job_title: found.match.job_title,
-          company: found.match.company,
-          location: found.match.location,
+          provider: found.match.provider || status.provider,
           has_email: found.match.has_email !== false,
           already_revealed: Boolean(found.match.already_revealed),
         },
@@ -1769,15 +1780,40 @@ async function handleProspectFind(payload) {
 }
 
 /**
+ * The fields of a search row the server builds a contact from. Sent with
+ * every reveal: an address served from the search-time cache is not enriched
+ * again, so without this the saved contact had a bare email and nothing else.
+ *
+ * @param {object} row
+ */
+function prospectSnapshot(row = {}) {
+  return {
+    first_name: row.first_name || null,
+    last_name: row.last_name || null,
+    full_name: row.full_name || [row.first_name, row.last_name].filter(Boolean).join(' ') || null,
+    job_title: row.job_title || null,
+    company: row.company || null,
+    company_domain: row.company_domain || null,
+    location: row.location || null,
+    linkedin_url: row.linkedin_url || null,
+  };
+}
+
+/**
  * Spend the credit. Only ever called after the user has seen who they're
  * revealing and what it costs.
  *
- * @param {{providerPersonId: string}} payload
+ * @param {{providerPersonId: string, provider?: string, person?: object, listId?: string, search?: object}} payload
  */
 async function handleProspectReveal(payload) {
   try {
     if (!payload.providerPersonId) throw new ApiError('Nothing to reveal.', { code: 'BAD_REVEAL' });
-    const result = await api.prospectReveal(payload.providerPersonId);
+    const result = await api.prospectReveal(payload.providerPersonId, {
+      provider: payload.provider || null,
+      person: payload.person ? prospectSnapshot(payload.person) : null,
+      listId: payload.listId || null,
+      search: payload.search || null,
+    });
     return {
       ok: true,
       data: {
@@ -1786,10 +1822,210 @@ async function handleProspectReveal(payload) {
         contactId: result?.contact_id ?? null,
         alreadyRevealed: Boolean(result?.already_revealed),
         credits: result?.credits ?? null,
+        enrolledIn: Array.isArray(result?.enrolled_in) ? result.enrolled_in : [],
       },
     };
   } catch (err) {
     return toErrorPayload(err);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* People at a company                                                */
+/* ------------------------------------------------------------------ */
+
+/*
+ * The Apollo move: stand on a company's website (or its LinkedIn page) and
+ * see who works there, then put the right ones on a list.
+ *
+ * Searching is free. Saving is a reveal per person, which is where a credit is
+ * spent, and only for people somebody ticked. Each reveal carries the list, so
+ * the server files them and enrols them into the campaigns on it in the same
+ * step, exactly as saving from the app's Prospector does. The extension never
+ * has a second, slightly different idea of what "save" means.
+ */
+
+/** Departments offered as one-tap filters, each the titles that mean it. */
+const DEPARTMENT_TITLES = {
+  leadership: { seniorities: ['owner', 'c_suite'] },
+  sales: { titles: ['Sales', 'Business Development', 'Account Executive', 'Partnerships', 'Revenue'] },
+  marketing: { titles: ['Marketing', 'Growth', 'Brand', 'Content', 'Demand Generation'] },
+  engineering: { titles: ['Engineering', 'Engineer', 'Developer', 'CTO', 'Product'] },
+  operations: { titles: ['Operations', 'COO', 'Finance', 'CFO', 'HR', 'People', 'Talent'] },
+};
+
+/**
+ * The search the company panel runs, built in one place so the reveal records
+ * exactly the search that found someone.
+ *
+ * @param {{company?: {name?: string, domain?: string}, department?: string, title?: string}} payload
+ */
+function companySearchFilters(payload) {
+  const domain = String(payload.company?.domain || '').trim().toLowerCase();
+  const name = String(payload.company?.name || '').trim();
+  const target = domain || name;
+  if (!target) throw new ApiError('No company to search: this page has no website or company name.', { code: 'NO_COMPANY' });
+
+  /** @type {{companies: string[], titles?: string[], seniorities?: string[]}} */
+  const filters = { companies: [target] };
+  const title = String(payload.title || '').trim();
+  const department = DEPARTMENT_TITLES[payload.department] || null;
+  // A typed title is the more specific ask, so it wins over the department.
+  if (title) filters.titles = [title];
+  else if (department?.titles) filters.titles = department.titles;
+  if (!title && department?.seniorities) filters.seniorities = department.seniorities;
+  return filters;
+}
+
+/** Search results by filters and page, for COMPANY_CACHE_MS. */
+const companySearchCache = new Map();
+const COMPANY_CACHE_MS = 10 * 60 * 1000;
+
+/**
+ * Who works at the company on screen. Free: no emails come back.
+ *
+ * @param {{company?: {name?: string, domain?: string}, department?: string, title?: string, page?: number}} payload
+ */
+async function handleCompanyPeople(payload) {
+  try {
+    const filters = companySearchFilters(payload);
+    const status = await api.prospectorStatus();
+    if (!status?.provider) {
+      throw new ApiError(
+        'People search is not set up on this account yet: no data provider is configured in Sincerely.',
+        { code: 'NO_PROVIDER' }
+      );
+    }
+    const page = Math.max(1, Math.min(40, Number(payload.page) || 1));
+    /*
+     * Free to the user, not to the account: every provider search is billed
+     * to Sincerely. The sidebar re-reads on each tab switch, so the same
+     * company is asked about again and again within minutes.
+     */
+    const cacheKey = JSON.stringify({ filters, page });
+    const cached = companySearchCache.get(cacheKey);
+    const response = cached && Date.now() - cached.at < COMPANY_CACHE_MS
+      ? cached.response
+      : await api.prospectSearch(filters, page);
+    if (!cached || cached.response !== response) {
+      companySearchCache.set(cacheKey, { at: Date.now(), response });
+      if (companySearchCache.size > 50) companySearchCache.delete(companySearchCache.keys().next().value);
+    }
+    const results = (response?.results || []).map((row) => ({
+      ...prospectSnapshot(row),
+      id: row.id,
+      provider: row.provider || status.provider,
+      has_email: row.has_email !== false,
+      already_revealed: Boolean(row.already_revealed),
+      contact_id: row.contact_id || null,
+    }));
+    return {
+      ok: true,
+      data: {
+        results,
+        page: response?.page || page,
+        total: Number.isFinite(response?.total) ? response.total : results.length,
+        provider: response?.provider || status.provider,
+        credits: status.credits || null,
+        filters,
+      },
+    };
+  } catch (err) {
+    return toErrorPayload(err);
+  }
+}
+
+/** Two at a time: each reveal can be a provider round trip of its own. */
+const SAVE_CONCURRENCY = 2;
+
+/**
+ * Save ticked people to a lead list: reveal each (one credit, refunded when no
+ * address is found, free if already revealed), filed and enrolled server-side.
+ *
+ * Stops early on the one error that will repeat for everyone after it: being
+ * out of credits.
+ *
+ * @param {{people: object[], listId: string, search?: object}} payload
+ */
+async function handleProspectSave(payload) {
+  try {
+    const { listId } = payload;
+    if (!listId) throw new ApiError('Pick a list first.', { code: 'NO_LIST' });
+    const people = (payload.people || []).filter((p) => p && p.id).slice(0, BULK_LIMIT);
+    if (people.length === 0) throw new ApiError('Nobody selected.', { code: 'NO_PEOPLE' });
+
+    /** @type {Array<{id: string, state: 'saved'|'no_email'|'failed', email?: string|null, contactId?: string|null, error?: string}>} */
+    const outcomes = [];
+    const enrolled = new Map();
+    let creditsRemaining = null;
+    let stopped = null;
+    let next = 0;
+
+    async function worker() {
+      while (next < people.length && !stopped) {
+        const person = people[next];
+        next += 1;
+        try {
+          const result = await api.prospectReveal(person.id, {
+            provider: person.provider || null,
+            person: prospectSnapshot(person),
+            listId,
+            search: payload.search || null,
+          });
+          if (Number.isFinite(result?.credits?.remaining)) creditsRemaining = result.credits.remaining;
+          for (const campaign of result?.enrolled_in || []) enrolled.set(campaign.id, campaign.name);
+          if (result?.found && result.email) {
+            outcomes.push({ id: person.id, state: 'saved', email: result.email, contactId: result.contact_id || null });
+          } else {
+            outcomes.push({ id: person.id, state: 'no_email' });
+          }
+        } catch (err) {
+          // 403 from reveal is the credits wall; nothing after it can succeed.
+          if (err?.status === 403 || err?.status === 401) stopped = err.message || 'Out of prospect credits.';
+          outcomes.push({ id: person.id, state: 'failed', error: err?.message || 'Could not save.' });
+        }
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(SAVE_CONCURRENCY, people.length) }, worker));
+
+    const savedIds = outcomes.filter((o) => o.state === 'saved' && o.contactId).map((o) => o.contactId);
+    // Cached rows would still show them as not yet revealed.
+    companySearchCache.clear();
+    if (savedIds.length) {
+      await setSettings({ lastListId: listId });
+      invalidateStandingCache();
+      await autoTagContacts(savedIds);
+    }
+
+    return {
+      ok: true,
+      data: {
+        requested: people.length,
+        saved: outcomes.filter((o) => o.state === 'saved').length,
+        noEmail: outcomes.filter((o) => o.state === 'no_email').length,
+        failed: outcomes.filter((o) => o.state === 'failed').length,
+        skipped: people.length - outcomes.length,
+        outcomes,
+        enrolledIn: [...enrolled].map(([id, name]) => ({ id, name })),
+        creditsRemaining,
+        stopped,
+      },
+    };
+  } catch (err) {
+    return toErrorPayload(err);
+  }
+}
+
+/** The account's auto-tag preference, applied best-effort after a save. */
+async function autoTagContacts(contactIds) {
+  const settings = await getSettings();
+  if (!settings.autoTag || !settings.autoTagName || contactIds.length === 0) return;
+  try {
+    const tag = await api.ensureTag(settings.autoTagName);
+    await api.tagContacts(contactIds, [tag.id]);
+  } catch (tagErr) {
+    api.invalidateTagCache();
+    console.warn('[Sincerely] Could not tag saved prospects:', tagErr?.message);
   }
 }
 
@@ -2158,6 +2394,8 @@ const HANDLERS = {
   SEARCH_CONTACTS: handleSearchContacts,
   PROSPECT_FIND: handleProspectFind,
   PROSPECT_REVEAL: handleProspectReveal,
+  COMPANY_PEOPLE: handleCompanyPeople,
+  PROSPECT_SAVE: handleProspectSave,
   ADD_TO_LIST: handleAddToList,
   REMOVE_FROM_LIST: handleRemoveFromList,
   BULK_ADD: handleBulkAdd,

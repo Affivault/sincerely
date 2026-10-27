@@ -773,6 +773,19 @@ const TAP_ONLY_PROFILE = `<!doctype html><html><head><title>Marcus Webb | Linked
 
 const { key, cert } = await ensureCert();
 
+const COMPANY_PAGE = `<!doctype html><html><head><title>Northwind Capital | LinkedIn</title></head>
+<body>
+  <main>
+    <section class="org-top-card">
+      <h1 class="org-top-card-summary__title">Northwind Capital</h1>
+      <a href="https://www.linkedin.com/redir/redirect?url=https%3A%2F%2Fwww.northwind.io%2F">Visit website</a>
+    </section>
+    <section class="feed">
+      <a href="https://news.example.com/article">An article they shared</a>
+    </section>
+  </main>
+</body></html>`;
+
 createServer({ key, cert }, (req, res) => {
   const url = new URL(req.url, 'https://www.linkedin.com');
 
@@ -829,6 +842,10 @@ createServer({ key, cert }, (req, res) => {
     'Content-Type': 'text/html; charset=utf-8',
     'Set-Cookie': 'JSESSIONID="ajax:1234567890"; Path=/',
   });
+
+  // A company page: the website sits in the top card, a shared article in the
+  // feed below it must never be mistaken for it.
+  if (url.pathname.startsWith('/company/northwind-capital')) return res.end(COMPANY_PAGE);
 
   // Sales Navigator lives on the same host under /sales/.
   if (url.pathname.startsWith('/sales/search/people')) return res.end(SALES_SEARCH);

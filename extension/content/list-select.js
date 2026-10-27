@@ -277,7 +277,7 @@
       .sx-box {
         position: absolute; top: 10px; left: -26px; z-index: 5;
         width: 16px; height: 16px; margin: 0;
-        accent-color: #5B5BF5; cursor: pointer;
+        accent-color: #2F3F9C; cursor: pointer;
       }
     `;
   }
@@ -358,7 +358,7 @@
       const node = document.querySelector(`[${MARK}="${CSS.escape(url)}"]`);
       if (!node) continue;
       const on = [...rows.keys()][cursor] === url;
-      node.style.outline = on ? '2px solid #5B5BF5' : '';
+      node.style.outline = on ? '2px solid #2F3F9C' : '';
       node.style.outlineOffset = on ? '2px' : '';
       if (on) node.scrollIntoView({ block: 'nearest' });
       void row;
@@ -418,48 +418,48 @@
   function barStyles() {
     return `
       :host { all: initial; }
-      * { box-sizing: border-box; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+      * { box-sizing: border-box; font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
       .bar {
         position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%);
         display: flex; align-items: center; gap: 10px;
         padding: 9px 12px; border-radius: 12px;
-        background: #FFFFFF; color: #1B1B1F; border: 1px solid #ECEAE6;
-        box-shadow: 0 1px 2px rgba(27,27,31,.06), 0 10px 28px -8px rgba(27,27,31,.20);
+        background: #FFFFFF; color: #18191D; border: 1px solid #E7E6E1;
+        box-shadow: 0 1px 2px rgba(24,25,29,.06), 0 10px 28px -8px rgba(24,25,29,.20);
         font-size: 12.5px; letter-spacing: -0.005em; max-width: 92vw;
       }
       .bar img { width: 17px; height: 17px; flex: 0 0 auto; }
       .count { font-weight: 600; white-space: nowrap; }
       /* Shortcuts nobody knows about are shortcuts nobody uses. */
       .keys {
-        font-size: 10.5px; color: #A8A6AE; letter-spacing: .02em; white-space: nowrap;
-        padding: 2px 6px; border: 1px solid #E8E6E1; border-radius: 5px;
+        font-size: 10.5px; color: #6B6C74; letter-spacing: .02em; white-space: nowrap;
+        padding: 2px 6px; border: 1px solid #E7E6E1; border-radius: 5px;
       }
-      .sep { width: 1px; height: 20px; background: #ECEAE6; flex: 0 0 auto; }
+      .sep { width: 1px; height: 20px; background: #E7E6E1; flex: 0 0 auto; }
       button {
         height: 28px; padding: 0 10px; border-radius: 6px; cursor: pointer;
         font-family: inherit; font-size: 12px; font-weight: 500; white-space: nowrap;
-        background: #FFFFFF; color: #1B1B1F; border: 1px solid #E0DDD8;
+        background: #FFFFFF; color: #18191D; border: 1px solid #DBDAD4;
       }
-      button:hover:not(:disabled) { background: #EFEDEA; }
-      button.primary { background: #5B5BF5; color: #fff; border-color: #5B5BF5; }
-      button.primary:hover:not(:disabled) { background: #4646E5; }
+      button:hover:not(:disabled) { background: #EDEDE9; }
+      button.primary { background: #2F3F9C; color: #fff; border-color: #2F3F9C; }
+      button.primary:hover:not(:disabled) { background: #25327F; }
       button:disabled { opacity: .45; cursor: not-allowed; }
       select {
         height: 28px; max-width: 190px; padding: 0 8px; border-radius: 6px;
-        font-family: inherit; font-size: 12px; color: #1B1B1F;
-        background: #F9F8F7; border: 1px solid #E0DDD8;
+        font-family: inherit; font-size: 12px; color: #18191D;
+        background: #F6F6F3; border: 1px solid #DBDAD4;
       }
-      .note { color: #61606A; white-space: nowrap; }
-      .warn { color: #B45309; }
+      .note { color: #4A4B53; white-space: nowrap; }
+      .warn { color: #8F5F14; }
       @media (prefers-color-scheme: dark) {
-        .bar { background: #191919; color: #F4F4F3; border-color: #262626;
+        .bar { background: #1A1B1F; color: #EDEDEA; border-color: #26272C;
                box-shadow: 0 2px 4px -1px rgba(0,0,0,.4), 0 14px 32px -8px rgba(0,0,0,.6); }
-        .sep { background: #2E2E2E; }
-        button { background: #191919; color: #F4F4F3; border-color: #2E2E2E; }
-        button:hover:not(:disabled) { background: #242424; }
-        select { background: #121212; color: #F4F4F3; border-color: #2E2E2E; }
-        .note { color: #A19FA6; }
-        .warn { color: #FBBF24; }
+        .sep { background: #303136; }
+        button { background: #1A1B1F; color: #EDEDEA; border-color: #303136; }
+        button:hover:not(:disabled) { background: #25262B; }
+        select { background: #131417; color: #EDEDEA; border-color: #303136; }
+        .note { color: #A4A5AC; }
+        .warn { color: #D9AE5E; }
       }
     `;
   }

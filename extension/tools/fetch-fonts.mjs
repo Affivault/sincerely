@@ -1,42 +1,38 @@
 /**
- * Downloads the Inter weights the app uses, latin subset only, so the
- * extension can ship the same typeface without a runtime call to Google.
+ * Copies the Geist weights the app uses out of the `geist` npm package, so the
+ * extension ships the same typeface without a runtime call to Google Fonts.
  * Extensions should never depend on a remote font: it leaks a request per
  * page and simply fails offline.
+ *
+ *   node extension/tools/fetch-fonts.mjs extension/fonts
+ *
+ * Geist is under the SIL Open Font License; the licence travels with the files.
  */
-import { writeFileSync, mkdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { copyFileSync, mkdirSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 
-const OUT = process.argv[2];
+const OUT = resolve(process.argv[2] || 'extension/fonts');
+const VERSION = '1.3.1';
 mkdirSync(OUT, { recursive: true });
 
-const UA =
-  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+const work = mkdtempSync(join(tmpdir(), 'geist-'));
+execFileSync('npm', ['pack', `geist@${VERSION}`, '--silent'], { cwd: work });
+execFileSync('tar', ['xzf', `geist-${VERSION}.tgz`], { cwd: work });
+const fonts = join(work, 'package', 'dist', 'fonts');
 
-async function grab(family, weights) {
-  const url = `https://fonts.googleapis.com/css2?family=${family}:wght@${weights.join(';')}&display=swap`;
-  const css = await fetch(url, { headers: { 'User-Agent': UA } }).then((r) => r.text());
-
-  // Each weight appears once per unicode-range; keep the latin block only.
-  const blocks = css.split('@font-face').slice(1);
-  const wanted = [];
-
-  for (const block of blocks) {
-    const range = block.match(/unicode-range:\s*([^;]+);/)?.[1] || '';
-    // The plain "latin" subset is the one containing U+0000-00FF.
-    if (!/U\+0000-00FF/.test(range)) continue;
-    const weight = block.match(/font-weight:\s*(\d+)/)?.[1];
-    const src = block.match(/url\((https:[^)]+\.woff2)\)/)?.[1];
-    if (weight && src) wanted.push({ weight, src });
-  }
-
-  for (const { weight, src } of wanted) {
-    const bytes = Buffer.from(await fetch(src, { headers: { 'User-Agent': UA } }).then((r) => r.arrayBuffer()));
-    const name = `${family.toLowerCase().replace(/\+/g, '-')}-${weight}.woff2`;
-    writeFileSync(join(OUT, name), bytes);
-    console.log(`${name}  ${(bytes.length / 1024).toFixed(1)} KB`);
-  }
+const files = [
+  ['geist-sans/Geist-Regular.woff2', 'geist-400.woff2'],
+  ['geist-sans/Geist-Medium.woff2', 'geist-500.woff2'],
+  ['geist-sans/Geist-SemiBold.woff2', 'geist-600.woff2'],
+  ['geist-sans/Geist-Bold.woff2', 'geist-700.woff2'],
+  ['geist-mono/GeistMono-Regular.woff2', 'geist-mono-400.woff2'],
+  ['geist-mono/GeistMono-Medium.woff2', 'geist-mono-500.woff2'],
+];
+for (const [from, to] of files) {
+  copyFileSync(join(fonts, from), join(OUT, to));
+  console.log(to);
 }
-
-await grab('Inter', [400, 500, 600, 700]);
-await grab('JetBrains+Mono', [400, 500]);
+copyFileSync(join(work, 'package', 'LICENSE.TXT'), join(OUT, 'GEIST-LICENSE.txt'));
+console.log('GEIST-LICENSE.txt');

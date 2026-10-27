@@ -20,7 +20,7 @@ import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 
 /** Pure-node suites: no browser, no services. */
-const UNIT = ['defaults.test.mjs', 'harvest.test.mjs', 'openpage.test.mjs'];
+const UNIT = ['defaults.test.mjs', 'harvest.test.mjs', 'openpage.test.mjs', 'company.test.mjs'];
 
 /** Browser suites, each needing the mock API up. */
 const BROWSER = [
@@ -32,6 +32,7 @@ const BROWSER = [
   'listbar.mjs',
   'scan.mjs',
   'scan-limits.mjs',
+  'company.mjs',
   'fastpath.mjs',
   'popup-errors.mjs',
   'request-cost.mjs',
