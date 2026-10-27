@@ -7,6 +7,8 @@ import type {
   RevealProspectResponse,
   ProspectRule,
   ProspectRuleRunResult,
+  CompanySearchFilters,
+  CompanySearchResponse,
 } from '@lemlist/shared';
 
 export const prospectingApi = {
@@ -14,6 +16,9 @@ export const prospectingApi = {
 
   search: async (filters: ProspectSearchFilters, page = 1) =>
     (await apiClient.post<ProspectSearchResponse>('/prospecting/search', { filters, page })).data,
+
+  searchCompanies: async (filters: CompanySearchFilters, page = 1) =>
+    (await apiClient.post<CompanySearchResponse>('/prospecting/companies/search', { filters, page })).data,
 
   reveal: async (input: RevealProspectInput) =>
     (await apiClient.post<RevealProspectResponse>('/prospecting/reveal', input)).data,
