@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware.js';
 import { bookingService, publicBookingService } from '../services/booking.service.js';
 import { bookingMail } from '../services/booking-mail.service.js';
+import { roundRobinService } from '../services/round-robin.service.js';
 
 /* The account's own links. Ordinary authenticated CRUD. */
 export const bookingController = {
@@ -32,6 +33,33 @@ export const bookingController = {
   async bookings(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       res.json(await bookingService.linkBookings(req.userId!, req.params.id));
+    } catch (err) { next(err); }
+  },
+
+  /** A round-robin link's hosts, as its owner manages them. */
+  async hosts(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      res.json(await roundRobinService.hosts(req.userId!, req.params.id));
+    } catch (err) { next(err); }
+  },
+
+  async setHosts(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      res.json(await roundRobinService.setHosts(req.userId!, req.params.id, (req.body || {}).hosts));
+    } catch (err) { next(err); }
+  },
+
+  /** The round-robin links the caller takes meetings for. */
+  async hosting(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      res.json(await roundRobinService.hostedLinks(req.userId!));
+    } catch (err) { next(err); }
+  },
+
+  /** The caller stepping out of, or back into, one link's rotation. */
+  async setHostingPaused(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      res.json(await roundRobinService.setHostPaused(req.userId!, req.params.linkId, !!(req.body || {}).paused));
     } catch (err) { next(err); }
   },
 

@@ -59,7 +59,14 @@ const { supabaseAdmin } = await import('../src/config/supabase.js');
   const chain: any = {
     select: () => chain,
     eq: (col: string, val: any) => { filters.push([col, val]); return chain; },
-    is: () => chain, order: () => chain, limit: () => chain,
+    is: () => chain, order: () => chain, limit: () => chain, in: () => chain,
+    // A list read (the default link is chosen from the live ones), with the
+    // same filter rule as maybeSingle below.
+    then: (res: any, rej: any) => {
+      const r = row();
+      const ok = !!r && filters.every(([col, val]) => !(col in r) || r[col] === val);
+      return Promise.resolve({ data: ok ? [r] : [], error: null }).then(res, rej);
+    },
     maybeSingle: async () => {
       const r = row();
       if (!r) return { data: null, error: null };

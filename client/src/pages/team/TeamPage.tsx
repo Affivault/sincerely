@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
+import { RoundRobinTeamCard } from '../../components/crm/RoundRobin';
 
 const ROLE_CONFIG: Record<string, { label: string; icon: any; color: string }> = {
   owner:  { label: 'Owner',  icon: Crown,  color: 'text-amber-700 dark:text-amber-400 bg-amber-500/10 border-amber-500/20' },
@@ -227,6 +228,9 @@ export function TeamPage() {
           </button>
         )}
       </div>
+
+      {/* Team-wide booking setting: off unless switched on. */}
+      <RoundRobinTeamCard />
 
       {/* Members */}
       <div className="panel overflow-hidden mb-4">

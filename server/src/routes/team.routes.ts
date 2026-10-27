@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware.js';
 import { teamService } from '../services/team.service.js';
+import { roundRobinService } from '../services/round-robin.service.js';
 import { jwtOnly } from '../middleware/apikey.middleware.js';
 import { supabaseAdmin } from '../config/supabase.js';
 
@@ -21,6 +22,21 @@ teamRoutes.put('/org', jwtOnly, async (req: AuthRequest, res: Response, next: Ne
     if (!name) return res.status(400).json({ error: 'name is required' });
     const org = await teamService.updateOrg(req.userId!, name);
     res.json(org);
+  } catch (err) { next(err); }
+});
+
+// Round-robin booking (097): a team setting, off unless switched on.
+teamRoutes.get('/round-robin', async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    res.json(await roundRobinService.status(req.userId!));
+  } catch (err) { next(err); }
+});
+
+teamRoutes.put('/round-robin', jwtOnly, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { enabled } = req.body || {};
+    if (typeof enabled !== 'boolean') return res.status(400).json({ error: 'enabled must be true or false' });
+    res.json(await roundRobinService.setEnabled(req.userId!, enabled));
   } catch (err) { next(err); }
 });
 

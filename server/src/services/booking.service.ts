@@ -9,8 +9,9 @@ import { inboxService } from './inbox.service.js';
 import { env } from '../config/env.js';
 import { escapeHtml, textToHtml } from '../utils/html.js';
 import { promoteToContact } from './lifecycle.service.js';
+import { roundRobinService, missing097, type RoundRobinPlan } from './round-robin.service.js';
 import {
-  slugify, looksLikeEmail, buildIcs, eventTimeProblem,
+  slugify, looksLikeEmail, buildIcs, eventTimeProblem, rankHosts, mergeSlotLists,
   type BookingLink, type CreateBookingLinkInput,
   type PublicBookingPage, type CreateBookingInput, type BookingConfirmation,
   type EventLocationKind, type Slot,
@@ -129,6 +130,19 @@ function validateLink(input: CreateBookingLinkInput, partial = false): Record<st
     patch.deal_stage = stage;
   }
 
+  if (input.assignment !== undefined) {
+    if (input.assignment !== 'single' && input.assignment !== 'round_robin') {
+      throw new AppError('A link is either just you or round robin.', 400);
+    }
+    patch.assignment = input.assignment;
+  }
+  if (input.round_robin_strategy !== undefined) {
+    if (input.round_robin_strategy !== 'balanced' && input.round_robin_strategy !== 'priority') {
+      throw new AppError('That is not a way of sharing meetings out.', 400);
+    }
+    patch.round_robin_strategy = input.round_robin_strategy;
+  }
+
   if (input.create_deal !== undefined) patch.create_deal = !!input.create_deal;
   if (input.notify_organiser !== undefined) patch.notify_organiser = !!input.notify_organiser;
   if (input.event_type_id !== undefined) patch.event_type_id = input.event_type_id || null;
@@ -158,6 +172,47 @@ async function assertOwnEventType(userId: string, eventTypeId: string | null | u
 }
 
 /**
+ * How links hand out their meetings (097), read apart from LINK_SELECT.
+ *
+ * Code deploys before a migration is run, and naming the new columns in
+ * the main select would take every booking page down in that window. Read
+ * separately, a database without 097 simply reads as every link 'single',
+ * which is exactly how links behaved before it.
+ */
+async function assignmentsOf(ids: string[]): Promise<Map<string, { assignment: 'single' | 'round_robin'; round_robin_strategy: 'balanced' | 'priority' }>> {
+  const out = new Map<string, { assignment: 'single' | 'round_robin'; round_robin_strategy: 'balanced' | 'priority' }>();
+  if (ids.length === 0) return out;
+  const { data, error } = await supabaseAdmin
+    .from('booking_links')
+    .select('id, assignment, round_robin_strategy')
+    .in('id', ids);
+  if (error) {
+    if (missing097(error)) return out;
+    throw new AppError(error.message, 500);
+  }
+  for (const r of (data || []) as any[]) {
+    out.set(r.id, {
+      assignment: r.assignment === 'round_robin' ? 'round_robin' : 'single',
+      round_robin_strategy: r.round_robin_strategy === 'priority' ? 'priority' : 'balanced',
+    });
+  }
+  return out;
+}
+
+/** The account's links with how each assigns its meetings, and why one cannot. */
+async function withAssignment(userId: string, links: any[]): Promise<BookingLink[]> {
+  const modes = await assignmentsOf(links.map((l) => l.id));
+  const rr = links.filter((l) => modes.get(l.id)?.assignment === 'round_robin').map((l) => l.id);
+  const blocked = rr.length > 0 ? await roundRobinService.blockedReasons(userId, rr) : new Map();
+  return links.map((l) => ({
+    ...l,
+    assignment: modes.get(l.id)?.assignment ?? 'single',
+    round_robin_strategy: modes.get(l.id)?.round_robin_strategy ?? 'balanced',
+    round_robin_blocked: blocked.get(l.id) ?? null,
+  })) as BookingLink[];
+}
+
+/**
  * The address `{{booking_link}}` resolves to.
  *
  * The oldest live link, because that is the one an account thinks of as
@@ -167,16 +222,28 @@ async function assertOwnEventType(userId: string, eventTypeId: string | null | u
 export async function defaultBookingLinkUrl(userId: string): Promise<string | null> {
   const { data } = await supabaseAdmin
     .from('booking_links')
-    .select('slug')
+    .select('id, slug')
     .eq('user_id', userId)
     .eq('is_active', true)
     .is('archived_at', null)
     .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle();
-  if (!data?.slug) return null;
+    .limit(20);
+  const rows = (data || []) as { id: string; slug: string }[];
+  /*
+   * A round-robin link that cannot take bookings right now (the team has it
+   * switched off, or every host is away) is live by its own switch but
+   * closed to a visitor - so it is passed over like a paused one, rather
+   * than mailed to a prospect who then finds a closed page.
+   */
+  const modes = await assignmentsOf(rows.map((r) => r.id)).catch(() => new Map());
+  const rr = rows.filter((r) => modes.get(r.id)?.assignment === 'round_robin').map((r) => r.id);
+  const blocked = rr.length > 0
+    ? await roundRobinService.blockedReasons(userId, rr).catch(() => new Map(rr.map((id) => [id, 'team_off'])))
+    : new Map();
+  const first = rows.find((r) => !blocked.has(r.id));
+  if (!first?.slug) return null;
   const origin = (env.CLIENT_URL || 'https://app.usesincerely.com').replace(/\/+$/, '');
-  return `${origin}/b/${data.slug}`;
+  return `${origin}/b/${first.slug}`;
 }
 
 export const bookingService = {
@@ -188,7 +255,7 @@ export const bookingService = {
       .is('archived_at', null)
       .order('created_at', { ascending: true });
     if (error) throw new AppError(error.message, 500);
-    return (data || []) as unknown as BookingLink[];
+    return withAssignment(userId, data || []);
   },
 
   async getLink(userId: string, id: string): Promise<BookingLink> {
@@ -200,7 +267,7 @@ export const bookingService = {
       .maybeSingle();
     if (error) throw new AppError(error.message, 500);
     if (!data) throw new AppError('No such booking link.', 404);
-    return data as unknown as BookingLink;
+    return (await withAssignment(userId, [data]))[0];
   },
 
   /**
@@ -214,6 +281,7 @@ export const bookingService = {
   async createLink(userId: string, input: CreateBookingLinkInput): Promise<BookingLink> {
     const patch = validateLink(input);
     await assertOwnEventType(userId, patch.event_type_id);
+    if (patch.assignment === 'round_robin') await roundRobinService.assertCanUse(userId);
     if (!patch.event_type_id) {
       const { data: fallback } = await supabaseAdmin
         .from('calendar_event_types')
@@ -238,7 +306,7 @@ export const bookingService = {
         .select(LINK_SELECT)
         .single();
 
-      if (!error) return data as unknown as BookingLink;
+      if (!error) return (await withAssignment(userId, [data]))[0];
 
       // 23505 is a unique violation, which here can only be the slug.
       if ((error as any).code !== '23505') throw new AppError(error.message, 500);
@@ -253,6 +321,13 @@ export const bookingService = {
   async updateLink(userId: string, id: string, input: CreateBookingLinkInput): Promise<BookingLink> {
     const patch = validateLink(input, true);
     await assertOwnEventType(userId, patch.event_type_id);
+    // Turning round robin ON needs the team setting. Keeping a link that is
+    // already round robin as it is does not: an owner fixing a typo in its
+    // headline while the team has it switched off is not refused for it.
+    if (patch.assignment === 'round_robin') {
+      const current = (await assignmentsOf([id])).get(id);
+      if (current?.assignment !== 'round_robin') await roundRobinService.assertCanUse(userId);
+    }
     if (Object.keys(patch).length === 0) return this.getLink(userId, id);
 
     const { data, error } = await supabaseAdmin
@@ -269,7 +344,7 @@ export const bookingService = {
       throw new AppError(error.message, 500);
     }
     if (!data) throw new AppError('No such booking link.', 404);
-    return data as unknown as BookingLink;
+    return (await withAssignment(userId, [data]))[0];
   },
 
   /**
@@ -358,22 +433,49 @@ export const bookingService = {
     return { sent: true, url };
   },
 
-  /** Meetings booked through this link, newest first. */
+  /**
+   * Meetings booked through this link, newest first.
+   *
+   * By link rather than by diary: a round-robin link's meetings sit in
+   * whichever teammate's calendar took them, and its owner still needs to
+   * see who booked and who it went to. The link is proven to be the
+   * caller's first, so this never reaches a link they do not own.
+   */
   async linkBookings(userId: string, id: string, limit = 50) {
+    const { data: link, error: linkErr } = await supabaseAdmin
+      .from('booking_links')
+      .select('id')
+      .eq('id', id)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (linkErr) throw new AppError(linkErr.message, 500);
+    if (!link) throw new AppError('No such booking link.', 404);
+
     const { data, error } = await supabaseAdmin
       .from('crm_events')
       .select(`
-        id, title, starts_at, ends_at, status, contact_name, contact_email,
+        id, user_id, title, starts_at, ends_at, status, contact_name, contact_email,
         invitee_message, booked_at, cancelled_at, cancelled_by,
         source_campaign_id,
         campaign:campaigns!crm_events_source_campaign_id_fkey (id, name)
       `)
-      .eq('user_id', userId)
       .eq('booking_link_id', id)
       .order('starts_at', { ascending: false })
       .limit(Math.min(limit, 200));
     if (error) throw new AppError(error.message, 500);
-    return data || [];
+    const rows = (data || []) as any[];
+
+    // Who took each one, when it was not the owner.
+    const others = [...new Set(rows.map((r) => r.user_id as string).filter((u) => u !== userId))];
+    const names = new Map<string, string>();
+    await Promise.all(others.map(async (u) => names.set(u, await organiserName(u))));
+    return rows.map(({ user_id, ...r }) => ({
+      ...r,
+      // The campaign is the owner's; another teammate's meeting does not
+      // carry one of theirs, and must not show a stranger's sequence name.
+      campaign: user_id === userId ? r.campaign : null,
+      host_name: user_id === userId ? null : names.get(user_id) ?? null,
+    }));
   },
 };
 
@@ -407,7 +509,29 @@ async function linkBySlug(slug: string) {
     .maybeSingle();
   if (error) throw new AppError(error.message, 500);
   if (!data || data.archived_at) throw new AppError('There is no booking page at this address.', 404);
-  return data as any;
+  const mode = (await assignmentsOf([(data as any).id])).get((data as any).id);
+  return {
+    ...(data as any),
+    assignment: mode?.assignment ?? 'single',
+    round_robin_strategy: mode?.round_robin_strategy ?? 'balanced',
+  } as any;
+}
+
+const NOT_TAKING = 'This booking page is not taking bookings at the moment.';
+
+/**
+ * Who a link's meetings can go to right now.
+ *
+ * A single link is its owner, as it always was. A round-robin link is the
+ * hosts its plan allows - and a round-robin link with nobody to offer (the
+ * team switched it off, or every host is paused) is closed, the same way a
+ * paused link is, rather than quietly becoming its owner's.
+ */
+async function hostsFor(link: any): Promise<{ plan: RoundRobinPlan | null; userIds: string[] }> {
+  if (link.assignment !== 'round_robin') return { plan: null, userIds: [link.user_id] };
+  const plan = await roundRobinService.plan(link);
+  if ('blocked' in plan) throw new AppError(NOT_TAKING, 403);
+  return { plan, userIds: plan.hosts.map((h) => h.user_id) };
 }
 
 /** A display name, assembled from settings. Never the login email. */
@@ -544,13 +668,21 @@ export const publicBookingService = {
    */
   async page(slug: string, visitorToken?: string): Promise<PublicBookingPage> {
     const link = await linkBySlug(slug);
-    if (!link.is_active) throw new AppError('This booking page is not taking bookings at the moment.', 403);
+    if (!link.is_active) throw new AppError(NOT_TAKING, 403);
+    const { plan, userIds } = await hostsFor(link);
 
-    const [prefs, organiser, who] = await Promise.all([
+    const [prefs, organiser, who, hostPrefs] = await Promise.all([
       availabilityService.getPrefs(link.user_id),
-      organiserName(link.user_id),
+      // A team page is the team's: naming one teammate on it would promise
+      // a meeting with somebody who may not be the one who gets it.
+      plan ? Promise.resolve(plan.orgName.trim() || 'Our team') : organiserName(link.user_id),
       identify(visitorToken, link.user_id),
+      plan ? Promise.all(userIds.map((u) => availabilityService.getPrefs(u))) : Promise.resolve(null),
     ]);
+    // As far ahead as any host will be booked, so nobody's later times are hidden.
+    const horizon = hostPrefs
+      ? Math.max(...hostPrefs.map((p) => p.booking_horizon_days))
+      : prefs.booking_horizon_days;
 
     // A visit from a campaign is worth recording; one from a signature is
     // not distinguishable from any other and is only a view count.
@@ -582,7 +714,7 @@ export const publicBookingService = {
       collect_phone: link.collect_phone,
       collect_company: link.collect_company,
       question: link.question,
-      horizon_days: prefs.booking_horizon_days,
+      horizon_days: horizon,
       // Only ever a convenience. Everything on the form stays editable, and
       // a page reached without a token simply asks for all of it.
       invitee: who && who.email
@@ -599,10 +731,22 @@ export const publicBookingService = {
    */
   async slots(slug: string, from: Date, to: Date): Promise<Slot[]> {
     const link = await linkBySlug(slug);
-    if (!link.is_active) throw new AppError('This booking page is not taking bookings at the moment.', 403);
-    return availabilityService.slots(link.user_id, {
-      from, to, durationMinutes: durationOf(link),
-    });
+    if (!link.is_active) throw new AppError(NOT_TAKING, 403);
+    const { plan, userIds } = await hostsFor(link);
+    if (!plan) {
+      return availabilityService.slots(link.user_id, {
+        from, to, durationMinutes: durationOf(link),
+      });
+    }
+    /*
+     * A time is offered when at least one host could take it, by that
+     * host's own hours, buffers, notice and daily cap. Each host's list is
+     * the same computation a single link uses, so a team page can never
+     * offer a time no one on it would have offered alone.
+     */
+    const lists = await Promise.all(userIds.map((u) =>
+      availabilityService.slots(u, { from, to, durationMinutes: durationOf(link) })));
+    return mergeSlotLists(lists);
   },
 
   /**
@@ -617,7 +761,7 @@ export const publicBookingService = {
    */
   async book(slug: string, input: CreateBookingInput, visitorToken?: string): Promise<BookingConfirmation> {
     const link = await linkBySlug(slug);
-    if (!link.is_active) throw new AppError('This booking page is not taking bookings at the moment.', 403);
+    if (!link.is_active) throw new AppError(NOT_TAKING, 403);
 
     const name = String(input.name || '').trim();
     const email = String(input.email || '').trim().toLowerCase();
@@ -641,55 +785,118 @@ export const publicBookingService = {
 
     const minutes = durationOf(link);
     const end = new Date(start.getTime() + minutes * 60_000);
-
-    const prefs = await availabilityService.getPrefs(link.user_id);
-    const free = await availabilityService.canBook(link.user_id, start, minutes, { prefs });
-    if (!free) {
-      throw new AppError('That time is no longer being offered. Have another look at what is free.', 409);
-    }
+    // Closed (403) when a round-robin link has nobody to offer right now.
+    const { plan } = await hostsFor(link);
 
     const who = await identify(visitorToken, link.user_id);
-
-    /*
-     * The contact the token names is preferred over one matched by email,
-     * but only when the addresses agree. Somebody forwarding a booking link
-     * to a colleague is common and entirely legitimate, and crediting the
-     * colleague's meeting to the original contact would quietly corrupt
-     * both the CRM and the attribution.
-     */
-    const knownContactId = who && who.email.toLowerCase() === email ? who.contactId : null;
-    const contactId = knownContactId
-      ?? await this.upsertContact(link.user_id, {
-        email, name, phone: input.phone, company: input.company,
-      });
-
     // 32 bytes of randomness, url-safe. This stands in for a login.
     const token = crypto.randomBytes(24).toString('base64url');
+    const title = `${link.event_type?.name || link.headline} with ${name}`;
+    const inviteeMessage = [input.answer, input.company ? `Company: ${input.company}` : null]
+      .filter(Boolean).join('\n\n') || null;
 
-    const { data, error } = await rpcBookSlot({
-      p_user_id: link.user_id,
-      p_link_id: link.id,
-      p_starts_at: start.toISOString(),
-      p_ends_at: end.toISOString(),
-      p_buffer_before: prefs.buffer_before_minutes,
-      p_buffer_after: prefs.buffer_after_minutes,
-      p_title: `${link.event_type?.name || link.headline} with ${name}`,
-      p_contact_id: contactId,
-      p_contact_name: name,
-      p_contact_email: email,
-      p_invitee_message: [input.answer, input.company ? `Company: ${input.company}` : null]
-        .filter(Boolean).join('\n\n') || null,
-      p_invitee_timezone: input.timezone || prefs.timezone,
-      p_manage_token: token,
-      p_event_type_id: link.event_type_id,
-      p_location: link.event_type?.location_kind ?? 'video',
-      p_exclude_event_id: null,
-      // The day's cap and the all-day blocks are both the organiser's day.
-      p_timezone: prefs.timezone,
-      p_max_per_day: prefs.max_bookings_per_day ?? null,
-    });
+    const write = (hostId: string, hostPrefs: Awaited<ReturnType<typeof availabilityService.getPrefs>>, contactId: string | null) =>
+      rpcBookSlot({
+        p_user_id: hostId,
+        p_link_id: link.id,
+        p_starts_at: start.toISOString(),
+        p_ends_at: end.toISOString(),
+        p_buffer_before: hostPrefs.buffer_before_minutes,
+        p_buffer_after: hostPrefs.buffer_after_minutes,
+        p_title: title,
+        p_contact_id: contactId,
+        p_contact_name: name,
+        p_contact_email: email,
+        p_invitee_message: inviteeMessage,
+        p_invitee_timezone: input.timezone || hostPrefs.timezone,
+        p_manage_token: token,
+        p_event_type_id: link.event_type_id,
+        p_location: link.event_type?.location_kind ?? 'video',
+        p_exclude_event_id: null,
+        // The day's cap and the all-day blocks are both the host's own day.
+        p_timezone: hostPrefs.timezone,
+        p_max_per_day: hostPrefs.max_bookings_per_day ?? null,
+      });
 
-    if (error) throw bookSlotError(error);
+    let hostId: string;
+    let prefs: Awaited<ReturnType<typeof availabilityService.getPrefs>>;
+    let eventId: string;
+    let contactId: string | null;
+    let knownContactId: string | null;
+
+    if (!plan) {
+      hostId = link.user_id;
+      prefs = await availabilityService.getPrefs(hostId);
+      const free = await availabilityService.canBook(hostId, start, minutes, { prefs });
+      if (!free) {
+        throw new AppError('That time is no longer being offered. Have another look at what is free.', 409);
+      }
+
+      /*
+       * The contact the token names is preferred over one matched by email,
+       * but only when the addresses agree. Somebody forwarding a booking link
+       * to a colleague is common and entirely legitimate, and crediting the
+       * colleague's meeting to the original contact would quietly corrupt
+       * both the CRM and the attribution.
+       */
+      knownContactId = who && who.email.toLowerCase() === email ? who.contactId : null;
+      contactId = knownContactId
+        ?? await this.upsertContact(hostId, {
+          email, name, phone: input.phone, company: input.company,
+        });
+
+      const { data, error } = await write(hostId, prefs, contactId);
+      if (error) throw bookSlotError(error);
+      eventId = String(data);
+    } else {
+      /*
+       * Round robin. Everyone free at exactly this time, by their own rules,
+       * ranked; the booking goes to the first whose diary is still clear
+       * under book_slot's lock. A host taken in the instant since the check
+       * passes it on to the next rather than failing a visitor whose time
+       * somebody else on the team can still keep.
+       */
+      const checks = await Promise.all(plan.hosts.map(async (h) => {
+        const hostPrefs = await availabilityService.getPrefs(h.user_id);
+        const ok = await availabilityService.canBook(h.user_id, start, minutes, { prefs: hostPrefs });
+        return { host: h, prefs: hostPrefs, ok };
+      }));
+      const free = checks.filter((c) => c.ok);
+      if (free.length === 0) {
+        throw new AppError('That time is no longer being offered. Have another look at what is free.', 409);
+      }
+
+      let taken: { hostId: string; prefs: typeof prefs; eventId: string } | null = null;
+      for (const id of rankHosts(free.map((c) => c.host), plan.strategy)) {
+        const c = free.find((x) => x.host.user_id === id)!;
+        // No contact yet: it belongs in the account of whoever takes the
+        // meeting, and is only made once somebody has.
+        const { data, error } = await write(id, c.prefs, null);
+        if (!error) { taken = { hostId: id, prefs: c.prefs, eventId: String(data) }; break; }
+        if (!/SLOT_TAKEN|DAY_FULL/.test(error.message)) throw bookSlotError(error);
+      }
+      if (!taken) throw new AppError('Somebody just took that time. Pick another and it will be yours.', 409);
+
+      hostId = taken.hostId;
+      prefs = taken.prefs;
+      eventId = taken.eventId;
+      // A campaign contact is the owner's: it can only be reused when the
+      // owner is the one taking the meeting.
+      knownContactId = hostId === link.user_id && who && who.email.toLowerCase() === email
+        ? who.contactId : null;
+      contactId = knownContactId
+        ?? await this.upsertContact(hostId, {
+          email, name, phone: input.phone, company: input.company,
+        });
+      if (contactId) {
+        await supabaseAdmin.from('crm_events')
+          .update({ contact_id: contactId })
+          .eq('id', eventId)
+          .eq('user_id', hostId)
+          .then(() => undefined, () => undefined);
+      }
+      await roundRobinService.markAssigned(link.id, hostId);
+    }
 
     /*
      * Everything after the booking itself is follow-through, and none of it
@@ -697,11 +904,14 @@ export const publicBookingService = {
      * SMTP host that timed out is a thing to fix later; a 500 here is a
      * prospect who thinks they have no meeting and goes elsewhere.
      */
-    const eventId = String(data);
     const [organiser, hostEmail] = await Promise.all([
-      organiserName(link.user_id),
-      organiserEmail(link.user_id),
+      organiserName(hostId),
+      organiserEmail(hostId),
     ]);
+    // A campaign visitor whose meeting went to a teammate: the owner's own
+    // record of that contact still says what happened.
+    const handedOn = !!(plan && who?.contactId && hostId !== link.user_id
+      && who.email.toLowerCase() === email);
 
     await Promise.allSettled([
       // Where it came from, recorded on the meeting itself so "this sequence
@@ -712,30 +922,33 @@ export const publicBookingService = {
             source_step_id: who.stepId,
           }).eq('id', eventId)
         : Promise.resolve(),
-      knownContactId && who
+      (knownContactId || handedOn) && who
         ? supabaseAdmin.from('booking_link_visits')
             .update({ booked_event_id: eventId })
             .eq('link_id', link.id)
             .eq('contact_id', who.contactId)
             .is('booked_event_id', null)
         : Promise.resolve(),
-      this.logActivity(link.user_id, contactId, `Booked ${minutes} minutes via ${link.slug}`),
+      handedOn && who
+        ? this.logActivity(link.user_id, who.contactId, `Booked ${minutes} minutes with ${organiser} via ${link.slug} (round robin)`)
+        : Promise.resolve(),
+      this.logActivity(hostId, contactId, `Booked ${minutes} minutes via ${link.slug}`),
       link.create_deal
-        ? this.openDeal(link, eventId, contactId, { name, email, company: input.company },
+        ? this.openDeal({ ...link, user_id: hostId }, eventId, contactId, { name, email, company: input.company },
                         knownContactId ? who : null)
         : Promise.resolve(),
-      // Put it in the account's real calendar too. Best effort by design:
+      // Put it in the host's real calendar too. Best effort by design:
       // the meeting exists here either way, and a booking refused because
       // Google was slow is a lost meeting nobody can explain.
-      calendarSync.pushEvent(link.user_id, {
+      calendarSync.pushEvent(hostId, {
         id: eventId,
-        title: `${link.event_type?.name || link.headline} with ${name}`,
+        title,
         start, end,
         inviteeEmail: email,
         description: input.answer || null,
       }),
       bookingMail.confirmed({
-        userId: link.user_id,
+        userId: hostId,
         eventId,
         manageToken: token,
         start, end,
@@ -774,7 +987,6 @@ export const publicBookingService = {
       manage_token: token,
       status: 'confirmed',
       slug: link.slug,
-      ...(data ? {} : {}),
     };
   },
 

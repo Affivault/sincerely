@@ -123,6 +123,8 @@ function freshWorld(): World {
     calendar_scheduling_prefs: [owned('d0000000-0000-0000-0000-000000000004', { timezone: 'Secret/Zone', buffer_before_minutes: 0, buffer_after_minutes: 0, minimum_notice_minutes: 240, max_bookings_per_day: null, slot_interval_minutes: 15, booking_horizon_days: 60 })],
     calendar_connections: [owned(ID.calendarConnection, { provider: 'google', account_email: `${SECRET}@owner.test`, access_token: SECRET, refresh_token: SECRET, read_busy: true, write_events: true, broken_at: null, calendar_ids: ['primary'] })],
     booking_links: [owned(ID.bookingLink, { slug: 'owner-secret-slug', headline: SECRET, event_type_id: ID.eventType, is_active: true, views: 3, bookings: 2, archived_at: null, duration_minutes: null, collect_phone: false, collect_company: false, question: null })],
+    // OWNER hosts their own round-robin link (097).
+    booking_link_hosts: [owned('d0000000-0000-0000-0000-0000000000a7', { link_id: ID.bookingLink, priority: 1, is_active: true, host_paused: false, last_assigned_at: null })],
     calendar_event_types: [owned(ID.eventType, { colour: '#6366f1', duration_minutes: 30, location_kind: 'video', is_default: true, archived_at: null })],
     leads: [owned(ID.lead, { contact_id: ID.contact, status: 'open' })],
     contact_lists: [owned(ID.list, { kind: 'lead' })],
@@ -313,7 +315,7 @@ function judge(name: string, returned: unknown, threw: unknown) {
 const [
   contacts, campaigns, campaignSteps, campaignContacts, crm, calendar, booking, calsync, leads, lists, companies,
   template, segments, tags, smtp, inbox, triage, webhook, integrations, asset, apikey, settings, suppression,
-  inboxReminders, inboxAssign, inboxAttachments, linkedinAgent, hygiene, engagement, noShow,
+  inboxReminders, inboxAssign, inboxAttachments, linkedinAgent, hygiene, engagement, noShow, roundRobin,
 ] = await Promise.all([
   import('../src/services/contacts.service.js'),
   import('../src/services/campaigns.service.js'),
@@ -345,6 +347,7 @@ const [
   import('../src/services/contact-hygiene.service.js'),
   import('../src/services/engagement.service.js'),
   import('../src/services/no-show.service.js'),
+  import('../src/services/round-robin.service.js'),
 ]);
 
 const S = (m: any, key: string) => (m as any)[key];
@@ -450,6 +453,12 @@ const cases: Case[] = [
   { name: 'booking.listLinks',    on: bookingService, method: 'listLinks',    args: [INTRUDER] },
   { name: 'booking.linkBookings', on: bookingService, method: 'linkBookings', args: [INTRUDER, ID.bookingLink] },
   { name: 'booking.sendLinkInReply', on: bookingService, method: 'sendLinkInReply', args: [INTRUDER, ID.message] },
+  { name: 'roundRobin.hosts',         on: S(roundRobin, 'roundRobinService'), method: 'hosts',         args: [INTRUDER, ID.bookingLink] },
+  { name: 'roundRobin.setHosts',      on: S(roundRobin, 'roundRobinService'), method: 'setHosts',      args: [INTRUDER, ID.bookingLink, []] },
+  { name: 'roundRobin.setHostPaused', on: S(roundRobin, 'roundRobinService'), method: 'setHostPaused', args: [INTRUDER, ID.bookingLink, true] },
+  { name: 'roundRobin.hostedLinks',   on: S(roundRobin, 'roundRobinService'), method: 'hostedLinks',   args: [INTRUDER] },
+  { name: 'roundRobin.setEnabled',    on: S(roundRobin, 'roundRobinService'), method: 'setEnabled',    args: [INTRUDER, true] },
+  { name: 'roundRobin.status',        on: S(roundRobin, 'roundRobinService'), method: 'status',        args: [INTRUDER] },
   { name: 'calsync.list',         on: calendarSyncService, method: 'list',       args: [INTRUDER] },
   { name: 'calsync.update',       on: calendarSyncService, method: 'update',     args: [INTRUDER, ID.calendarConnection, { read_busy: false }] },
   { name: 'calsync.disconnect',   on: calendarSyncService, method: 'disconnect', args: [INTRUDER, ID.calendarConnection] },

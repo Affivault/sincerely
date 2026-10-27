@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Link2, Plus, Copy, Check, ExternalLink, Trash2, Eye, CalendarCheck,
   Loader2, Settings2, X, Clock, Video, Phone, MapPin, Calendar as CalendarIcon,
-  AlertTriangle, Handshake, Mail, ChevronDown,
+  AlertTriangle, Handshake, Mail, ChevronDown, Shuffle,
 } from 'lucide-react';
 import { bookingLinksApi, publicBookingUrl } from '../../api/booking.api';
 import { calendarApi } from '../../api/calendar.api';
@@ -13,6 +13,10 @@ import { slugify, type BookingLink, type CalendarEventType, formatDayMonthTime }
 import { cn } from '../../lib/utils';
 import toast from 'react-hot-toast';
 import { NoShowSettingsCard } from '../../components/crm/NoShow';
+import {
+  HostPicker, HostingCard, useRoundRobinStatus, type HostDraft,
+} from '../../components/crm/RoundRobin';
+import type { RoundRobinStrategy } from '@lemlist/shared';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Booking links.
@@ -189,6 +193,26 @@ export function BookingLinksPage() {
                           Paused
                         </span>
                       )}
+                      {link.assignment === 'round_robin' && (
+                        <span
+                          className="flex items-center gap-1 rounded px-1.5 py-[1px] text-micro font-medium bg-[var(--indigo-subtle)] text-[var(--indigo-text)]"
+                          title="Meetings are shared across teammates"
+                          data-round-robin
+                        >
+                          <Shuffle className="h-3 w-3" /> Round robin
+                        </span>
+                      )}
+                      {link.is_active && link.round_robin_blocked && (
+                        <span
+                          className="flex items-center gap-1 rounded px-1.5 py-[1px] text-micro font-medium bg-[rgba(245,158,11,0.12)] text-[var(--warning)]"
+                          data-rr-blocked={link.round_robin_blocked}
+                        >
+                          <AlertTriangle className="h-3 w-3" />
+                          {link.round_robin_blocked === 'team_off'
+                            ? 'Not taking bookings: round robin is off for your team'
+                            : 'Not taking bookings: no host available'}
+                        </span>
+                      )}
                     </div>
 
                     <button
@@ -313,6 +337,9 @@ export function BookingLinksPage() {
         </section>
       </div>
 
+      {/* Round-robin links this person hosts, with their own pause. */}
+      <HostingCard />
+
       {/* What happens when somebody books and then does not come. */}
       <div className="mt-4">
         <NoShowSettingsCard />
@@ -373,6 +400,15 @@ function Bookings({ linkId }: { linkId: string }) {
                 {b.campaign.name}
               </span>
             )}
+            {b.host_name && (
+              <span
+                className="flex-shrink-0 max-w-[110px] truncate text-micro text-[var(--text-secondary)]"
+                title={`Went to ${b.host_name}`}
+                data-host-name
+              >
+                with {b.host_name}
+              </span>
+            )}
             {off && (
               <span className="flex-shrink-0 text-micro text-[var(--text-tertiary)]">
                 {b.cancelled_by === 'invitee' ? 'they cancelled' : 'cancelled'}
@@ -420,6 +456,23 @@ function Editor({ link, types, onClose, onArchive }: {
   // published link's URL never moves under somebody who has already sent it.
   const [slugTouched, setSlugTouched] = useState(!!link);
 
+  // Round robin (097). Offered only while the team has it switched on, or
+  // on a link already set to it (so it can always be switched back).
+  const { data: rr } = useRoundRobinStatus();
+  const wasRoundRobin = link?.assignment === 'round_robin';
+  const showAssignment = !!rr?.enabled || wasRoundRobin;
+  const [assignment, setAssignment] = useState<'single' | 'round_robin'>(link?.assignment ?? 'single');
+  const [strategy, setStrategy] = useState<RoundRobinStrategy>(link?.round_robin_strategy ?? 'balanced');
+  const [hostDraft, setHostDraft] = useState<HostDraft[] | null>(null);
+  const { data: storedHosts = [], isLoading: hostsLoading } = useQuery({
+    queryKey: ['booking-links', link?.id, 'hosts'],
+    queryFn: () => bookingLinksApi.hosts(link!.id),
+    enabled: !!link && wasRoundRobin,
+  });
+  // The draft starts from what is stored, and is the owner's from then on.
+  const hosts: HostDraft[] = hostDraft
+    ?? storedHosts.map((h) => ({ user_id: h.user_id, priority: h.priority, is_active: h.is_active }));
+
   const save = useMutation({
     mutationFn: () => {
       const payload = {
@@ -436,17 +489,31 @@ function Editor({ link, types, onClose, onArchive }: {
         deal_stage: form.deal_stage || null,
         notify_organiser: form.notify_organiser,
         confirmation_note: form.confirmation_note || null,
+        // Only sent when the choice is on screen, so a team that never
+        // switched round robin on never writes the columns at all.
+        ...(showAssignment ? { assignment, round_robin_strategy: strategy } : {}),
       };
-      return link
-        ? bookingLinksApi.update(link.id, payload)
-        : bookingLinksApi.create(payload);
+      if (rr?.enabled && assignment === 'round_robin' && hosts.length === 0) {
+        throw new Error('Pick at least one teammate to take these meetings.');
+      }
+      return (async () => {
+        const saved = link
+          ? await bookingLinksApi.update(link.id, payload)
+          : await bookingLinksApi.create(payload);
+        // Hosts are only edited while the team has round robin on; while it
+        // is off the stored list is kept exactly as it was.
+        if (rr?.enabled && assignment === 'round_robin') {
+          await bookingLinksApi.setHosts(saved.id, hosts);
+        }
+        return saved;
+      })();
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['booking-links'] });
       toast.success(link ? 'Link saved' : 'Link created');
       onClose();
     },
-    onError: (e: any) => toast.error(e?.response?.data?.error || 'Could not save that'),
+    onError: (e: any) => toast.error(e?.response?.data?.error || e?.message || 'Could not save that'),
   });
 
   const chosenType = types.find((t) => t.id === form.event_type_id);
@@ -493,6 +560,59 @@ function Editor({ link, types, onClose, onArchive }: {
             />
           </div>
         </Field>
+
+        {showAssignment && (
+          <div data-assignment>
+            <span className="text-body font-medium text-[var(--text-primary)]">Who takes these meetings</span>
+            <span className="block text-caption text-[var(--text-tertiary)]">
+              {assignment === 'round_robin'
+                ? 'Shared across the teammates below. Each meeting lands in the calendar of whoever takes it.'
+                : 'Just you, in your calendar.'}
+            </span>
+            <div className="mt-1 grid grid-cols-2 gap-1.5">
+              {(['single', 'round_robin'] as const).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setAssignment(v)}
+                  aria-pressed={assignment === v}
+                  disabled={v === 'round_robin' && !rr?.enabled && !wasRoundRobin}
+                  className={cn(
+                    'h-8 rounded-md border text-body transition-colors disabled:opacity-50',
+                    assignment === v
+                      ? 'border-[var(--indigo)] bg-[var(--indigo-subtle)] text-[var(--text-primary)]'
+                      : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]',
+                  )}
+                  data-assign={v}
+                >
+                  {v === 'single' ? 'Just me' : 'Round robin'}
+                </button>
+              ))}
+            </div>
+            {assignment === 'round_robin' && !rr?.enabled && (
+              <p className="mt-1.5 text-caption text-[var(--warning)]">
+                Round robin is switched off for your team, so this link is not taking bookings.
+                Set it to &ldquo;Just me&rdquo; or ask an owner or admin to switch it on in Team settings.
+              </p>
+            )}
+            {assignment === 'round_robin' && rr?.enabled && (
+              <div className="mt-2">
+                {hostsLoading
+                  ? <Skeleton className="h-16" />
+                  : (
+                    <HostPicker
+                      members={rr.members}
+                      stored={storedHosts}
+                      value={hosts}
+                      onChange={setHostDraft}
+                      strategy={strategy}
+                      onStrategy={setStrategy}
+                    />
+                  )}
+              </div>
+            )}
+          </div>
+        )}
 
         <Field label="Kind of meeting" hint="Sets the colour and the default length.">
           <select
