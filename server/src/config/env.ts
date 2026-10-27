@@ -26,10 +26,14 @@ const envSchema = z.object({
   SMTP_RELAY_SECRET: z.string().optional().default(''),
   STRIPE_SECRET_KEY: z.string().optional().default(''),
   STRIPE_WEBHOOK_SECRET: z.string().optional().default(''),
-  // Prospector data providers — set one key to switch the built-in
-  // prospect search on. PDL takes priority when both are configured.
+  // Prospector data providers - set one key to switch the built-in
+  // prospect search on. Icypeas is preferred, then PDL. Apollo only runs
+  // when ALLOW_APOLLO_PROVIDER=true as well: its API terms forbid use in a
+  // competing product, so it is for internal testing, never for customers.
+  ICYPEAS_API_KEY: z.string().optional().default(''),
   PDL_API_KEY: z.string().optional().default(''),
   APOLLO_API_KEY: z.string().optional().default(''),
+  ALLOW_APOLLO_PROVIDER: z.string().optional().default('').transform((v) => /^(1|true|yes)$/i.test(v.trim())),
   // One-click OAuth for integrations — set a provider's client id + secret
   // to switch its "Connect with …" button on. Absent = manual-credentials
   // mode only (which always works). Redirect URIs are built from

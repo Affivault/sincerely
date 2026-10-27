@@ -2,7 +2,7 @@
 // shapes onto one vendor's API, so the rest of the platform (credits, reveal
 // flow, UI) never knows which vendor is behind the search.
 //
-// NOTE: endpoint shapes follow each vendor's public docs at time of writing —
+// NOTE: endpoint shapes follow each vendor's public docs at time of writing -
 // verify request/response fields against the provider dashboard before
 // going to production, and mind their terms on caching/reselling data.
 
@@ -19,8 +19,12 @@ export interface ProviderSearchResult {
 export interface ProspectProvider {
   id: ProspectProviderId;
   search(filters: ProspectSearchFilters, page: number, perPage: number): Promise<ProviderSearchResult>;
-  /** Fetch a work email for one person. Returns null when none is found. */
-  enrichEmail(personId: string): Promise<{ email: string | null; person?: Partial<ProspectPerson> }>;
+  /**
+   * Fetch a work email for one person. Returns null when none is found.
+   * `hint` is the search-row snapshot, for providers whose email finder works
+   * from a name and a company rather than their own person id.
+   */
+  enrichEmail(personId: string, hint?: Partial<ProspectPerson>): Promise<{ email: string | null; person?: Partial<ProspectPerson> }>;
 }
 
 const FETCH_TIMEOUT_MS = 20_000;
@@ -40,6 +44,265 @@ async function http(url: string, init: RequestInit): Promise<any> {
     clearTimeout(timer);
   }
 }
+
+/* ─────────────────── Icypeas ─────────────────── */
+
+/*
+ * Icypeas is the provider for customers: its terms grant the right to resell
+ * and sublicense its data inside our own product, which Apollo's do not.
+ * People search is the lead database (POST /find-people, 0.02 credit per
+ * result, no emails). The email finder (POST /email-search) is asynchronous:
+ * it returns a search id that is polled on /bulk-single-searchs/read until it
+ * settles, and is only charged when an email is found.
+ *
+ * Request shapes follow https://api-doc.icypeas.com (v1.15). The docs do not
+ * publish the response fields of a person lead or of a finished email search,
+ * so both readers below accept the plausible spellings - confirm them against
+ * a live response before launch.
+ */
+
+const ICYPEAS_BASE = 'https://app.icypeas.com/api';
+
+/** Mutable so the check script can poll without real waits. */
+export const icypeasPolling = { delaysMs: [1000, 1500, 2000, 2500, 3000, 3000, 4000, 4000, 4000] };
+
+const ICYPEAS_PENDING = new Set(['NONE', 'SCHEDULED', 'IN_PROGRESS']);
+const ICYPEAS_NOT_FOUND = new Set(['NOT_FOUND', 'DEBITED_NOT_FOUND', 'NOT_DEBITED']);
+const ICYPEAS_FOUND = new Set(['FOUND', 'DEBITED']);
+
+async function icypeas(path: string, body: unknown): Promise<any> {
+  const data = await http(`${ICYPEAS_BASE}${path}`, {
+    method: 'POST',
+    // Their auth header carries the bare API key, no "Bearer" prefix.
+    headers: { 'Content-Type': 'application/json', Authorization: env.ICYPEAS_API_KEY },
+    body: JSON.stringify(body),
+  });
+  // Validation errors come back as HTTP 200 with success: false.
+  if (data && data.success === false) {
+    const v = Array.isArray(data.validationErrors) ? data.validationErrors[0] : null;
+    const msg = v?.message || data.message || data.error || 'request rejected';
+    throw new Error(`Provider error: ${typeof msg === 'string' ? msg : JSON.stringify(msg)}`);
+  }
+  return data;
+}
+
+/* Icypeas has no seniority filter, so a seniority becomes the titles that mean it. */
+const SENIORITY_TITLES: Record<string, string[]> = {
+  owner: ['Owner', 'Founder', 'Co-Founder'],
+  c_suite: ['CEO', 'CTO', 'CFO', 'COO', 'CMO', 'CRO', 'Chief'],
+  vp: ['VP', 'Vice President'],
+  director: ['Director', 'Head of'],
+  manager: ['Manager'],
+  senior: ['Senior', 'Lead'],
+  entry: ['Junior', 'Associate', 'Assistant', 'Intern'],
+};
+
+const looksLikeDomain = (s: string) => /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(s.replace(/^https?:\/\/(www\.)?/i, '').replace(/\/.*$/, ''));
+const clean = (values?: string[]) => (values || []).map((s) => s.trim()).filter(Boolean).slice(0, 200);
+const include = (values: string[]) => ({ include: values });
+
+export function icypeasQuery(filters: ProspectSearchFilters): Record<string, any> {
+  const q: Record<string, any> = {};
+  const titles = clean(filters.titles);
+  // Titles say more than a seniority does, so seniority only fills in when no
+  // title was given (both in one include list would OR them and widen the search).
+  const seniorityTitles = [...new Set(clean(filters.seniorities).flatMap((s) => SENIORITY_TITLES[s.toLowerCase()] || []))];
+  const jobTitles = titles.length ? titles : seniorityTitles;
+  if (jobTitles.length) q.currentJobTitle = include(jobTitles);
+
+  const locations = clean(filters.locations);
+  if (locations.length) q.location = include(locations);
+
+  const industries = clean(filters.industries);
+  if (industries.length) q['currentCompany.industry'] = include(industries);
+
+  const companies = clean(filters.companies);
+  const domains = companies.filter(looksLikeDomain).map((c) => c.replace(/^https?:\/\/(www\.)?/i, '').replace(/\/.*$/, '').toLowerCase());
+  const names = companies.filter((c) => !looksLikeDomain(c));
+  if (names.length) q.currentCompanyName = include(names);
+  if (domains.length) q.currentCompanyWebsite = include(domains);
+
+  // One range per query, so several size buckets become their outer bounds.
+  const ranges = clean(filters.companySizes)
+    .map((r) => r.match(/^(\d+)\s*(?:-\s*(\d+)|\+)?$/))
+    .filter((m): m is RegExpMatchArray => !!m)
+    .map((m) => ({ min: Number(m[1]), max: m[2] ? Number(m[2]) : Infinity }));
+  if (ranges.length) {
+    const min = Math.min(...ranges.map((r) => r.min));
+    const max = Math.max(...ranges.map((r) => r.max));
+    q['currentCompany.headcount'] = Number.isFinite(max) ? { '>=': min, '<=': max } : { '>=': min };
+  }
+
+  const keyword = filters.keywords?.trim();
+  if (keyword) q.keyword = include([keyword]);
+  return q;
+}
+
+const pick = (...values: any[]) => {
+  for (const v of values) if (typeof v === 'string' && v.trim()) return v.trim();
+  return null;
+};
+const domainOf = (url: string | null) => {
+  if (!url) return null;
+  const host = url.replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/[/?#].*$/, '').toLowerCase();
+  return host.includes('.') ? host : null;
+};
+
+export function icypeasLeadToProspect(lead: any): ProspectPerson {
+  // The current job may sit on the lead itself or as the first experience.
+  const job = (Array.isArray(lead.experiences) && lead.experiences[0]) || (Array.isArray(lead.positions) && lead.positions[0]) || {};
+  const company = lead.currentCompany || lead.company || job.company || {};
+  const first = pick(lead.firstname, lead.firstName, lead.first_name);
+  const last = pick(lead.lastname, lead.lastName, lead.last_name);
+  const linkedin = pick(lead.profileUrl, lead.linkedinUrl, lead.url, lead.publicProfileUrl);
+  const website = pick(lead.lastCompanyWebsite, lead.currentCompanyWebsite, company.website, job.companyWebsite, company.domain);
+  const size = company.numberOfEmployees ?? company.headcount ?? lead.lastCompanyNumberOfEmployees;
+  return {
+    // Icypeas's own id, else the profile URL: stable across searches either way.
+    id: String(pick(lead.lid, lead._id, lead.id, lead.urn) || linkedin || [first, last, website].filter(Boolean).join('|')),
+    provider: 'icypeas',
+    first_name: first,
+    last_name: last,
+    full_name: pick(lead.fullname, lead.fullName, lead.name) || [first, last].filter(Boolean).join(' ') || 'Unknown',
+    job_title: pick(lead.lastJobTitle, lead.currentJobTitle, lead.jobTitle, job.title, lead.headline),
+    company: pick(lead.lastCompanyName, lead.currentCompanyName, lead.companyName, company.name, job.companyName),
+    company_domain: domainOf(website),
+    company_size: size !== undefined && size !== null && size !== '' ? String(size) : null,
+    industry: pick(lead.lastCompanyIndustry, company.industry, lead.industry),
+    location: pick(lead.address, lead.location, lead.profileLocation),
+    linkedin_url: linkedin ? (linkedin.startsWith('http') ? linkedin : `https://${linkedin}`) : null,
+    // The lead database holds no emails; whether one exists is only known at
+    // reveal, which refunds the credit when it is not found.
+    has_email: true,
+  };
+}
+
+/*
+ * Pages are token-chained (each response carries the token for the next one)
+ * and the first page can only be asked for at Icypeas's default size, since
+ * the docs require a token whenever the pagination object is sent. So results
+ * are fetched in Icypeas-sized chunks, kept per query for a few minutes, and
+ * our 25-a-page numbering is cut out of them. A jump past the furthest chunk
+ * seen walks forward to it.
+ */
+interface IcypeasChunks { chunks: Map<number, any[]>; tokens: Map<number, string>; size: number; total: number; at: number }
+const queryChunks = new Map<string, IcypeasChunks>();
+const CHUNK_TTL_MS = 10 * 60 * 1000;
+const CHUNK_KEYS_MAX = 200;
+const ICYPEAS_PAGE_SIZE = 100;
+
+function chunksFor(key: string): IcypeasChunks {
+  const now = Date.now();
+  for (const [k, v] of queryChunks) if (now - v.at > CHUNK_TTL_MS) queryChunks.delete(k);
+  let entry = queryChunks.get(key);
+  if (!entry) {
+    if (queryChunks.size >= CHUNK_KEYS_MAX) queryChunks.delete(queryChunks.keys().next().value as string);
+    entry = { chunks: new Map(), tokens: new Map(), size: ICYPEAS_PAGE_SIZE, total: 0, at: now };
+    queryChunks.set(key, entry);
+  }
+  return entry;
+}
+
+async function icypeasChunk(query: Record<string, any>, entry: IcypeasChunks, n: number): Promise<any[] | null> {
+  const have = entry.chunks.get(n);
+  if (have) return have;
+  if (n > 1 && !entry.chunks.has(n - 1) && !entry.tokens.has(n)) {
+    if (!(await icypeasChunk(query, entry, n - 1))) return null;
+  }
+  const token = entry.tokens.get(n);
+  if (n > 1 && !token) return null; // the previous chunk was the last one
+  const data = await icypeas('/find-people', n === 1 ? { query } : { query, pagination: { token, size: entry.size } });
+  const leads = (Array.isArray(data?.leads) ? data.leads : []).map((lead: any) => (lead?._source ? { _id: lead._id, ...lead._source } : lead));
+  if (n === 1) entry.size = Number(data?.pagination?.size) || leads.length || ICYPEAS_PAGE_SIZE;
+  entry.total = Number(data?.total) || entry.total;
+  const next = data?.pagination?.token;
+  if (typeof next === 'string' && next && leads.length >= entry.size) entry.tokens.set(n + 1, next);
+  entry.chunks.set(n, leads);
+  entry.at = Date.now();
+  return leads;
+}
+
+/* Name and company of people seen in search, so a reveal does not depend on the client's copy. */
+const seenPeople = new Map<string, { first: string | null; last: string | null; company: string | null; at: number }>();
+const SEEN_TTL_MS = 60 * 60 * 1000;
+const SEEN_MAX = 20_000;
+
+function remember(person: ProspectPerson) {
+  if (seenPeople.size >= SEEN_MAX) {
+    const cutoff = Date.now() - SEEN_TTL_MS;
+    for (const [k, v] of seenPeople) if (v.at < cutoff) seenPeople.delete(k);
+    if (seenPeople.size >= SEEN_MAX) seenPeople.delete(seenPeople.keys().next().value as string);
+  }
+  seenPeople.set(person.id, {
+    first: person.first_name, last: person.last_name,
+    company: person.company_domain || person.company, at: Date.now(),
+  });
+}
+
+/** One finished email search: the address, or null when Icypeas found none. */
+export function icypeasEmailFromItem(item: any): string | null {
+  const results = item?.results;
+  const emails: any[] = Array.isArray(results?.emails) ? results.emails
+    : Array.isArray(results) ? results.flatMap((r: any) => (Array.isArray(r?.emails) ? r.emails : [r]))
+    : Array.isArray(item?.emails) ? item.emails : [];
+  for (const e of emails) {
+    const address = typeof e === 'string' ? e : e?.email;
+    if (typeof address === 'string' && address.includes('@')) return address.trim();
+  }
+  return null;
+}
+
+async function icypeasAwait(searchId: string): Promise<any> {
+  for (const delay of icypeasPolling.delaysMs) {
+    await new Promise((r) => setTimeout(r, delay));
+    const data = await icypeas('/bulk-single-searchs/read', { id: searchId });
+    const item = data.item || (Array.isArray(data.items) ? data.items[0] : null);
+    const status = String(item?.status || 'NONE').toUpperCase();
+    if (ICYPEAS_PENDING.has(status)) continue;
+    if (ICYPEAS_FOUND.has(status) || ICYPEAS_NOT_FOUND.has(status)) return { ...item, status };
+    if (status === 'INSUFFICIENT_FUNDS') throw new Error('Provider error: the Icypeas account is out of credits');
+    throw new Error(`Provider error: email search ended ${status}`);
+  }
+  // Thrown, so the reveal refunds; Icypeas only charges if it later finds one.
+  throw new Error('Provider error: the email search is taking too long, try again in a minute');
+}
+
+export const icypeasProvider: ProspectProvider = {
+  id: 'icypeas',
+  async search(filters, page, perPage) {
+    const query = icypeasQuery(filters);
+    const entry = chunksFor(JSON.stringify(query));
+    const from = (page - 1) * perPage;
+    const leads: any[] = [];
+    // A page can straddle two chunks.
+    while (leads.length < perPage) {
+      const at = from + leads.length;
+      const n = Math.floor(at / entry.size) + 1;
+      const chunk = await icypeasChunk(query, entry, n);
+      if (!chunk) break;
+      const slice = chunk.slice(at - (n - 1) * entry.size, at - (n - 1) * entry.size + perPage - leads.length);
+      if (!slice.length) break;
+      leads.push(...slice);
+    }
+    const results = leads.map(icypeasLeadToProspect);
+    results.forEach(remember);
+    return { results, total: entry.total || from + results.length, emailsById: new Map() };
+  },
+  async enrichEmail(personId, hint) {
+    const seen = seenPeople.get(personId);
+    const first = seen?.first ?? pick(hint?.first_name);
+    const last = seen?.last ?? pick(hint?.last_name);
+    const company = seen?.company ?? pick(hint?.company_domain, hint?.company);
+    // Nothing to search with means nothing found: the caller refunds.
+    if (!(first || last) || !company) return { email: null };
+
+    const started = await icypeas('/email-search', { firstname: first || '', lastname: last || '', domainOrCompany: company });
+    const searchId = started?.item?._id || started?._id;
+    if (!searchId) throw new Error('Provider error: Icypeas did not return a search id');
+    const item = await icypeasAwait(String(searchId));
+    return { email: ICYPEAS_NOT_FOUND.has(item.status) ? null : icypeasEmailFromItem(item) };
+  },
+};
 
 /* ─────────────────── People Data Labs ─────────────────── */
 
@@ -133,6 +396,13 @@ const pdlProvider: ProspectProvider = {
 
 /* ─────────────────── Apollo ─────────────────── */
 
+/*
+ * INTERNAL TESTING ONLY. Apollo's API terms allow internal use only and forbid
+ * using it to "replicate or compete with any Apollo products". Sincerely is a
+ * direct competitor, so this adapter must never serve customers: it only runs
+ * when ALLOW_APOLLO_PROVIDER=true is set alongside APOLLO_API_KEY.
+ */
+
 function apolloPersonToProspect(p: any): ProspectPerson {
   const org = p.organization || {};
   return {
@@ -196,7 +466,9 @@ const apolloProvider: ProspectProvider = {
 /* ─────────────────── Registry ─────────────────── */
 
 export function getActiveProvider(): ProspectProvider | null {
+  if (env.ICYPEAS_API_KEY) return icypeasProvider;
   if (env.PDL_API_KEY) return pdlProvider;
-  if (env.APOLLO_API_KEY) return apolloProvider;
+  // A key alone is not enough: see the terms note above apolloProvider.
+  if (env.APOLLO_API_KEY && env.ALLOW_APOLLO_PROVIDER) return apolloProvider;
   return null;
 }

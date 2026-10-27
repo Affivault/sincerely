@@ -1,7 +1,7 @@
 // Prospecting: built-in B2B lead search + reveal, powered by pluggable data
-// providers (People Data Labs, Apollo, …) behind a monthly credit system.
+// providers (Icypeas, People Data Labs, …) behind a monthly credit system.
 
-export type ProspectProviderId = 'pdl' | 'apollo';
+export type ProspectProviderId = 'icypeas' | 'pdl' | 'apollo';
 
 export interface ProspectSearchFilters {
   /** Job titles, e.g. ["Head of Growth", "CMO"] */

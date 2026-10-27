@@ -47,6 +47,10 @@ services:
         sync: false
       - key: STRIPE_WEBHOOK_SECRET
         sync: false
+      # Prospector data (optional). Icypeas is the provider for customers;
+      # without a key the Prospector page shows a setup notice.
+      - key: ICYPEAS_API_KEY
+        sync: false
       # Google Calendar (optional). Without these the feature is off and the
       # Availability page says so; nothing else changes. Listed here so a
       # blueprint re-apply cannot silently drop them.
