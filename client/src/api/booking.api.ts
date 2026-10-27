@@ -4,7 +4,14 @@ import { API_URL } from '../lib/constants';
 import type {
   BookingLink, CreateBookingLinkInput,
   PublicBookingPage, CreateBookingInput, BookingConfirmation,
+  BookingLinkHost, HostedRoundRobinLink, RoundRobinStatus,
 } from '@lemlist/shared';
+
+/** A list the UI maps over straight away; anything else is an error, not a crash. */
+function list<T>(data: unknown, what: string): T[] {
+  if (!Array.isArray(data)) throw new Error(`${what} could not be loaded`);
+  return data as T[];
+}
 
 /** The account's own links. Authenticated like everything else. */
 export const bookingLinksApi = {
@@ -26,6 +33,33 @@ export const bookingLinksApi = {
   sendLinkInReply: async (messageId: string, note?: string) =>
     (await apiClient.post<{ sent: boolean; url: string }>(
       `/booking-links/reply/${messageId}`, { note })).data,
+
+  /* ── Round robin (097) ── */
+
+  /** The team switch, and who on the team could host. */
+  roundRobin: async () => {
+    const { data } = await apiClient.get<RoundRobinStatus>('/team/round-robin');
+    if (!data || typeof data.enabled !== 'boolean' || !Array.isArray(data.members)) {
+      throw new Error('Round-robin settings could not be loaded');
+    }
+    return data;
+  },
+
+  setRoundRobin: async (enabled: boolean) =>
+    (await apiClient.put<RoundRobinStatus>('/team/round-robin', { enabled })).data,
+
+  hosts: async (id: string) =>
+    list<BookingLinkHost>((await apiClient.get(`/booking-links/${id}/hosts`)).data, 'Hosts'),
+
+  setHosts: async (id: string, hosts: { user_id: string; priority: number; is_active: boolean }[]) =>
+    list<BookingLinkHost>((await apiClient.put(`/booking-links/${id}/hosts`, { hosts })).data, 'Hosts'),
+
+  /** Round-robin links the signed-in person takes meetings for. */
+  hosting: async () =>
+    list<HostedRoundRobinLink>((await apiClient.get('/booking-links/hosting')).data, 'Your round-robin links'),
+
+  setHostingPaused: async (linkId: string, paused: boolean) =>
+    list<HostedRoundRobinLink>((await apiClient.put(`/booking-links/hosting/${linkId}`, { paused })).data, 'Your round-robin links'),
 
   /** Whether a booking can send a confirmation at all. */
   readiness: async () =>

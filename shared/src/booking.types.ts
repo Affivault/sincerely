@@ -15,6 +15,7 @@
    ═══════════════════════════════════════════════════════════════════════ */
 
 import type { EventLocationKind } from './calendar.types.js';
+import type { BookingAssignment, RoundRobinStrategy } from './round-robin.js';
 
 /** What the account sees and edits. */
 export interface BookingLink {
@@ -45,6 +46,15 @@ export interface BookingLink {
   created_at: string;
   updated_at: string;
   archived_at: string | null;
+  /** 'single' is the owner alone; 'round_robin' spreads across hosts (097). */
+  assignment?: BookingAssignment;
+  round_robin_strategy?: RoundRobinStrategy;
+  /**
+   * Set on a round-robin link while it cannot take bookings for a reason
+   * other than its own switch: the team setting is off, or no host is
+   * available to be offered. The list says so instead of looking live.
+   */
+  round_robin_blocked?: 'team_off' | 'no_hosts' | null;
   /** Joined in for the list, so a link can show its colour and length. */
   event_type?: {
     id: string; name: string; colour: string;
@@ -66,6 +76,8 @@ export interface CreateBookingLinkInput {
   deal_stage?: string | null;
   notify_organiser?: boolean;
   confirmation_note?: string | null;
+  assignment?: BookingAssignment;
+  round_robin_strategy?: RoundRobinStrategy;
 }
 
 /**

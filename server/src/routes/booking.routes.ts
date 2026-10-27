@@ -11,6 +11,11 @@ bookingRoutes.post('/', bookingController.create);
 bookingRoutes.patch('/:id', bookingController.update);
 bookingRoutes.delete('/:id', bookingController.archive);
 bookingRoutes.get('/:id/bookings', bookingController.bookings);
+// Round robin (097): a link's hosts, and the links the caller hosts.
+bookingRoutes.get('/hosting', bookingController.hosting);
+bookingRoutes.put('/hosting/:linkId', bookingController.setHostingPaused);
+bookingRoutes.get('/:id/hosts', bookingController.hosts);
+bookingRoutes.put('/:id/hosts', bookingController.setHosts);
 // Replying to a thread with the link, from the inbox.
 bookingRoutes.post('/reply/:messageId', bookingController.sendLinkInReply);
 

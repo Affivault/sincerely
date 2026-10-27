@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
 import crypto from 'crypto';
+import { roundRobinService } from './round-robin.service.js';
 
 export type TeamRole = 'owner' | 'admin' | 'member';
 
@@ -108,6 +109,9 @@ export const teamService = {
 
     const { error: delErr } = await supabaseAdmin.from('team_members').delete().eq('id', memberId).eq('org_id', org.id);
     if (delErr) throw new AppError(delErr.message, 500);
+    // Out of every round-robin rotation on this team, so no owner is left
+    // looking at a host who can no longer take meetings.
+    if (member.user_id) await roundRobinService.forgetMember(org.id, member.user_id);
   },
 
   async updateMemberRole(userId: string, memberId: string, role: TeamRole) {
