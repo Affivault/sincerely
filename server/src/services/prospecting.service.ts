@@ -88,7 +88,7 @@ export const prospectingService = {
   async search(userId: string, filters: ProspectSearchFilters, page = 1): Promise<ProspectSearchResponse> {
     const provider = getActiveProvider();
     if (!provider) {
-      throw new AppError('No prospect data provider is configured. Add a PDL_API_KEY or APOLLO_API_KEY to enable the prospector.', 503);
+      throw new AppError('No prospect data provider is configured. Add an ICYPEAS_API_KEY (or PDL_API_KEY) to enable the prospector.', 503);
     }
     const perPage = 25;
     const safePage = Math.min(Math.max(1, Number(page) || 1), 40);
@@ -177,7 +177,7 @@ export const prospectingService = {
       email = cached.email;
     } else {
       try {
-        const res = await provider.enrichEmail(personId);
+        const res = await provider.enrichEmail(personId, input.person);
         email = res.email;
         enriched = res.person;
       } catch (err: any) {

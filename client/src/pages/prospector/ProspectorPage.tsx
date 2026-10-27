@@ -332,8 +332,8 @@ export function ProspectorPage() {
           <div className="min-w-0 text-body">
             <p className="font-medium text-[var(--text-primary)]">Connect a data provider to switch on the Prospector</p>
             <p className="text-[var(--text-secondary)] mt-0.5">
-              Add a <code className="bg-[var(--bg-elevated)] px-1 py-0.5 rounded text-caption">PDL_API_KEY</code> (People Data Labs) or{' '}
-              <code className="bg-[var(--bg-elevated)] px-1 py-0.5 rounded text-caption">APOLLO_API_KEY</code> to the server environment and restart.
+              Add an <code className="bg-[var(--bg-elevated)] px-1 py-0.5 rounded text-caption">ICYPEAS_API_KEY</code> (Icypeas) or{' '}
+              <code className="bg-[var(--bg-elevated)] px-1 py-0.5 rounded text-caption">PDL_API_KEY</code> (People Data Labs) to the server environment and restart.
               Search, credits, reveals and lead-list saving are already wired up — the key is the only missing piece.
             </p>
           </div>

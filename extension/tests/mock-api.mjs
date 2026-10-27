@@ -700,7 +700,7 @@ const server = createServer(async (req, res) => {
   }
   if (req.method === 'POST' && path === '/prospecting/search') {
     if (!prospector.provider) {
-      return json(res, 503, { error: 'No prospect data provider is configured. Add a PDL_API_KEY or APOLLO_API_KEY to enable the prospector.' });
+      return json(res, 503, { error: 'No prospect data provider is configured. Add an ICYPEAS_API_KEY (or PDL_API_KEY) to enable the prospector.' });
     }
     const keywords = String(body.filters?.keywords || '').toLowerCase();
     const results = PROSPECT_PEOPLE.filter((p) => !keywords || p.full_name.toLowerCase().includes(keywords)).map(

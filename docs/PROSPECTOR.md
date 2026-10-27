@@ -37,11 +37,18 @@ are swappable without touching credits, routes, or UI.
 
 | Provider | Env key | Notes |
 |---|---|---|
-| People Data Labs | `PDL_API_KEY` | Person Search + Enrich. Search returns emails (held server-side, still credit-gated for users). Billed per matched record — model your margin. |
-| Apollo | `APOLLO_API_KEY` | Cheap and good coverage, **but** check the current API ToS on reselling/white-labelling before using it in production. |
+| Icypeas (preferred) | `ICYPEAS_API_KEY` | Lead database search (0.02 Icypeas credit per result, no emails) + async email finder (1 credit, charged only when found). Its terms grant resale/sublicensing inside your own product. About $0.009 to $0.019 per found email. |
+| People Data Labs | `PDL_API_KEY` | Person Search + Enrich. Search returns emails (held server-side, still credit-gated for users). Billed per matched record ($0.25+); resale needs an Enterprise contract. |
+| Apollo (internal only) | `APOLLO_API_KEY` + `ALLOW_APOLLO_PROVIDER=true` | Apollo's API terms allow internal use only and forbid using it to compete with Apollo. Sincerely competes with Apollo, so never enable this for customers. A key alone does nothing. |
 
-Set one key in the server environment and restart — the Prospector page
-switches on automatically. With no key, the page shows a setup notice and the
+When several are configured the order is Icypeas, then PDL, then Apollo (only
+with the opt-in flag). Set one key in the server environment and restart - the
+Prospector page switches on automatically.
+
+Icypeas notes: there is no seniority filter, so a seniority is searched as the
+job titles that mean it (only when no title is given). Several company-size
+buckets become one headcount range spanning them. An email search that has
+not settled after about 30 seconds is refunded to the user. With no key, the page shows a setup notice and the
 API returns 503.
 
 **Before production:** verify each adapter's request/response fields against
