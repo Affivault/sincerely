@@ -18,6 +18,103 @@ export interface ProspectSearchFilters {
   companySizes?: string[];
   /** Free-text keywords */
   keywords?: string;
+  /**
+   * Every other people-search filter the provider supports, keyed by the
+   * field names in PROSPECT_FILTER_FIELDS (Icypeas's own). Text fields take
+   * include/exclude lists, numeric ones a min/max range. A key that is also
+   * covered above (job title, location...) adds to it, e.g. its excludes.
+   */
+  advanced?: Record<string, ProspectAdvancedValue>;
+}
+
+export interface ProspectTextFilter { include?: string[]; exclude?: string[] }
+export interface ProspectRangeFilter { min?: number | null; max?: number | null }
+export interface ProspectGrowthFilter { timespan: '6months' | '12months' | '24months'; min?: number | null; max?: number | null }
+export type ProspectAdvancedValue = ProspectTextFilter | ProspectRangeFilter | ProspectGrowthFilter;
+
+export interface ProspectFilterField {
+  /** The provider's field name, e.g. "pastCompany.industry" */
+  key: string;
+  label: string;
+  kind: 'text' | 'range' | 'growth';
+  group: 'Person' | 'Current role' | 'Current company' | 'Past roles';
+  placeholder?: string;
+  /** Set on fields the main panel already asks for: only their excludes show here. */
+  basic?: boolean;
+  /** Unit shown beside a range, e.g. "years". */
+  unit?: string;
+}
+
+/**
+ * The people-search filters Icypeas supports (find-people, 35 fields),
+ * minus its internal company ids and URNs, which nobody can type. Order is
+ * display order within each group.
+ */
+export const PROSPECT_FILTER_FIELDS: ProspectFilterField[] = [
+  { key: 'firstname', label: 'First name', kind: 'text', group: 'Person', placeholder: 'Sarah, James…' },
+  { key: 'lastname', label: 'Last name', kind: 'text', group: 'Person', placeholder: 'Smith…' },
+  { key: 'location', label: 'Location', kind: 'text', group: 'Person', basic: true },
+  { key: 'profileLocation', label: 'Profile location', kind: 'text', group: 'Person', placeholder: 'Where their profile says they live' },
+  { key: 'keyword', label: 'Profile keywords', kind: 'text', group: 'Person', basic: true },
+  { key: 'skills', label: 'Skills', kind: 'text', group: 'Person', placeholder: 'Salesforce, SEO, Python…' },
+  { key: 'languages', label: 'Languages', kind: 'text', group: 'Person', placeholder: 'French, Spanish…' },
+  { key: 'school', label: 'School or university', kind: 'text', group: 'Person', placeholder: 'HEC Paris, Stanford…' },
+  { key: 'totalYearsOfExperience', label: 'Years of experience', kind: 'range', group: 'Person', unit: 'years' },
+
+  { key: 'currentJobTitle', label: 'Job title', kind: 'text', group: 'Current role', basic: true },
+  { key: 'workLocation', label: 'Work location', kind: 'text', group: 'Current role', placeholder: 'Where the job is based' },
+  { key: 'timeInCurrentCompany', label: 'Years at current company', kind: 'range', group: 'Current role', unit: 'years' },
+
+  { key: 'currentCompanyName', label: 'Company name', kind: 'text', group: 'Current company', basic: true },
+  { key: 'currentCompanyWebsite', label: 'Company website', kind: 'text', group: 'Current company', placeholder: 'acme.com…' },
+  { key: 'currentCompany.industry', label: 'Industry', kind: 'text', group: 'Current company', basic: true },
+  { key: 'currentCompany.type', label: 'Company type', kind: 'text', group: 'Current company', placeholder: 'Privately held, Public company, Nonprofit…' },
+  { key: 'currentCompany.location', label: 'Company location', kind: 'text', group: 'Current company', placeholder: 'HQ city or country' },
+  { key: 'currentCompany.keyword', label: 'Company keywords', kind: 'text', group: 'Current company', placeholder: 'e-commerce, B2B, Shopify…' },
+  { key: 'currentCompany.headcount', label: 'Headcount', kind: 'range', group: 'Current company', unit: 'people' },
+  { key: 'currentCompany.revenue', label: 'Revenue', kind: 'range', group: 'Current company', unit: 'USD' },
+  { key: 'currentCompany.headcountGrowth', label: 'Headcount growth', kind: 'growth', group: 'Current company', unit: '%' },
+
+  { key: 'pastJobTitle', label: 'Past job title', kind: 'text', group: 'Past roles', placeholder: 'Founder, SDR…' },
+  { key: 'pastCompanyName', label: 'Past company', kind: 'text', group: 'Past roles', placeholder: 'Salesforce, HubSpot…' },
+  { key: 'pastCompanyWebsite', label: 'Past company website', kind: 'text', group: 'Past roles', placeholder: 'hubspot.com…' },
+  { key: 'pastCompany.industry', label: 'Past industry', kind: 'text', group: 'Past roles' },
+  { key: 'pastCompany.type', label: 'Past company type', kind: 'text', group: 'Past roles' },
+  { key: 'pastCompany.location', label: 'Past company location', kind: 'text', group: 'Past roles' },
+  { key: 'pastCompany.keyword', label: 'Past company keywords', kind: 'text', group: 'Past roles' },
+  { key: 'pastCompany.headcount', label: 'Past company headcount', kind: 'range', group: 'Past roles', unit: 'people' },
+  { key: 'pastCompany.revenue', label: 'Past company revenue', kind: 'range', group: 'Past roles', unit: 'USD' },
+  { key: 'pastCompany.headcountGrowth', label: 'Past company headcount growth', kind: 'growth', group: 'Past roles', unit: '%' },
+];
+
+/** How many advanced filters actually hold a value. */
+export function countAdvancedFilters(advanced?: Record<string, ProspectAdvancedValue>): number {
+  if (!advanced) return 0;
+  let n = 0;
+  for (const value of Object.values(advanced)) {
+    if (!value) continue;
+    const v = value as ProspectTextFilter & ProspectRangeFilter;
+    if ((v.include?.length || 0) + (v.exclude?.length || 0) > 0) n++;
+    else if (typeof v.min === 'number' || typeof v.max === 'number') n++;
+  }
+  return n;
+}
+
+/** A short, human summary of a search, stored on the contacts it produced. */
+export function describeProspectSearch(filters: ProspectSearchFilters): string {
+  const parts = [
+    ...(filters.titles || []),
+    ...(filters.seniorities || []).map((s) => s.replace(/_/g, '-')),
+    ...(filters.industries || []),
+    ...(filters.locations || []),
+    ...(filters.companies || []),
+    ...(filters.companySizes || []).map((s) => `${s} people`),
+    ...(filters.keywords ? [filters.keywords] : []),
+  ].map((s) => String(s).trim()).filter(Boolean);
+  const extra = countAdvancedFilters(filters.advanced);
+  const head = parts.slice(0, 4).join(' · ');
+  const more = parts.length - 4 + extra;
+  return `Prospector${head ? `: ${head}` : ''}${more > 0 ? ` +${more} more` : ''}`.slice(0, 200);
 }
 
 /** A person returned by search. Email is never included — revealing costs a credit. */
@@ -148,6 +245,18 @@ export interface RevealProspectInput {
   person?: Partial<ProspectPerson>;
   /** Optional lead list to add the saved contact to */
   list_id?: string | null;
+  /** The search that found them, recorded on the contact as where it came from. */
+  search?: ProspectSearchFilters;
+}
+
+/** A lead list the Prospector can save into, with the campaigns it feeds. */
+export interface ProspectDestination {
+  id: string;
+  name: string;
+  folder: string | null;
+  contact_count: number;
+  /** Campaigns bound to this list that are not finished: new leads join them. */
+  campaigns: { id: string; name: string; status: string }[];
 }
 
 export interface RevealProspectResponse {
@@ -158,6 +267,8 @@ export interface RevealProspectResponse {
   /** True when this reveal was already paid for previously */
   already_revealed: boolean;
   credits: ProspectCreditsSummary;
+  /** Campaigns on the chosen list the lead was enrolled into just now. */
+  enrolled_in?: { id: string; name: string }[];
 }
 
 /* ─── Standing searches ───────────────────────────────────────────────────

@@ -7,7 +7,7 @@ import { useDebounce } from '../../hooks/useDebounce';
 import { usePopover } from '../../hooks/usePopover';
 import { useAriaSort } from '../../components/table/TableParts';
 import { contactsApi, listsApi, tagsApi } from '../../api/contacts.api';
-import { UNLISTED_LIST_ID, UNLISTED_LIST_NAME, LIFECYCLE_LABEL, formatDate, plural, websiteFromEmail } from '@lemlist/shared';
+import { UNLISTED_LIST_ID, UNLISTED_LIST_NAME, LIFECYCLE_LABEL, formatDate, plural, websiteFromEmail, sourceLabel } from '@lemlist/shared';
 import type { Lifecycle, ListKind } from '@lemlist/shared';
 import { usePeek } from '../../components/peek/usePeek';
 import { useFillViewport } from '../../hooks/useFillViewport';
@@ -76,7 +76,7 @@ import {
   Globe,
   List,
   Clock,
-  Activity,
+  Activity, Radar,
   Sparkles,
   UserPlus,
   Flame,
@@ -539,7 +539,7 @@ function CompanyFilter({ value, options, onChange }: {
 /* Configurable table columns, mapped to our contact fields (the same set
    surfaced during CSV import). The Contact identity column is always shown;
    these are the optional middle columns the user can toggle + reorder-by-default. */
-type ColumnId = 'email' | 'status' | 'lifecycle' | 'engagement' | 'company' | 'location' | 'job_title' | 'phone' | 'website' | 'linkedin_url' | 'tags' | 'lists' | 'added' | 'health';
+type ColumnId = 'email' | 'status' | 'lifecycle' | 'engagement' | 'company' | 'location' | 'job_title' | 'phone' | 'website' | 'linkedin_url' | 'tags' | 'lists' | 'source' | 'added' | 'health';
 interface ColumnDef {
   id: ColumnId;
   label: string;
@@ -605,14 +605,30 @@ const ALL_COLUMNS: ColumnDef[] = [
   { id: 'linkedin_url',label: 'LinkedIn',  icon: Linkedin,                           tdClass: 'max-w-[180px]', render: (c) => <LinkCell href={c.linkedin_url} label={c.linkedin_url ? 'Profile' : null} /> },
   { id: 'tags',        label: 'Tags',      icon: TagIcon,                            tdClass: 'max-w-[240px]', render: (c) => <TagsCell tags={c.tags} /> },
   { id: 'lists',       label: 'Lists',     icon: List,                               tdClass: 'max-w-[240px]', render: (c) => <ListsCell lists={c.lists} /> },
+  // Where they came from, and which search or file exactly (import_source).
+  { id: 'source',      label: 'Source',    icon: Radar,                              tdClass: 'max-w-[220px]', render: (c) => <SourceCell source={c.source} detail={c.import_source} /> },
   { id: 'added',       label: 'Added',     icon: Clock,       sortKey: 'created_at', render: (c) => <span className="text-caption text-[var(--text-tertiary)]" title={formatDate(c.created_at)}>{formatRelativeTime(c.created_at)}</span> },
   { id: 'health',      label: 'Health',    icon: Activity,    sortKey: 'dcs_score',  render: (c) => <HealthCell c={c} /> },
 ];
-const DEFAULT_COLUMNS: ColumnId[] = ['email', 'status', 'lifecycle', 'engagement', 'company', 'location', 'tags', 'lists', 'added'];
+const DEFAULT_COLUMNS: ColumnId[] = ['email', 'status', 'lifecycle', 'engagement', 'company', 'location', 'tags', 'lists', 'source', 'added'];
 
 /* Set the first time Stage is inserted into an older saved layout, so it is
    offered once rather than reappearing every time somebody hides it. */
 const LIFECYCLE_COLUMN_SHOWN = 'contacts.columns.lifecycleIntroduced';
+/* The same, for Source: offered once beside Added. */
+const SOURCE_COLUMN_SHOWN = 'contacts.columns.sourceIntroduced';
+
+function SourceCell({ source, detail }: { source: string | null; detail: string | null }) {
+  // "Prospector: CMO · London" carries its own label; anything else gets one.
+  const label = sourceLabel(source);
+  const rest = detail && detail.startsWith(`${label}: `) ? detail.slice(label.length + 2) : detail;
+  return (
+    <span className="block min-w-0" title={detail || label}>
+      <span className="block truncate text-body text-[var(--text-primary)]">{label}</span>
+      {rest && <span className="block truncate text-caption text-[var(--text-tertiary)]">{rest}</span>}
+    </span>
+  );
+}
 
 
 /**
@@ -1476,16 +1492,24 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
          * column straight back the next time the page mounted, which is worse
          * than never having shown it.
          */
+        let next = saved;
         if (!localStorage.getItem(LIFECYCLE_COLUMN_SHOWN)) {
           localStorage.setItem(LIFECYCLE_COLUMN_SHOWN, '1');
-          if (!saved.includes('lifecycle')) {
-            const at = saved.indexOf('status');
-            const next = [...saved];
+          if (!next.includes('lifecycle')) {
+            const at = next.indexOf('status');
+            next = [...next];
             next.splice(at >= 0 ? at + 1 : next.length, 0, 'lifecycle');
-            return next;
           }
         }
-        return saved;
+        if (!localStorage.getItem(SOURCE_COLUMN_SHOWN)) {
+          localStorage.setItem(SOURCE_COLUMN_SHOWN, '1');
+          if (!next.includes('source')) {
+            const at = next.indexOf('added');
+            next = [...next];
+            next.splice(at >= 0 ? at : next.length, 0, 'source');
+          }
+        }
+        return next;
       }
     } catch { /* ignore */ }
     return DEFAULT_COLUMNS;

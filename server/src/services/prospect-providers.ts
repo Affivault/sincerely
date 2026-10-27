@@ -7,6 +7,7 @@
 // going to production, and mind their terms on caching/reselling data.
 
 import { env } from '../config/env.js';
+import { PROSPECT_FILTER_FIELDS } from '@lemlist/shared';
 import type { ProspectPerson, ProspectProviderId, ProspectSearchFilters } from '@lemlist/shared';
 
 export interface ProviderSearchResult {
@@ -135,7 +136,47 @@ export function icypeasQuery(filters: ProspectSearchFilters): Record<string, any
 
   const keyword = filters.keywords?.trim();
   if (keyword) q.keyword = include([keyword]);
+
+  applyAdvanced(q, filters.advanced);
   return q;
+}
+
+const FIELD_KINDS = new Map(PROSPECT_FILTER_FIELDS.map((f) => [f.key, f.kind]));
+const GROWTH_SPANS = new Set(['6months', '12months', '24months']);
+const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : typeof v === 'string' && v.trim() !== '' && Number.isFinite(Number(v)) ? Number(v) : null);
+
+/*
+ * The rest of Icypeas's filters, passed through by name. Only known fields
+ * go out (Icypeas rejects unknown keys and empty filter objects), text lists
+ * merge with whatever the main panel set for the same field, and a range or
+ * growth filter with neither bound is left off rather than sent empty.
+ */
+function applyAdvanced(q: Record<string, any>, advanced: ProspectSearchFilters['advanced']) {
+  if (!advanced || typeof advanced !== 'object') return;
+  for (const [key, raw] of Object.entries(advanced)) {
+    const kind = FIELD_KINDS.get(key);
+    if (!kind || !raw || typeof raw !== 'object') continue;
+    const value = raw as Record<string, any>;
+    if (kind === 'text') {
+      const inc = [...new Set([...(q[key]?.include || []), ...clean(Array.isArray(value.include) ? value.include.map(String) : [])])].slice(0, 200);
+      const exc = [...new Set([...(q[key]?.exclude || []), ...clean(Array.isArray(value.exclude) ? value.exclude.map(String) : [])])].slice(0, 200);
+      if (!inc.length && !exc.length) continue;
+      q[key] = { ...(inc.length ? { include: inc } : {}), ...(exc.length ? { exclude: exc } : {}) };
+    } else if (kind === 'range') {
+      const min = num(value.min), max = num(value.max);
+      if (min === null && max === null) continue;
+      q[key] = { ...(min !== null ? { '>=': min } : {}), ...(max !== null ? { '<=': max } : {}) };
+    } else {
+      const min = num(value.min), max = num(value.max);
+      if (min === null && max === null) continue;
+      const clamp = (n: number) => Math.min(10000, Math.max(-100, n));
+      q[key] = {
+        timespan: GROWTH_SPANS.has(value.timespan) ? value.timespan : '12months',
+        ...(min !== null ? { min: clamp(min) } : {}),
+        ...(max !== null ? { max: clamp(max) } : {}),
+      };
+    }
+  }
 }
 
 const pick = (...values: any[]) => {
