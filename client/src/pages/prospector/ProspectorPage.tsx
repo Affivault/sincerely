@@ -1,5 +1,6 @@
 import { StandingSearches, SaveStandingSearch } from '../../components/prospector/StandingSearches';
 import { CompanySearch } from '../../components/prospector/CompanySearch';
+import { ProspectDrawer } from '../../components/prospector/ProspectDrawer';
 import { FilterPanel, EMPTY_FILTERS, DEFAULT_OPEN_ROWS, ALL_ROWS, countFilters, type FilterState } from '../../components/prospector/FilterPanel';
 import { useDebounce } from '../../hooks/useDebounce';
 import { DestinationPicker, rememberedListId } from '../../components/prospector/DestinationPicker';
@@ -141,6 +142,8 @@ export function ProspectorPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkRevealing, setBulkRevealing] = useState(false);
   const [campaignContactIds, setCampaignContactIds] = useState<string[] | null>(null);
+  // The person and company panel; opening it is free.
+  const [peekPerson, setPeekPerson] = useState<ProspectPerson | null>(null);
   // Set while a bulk reveal is looping through mutateAsync calls, so the
   // per-reveal toasts stay quiet and one summary toast speaks for all of them.
   const suppressRevealToastsRef = useRef(false);
@@ -521,7 +524,7 @@ export function ProspectorPage() {
                             <Avatar name={p.full_name} size="lg" />
                             <div className="min-w-0">
                               <div className="flex items-center gap-1.5">
-                                <span className="text-strong font-medium text-[var(--text-primary)] truncate">{p.full_name}</span>
+                                <button type="button" onClick={() => setPeekPerson(p)} title="See their profile and company (free)" className="text-strong font-medium text-[var(--text-primary)] hover:text-[var(--indigo-text)] hover:underline truncate text-left">{p.full_name}</button>
                                 {p.linkedin_url && (
                                   <a href={p.linkedin_url} target="_blank" rel="noopener noreferrer" className="relative text-[var(--text-tertiary)] hover:text-[#0A66C2] transition-colors flex-shrink-0 after:absolute after:-inset-1.5 after:content-['']" title="Open LinkedIn" aria-label="Open LinkedIn">
                                     <Linkedin className="h-3 w-3" />
@@ -533,7 +536,9 @@ export function ProspectorPage() {
                           </div>
                         </td>
                         <td className="py-2.5 px-3">
-                          <p className="text-body text-[var(--text-primary)] truncate max-w-[180px]">{p.company || '—'}</p>
+                          {p.company
+                            ? <button type="button" onClick={() => setPeekPerson(p)} title="See the company and its people" className="block text-body text-[var(--text-primary)] hover:text-[var(--indigo-text)] hover:underline truncate max-w-[180px] text-left">{p.company}</button>
+                            : <p className="text-body text-[var(--text-primary)]">—</p>}
                           <p className="text-caption text-[var(--text-tertiary)] truncate">{[p.industry, p.company_size && `${p.company_size} people`].filter(Boolean).join(' · ')}</p>
                         </td>
                         <td className="py-2.5 px-3 text-body text-[var(--text-secondary)] truncate max-w-[150px]">{p.location || '—'}</td>
@@ -619,6 +624,14 @@ export function ProspectorPage() {
       )}
 
       {buyOpen && <BuyCreditsModal onClose={() => setBuyOpen(false)} />}
+      {peekPerson && (
+        <ProspectDrawer
+          person={peekPerson}
+          revealingId={revealingId}
+          onReveal={(person) => revealMutation.mutateAsync(person).catch(() => undefined)}
+          onClose={() => setPeekPerson(null)}
+        />
+      )}
       {campaignContactIds && <AddToCampaignModal contactIds={campaignContactIds} onClose={() => setCampaignContactIds(null)} />}
     </div>
   );

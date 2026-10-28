@@ -2,6 +2,16 @@ import { Router, Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware.js';
 import { prospectRulesService } from '../services/prospect-rules.service.js';
 import { prospectingController } from '../controllers/prospecting.controller.js';
+import { prospectDetailsService } from '../services/prospect-details.service.js';
+
+async function wrapDetails(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    res.json(await prospectDetailsService.details(req.userId!, String(req.params.id), {
+      company: typeof req.query.company === 'string' ? req.query.company : undefined,
+      domain: typeof req.query.domain === 'string' ? req.query.domain : undefined,
+    }));
+  } catch (err) { next(err); }
+}
 
 export const prospectingRoutes = Router();
 
@@ -12,6 +22,8 @@ prospectingRoutes.get('/suggest/locations', prospectingController.suggestLocatio
 prospectingRoutes.post('/companies/search', prospectingController.searchCompanies);
 prospectingRoutes.get('/destinations', prospectingController.destinations);
 prospectingRoutes.post('/reveal', prospectingController.reveal);
+// The person panel: what a search row already holds, never a credit.
+prospectingRoutes.get('/people/:id/details', wrapDetails);
 prospectingRoutes.post('/credits/checkout', prospectingController.buyCredits);
 
 /* Standing searches - saved searches that prospect, verify and enrol on a cadence. */
