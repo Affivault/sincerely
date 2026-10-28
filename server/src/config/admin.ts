@@ -1,5 +1,5 @@
 /*
- * The platform owner: the only account the admin backend exists for.
+ * The platform owners: the only accounts the admin backend exists for.
  *
  * Server-side only. It used to live in the shared package, which put the
  * owner's address and the admin console's existence into every visitor's
@@ -12,7 +12,7 @@ const fromEnv = (process.env.ADMIN_EMAILS || '')
   .map((e) => e.trim().toLowerCase())
   .filter(Boolean);
 
-export const ADMIN_EMAILS: readonly string[] = fromEnv.length ? fromEnv : ['steven@usesincerely.com'];
+export const ADMIN_EMAILS: readonly string[] = fromEnv.length ? fromEnv : ['steven@usesincerely.com', 'affivault@gmail.com'];
 
 export function isOwnerEmail(email: string | null | undefined): boolean {
   const clean = (email || '').trim().toLowerCase();
