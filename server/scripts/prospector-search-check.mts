@@ -27,6 +27,8 @@ const { suggestPlaces } = await import('../src/services/place-suggest.js');
 const {
   expandProspectLocations, prospectValueLabel, rankSuggestions, sanitizeAdvancedFilters,
   PROSPECT_INDUSTRIES, INDUSTRY_ALIASES, LOCATION_GROUPS,
+  suggestTitles, suggestSkills, PROSPECT_TITLE_PACKS, PROSPECT_SKILL_PACKS, PROSPECT_JOB_TITLES, PROSPECT_SKILLS,
+  EXPERIENCE_PRESETS, TENURE_PRESETS, REVENUE_PRESETS, GROWTH_PRESETS,
 } = await import('@lemlist/shared');
 
 console.log('\nLocations become what Icypeas matches');
@@ -73,6 +75,21 @@ console.log('\nIndustries are Icypeas names');
   is('"SaaS" suggests Software Development', saas[0]?.value === 'Software Development' && saas[0]?.hint === 'for SaaS', JSON.stringify(saas[0]));
   is('word starts match', rankSuggestions(PROSPECT_INDUSTRIES, 'staff').some((s) => s.value === 'Staffing and Recruiting'));
   is('nothing typed lists everything', rankSuggestions(PROSPECT_INDUSTRIES, '', 1000).length === PROSPECT_INDUSTRIES.length);
+}
+
+console.log('\nTitles and skills');
+{
+  is('every title pack holds real titles', PROSPECT_TITLE_PACKS.every((p) => p.values.every((v) => PROSPECT_JOB_TITLES.includes(v))),
+    PROSPECT_TITLE_PACKS.flatMap((p) => p.values).filter((v) => !PROSPECT_JOB_TITLES.includes(v)).join(', '));
+  is('every skill pack holds real skills', PROSPECT_SKILL_PACKS.every((p) => p.values.every((v) => PROSPECT_SKILLS.includes(v))),
+    PROSPECT_SKILL_PACKS.flatMap((p) => p.values).filter((v) => !PROSPECT_SKILLS.includes(v)).join(', '));
+  is('a deep skill list', PROSPECT_SKILLS.length >= 250, String(PROSPECT_SKILLS.length));
+  is('suggestions carry their group', suggestSkills('sales').every((s) => !!s.group) && suggestTitles('head of').every((s) => !!s.group));
+  is('an empty skills box lists every skill', suggestSkills('').length === PROSPECT_SKILLS.length);
+  is('a short form finds the skill', suggestSkills('seo')[0]?.value === 'Search Engine Optimization (SEO)', JSON.stringify(suggestSkills('seo')[0]));
+  is('a short form finds the title', suggestTitles('cmo').some((s) => s.value === 'Chief Marketing Officer'));
+  const presets = [EXPERIENCE_PRESETS, TENURE_PRESETS, REVENUE_PRESETS, GROWTH_PRESETS].flat();
+  is('every preset has a bound and an order', presets.every((p) => (p.min !== null || p.max !== null) && (p.min === null || p.max === null || p.min <= p.max)));
 }
 
 console.log('\nStanding searches keep every filter');
