@@ -72,8 +72,13 @@ const rangeText = (v: ProspectRangeFilter | undefined, unit = '', presets?: Rang
 
 /* ─── Building blocks ─────────────────────────────────────────────────── */
 
-function SectionHeading({ children }: { children: React.ReactNode }) {
-  return <h3 className="px-4 pt-4 pb-1.5 text-micro font-semibold uppercase tracking-wide text-[var(--text-tertiary)]">{children}</h3>;
+function SectionHeading({ children, hint }: { children: React.ReactNode; hint?: string }) {
+  return (
+    <div className="px-4 pt-4 pb-1.5">
+      <h3 className="text-micro font-semibold uppercase tracking-wide text-[var(--text-tertiary)]">{children}</h3>
+      {hint && <p className="mt-0.5 text-caption text-[var(--text-tertiary)]">{hint}</p>}
+    </div>
+  );
 }
 
 /**
@@ -188,9 +193,10 @@ function GrowthPicker({ label, value, onChange }: { label: string; value: Prospe
 /* ─── The panel ───────────────────────────────────────────────────────── */
 
 /**
- * Every people-search filter, one row each, grouped the way a buyer is
- * described: who they are, where, the company they work for, and where
- * they worked before. Rows open in place, and the header can open them all.
+ * Every people-search filter, one row each, in order of how much they help
+ * find the right people: the filters most searches start from, then ones
+ * that narrow a good search, then specialist ones that cut results hard.
+ * Rows open in place, and the header can open them all.
  * `full` is false for providers without the extra filters, which then get
  * the core rows only.
  */
@@ -244,59 +250,12 @@ export function FilterPanel({ value, onChange, full, onSubmit, openRows, onToggl
 
   return (
     <div>
-      <SectionHeading>Who</SectionHeading>
+      <SectionHeading hint="The filters nearly every search is built from.">Start here</SectionHeading>
       <div>
         {row('title', Briefcase, 'Job title', listSummary(value.titles, excl('currentJobTitle')), value.titles.length + (excl('currentJobTitle')?.length || 0), (
           <TagFilter name="Job title" {...basic('titles', 'currentJobTitle')} suggest={suggestTitles} quickPicks={PROSPECT_TITLE_PACKS}
             examples={['Head of Growth', 'Founder', 'VP Sales', 'CMO', 'RevOps Lead', 'Managing Partner']} />
         ))}
-        {row('seniority', Layers, 'Seniority', value.seniorities.map((s) => SENIORITIES.find((o) => o.value === s)?.label || s).join(', '), value.seniorities.length, (
-          <Toggles label="Seniority" options={SENIORITIES} value={value.seniorities} onChange={(seniorities) => set({ seniorities })} />
-        ))}
-        {full && row('skills', Wrench, 'Skills', textSummary('skills'), n('skills'), (
-          <TagFilter name="Skills" {...extra('skills')} suggest={suggestSkills} quickPicks={PROSPECT_SKILL_PACKS} offset={1}
-            examples={['Salesforce', 'Cold Email', 'Shopify', 'Python', 'Demand Generation', 'Fundraising']} />
-        ))}
-        {full && row('experience', Hourglass, 'Experience',
-          [rangeText(range('totalYearsOfExperience'), ' yrs', EXPERIENCE_PRESETS), rangeText(range('timeInCurrentCompany'), ' yrs', TENURE_PRESETS) && `${rangeText(range('timeInCurrentCompany'), ' yrs', TENURE_PRESETS)} in role`].filter(Boolean).join(' · '),
-          ranged('totalYearsOfExperience', 'timeInCurrentCompany'), (
-          <>
-            <div>
-              <SubLabel>Years of experience in total</SubLabel>
-              <PresetRange label="Years of experience" presets={EXPERIENCE_PRESETS} unit="yrs" value={range('totalYearsOfExperience')} onChange={(v) => setAdv('totalYearsOfExperience', v)} />
-            </div>
-            <div>
-              <SubLabel>Time at their current company</SubLabel>
-              <PresetRange label="Years at current company" presets={TENURE_PRESETS} unit="yrs" value={range('timeInCurrentCompany')} onChange={(v) => setAdv('timeInCurrentCompany', v)} />
-            </div>
-          </>
-        ))}
-        {row('keywords', Search, 'Profile keywords', full ? textSummary('keyword') : value.keywords, full ? n('keyword') : value.keywords.trim() ? 1 : 0, full ? (
-          <TagFilter name="Profile keywords" {...extra('keyword')} offset={4}
-            examples={['outbound', 'PLG', 'bootstrapped', 'ex-Google', 'hiring']} prefix="Anywhere on their profile:" />
-        ) : (
-          <input id={`${a11yId}-kw`} aria-label="Keywords" value={value.keywords} onChange={(e) => set({ keywords: e.target.value })}
-            onKeyDown={(e) => { if (e.key === 'Enter') onSubmit(); }} placeholder="outbound, PLG, agency…" className={inputClass} />
-        ))}
-        {full && row('languages', Languages, 'Languages', textSummary('languages'), n('languages'), (
-          <TagFilter name="Languages" {...extra('languages')} suggest={languageSuggest} preferPick offset={1}
-            quickPicks={[{ label: 'English', values: ['English'] }, { label: 'French', values: ['French'] }, { label: 'German', values: ['German'] }, { label: 'Spanish', values: ['Spanish'] }]}
-            examples={['French', 'Spanish', 'German', 'Arabic']} prefix="Speaks" />
-        ))}
-        {full && row('school', GraduationCap, 'Education', textSummary('school'), n('school'), (
-          <TagFilter name="School or university" {...extra('school')} offset={2}
-            examples={['Stanford', 'HEC Paris', 'LSE', 'INSEAD', 'Harvard Business School']} prefix="Studied at" />
-        ))}
-        {full && row('name', Contact, 'Name', textSummary('firstname', 'lastname'), n('firstname', 'lastname'), (
-          <>
-            <TagFilter label="First name" {...extra('firstname')} examples={['Sarah', 'James', 'Priya']} prefix="" offset={3} />
-            <TagFilter label="Last name" {...extra('lastname')} examples={['Smith', 'Okafor', 'Garcia']} prefix="" offset={4} />
-          </>
-        ))}
-      </div>
-
-      <SectionHeading>Where</SectionHeading>
-      <div>
         {row('location', MapPin, 'Location', listSummary(value.locations, excl('location')), value.locations.length + (excl('location')?.length || 0), (
           <TagFilter name="Location" {...basic('locations', 'location')} remote="locations" preferPick listSeparator={false} offset={2}
             quickPicks={[
@@ -304,22 +263,6 @@ export function FilterPanel({ value, onChange, full, onSubmit, openRows, onToggl
               { label: 'Nordics', values: ['group:nordics'] }, { label: 'Europe', values: ['group:europe'] }, { label: 'APAC', values: ['group:apac'] },
             ]}
             examples={['Manchester', 'Texas', 'DACH', 'Greater London', 'Lisbon', 'the Nordics']} />
-        ))}
-        {full && row('otherLocation', Globe2, 'Profile and job location', textSummary('profileLocation', 'workLocation'), n('profileLocation', 'workLocation'), (
-          <>
-            <TagFilter label="Location written on their profile" {...extra('profileLocation')} remote="locations" preferPick listSeparator={false} offset={4}
-              examples={['Dublin', 'Bavaria', 'Australia']} />
-            <TagFilter label="Where their job is based" {...extra('workLocation')} remote="locations" preferPick listSeparator={false} offset={5}
-              examples={['Remote', 'Amsterdam', 'New York']} />
-          </>
-        ))}
-      </div>
-
-      <SectionHeading>Company</SectionHeading>
-      <div>
-        {row('company', Building2, 'Company', listSummary(value.companies, excl('currentCompanyName')), value.companies.length + (excl('currentCompanyName')?.length || 0), (
-          <TagFilter name="Company name or domain" {...basic('companies', 'currentCompanyName')} offset={1}
-            examples={['stripe.com', 'Notion', 'Shopify', 'monzo.com', 'HubSpot']} prefix="Name or domain, e.g." />
         ))}
         {row('industry', Sparkles, 'Industry', listSummary(value.industries, excl('currentCompany.industry')), value.industries.length + (excl('currentCompany.industry')?.length || 0), (
           <TagFilter name="Industry" {...basic('industries', 'currentCompany.industry')} suggest={industrySuggest} preferPick listSeparator={false} offset={2}
@@ -329,6 +272,9 @@ export function FilterPanel({ value, onChange, full, onSubmit, openRows, onToggl
               { label: 'Retail', values: ['Retail', 'Online and Mail Order Retail'] }, { label: 'Consulting', values: ['Business Consulting and Services'] },
             ]}
             examples={['Software Development', 'SaaS', 'Marketing Services', 'Fintech', 'Staffing and Recruiting']} />
+        ))}
+        {row('seniority', Layers, 'Seniority', value.seniorities.map((s) => SENIORITIES.find((o) => o.value === s)?.label || s).join(', '), value.seniorities.length, (
+          <Toggles label="Seniority" options={SENIORITIES} value={value.seniorities} onChange={(seniorities) => set({ seniorities })} />
         ))}
         {row('headcount', Users, 'Headcount',
           [value.companySizes.join(', '), full ? rangeText(range('currentCompany.headcount'), ' people') : ''].filter(Boolean).join(' · '),
@@ -348,6 +294,28 @@ export function FilterPanel({ value, onChange, full, onSubmit, openRows, onToggl
             )}
           </>
         ))}
+        {row('company', Building2, 'Company', listSummary(value.companies, excl('currentCompanyName')), value.companies.length + (excl('currentCompanyName')?.length || 0), (
+          <TagFilter name="Company name or domain" {...basic('companies', 'currentCompanyName')} offset={1}
+            examples={['stripe.com', 'Notion', 'Shopify', 'monzo.com', 'HubSpot']} prefix="Name or domain, e.g." />
+        ))}
+      </div>
+      <SectionHeading hint="Useful once the basics are set.">Narrow it down</SectionHeading>
+      <div>
+        {full && row('skills', Wrench, 'Skills', textSummary('skills'), n('skills'), (
+          <TagFilter name="Skills" {...extra('skills')} suggest={suggestSkills} quickPicks={PROSPECT_SKILL_PACKS} offset={1}
+            examples={['Salesforce', 'Cold Email', 'Shopify', 'Python', 'Demand Generation', 'Fundraising']} />
+        ))}
+        {row('keywords', Search, 'Profile keywords', full ? textSummary('keyword') : value.keywords, full ? n('keyword') : value.keywords.trim() ? 1 : 0, full ? (
+          <TagFilter name="Profile keywords" {...extra('keyword')} offset={4}
+            examples={['outbound', 'PLG', 'bootstrapped', 'ex-Google', 'hiring']} prefix="Anywhere on their profile:" />
+        ) : (
+          <input id={`${a11yId}-kw`} aria-label="Keywords" value={value.keywords} onChange={(e) => set({ keywords: e.target.value })}
+            onKeyDown={(e) => { if (e.key === 'Enter') onSubmit(); }} placeholder="outbound, PLG, agency…" className={inputClass} />
+        ))}
+        {full && row('companyKeywords', Search, 'What the company does', textSummary('currentCompany.keyword'), n('currentCompany.keyword'), (
+          <TagFilter name="Company keywords" {...extra('currentCompany.keyword')} offset={3}
+            examples={['B2B', 'e-commerce', 'marketplace', 'AI', 'Shopify Plus']} prefix="Keywords, e.g." />
+        ))}
         {full && row('revenue', CircleDollarSign, 'Revenue', rangeText(range('currentCompany.revenue'), '', REVENUE_PRESETS), ranged('currentCompany.revenue'), (
           <PresetRange label="Revenue" presets={REVENUE_PRESETS} unit="USD" value={range('currentCompany.revenue')} onChange={(v) => setAdv('currentCompany.revenue', v)} />
         ))}
@@ -362,31 +330,49 @@ export function FilterPanel({ value, onChange, full, onSubmit, openRows, onToggl
           <TagFilter name="Company HQ" {...extra('currentCompany.location')} remote="locations" preferPick listSeparator={false} offset={3}
             examples={['San Francisco', 'Berlin', 'United Kingdom', 'Ontario']} />
         ))}
-        {full && row('companyKeywords', Search, 'What the company does', textSummary('currentCompany.keyword'), n('currentCompany.keyword'), (
-          <TagFilter name="Company keywords" {...extra('currentCompany.keyword')} offset={3}
-            examples={['B2B', 'e-commerce', 'marketplace', 'AI', 'Shopify Plus']} prefix="Keywords, e.g." />
+        {full && row('experience', Hourglass, 'Experience',
+          [rangeText(range('totalYearsOfExperience'), ' yrs', EXPERIENCE_PRESETS), rangeText(range('timeInCurrentCompany'), ' yrs', TENURE_PRESETS) && `${rangeText(range('timeInCurrentCompany'), ' yrs', TENURE_PRESETS)} in role`].filter(Boolean).join(' · '),
+          ranged('totalYearsOfExperience', 'timeInCurrentCompany'), (
+          <>
+            <div>
+              <SubLabel>Years of experience in total</SubLabel>
+              <PresetRange label="Years of experience" presets={EXPERIENCE_PRESETS} unit="yrs" value={range('totalYearsOfExperience')} onChange={(v) => setAdv('totalYearsOfExperience', v)} />
+            </div>
+            <div>
+              <SubLabel>Time at their current company</SubLabel>
+              <PresetRange label="Years at current company" presets={TENURE_PRESETS} unit="yrs" value={range('timeInCurrentCompany')} onChange={(v) => setAdv('timeInCurrentCompany', v)} />
+            </div>
+          </>
         ))}
       </div>
-
       {full && (
         <>
-          <SectionHeading>Career history</SectionHeading>
+          <SectionHeading hint="Rarely needed. Each one shrinks the results a lot.">Specialist</SectionHeading>
           <div>
-            {row('pastTitle', Briefcase, 'Past job title', textSummary('pastJobTitle'), n('pastJobTitle'), (
+            {full && row('languages', Languages, 'Languages', textSummary('languages'), n('languages'), (
+              <TagFilter name="Languages" {...extra('languages')} suggest={languageSuggest} preferPick offset={1}
+                quickPicks={[{ label: 'English', values: ['English'] }, { label: 'French', values: ['French'] }, { label: 'German', values: ['German'] }, { label: 'Spanish', values: ['Spanish'] }]}
+                examples={['French', 'Spanish', 'German', 'Arabic']} prefix="Speaks" />
+            ))}
+            {full && row('school', GraduationCap, 'Education', textSummary('school'), n('school'), (
+              <TagFilter name="School or university" {...extra('school')} offset={2}
+                examples={['Stanford', 'HEC Paris', 'LSE', 'INSEAD', 'Harvard Business School']} prefix="Studied at" />
+            ))}
+            {full && row('pastTitle', Briefcase, 'Past job title', textSummary('pastJobTitle'), n('pastJobTitle'), (
               <TagFilter name="Past job title" {...extra('pastJobTitle')} suggest={suggestTitles} offset={5}
                 examples={['Founder', 'SDR', 'Consultant', 'Product Manager']} prefix="Used to be" />
             ))}
-            {row('pastCompany', History, 'Past companies', textSummary('pastCompanyName', 'pastCompanyWebsite'), n('pastCompanyName', 'pastCompanyWebsite'), (
+            {full && row('pastCompany', History, 'Past companies', textSummary('pastCompanyName', 'pastCompanyWebsite'), n('pastCompanyName', 'pastCompanyWebsite'), (
               <>
                 <TagFilter label="Company name" {...extra('pastCompanyName')} offset={1} examples={['Salesforce', 'HubSpot', 'Google', 'Deloitte']} prefix="Alumni of" />
                 <TagFilter label="Company website" {...extra('pastCompanyWebsite')} offset={2} examples={['hubspot.com', 'stripe.com']} />
               </>
             ))}
-            {row('pastIndustry', Sparkles, 'Past industry', textSummary('pastCompany.industry'), n('pastCompany.industry'), (
+            {full && row('pastIndustry', Sparkles, 'Past industry', textSummary('pastCompany.industry'), n('pastCompany.industry'), (
               <TagFilter name="Past industry" {...extra('pastCompany.industry')} suggest={industrySuggest} preferPick listSeparator={false} offset={3}
                 examples={['Business Consulting and Services', 'Banking', 'Software Development']} />
             ))}
-            {row('pastDetails', Building2, 'Past company details',
+            {full && row('pastDetails', Building2, 'Past company details',
               [textSummary('pastCompany.type', 'pastCompany.location', 'pastCompany.keyword'), rangeText(range('pastCompany.headcount'), ' people'), rangeText(range('pastCompany.revenue'), '', REVENUE_PRESETS), rangeText(range('pastCompany.headcountGrowth'), '%', GROWTH_PRESETS)].filter(Boolean).join(' · '),
               n('pastCompany.type', 'pastCompany.location', 'pastCompany.keyword') + ranged('pastCompany.headcount', 'pastCompany.revenue', 'pastCompany.headcountGrowth'), (
               <>
@@ -419,6 +405,20 @@ export function FilterPanel({ value, onChange, full, onSubmit, openRows, onToggl
                 </div>
               </>
             ))}
+            {full && row('otherLocation', Globe2, 'Profile and job location', textSummary('profileLocation', 'workLocation'), n('profileLocation', 'workLocation'), (
+              <>
+                <TagFilter label="Location written on their profile" {...extra('profileLocation')} remote="locations" preferPick listSeparator={false} offset={4}
+                  examples={['Dublin', 'Bavaria', 'Australia']} />
+                <TagFilter label="Where their job is based" {...extra('workLocation')} remote="locations" preferPick listSeparator={false} offset={5}
+                  examples={['Remote', 'Amsterdam', 'New York']} />
+              </>
+            ))}
+            {full && row('name', Contact, 'Name', textSummary('firstname', 'lastname'), n('firstname', 'lastname'), (
+              <>
+                <TagFilter label="First name" {...extra('firstname')} examples={['Sarah', 'James', 'Priya']} prefix="" offset={3} />
+                <TagFilter label="Last name" {...extra('lastname')} examples={['Smith', 'Okafor', 'Garcia']} prefix="" offset={4} />
+              </>
+            ))}
           </div>
         </>
       )}
@@ -428,10 +428,9 @@ export function FilterPanel({ value, onChange, full, onSubmit, openRows, onToggl
 
 /** Every row id the panel can show, for "Open all". */
 export const ALL_ROWS = [
-  'title', 'seniority', 'skills', 'experience', 'keywords', 'languages', 'school', 'name',
-  'location', 'otherLocation',
-  'company', 'industry', 'headcount', 'revenue', 'growth', 'companyType', 'hq', 'companyKeywords',
-  'pastTitle', 'pastCompany', 'pastIndustry', 'pastDetails',
+  'title', 'location', 'industry', 'seniority', 'headcount', 'company',
+  'skills', 'keywords', 'companyKeywords', 'revenue', 'growth', 'companyType', 'hq', 'experience',
+  'languages', 'school', 'pastTitle', 'pastCompany', 'pastIndustry', 'pastDetails', 'otherLocation', 'name',
 ];
 
 /** How many filters hold a value, for the panel header. */

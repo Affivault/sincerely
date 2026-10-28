@@ -18,7 +18,7 @@ import { cn } from '../../lib/utils';
 import {
   Radar, Search, Building2, Users,
   Lock, Unlock, CheckCircle2, ChevronLeft, ChevronRight, X,
-  Linkedin, ArrowUpRight, Coins, KeyRound, FolderOpen, Plus, Megaphone, AlertTriangle, SearchX,
+  Linkedin, ArrowUpRight, Coins, KeyRound, FolderOpen, Plus, Megaphone, AlertTriangle, SearchX, Undo2,
 } from 'lucide-react';
 import { CREDIT_PACKS, formatDayMonth, countAdvancedFilters } from '@lemlist/shared';
 import { EmptyState } from '../../components/shared/EmptyState';
@@ -117,6 +117,18 @@ export function ProspectorPage() {
 
   // Filters
   const [form, setForm] = useState<FilterState>(EMPTY_FILTERS);
+  // Earlier filter states, newest last, so a stray click (or Clear all) is one Undo away.
+  const [formHistory, setFormHistory] = useState<FilterState[]>([]);
+  const changeForm = (next: FilterState) => {
+    setFormHistory((h) => [...h.slice(-29), form]);
+    setForm(next);
+  };
+  const undoForm = () => {
+    const prev = formHistory[formHistory.length - 1];
+    if (!prev) return;
+    setFormHistory((h) => h.slice(0, -1));
+    setForm(prev);
+  };
   const [openRows, setOpenRows] = useState<Set<string>>(() => new Set(DEFAULT_OPEN_ROWS));
   const toggleRow = (id: string) => setOpenRows((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   const allOpen = openRows.size >= ALL_ROWS.length;
@@ -261,7 +273,7 @@ export function ProspectorPage() {
 
   // Companies at the picked domains, keeping any title or seniority already set.
   const findPeopleAt = (domains: string[]) => {
-    setForm((prev) => ({ ...prev, companies: domains }));
+    changeForm({ ...form, companies: domains });
     setTab('people');
     if (!providerReady) return;
     const requestId = ++searchRequestIdRef.current;
@@ -355,6 +367,15 @@ export function ProspectorPage() {
               {activeFilters > 0 && <span className="text-[var(--indigo-text)] tabular">· {activeFilters}</span>}
             </p>
             <span className="flex items-center gap-3">
+              {formHistory.length > 0 && (
+                <button
+                  onClick={undoForm}
+                  title="Put back the filters as they were before your last change"
+                  className="inline-flex items-center gap-1 text-caption font-medium text-[var(--text-tertiary)] hover:text-[var(--indigo-text)] transition-colors"
+                >
+                  <Undo2 className="h-3 w-3" /> Undo
+                </button>
+              )}
               <button
                 onClick={() => setOpenRows(allOpen ? new Set(DEFAULT_OPEN_ROWS) : new Set(ALL_ROWS))}
                 className="text-caption font-medium text-[var(--text-tertiary)] hover:text-[var(--indigo-text)] transition-colors"
@@ -363,7 +384,7 @@ export function ProspectorPage() {
               </button>
               {hasFilters && (
                 <button
-                  onClick={() => setForm(EMPTY_FILTERS)}
+                  onClick={() => changeForm(EMPTY_FILTERS)}
                   className="text-caption font-medium text-[var(--text-tertiary)] hover:text-[var(--indigo-text)] transition-colors"
                 >
                   Clear all
@@ -373,7 +394,7 @@ export function ProspectorPage() {
           </div>
 
           <div className="pb-2 border-t border-[var(--border-subtle)] lg:overflow-y-auto lg:min-h-0 lg:flex-1 [scrollbar-width:thin]">
-            <FilterPanel value={form} onChange={setForm} full={fullFilters} onSubmit={() => runSearch(1)} openRows={openRows} onToggleRow={toggleRow} />
+            <FilterPanel value={form} onChange={changeForm} full={fullFilters} onSubmit={() => runSearch(1)} openRows={openRows} onToggleRow={toggleRow} />
           </div>
 
           {/* Stays in reach however far down the filters go. */}
