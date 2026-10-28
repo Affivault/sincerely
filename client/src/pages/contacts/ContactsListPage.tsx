@@ -293,10 +293,19 @@ function emailStatus(c: any): { state: EmailState; label: string; tip: string } 
   if (c.dcs_syntax_ok === false) return { state: 'invalid', label: 'Invalid', tip: 'Malformed email address' };
   if (c.dcs_domain_ok === false) return { state: 'not_found', label: 'Not found', tip: c.dcs_fail_reason || 'No mail server (MX) for this domain — mailbox not found' };
   const score = c.dcs_score ?? 0;
-  if (c.dcs_smtp_ok === true || score >= 80) return { state: 'valid', label: 'Valid', tip: c.dcs_fail_reason || 'Mailbox exists and accepts mail' };
-  if (score >= 50) return { state: 'risky', label: 'Risky', tip: c.dcs_fail_reason || 'Catch-all or unverifiable mailbox — send with caution' };
-  return { state: 'invalid', label: 'Undeliverable', tip: c.dcs_fail_reason || 'Mailbox likely rejects mail' };
+  const by = VERIFIED_BY[c.email_verified_by as string] || '';
+  // The score alone decides, as it does for the summary pills. dcs_smtp_ok
+  // used to be saved true for a mailbox check that never ran, which showed
+  // every lead as Valid on a host that can't reach mail servers.
+  if (score >= 80) return { state: 'valid', label: 'Valid', tip: `${c.dcs_fail_reason || 'Mailbox exists and accepts mail'}${by}` };
+  if (score >= 50) return { state: 'risky', label: 'Risky', tip: `${c.dcs_fail_reason || 'Catch-all or unverifiable mailbox — send with caution'}${by}` };
+  return { state: 'invalid', label: 'Undeliverable', tip: `${c.dcs_fail_reason || 'Mailbox likely rejects mail'}${by}` };
 }
+const VERIFIED_BY: Record<string, string> = {
+  icypeas: ' · mailbox checked by Icypeas',
+  mail_server: ' · checked with their mail server',
+  dns: ' · only the address and domain could be checked',
+};
 const STATE_STYLE: Record<EmailState, { dot: string; badge: string }> = {
   valid:      { dot: 'bg-emerald-500',                 badge: 'text-emerald-700 dark:text-emerald-400 bg-emerald-500/10' },
   risky:      { dot: 'bg-amber-500',                   badge: 'text-amber-700 dark:text-amber-400 bg-amber-500/10' },

@@ -15,6 +15,8 @@ import { ContactHistory, ContactOrigin } from '../../components/crm/ContactHisto
 import { WhereWeAre } from '../../components/crm/WhereWeAre';
 import { EngagementPanel } from '../../components/contacts/Engagement';
 import { ContactDuplicatesSection } from '../../components/contacts/Duplicates';
+import { Profile360 } from '../../components/contacts/Profile360';
+import { verificationApi } from '../../api/verification.api';
 import {
   DEAL_STAGES, isColdEmailable, LIFECYCLE_LABEL, PROMOTION_LABEL,
   type Deal, type CrmEvent, type Lifecycle, type PromotionTrigger, formatDate } from '@lemlist/shared';
@@ -46,7 +48,7 @@ import {
   ArrowUpRight,
   Ban,
   ExternalLink,
-  Sparkles, Megaphone,
+  Sparkles, Megaphone, MapPin, Loader2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -153,6 +155,33 @@ export function ContactDetailPage() {
       toast.success('Held as a lead');
     },
     onError: (e: any) => toast.error(e?.response?.data?.error || 'Could not create that lead'),
+  });
+
+  /*
+   * Enrich: their LinkedIn profile, their company and their email, on a
+   * button press only. It spends a prospect credit, so nothing calls it
+   * except the two buttons on this page.
+   */
+  const enrich = useMutation({
+    mutationFn: () => contactsApi.enrich(id!),
+    onSuccess: (r) => {
+      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+      queryClient.invalidateQueries({ queryKey: ['companies'] });
+      queryClient.invalidateQueries({ queryKey: ['prospecting', 'status'] });
+      const found = !!r.enrichment.person || !!r.enrichment.company;
+      const filled = r.filled.length + r.company_filled.length;
+      if (!found) toast('Nothing new was found, so no credit was used.');
+      else toast.success(filled > 0 ? `Enriched: ${filled} empty field${filled === 1 ? '' : 's'} filled in` : 'Enriched: the profile is up to date');
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.error || 'Could not enrich this contact'),
+  });
+  const verify = useMutation({
+    mutationFn: () => verificationApi.verifyContact(id!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+      queryClient.invalidateQueries({ queryKey: ['verification-breakdown'] });
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.error || 'Could not check this email'),
   });
 
   // Back to the list at once; the delete goes when the undo bar runs out,
@@ -341,6 +370,15 @@ export function ContactDetailPage() {
             the enrolment would be dropped server-side anyway.
           */}
           <button
+            onClick={() => enrich.mutate()}
+            disabled={enrich.isPending}
+            title="Fill in their profile and their company, and check their email. Uses 1 prospect credit, refunded if nothing is found."
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors disabled:opacity-60"
+          >
+            {enrich.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+            {enrich.isPending ? 'Enriching…' : 'Enrich'}
+          </button>
+          <button
             onClick={() => setShowCampaignModal(true)}
             disabled={!coldEmailable}
             title={coldEmailable
@@ -513,6 +551,7 @@ export function ContactDetailPage() {
                 <InfoRow icon={Building2} label="Company" value={contact.company} onSave={field('company')} />
               )}
               <InfoRow icon={Briefcase} label="Job title" value={contact.job_title} onSave={field('job_title')} />
+              <InfoRow icon={MapPin} label="Location" value={contact.location} onSave={field('location')} />
               <InfoRow icon={Phone} label="Phone" value={contact.phone} onSave={field('phone')} />
               <InfoRow icon={Linkedin} label="LinkedIn" value={contact.linkedin_url} isLink onSave={field('linkedin_url')} />
               <InfoRow icon={Globe} label="Website" value={contact.website} isLink onSave={field('website')} />
@@ -702,7 +741,15 @@ export function ContactDetailPage() {
             already happened, in one column. Three tabs used to split a single
             story: the emails were in one, the notes in another, the campaign
             events in a third, and none of them let you reply. */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 space-y-4">
+          <Profile360
+            contact={contact}
+            enriching={enrich.isPending}
+            verifying={verify.isPending}
+            onEnrich={() => enrich.mutate()}
+            onVerify={() => verify.mutate()}
+            onApply={(f, value) => { saveField({ [f]: value }).catch(() => {}); }}
+          />
           <ContactHistory
             contactId={contact.id}
             contactName={fullName}

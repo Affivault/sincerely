@@ -1,6 +1,7 @@
 import { apiClient } from './client';
 import type {
   Contact,
+  EnrichContactResult,
   ContactCampaignMembership,
   ContactWithTags,
   CreateContactInput,
@@ -219,6 +220,13 @@ export const contactsApi = {
   },
 
   /** The 0-100 score, recounted now, and what it is made of. */
+  /** The 360 profile: their LinkedIn, their company and their email. Spends a prospect credit. */
+  enrich: async (id: string) => {
+    // A profile, a company and a mailbox check in one go: give it time.
+    const { data } = await apiClient.post<EnrichContactResult>(`/contacts/${id}/enrich`, {}, { timeout: 120_000 });
+    return data;
+  },
+
   engagement: async (id: string) => {
     const { data } = await apiClient.get<EngagementResult & { stored: boolean }>(`/contacts/${id}/engagement`);
     // The panel reads factors.length and the score at once; anything else is an error, not a crash.

@@ -33,9 +33,13 @@ export const verificationController = {
     } catch (err) { next(err); }
   },
 
+  /*
+   * Every verification started from a button is a deep one: when our own
+   * mail-server probe can't settle an address, Icypeas checks the mailbox.
+   */
   async verifyContact(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const result = await verificationService.verifyContact(req.params.contactId, req.userId!);
+      const result = await verificationService.verifyContact(req.params.contactId, req.userId!, { deep: true });
       res.json(result);
     } catch (err) { next(err); }
   },
@@ -47,7 +51,7 @@ export const verificationController = {
         res.status(400).json({ error: 'email is required' });
         return;
       }
-      const result = await verificationService.verifyEmail(email);
+      const result = await verificationService.verifyEmailDeep(email);
       res.json(result);
     } catch (err) { next(err); }
   },
@@ -55,7 +59,7 @@ export const verificationController = {
   async batchVerify(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const { contact_ids } = req.body;
-      const result = await verificationService.batchVerify(req.userId!, contact_ids);
+      const result = await verificationService.batchVerify(req.userId!, contact_ids, { deep: true });
       res.json(result);
     } catch (err) { next(err); }
   },

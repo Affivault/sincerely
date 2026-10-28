@@ -89,3 +89,4 @@ export * from './contact-hygiene.js';
 export * from './engagement.js';
 export * from './no-show.js';
 export * from './round-robin.js';
+export * from './contact-enrichment.types.js';

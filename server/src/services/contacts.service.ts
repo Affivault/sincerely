@@ -278,6 +278,9 @@ export const contactsService = {
       list_contacts: undefined,
       in_list: undefined,
       has_tag: undefined,
+      // The 360 profile is read on the contact's own page; a hundred of
+      // them would only slow the list down.
+      enrichment: undefined,
     }));
 
     return formatPaginatedResponse(contacts, count || 0, page, limit);

@@ -8,17 +8,17 @@ export const verificationApi = {
   },
 
   verifyContact: async (contactId: string) => {
-    const { data } = await apiClient.post<DcsVerificationResult>(`/verification/contacts/${contactId}`);
+    const { data } = await apiClient.post<DcsVerificationResult>(`/verification/contacts/${contactId}`, {}, { timeout: 60_000 });
     return data;
   },
 
   verifyEmail: async (email: string) => {
-    const { data } = await apiClient.post<DcsVerificationResult>('/verification/email', { email });
+    const { data } = await apiClient.post<DcsVerificationResult>('/verification/email', { email }, { timeout: 60_000 });
     return data;
   },
 
   batchVerify: async (contactIds?: string[]) => {
-    const { data } = await apiClient.post<{ verified: number; failed: number }>('/verification/batch', { contact_ids: contactIds });
+    const { data } = await apiClient.post<{ verified: number; failed: number }>('/verification/batch', { contact_ids: contactIds }, { timeout: 120_000 });
     return data;
   },
 
