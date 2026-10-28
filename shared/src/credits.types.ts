@@ -37,6 +37,7 @@ export const CREDIT_ACTION_LABELS: Record<string, string> = {
   verify: 'Deep checks',
   enrich: 'Enrichments',
   topup: 'Credit packs',
+  adjustment: 'Admin adjustments',
   other: 'Other',
 };
 

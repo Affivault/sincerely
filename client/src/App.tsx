@@ -59,7 +59,7 @@ const BookPage             = lazyRoute('/b/:slug', () => import('./pages/public/
 const ManageBookingPage    = lazyRoute('/booking/:token', () => import('./pages/public/ManageBookingPage'), m => m.ManageBookingPage);
 const CalendarPage         = lazyRoute('/calendar', () => import('./pages/crm/CalendarPage'), m => m.CalendarPage);
 const ProspectorPage       = lazyRoute('/prospector', () => import('./pages/prospector/ProspectorPage'), m => m.ProspectorPage);
-const AdminPage            = lazyRoute('/admin', () => import('./pages/admin/AdminPage'), m => m.AdminPage);
+const AdminPage            = lazyRoute(['/admin', '/admin/accounts', '/admin/accounts/:id', '/admin/activity'], () => import('./pages/admin/AdminPage'), m => m.AdminPage);
 const SettingsPage         = lazyRoute('/settings', () => import('./pages/settings/SettingsPage'), m => m.SettingsPage);
 const SendingHealthPage    = lazyRoute('/email-accounts/health', () => import('./pages/smtp/SendingHealthPage'), m => m.SendingHealthPage);
 const AssetBuilderPage     = lazyRoute('/assets', () => import('./pages/assets/AssetBuilderPage'), m => m.AssetBuilderPage);
@@ -229,6 +229,9 @@ export default function App() {
           <Route path="/crm"                element={<Navigate to="/deals" replace />} />
           <Route path="/prospector"         element={<ProspectorPage />} />
           <Route path="/admin"              element={<AdminPage />} />
+          <Route path="/admin/accounts"     element={<AdminPage />} />
+          <Route path="/admin/accounts/:id" element={<AdminPage />} />
+          <Route path="/admin/activity"     element={<AdminPage />} />
           <Route path="/sara"               element={<Navigate to="/inbox" replace />} />
           {/* The old sender-health page; its job is now the sending health page. */}
           <Route path="/sse"                element={<Navigate to="/email-accounts/health" replace />} />

@@ -105,6 +105,8 @@ export interface UsageSummary {
   features: PlanFeatures;
   /** True once the user has a Stripe customer (can open the billing portal). */
   hasBilling: boolean;
+  /** Present, and true, for the platform owner only. Nobody else is told it exists. */
+  isOwner?: true;
 }
 
 /** True when a limit value represents "unlimited". */

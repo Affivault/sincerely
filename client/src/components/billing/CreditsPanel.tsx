@@ -48,7 +48,7 @@ export function CreditsPanel() {
           {c && (
             <p className="mt-2 text-caption text-[var(--text-tertiary)]">
               {formatCredits(c.used)} used. Resets {formatDayMonth(new Date(c.resets_at))}.
-              {c.purchased > 0 && ` Includes ${formatCredits(c.purchased)} bought earlier, used after your plan's.`}
+              {c.purchased > 0 && ` Includes ${formatCredits(c.purchased)} bonus credits, which never expire and are used after your plan's.`}
             </p>
           )}
         </div>

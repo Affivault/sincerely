@@ -73,6 +73,14 @@ apiClient.interceptors.response.use(
       payload.error = `${payload.error} (ref ${payload.ref})`;
     }
 
+    // The account was suspended: nothing will work, so end the session.
+    if (error.response?.status === 403 && error.response?.data?.code === 'ACCOUNT_SUSPENDED') {
+      try { sessionStorage.setItem('sincerely:suspended', '1'); } catch { /* storage blocked */ }
+      await supabase.auth.signOut().catch(() => {});
+      window.location.href = '/login';
+      return Promise.reject(error);
+    }
+
     // Plan-limit hit — pop the upgrade modal.
     if (error.response?.status === 403 && error.response?.data?.code === 'UPGRADE_REQUIRED') {
       notifyUpgrade(error.response.data.error);

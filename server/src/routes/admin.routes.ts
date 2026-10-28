@@ -19,3 +19,13 @@ adminRoutes.get('/usage', adminController.usage);
 adminRoutes.get('/health', adminController.health);
 adminRoutes.post('/grant-lifetime', adminController.grantLifetime);
 adminRoutes.post('/revoke-lifetime', adminController.revokeLifetime);
+
+adminRoutes.get('/accounts', adminController.accounts);
+adminRoutes.get('/accounts/:id', adminController.account);
+adminRoutes.post('/accounts/:id/plan', adminController.setPlan);
+adminRoutes.post('/accounts/:id/allowance', adminController.setAllowance);
+adminRoutes.post('/accounts/:id/credits', adminController.adjustCredits);
+adminRoutes.post('/accounts/:id/suspend', adminController.suspend);
+adminRoutes.post('/accounts/:id/unsuspend', adminController.unsuspend);
+adminRoutes.post('/accounts/:id/note', adminController.setNote);
+adminRoutes.get('/audit', adminController.audit);

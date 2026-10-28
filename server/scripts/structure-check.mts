@@ -46,7 +46,8 @@ console.log('\nsix places');
   const paths = [...shell.matchAll(/<Route path="([^"]+)"\s+element=\{<([A-Za-z]+)/g)]
     .filter((m) => m[2] !== 'Navigate')
     .map((m) => m[1])
-    .filter((p) => !['/admin'].includes(p));
+    // The owner's admin backend belongs to no place: nobody else can see it.
+    .filter((p) => p !== '/admin' && !p.startsWith('/admin/'));
   const orphan = paths.filter((p) => {
     const concrete = p.replace(/:\w+/g, 'x');
     return !owned.some((o) => concrete === o || concrete.startsWith(o + '/')) && concrete !== '/smtp-accounts/guide';

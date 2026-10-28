@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { AlertTriangle, TrendingUp } from 'lucide-react';
 import { adminApi } from '../../api/admin.api';
 import { CREDIT_ACTION_LABELS, formatCredits } from '@lemlist/shared';
@@ -128,7 +129,7 @@ export function UsageProfitPanel() {
                 )}
                 {data.users.map((u) => (
                   <tr key={u.user_id} className={cn('border-t border-[var(--border-subtle)]', u.losing && 'bg-amber-500/5')}>
-                    <td className="py-2 pr-4 text-[var(--text-primary)] truncate max-w-[260px]">{u.email}</td>
+                    <td className="py-2 pr-4 text-[var(--text-primary)] truncate max-w-[260px]"><Link to={`/admin/accounts/${u.user_id}`} className="hover:underline">{u.email}</Link></td>
                     <td className="py-2 pr-4 text-[var(--text-secondary)] capitalize">{u.plan}{u.status === 'trialing' ? ' (trial)' : ''}</td>
                     <td className="py-2 pr-4 text-right tabular">{formatCredits(u.credits_charged)}</td>
                     <td className="py-2 pr-4 text-right tabular">{usd(u.cost_usd)}</td>

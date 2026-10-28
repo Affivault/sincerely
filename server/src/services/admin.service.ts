@@ -13,7 +13,7 @@ const MAX_PAGES = 10;
 const PER_PAGE = 1000;
 
 /** Fetch every auth user (paged) — cached per request cycle only. */
-async function fetchAllUsers() {
+export async function fetchAllUsers() {
   const all: any[] = [];
   for (let page = 1; page <= MAX_PAGES; page++) {
     const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: PER_PAGE });
@@ -33,11 +33,11 @@ async function fetchSubscriptions(): Promise<Map<string, { plan: string; status:
   return new Map((data || []).map((s: any) => [s.user_id, { plan: s.plan, status: s.status }]));
 }
 
-const cents = (n: number) => Math.round(n * 100) / 100;
+export const cents = (n: number) => Math.round(n * 100) / 100;
 /** Stripe's standard card fee, as an estimate: the real one is on each charge's balance transaction. */
-const stripeFee = (amountUsd: number) => (amountUsd > 0 ? amountUsd * 0.029 + 0.3 : 0);
+export const stripeFee = (amountUsd: number) => (amountUsd > 0 ? amountUsd * 0.029 + 0.3 : 0);
 
-function monthRange(month?: string): { label: string; from: Date; to: Date } {
+export function monthRange(month?: string): { label: string; from: Date; to: Date } {
   const now = new Date();
   const m = /^(\d{4})-(\d{2})$/.exec(month || '');
   const year = m ? Number(m[1]) : now.getUTCFullYear();

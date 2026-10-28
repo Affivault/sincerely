@@ -1,5 +1,7 @@
 import { apiClient } from './client';
-import type { AdminStats, AdminUsageReport, AdminUserRow, AdminUsersResponse } from '@lemlist/shared';
+import type {
+  AdminAccountDetail, AdminAccountsResponse, AdminAuditResponse, AdminStats, AdminUsageReport, AdminUserRow, AdminUsersResponse,
+} from '@lemlist/shared';
 
 export const adminApi = {
   users: async (search?: string) =>
@@ -16,4 +18,36 @@ export const adminApi = {
   revokeLifetime: async (userId: string) => {
     await apiClient.post('/admin/revoke-lifetime', { user_id: userId });
   },
+
+  accounts: async (month?: string) =>
+    (await apiClient.get<AdminAccountsResponse>('/admin/accounts', { params: month ? { month } : undefined })).data,
+
+  account: async (id: string) =>
+    (await apiClient.get<AdminAccountDetail>(`/admin/accounts/${encodeURIComponent(id)}`)).data,
+
+  setPlan: async (id: string, plan: string, status?: string) =>
+    (await apiClient.post<{ stripe_managed: boolean }>(`/admin/accounts/${encodeURIComponent(id)}/plan`, { plan, status })).data,
+
+  setAllowance: async (id: string, creditAllowance: number | null) => {
+    await apiClient.post(`/admin/accounts/${encodeURIComponent(id)}/allowance`, { credit_allowance: creditAllowance });
+  },
+
+  adjustCredits: async (id: string, amount: number, note: string) => {
+    await apiClient.post(`/admin/accounts/${encodeURIComponent(id)}/credits`, { amount, note });
+  },
+
+  suspend: async (id: string, reason?: string) => {
+    await apiClient.post(`/admin/accounts/${encodeURIComponent(id)}/suspend`, { reason });
+  },
+
+  unsuspend: async (id: string) => {
+    await apiClient.post(`/admin/accounts/${encodeURIComponent(id)}/unsuspend`);
+  },
+
+  setNote: async (id: string, note: string) => {
+    await apiClient.post(`/admin/accounts/${encodeURIComponent(id)}/note`, { note });
+  },
+
+  audit: async (limit = 200) =>
+    (await apiClient.get<AdminAuditResponse>('/admin/audit', { params: { limit } })).data,
 };
