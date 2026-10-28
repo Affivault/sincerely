@@ -130,41 +130,48 @@ console.log('\nSearch pages from chunks');
   const lead = (i: number) => ({ _id: `p${i}`, firstname: `F${i}`, lastname: 'L', lastCompanyWebsite: 'acme.com' });
   handler = (path, body) => {
     if (path !== '/find-people') return { success: true };
-    const chunk = body.pagination?.token === 't2' ? 2 : body.pagination?.token === 't3' ? 3 : 1;
-    const count = chunk === 3 ? 30 : 100;
+    const size = Number(body.pagination?.size) || 100;
+    const chunk = Number(String(body.pagination?.token || 't1').slice(1));
+    const from = (chunk - 1) * size;
+    const count = Math.max(0, Math.min(size, 230 - from));
     return {
       success: true, total: 230,
-      leads: Array.from({ length: count }, (_, i) => lead((chunk - 1) * 100 + i)),
-      pagination: { size: 100, token: chunk === 1 ? 't2' : chunk === 2 ? 't3' : 'tx' },
+      leads: Array.from({ length: count }, (_, i) => lead(from + i)),
+      pagination: { size, token: `t${chunk + 1}` },
     };
   };
   calls = [];
   const f = { titles: ['CTO'] };
   const p1 = await icypeasProvider.search(f, 1, 25);
   is('page 1 is the first 25', p1.results.length === 25 && p1.results[0].id === 'p0' && p1.results[24].id === 'p24');
-  is('the first page is asked for without pagination', calls.length === 1 && calls[0].body.pagination === undefined);
+  // 0.02 credit a result: 25 results is 0.5 credit, Icypeas's default 100 is 2.
+  is('the first page asks for exactly 25 results', calls.length === 1 && calls[0].body.pagination?.size === 25 && !calls[0].body.pagination?.token);
   is('the key is sent bare', calls[0].auth === 'icy-test-key');
   is('total is Icypeas\'s', p1.total === 230);
   is('search never yields emails', p1.emailsById.size === 0);
 
   calls = [];
   const p2 = await icypeasProvider.search(f, 2, 25);
-  is('page 2 comes from the cached chunk', calls.length === 0 && p2.results[0].id === 'p25');
+  is('page 2 follows the token', calls.length === 1 && calls[0].body.pagination?.token === 't2' && p2.results[0].id === 'p25');
+
+  calls = [];
+  const again = await icypeasProvider.search(f, 1, 25);
+  is('going back to page 1 is not paid twice', calls.length === 0 && again.results[0].id === 'p0');
 
   calls = [];
   const p5 = await icypeasProvider.search(f, 5, 25);
-  is('page 5 follows the token', calls.length === 1 && calls[0].body.pagination?.token === 't2' && p5.results[0].id === 'p100');
+  is('a jump to page 5 walks pages 3 to 5', calls.map((c) => c.body.pagination?.token).join() === 't3,t4,t5' && p5.results[0].id === 'p100');
   is('the query is unchanged between pages', JSON.stringify(calls[0].body.query) === JSON.stringify({ currentJobTitle: { include: ['CTO'] } }));
 
   calls = [];
   const p10 = await icypeasProvider.search(f, 10, 25);
   is('a short last chunk ends the results', p10.results.length === 5 && p10.results[0].id === 'p225');
   const p11 = await icypeasProvider.search(f, 11, 25);
-  is('past the end is empty, not a loop', p11.results.length === 0 && calls.length === 1);
+  is('past the end is empty, not a loop', p11.results.length === 0 && calls.length === 5);
 
   calls = [];
   await icypeasProvider.search({ titles: ['CFO'] }, 9, 25);
-  is('a jump walks forward through the chunks', calls.map((c) => c.body.pagination?.token ?? '-').join() === '-,t2,t3');
+  is('a jump walks forward through the pages', calls.map((c) => c.body.pagination?.token ?? '-').join() === '-,t2,t3,t4,t5,t6,t7,t8,t9');
 }
 
 console.log('\nThe email finder');
