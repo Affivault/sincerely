@@ -1,15 +1,27 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
 import { AuthShell, BrandPreview, GoogleIcon } from '../../components/AuthShell';
 import '../sincerely-landing.css';
 
+const SUSPENDED = 'This account has been suspended. Contact Sincerely support if you think this is a mistake.';
+
 export function LoginPage() {
   const { signIn, signInWithOAuth } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Sent here because the account was suspended mid-session.
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem('sincerely:suspended')) {
+        sessionStorage.removeItem('sincerely:suspended');
+        toast.error(SUSPENDED, { duration: 8000 });
+      }
+    } catch { /* storage blocked */ }
+  }, []);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -23,7 +35,7 @@ export function LoginPage() {
       toast.error(
         isConnectionProblem
           ? 'Connection problem — visit usesincerely.com/status to see what\'s wrong.'
-          : error.message,
+          : /banned/i.test(error.message) ? SUSPENDED : error.message,
         { duration: 6000 },
       );
     }

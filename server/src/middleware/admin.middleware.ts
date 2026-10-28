@@ -1,6 +1,6 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from './auth.middleware.js';
-import { ADMIN_EMAILS } from '@lemlist/shared';
+import { isOwnerEmail } from '../config/admin.js';
 
 /**
  * Platform-owner gate. Only the hardcoded admin account(s) pass; everyone
@@ -9,8 +9,7 @@ import { ADMIN_EMAILS } from '@lemlist/shared';
  * verified JWT / Supabase session), never by anything client-supplied.
  */
 export function adminOnly(req: AuthRequest, res: Response, next: NextFunction) {
-  const email = (req.userEmail || '').trim().toLowerCase();
-  if (!email || !ADMIN_EMAILS.includes(email)) {
+  if (!isOwnerEmail(req.userEmail)) {
     return res.status(404).json({ error: 'Not found' });
   }
   next();

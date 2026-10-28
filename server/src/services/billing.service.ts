@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
+import { accountControls } from './account-controls.service.js';
 import {
   PLANS,
   type PlanId,
@@ -60,6 +61,9 @@ function creditAllowanceFor(sub: any | null): number {
   return base;
 }
 
+/** A suspended account sends nothing, connects nothing and spends nothing. */
+const SUSPENDED_LIMITS: PlanLimits = { ...PLANS.free, maxInboxes: 0, emailsPerMonth: 0, prospectCredits: 0 };
+
 function trialCapped(sub: any | null): boolean {
   return !!sub && sub.plan !== 'lifetime' && sub.status === 'trialing';
 }
@@ -71,7 +75,17 @@ export const billingService = {
 
   /** Credits a month for this account (-1 = unlimited, which no plan is any more). */
   async getCreditAllowance(userId: string): Promise<number> {
-    return creditAllowanceFor(await getSubscription(userId));
+    const [sub, suspended] = await Promise.all([getSubscription(userId), accountControls.isSuspended(userId)]);
+    return suspended ? 0 : creditAllowanceFor(sub);
+  },
+
+  /** The allowance a subscription row carries, for the admin backend's account list. */
+  creditAllowanceFor(sub: any | null): number {
+    return creditAllowanceFor(sub);
+  },
+
+  planFromSubscription(sub: any | null): PlanId {
+    return planFromSubscription(sub);
   },
 
   async isTrialCapped(userId: string): Promise<boolean> {
@@ -80,7 +94,8 @@ export const billingService = {
   },
 
   async getLimits(userId: string): Promise<PlanLimits> {
-    return PLANS[await this.getPlanId(userId)];
+    const [planId, suspended] = await Promise.all([this.getPlanId(userId), accountControls.isSuspended(userId)]);
+    return suspended ? SUSPENDED_LIMITS : PLANS[planId];
   },
 
   async hasFeature(userId: string, feature: keyof PlanFeatures): Promise<boolean> {

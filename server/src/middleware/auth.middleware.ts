@@ -2,16 +2,27 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 import { supabaseAdmin } from '../config/supabase.js';
+import { accountControls, ACCOUNT_SUSPENDED } from '../services/account-controls.service.js';
+import { isOwnerEmail } from '../config/admin.js';
 
 export interface AuthRequest extends Request {
   userId?: string;
   userEmail?: string;
 }
 
+/** A suspended account is turned away whichever way it signed in. The owner never is. */
+async function admit(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  if (req.userId && !isOwnerEmail(req.userEmail) && await accountControls.isSuspended(req.userId)) {
+    res.status(403).json({ error: ACCOUNT_SUSPENDED, code: 'ACCOUNT_SUSPENDED' });
+    return;
+  }
+  next();
+}
+
 export async function authMiddleware(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   // If API key middleware already authenticated, skip JWT validation
   if (req.userId && (req as any).authMethod === 'apikey') {
-    next();
+    await admit(req, res, next);
     return;
   }
 
@@ -36,7 +47,7 @@ export async function authMiddleware(req: AuthRequest, res: Response, next: Next
         if (decoded?.sub) {
           req.userId = decoded.sub;
           req.userEmail = decoded.email;
-          next();
+          await admit(req, res, next);
           return;
         }
       } catch {
@@ -57,7 +68,7 @@ export async function authMiddleware(req: AuthRequest, res: Response, next: Next
     }
     req.userId = data.user.id;
     req.userEmail = data.user.email ?? '';
-    next();
+    await admit(req, res, next);
   } catch {
     res.status(401).json({ error: 'Invalid token' });
   }

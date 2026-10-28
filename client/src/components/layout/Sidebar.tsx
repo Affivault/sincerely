@@ -9,7 +9,8 @@ import { SetupNudge } from '../setup/SetupNudge';
 import { useUnreadCount } from '../../hooks/useUnreadCount';
 import { useMomentsCount } from '../../hooks/useMomentsCount';
 import { billingApi } from '../../api/billing.api';
-import { isUnlimited, ADMIN_EMAILS } from '@lemlist/shared';
+import { isUnlimited } from '@lemlist/shared';
+import { useIsOwner } from '../../hooks/useIsOwner';
 import { SECTIONS, SETTINGS_ICON, locate, isSettingsPath } from '../../lib/sections';
 import { useCommandPalette } from '../../context/CommandPaletteContext';
 import { SincerelyLogo, SincerelyLogoMark } from '../SincerelyLogo';
@@ -132,7 +133,8 @@ export function Sidebar({ onShortcuts }: { onShortcuts?: () => void }) {
 
   const here = locate(location.pathname);
   const inSettings = isSettingsPath(location.pathname);
-  const isAdmin = !!user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase());
+  // Only the server knows who the owner is; for everyone else there is no Admin row at all.
+  const { isOwner: isAdmin } = useIsOwner();
 
   return (
     <>
