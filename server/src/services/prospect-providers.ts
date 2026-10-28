@@ -271,6 +271,26 @@ async function icypeasChunk(query: Record<string, any>, entry: IcypeasChunks, n:
   return leads;
 }
 
+/*
+ * The whole lead of each person seen in search, already paid for, so the
+ * Prospector's person panel can show more than the table without spending
+ * anything. Bounded: an hour, and the most recent few thousand people.
+ */
+const seenLeads = new Map<string, { lead: any; at: number }>();
+const LEADS_MAX = 3000;
+
+function keepLead(id: string, lead: any) {
+  if (seenLeads.has(id)) seenLeads.delete(id);
+  else if (seenLeads.size >= LEADS_MAX) seenLeads.delete(seenLeads.keys().next().value as string);
+  seenLeads.set(id, { lead, at: Date.now() });
+}
+
+/** The raw lead behind a search row, while it is still held. */
+export function cachedLead(personId: string): any | null {
+  const hit = seenLeads.get(personId);
+  return hit && Date.now() - hit.at < SEEN_TTL_MS ? hit.lead : null;
+}
+
 /* Name and company of people seen in search, so a reveal does not depend on the client's copy. */
 const seenPeople = new Map<string, { first: string | null; last: string | null; company: string | null; at: number }>();
 const SEEN_TTL_MS = 60 * 60 * 1000;
@@ -361,6 +381,7 @@ export const icypeasProvider: ProspectProvider = {
     }
     const results = leads.map(icypeasLeadToProspect);
     results.forEach(remember);
+    results.forEach((person, i) => keepLead(person.id, leads[i]));
     return { results, total: entry.total || from + results.length, emailsById: new Map() };
   },
   async enrichEmail(personId, hint) {

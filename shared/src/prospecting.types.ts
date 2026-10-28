@@ -320,3 +320,18 @@ export function nextRuleRun(cadence: ProspectRuleCadence, from: Date): Date {
   }
   return d;
 }
+
+/**
+ * The person panel in the Prospector: everything already known about one
+ * search row, at no cost. Built from the lead the search already paid for,
+ * our own company records, and a free headcount from the provider.
+ */
+export interface ProspectDetails {
+  /** Null when the search row is no longer held on the server. */
+  person: import('./contact-enrichment.types.js').EnrichedPerson | null;
+  company: import('./contact-enrichment.types.js').EnrichedCompany | null;
+  /** How many people the provider holds at this company; null when it can't say for free. */
+  company_people: number | null;
+  /** People at this company already in your CRM. */
+  in_crm: { id: string; name: string; job_title: string | null; email: string }[];
+}

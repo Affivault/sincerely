@@ -11,6 +11,7 @@ import type {
   CompanySearchResponse,
   ProspectDestination,
   ProspectSuggestion,
+  ProspectDetails,
 } from '@lemlist/shared';
 
 export const prospectingApi = {
@@ -28,6 +29,12 @@ export const prospectingApi = {
 
   searchCompanies: async (filters: CompanySearchFilters, page = 1) =>
     (await apiClient.post<CompanySearchResponse>('/prospecting/companies/search', { filters, page })).data,
+
+  /** The person panel: what a search row already holds. Never spends a credit. */
+  details: async (personId: string, hint: { company?: string | null; domain?: string | null }) =>
+    (await apiClient.get<ProspectDetails>(`/prospecting/people/${encodeURIComponent(personId)}/details`, {
+      params: { company: hint.company || undefined, domain: hint.domain || undefined },
+    })).data,
 
   destinations: async () => (await apiClient.get<ProspectDestination[]>('/prospecting/destinations')).data,
 
