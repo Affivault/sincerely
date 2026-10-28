@@ -159,18 +159,21 @@ export function ProspectorPage() {
     if (targets.length === 0) return;
     setBulkRevealing(true);
     suppressRevealToastsRef.current = true;
-    let remaining = credits ? credits.remaining : -1; // -1 = unlimited
+    // Credits come in tenths, so the stop is "less than one reveal left", not zero.
+    const unlimited = !credits || credits.allowance < 0;
+    let remaining = credits ? credits.remaining : 0;
     let revealed = 0, noEmail = 0, failed = 0, skipped = 0;
     const joined = new Map<string, string>();
     try {
       for (const person of targets) {
-        if (remaining === 0) { skipped++; continue; }
+        if (!unlimited && remaining < CREDIT_PRICES.reveal) { skipped++; continue; }
         try {
           const res = await revealMutation.mutateAsync({ person });
-          if (res.found) { revealed++; if (remaining > 0) remaining--; } else { noEmail++; }
+          if (res.found) { revealed++; remaining = res.credits ? res.credits.remaining : remaining - CREDIT_PRICES.reveal; } else { noEmail++; }
           for (const c of res.enrolled_in || []) joined.set(c.id, c.name);
-        } catch {
-          failed++;
+        } catch (e: any) {
+          // Out of credits after all (spent elsewhere meanwhile): the rest are skipped, not failed.
+          if (e?.response?.status === 403) { remaining = 0; skipped++; } else failed++;
         }
       }
     } finally {

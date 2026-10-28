@@ -78,6 +78,10 @@ async function getOrCreateCustomer(userId: string, email: string | undefined): P
   return customer.id;
 }
 
+/* When each month was last pulled from Stripe, so page loads do not hammer it. */
+const lastSync = new Map<string, number>();
+const SYNC_EVERY_MS = 5 * 60 * 1000;
+
 export const stripeService = {
   isConfigured(): boolean {
     return !!stripe;
@@ -183,8 +187,9 @@ export const stripeService = {
   },
 
   /** One row per payment in billing_payments, for the admin profit page. Idempotent per Stripe id. */
-  async recordPayment(p: { userId: string | null; customerId: string | null; ref: string; kind: 'subscription' | 'credit_pack'; amountCents: number; currency: string; paidAt: Date }): Promise<void> {
-    if (!(p.amountCents > 0)) return;
+  async recordPayment(p: { userId: string | null; customerId: string | null; ref: string; kind: 'subscription' | 'credit_pack' | 'refund'; amountCents: number; currency: string; paidAt: Date }): Promise<void> {
+    // A refund is recorded as a negative payment; anything else must be money in.
+    if (p.kind === 'refund' ? !(p.amountCents < 0) : !(p.amountCents > 0)) return;
     const { error } = await supabaseAdmin.from('billing_payments').upsert({
       user_id: p.userId,
       stripe_customer_id: p.customerId,
@@ -216,17 +221,54 @@ export const stripeService = {
    */
   async syncPaidInvoices(since: Date): Promise<boolean> {
     if (!stripe) return false;
+    // The admin page calls this on every load; Stripe needs asking at most every few minutes.
+    const key = since.toISOString();
+    const last = lastSync.get(key);
+    if (last && Date.now() - last < SYNC_EVERY_MS) return true;
     try {
+      const gte = Math.floor(since.getTime() / 1000);
+      const known = await this.knownRefs(since);
       let n = 0;
-      for await (const invoice of stripe.invoices.list({ status: 'paid', created: { gte: Math.floor(since.getTime() / 1000) }, limit: 100 })) {
-        await this.recordInvoice(invoice);
+      for await (const invoice of stripe.invoices.list({ status: 'paid', created: { gte }, limit: 100 })) {
+        if (invoice.id && !known.has(invoice.id)) await this.recordInvoice(invoice);
         if (++n >= 2000) break;
       }
+      // Refunds come off revenue: profit counts money kept, not money taken.
+      n = 0;
+      for await (const refund of stripe.refunds.list({ created: { gte }, limit: 100, expand: ['data.charge'] })) {
+        if (known.has(refund.id)) continue;
+        await this.recordRefund(refund);
+        if (++n >= 2000) break;
+      }
+      lastSync.set(key, Date.now());
       return true;
     } catch (err) {
       console.warn('[Stripe] Invoice sync failed:', (err as Error).message);
       return false;
     }
+  },
+
+  /** Stripe ids already in billing_payments since a date, so a sync skips them. */
+  async knownRefs(since: Date): Promise<Set<string>> {
+    const known = new Set<string>();
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await supabaseAdmin.from('billing_payments').select('stripe_ref').gte('paid_at', since.toISOString()).order('stripe_ref').range(from, from + 999);
+      if (error || !data) break;
+      for (const r of data as any[]) known.add(r.stripe_ref);
+      if (data.length < 1000) break;
+    }
+    return known;
+  },
+
+  async recordRefund(refund: Stripe.Refund): Promise<void> {
+    if (refund.status !== 'succeeded' && refund.status !== 'pending') return;
+    const charge = typeof refund.charge === 'object' ? refund.charge : null;
+    const customerId = charge ? (typeof charge.customer === 'string' ? charge.customer : charge.customer?.id ?? null) : null;
+    const userId = customerId ? await this.userIdForCustomer(customerId) : null;
+    await this.recordPayment({
+      userId, customerId, ref: refund.id, kind: 'refund',
+      amountCents: -(refund.amount ?? 0), currency: refund.currency || 'usd', paidAt: new Date(refund.created * 1000),
+    });
   },
 
   async createPortalSession(userId: string): Promise<string> {
@@ -283,6 +325,11 @@ export const stripeService = {
       }
       case 'invoice.paid': {
         await this.recordInvoice(event.data.object as Stripe.Invoice);
+        break;
+      }
+      case 'charge.refunded': {
+        const charge = event.data.object as Stripe.Charge;
+        for (const refund of charge.refunds?.data || []) await this.recordRefund({ ...refund, charge } as Stripe.Refund);
         break;
       }
       case 'customer.subscription.created':

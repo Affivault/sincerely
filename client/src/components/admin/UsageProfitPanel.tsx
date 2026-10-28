@@ -6,6 +6,7 @@ import { adminApi } from '../../api/admin.api';
 import { CREDIT_ACTION_LABELS, formatCredits } from '@lemlist/shared';
 import { Spinner } from '../ui/Spinner';
 import { cn } from '../../lib/utils';
+import { monthLabel } from './adminFormat';
 
 const usd = (n: number) => `${n < 0 ? '-' : ''}$${Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -25,7 +26,7 @@ export function UsageProfitPanel() {
     queryKey: ['admin', 'usage', month],
     queryFn: () => adminApi.usage(month),
   });
-  const months = [thisMonth(), thisMonth(-1), thisMonth(-2)];
+  const months = [0, -1, -2, -3, -4, -5].map((o) => thisMonth(o));
   const balance = data?.provider_balance;
 
   const tiles = data ? [
@@ -49,7 +50,7 @@ export function UsageProfitPanel() {
           onChange={(e) => setMonth(e.target.value)}
           className="h-8 rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-2 text-body text-[var(--text-primary)]"
         >
-          {months.map((m) => <option key={m} value={m}>{m}</option>)}
+          {months.map((m) => <option key={m} value={m}>{monthLabel(m)}</option>)}
         </select>
       </div>
 

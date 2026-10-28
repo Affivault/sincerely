@@ -11,6 +11,7 @@ import {
 import { cn } from '../../lib/utils';
 import toast from 'react-hot-toast';
 import type { DcsVerificationResult } from '@lemlist/shared';
+import { deepCheckSkipped } from '@lemlist/shared';
 
 /**
  * 'skipped' is not a pass and not a failure: no mail server gave a verdict, so
@@ -150,6 +151,7 @@ export function VerificationPage() {
   const verifyMut = useMutation({
     mutationFn: (email: string) => verificationApi.verifyEmail(email),
     onSuccess: (result) => {
+      if (result.deep_skipped === 'no_credits') toast(deepCheckSkipped(), { icon: 'ℹ️' });
       setLastResult(result);
       setHistory((h) => [result, ...h].slice(0, 6));
       setEmailInput('');
@@ -164,6 +166,7 @@ export function VerificationPage() {
       // checked rather than implying the whole backlog is done.
       const checked = res.verified + res.failed;
       toast.success(`Checked ${checked} contact${checked === 1 ? '' : 's'}: ${res.verified} deliverable`);
+      if (res.no_credits) toast(deepCheckSkipped(res.no_credits), { icon: 'ℹ️', duration: 6000 });
       queryClient.invalidateQueries({ queryKey: ['verification-stats'] });
     },
     onError: () => toast.error('Batch verification failed'),

@@ -284,7 +284,11 @@ function momentsData() {
   return { moments, settings, acted_this_week: 4 };
 }
 
+const { adminAnswer } = require('./admin-fixtures.cjs');
+
 function answer(method, path, q) {
+  const admin = adminAnswer(method, path.replace(/\/+$/, ''));
+  if (admin !== undefined) return admin;
   if (method === 'POST' && /\/campaigns\/write-sequence$/.test(path)) {
     return { name: 'ISA platforms - affiliate partnership', rationale: 'Leads with the partner economics.', engine: 'ai', leads: 58, personalized: 52, personalize_requested: true,
       steps: [

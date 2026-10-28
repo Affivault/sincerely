@@ -19,7 +19,7 @@
    person typed is overwritten: where the profile disagrees with what is on
    file, the difference comes back as a suggestion the page can offer.
 
-   Costs ENRICH_CREDIT_COST prospect credits, refunded when nothing at all
+   Costs ENRICH_CREDIT_COST credits, refunded when nothing at all
    is found. Icypeas does not publish the response shapes of its scrapers,
    so the readers below accept the plausible spellings, like the Prospector
    adapter does; the raw answers are not stored.

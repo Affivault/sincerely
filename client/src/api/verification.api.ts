@@ -18,7 +18,7 @@ export const verificationApi = {
   },
 
   batchVerify: async (contactIds?: string[]) => {
-    const { data } = await apiClient.post<{ verified: number; failed: number }>('/verification/batch', { contact_ids: contactIds }, { timeout: 120_000 });
+    const { data } = await apiClient.post<{ verified: number; failed: number; no_credits?: number }>('/verification/batch', { contact_ids: contactIds }, { timeout: 120_000 });
     return data;
   },
 

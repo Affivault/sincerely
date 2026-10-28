@@ -55,7 +55,7 @@ function from(name: string): any {
   const chain: any = {
     select: () => chain,
     eq: (c: string, v: any) => { filters[c] = v; return chain; },
-    gte: () => chain, in: () => chain, order: () => chain, limit: () => chain,
+    gte: () => chain, in: () => chain, order: () => chain, limit: () => chain, range: () => chain,
     maybeSingle: () => chain, single: () => chain,
     insert: (row: any) => {
       if (name === 'prospect_credit_ledger') ledger.push(row);
@@ -172,7 +172,7 @@ console.log('\nGiving and taking credits');
   is('given credits are bonus credits that never expire', ledger[0]?.bucket === 'purchased' && ledger[0]?.delta === 50 && ledger[0]?.kind === 'adjustment');
   await adminAccountsService.adjustCredits(OWNER, USER_ID, -20.04, 'mistake');
   is('taken credits come off this month, to a tenth', ledger[1]?.bucket === 'plan' && ledger[1]?.delta === -20);
-  is('and they are kept out of the usage reports, under their own label', shared.CREDIT_ACTION_LABELS.adjustment === 'Admin adjustments');
+  is('and they are kept out of the usage reports, under their own label', shared.CREDIT_ACTION_LABELS.adjustment === 'Credit adjustments');
   is('both are in the audit log with the note', audit.filter((a) => a.action === 'credits').map((a) => a.details.note).join() === 'goodwill,mistake');
   for (const [amount, note, label] of [[0, 'x', 'zero'], [50, '  ', 'no note'], [Number.NaN, 'x', 'not a number'], [1e7, 'x', 'too many']] as const) {
     try { await adminAccountsService.adjustCredits(OWNER, USER_ID, amount, note); is(`${label} is refused`, false); }

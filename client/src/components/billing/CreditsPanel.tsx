@@ -30,7 +30,8 @@ export function CreditsPanel() {
   const c = data?.credits;
   const limited = !!c && c.allowance >= 0;
   const pct = limited && c!.allowance > 0 ? Math.max(0, Math.min(100, (c!.plan_remaining / c!.allowance) * 100)) : 0;
-  const low = limited && pct <= 20;
+  // Low on what can still be spent, bonus credits included.
+  const low = limited && c!.remaining <= c!.allowance * 0.2;
 
   return (
     <div id="credits" className="panel p-5 mb-4 scroll-mt-4">

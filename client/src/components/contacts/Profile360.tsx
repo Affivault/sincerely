@@ -17,7 +17,7 @@ import { cn } from '../../lib/utils';
 
    Everything Enrich found about the person, their company and their email,
    in one panel. Enrich only runs when somebody presses the button: it
-   spends a prospect credit, so it never happens on its own.
+   spends credits, so it never happens on its own.
 
    Where the fresh profile disagrees with what is on file (a new job title,
    say), it is offered with a "Use this" rather than written over what

@@ -7,7 +7,7 @@ import { useDebounce } from '../../hooks/useDebounce';
 import { usePopover } from '../../hooks/usePopover';
 import { useAriaSort } from '../../components/table/TableParts';
 import { contactsApi, listsApi, tagsApi } from '../../api/contacts.api';
-import { UNLISTED_LIST_ID, UNLISTED_LIST_NAME, LIFECYCLE_LABEL, formatDate, plural, websiteFromEmail, sourceLabel } from '@lemlist/shared';
+import { UNLISTED_LIST_ID, UNLISTED_LIST_NAME, LIFECYCLE_LABEL, deepCheckSkipped, formatDate, plural, websiteFromEmail, sourceLabel } from '@lemlist/shared';
 import type { Lifecycle, ListKind } from '@lemlist/shared';
 import { usePeek } from '../../components/peek/usePeek';
 import { useFillViewport } from '../../hooks/useFillViewport';
@@ -1085,7 +1085,8 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
     mutationFn: (id: string) => verificationApi.verifyContact(id),
     onMutate: (id: string) => setVerifyingIds((prev) => new Set(prev).add(id)),
     onSettled: (_d, _e, id) => setVerifyingIds((prev) => { const n = new Set(prev); n.delete(id as string); return n; }),
-    onSuccess: () => {
+    onSuccess: (r) => {
+      if (r.deep_skipped === 'no_credits') toast(deepCheckSkipped(), { icon: 'ℹ️' });
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
       queryClient.invalidateQueries({ queryKey: ['contact-stats'] });
       queryClient.invalidateQueries({ queryKey: ['verification-breakdown'] });
@@ -1103,6 +1104,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
       toast.success(ids.length > checked
         ? `Checked ${checked} of ${ids.length} selected: ${res.verified} deliverable. Run it again for the rest.`
         : `Checked ${checked}: ${res.verified} deliverable`);
+      if (res.no_credits) toast(deepCheckSkipped(res.no_credits), { icon: 'ℹ️', duration: 6000 });
       // Leave the unchecked remainder selected, so running it again picks up
       // where this one stopped instead of re-checking the same hundred.
       setSelectedContacts(new Set(ids.length > 100 ? ids.slice(100) : []));

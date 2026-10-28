@@ -51,7 +51,7 @@ import {
   Sparkles, Megaphone, MapPin, Loader2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { ENRICH_CREDIT_COST, creditsLabel } from '@lemlist/shared';
+import { ENRICH_CREDIT_COST, creditsLabel, deepCheckSkipped } from '@lemlist/shared';
 
 
 export function ContactDetailPage() {
@@ -178,7 +178,8 @@ export function ContactDetailPage() {
   });
   const verify = useMutation({
     mutationFn: () => verificationApi.verifyContact(id!),
-    onSuccess: () => {
+    onSuccess: (r) => {
+      if (r.deep_skipped === 'no_credits') toast(deepCheckSkipped(), { icon: 'ℹ️' });
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
       queryClient.invalidateQueries({ queryKey: ['verification-breakdown'] });
     },

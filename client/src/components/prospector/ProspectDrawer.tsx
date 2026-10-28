@@ -27,11 +27,11 @@ import { Refreshing } from '../ui/Refreshing';
    headcount.
 
    The Prospects tab lists everyone at the company. That is an ordinary
-   Prospector search (no Sincerely credits, the provider's usual small
-   per-result cost), so it only runs when the tab is opened.
+   Prospector search (CREDIT_PRICES.search a new page), so it only runs
+   when the tab is opened.
 
-   Save to list is the page's reveal with a list of your choosing: one
-   credit for someone new (refunded when no email is found), free for
+   Save to list is the page's reveal with a list of your choosing:
+   CREDIT_PRICES.reveal for someone new (refunded when no email is found), free for
    someone already unlocked, who is just added to the list. The arrows and
    the left/right keys step through the search results without closing.
    ═══════════════════════════════════════════════════════════════════════ */
@@ -374,8 +374,8 @@ export function ProspectDrawer({
 }
 
 /**
- * Save this person into a lead list. Someone new is a reveal (1 credit,
- * refunded when no email is found); someone already unlocked is only added
+ * Save this person into a lead list. Someone new is a reveal
+ * (CREDIT_PRICES.reveal, refunded when no email is found); someone already unlocked is only added
  * to the list, which is free.
  */
 function SaveToList({ person, unlocked, contactId, saving, busy, listId, onListChange, onSave }: {
@@ -399,7 +399,7 @@ function SaveToList({ person, unlocked, contactId, saving, busy, listId, onListC
         </Button>
       ) : (
         <Button size="sm" onClick={onSave} disabled={busy} aria-label={`Save ${person.full_name} to ${chosen?.name || 'your leads'}`}>
-          {saving ? <><Spinner size="sm" /> Saving…</> : <><Unlock className="h-3 w-3" /> Save to list · 1 credit</>}
+          {saving ? <><Spinner size="sm" /> Saving…</> : <><Unlock className="h-3 w-3" /> Save to list · {creditsLabel(CREDIT_PRICES.reveal)}</>}
         </Button>
       )}
       {unlocked && contactId && (
@@ -428,7 +428,7 @@ function RevealButton({ person, unlocked, contactId, revealing, disabled, onReve
   }
   return (
     <Button size="sm" variant={compact ? 'secondary' : 'primary'} onClick={onReveal} disabled={disabled} aria-label={`Reveal ${person.full_name}'s email`}>
-      {revealing ? <><Spinner size="sm" /> Revealing…</> : <><Unlock className="h-3 w-3" /> {compact ? 'Reveal' : 'Reveal email · 1 credit'}</>}
+      {revealing ? <><Spinner size="sm" /> Revealing…</> : <><Unlock className="h-3 w-3" /> {compact ? 'Reveal' : `Reveal email · ${creditsLabel(CREDIT_PRICES.reveal)}`}</>}
     </Button>
   );
 }

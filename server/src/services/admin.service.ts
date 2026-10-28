@@ -3,6 +3,7 @@ import { env, localhostUrlProblems } from '../config/env.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { stripeService } from './stripe.service.js';
 import { icypeasBalance } from './prospect-providers.js';
+import { fetchAllPages } from '../utils/batch.js';
 import type {
   AdminProviderBalance, AdminStats, AdminUsageActionRow, AdminUsageReport, AdminUsageUserRow, AdminUserRow, AdminUsersResponse,
 } from '@lemlist/shared';
@@ -25,12 +26,51 @@ export async function fetchAllUsers() {
   return all;
 }
 
+/**
+ * Every row a query matches, a page at a time. PostgREST stops at 1,000 rows
+ * whatever limit is asked for, so a plain select silently drops the rest:
+ * plans past the thousandth account, payments past the thousandth invoice.
+ */
+export async function allRows<R = any>(page: (from: number, to: number) => PromiseLike<{ data: R[] | null; error: { message: string } | null }>): Promise<R[]> {
+  try {
+    return await fetchAllPages(page);
+  } catch (err) {
+    const msg = (err as Error).message;
+    if (/billing_payments|provider_usage|admin_provider_costs|admin_credits_charged/.test(msg)) throw new AppError('This needs database migration 100 to be run first.', 503);
+    throw new AppError(msg, 500);
+  }
+}
+
+export async function fetchSubscriptionRows(): Promise<Map<string, any>> {
+  const rows = await allRows((from, to) => supabaseAdmin.from('subscriptions').select('*').order('user_id').range(from, to));
+  return new Map(rows.map((s: any) => [s.user_id, s]));
+}
+
 async function fetchSubscriptions(): Promise<Map<string, { plan: string; status: string }>> {
-  const { data, error } = await supabaseAdmin
-    .from('subscriptions')
-    .select('user_id, plan, status');
-  if (error) throw new AppError(error.message, 500);
-  return new Map((data || []).map((s: any) => [s.user_id, { plan: s.plan, status: s.status }]));
+  const rows = await fetchSubscriptionRows();
+  return new Map([...rows].map(([id, s]) => [id, { plan: s.plan, status: s.status }]));
+}
+
+/**
+ * A report function's rows, every one: they are per account and action, so
+ * a few hundred active accounts already pass the 1,000-row page.
+ */
+export function reportRows(fn: 'admin_provider_costs' | 'admin_credits_charged', fromIso: string, toIso: string) {
+  return allRows((a, b) => supabaseAdmin
+    .rpc(fn, { p_from: fromIso, p_to: toIso })
+    .order('user_id', { nullsFirst: true })
+    .order('action')
+    .range(a, b));
+}
+
+/** Payments paid in [from, to), every one of them. */
+export function fetchPayments(from?: string, to?: string) {
+  return allRows((a, b) => {
+    let q = supabaseAdmin.from('billing_payments').select('id, user_id, amount_usd');
+    if (from) q = q.gte('paid_at', from);
+    if (to) q = q.lt('paid_at', to);
+    return q.order('id').range(a, b);
+  });
 }
 
 export const cents = (n: number) => Math.round(n * 100) / 100;
@@ -76,22 +116,13 @@ export const adminService = {
       stripeService.syncPaidInvoices(range.from),
       providerBalance(),
     ]);
-    const [costs, charged, payments, users, subs] = await Promise.all([
-      supabaseAdmin.rpc('admin_provider_costs', { p_from: range.from.toISOString(), p_to: range.to.toISOString() }),
-      supabaseAdmin.rpc('admin_credits_charged', { p_from: range.from.toISOString(), p_to: range.to.toISOString() }),
-      supabaseAdmin.from('billing_payments').select('user_id, amount_usd').gte('paid_at', range.from.toISOString()).lt('paid_at', range.to.toISOString()).limit(10000),
+    const [costs, charged, paymentRows, users, subs] = await Promise.all([
+      reportRows('admin_provider_costs', range.from.toISOString(), range.to.toISOString()),
+      reportRows('admin_credits_charged', range.from.toISOString(), range.to.toISOString()),
+      fetchPayments(range.from.toISOString(), range.to.toISOString()),
       fetchAllUsers(),
       fetchSubscriptions(),
     ]);
-    for (const r of [costs, charged, payments]) {
-      if (r.error) {
-        if (/admin_provider_costs|admin_credits_charged|billing_payments|provider_usage/.test(r.error.message)) {
-          throw new AppError('Usage and profit needs database migration 100 to be run first.', 503);
-        }
-        throw new AppError(r.error.message, 500);
-      }
-    }
-
     type Acc = { credits: number; provider: number; cost: number; revenue: number; fees: number };
     const per = new Map<string, Acc>();
     const acc = (id: string) => {
@@ -106,18 +137,18 @@ export const adminService = {
       return a;
     };
     let unattributed = 0;
-    for (const r of (costs.data || []) as any[]) {
+    for (const r of costs as any[]) {
       const pc = Number(r.provider_credits) || 0, cost = Number(r.cost_usd) || 0;
       const a = act(r.action || 'other');
       a.calls += Number(r.calls) || 0; a.provider_credits += pc; a.cost_usd += cost;
       if (r.user_id) { const u = acc(r.user_id); u.provider += pc; u.cost += cost; } else unattributed += cost;
     }
-    for (const r of (charged.data || []) as any[]) {
+    for (const r of charged as any[]) {
       const c = Number(r.credits) || 0;
       if (r.action !== 'topup') act(r.action || 'other').credits_charged += c;
       if (r.user_id) acc(r.user_id).credits += c;
     }
-    for (const r of (payments.data || []) as any[]) {
+    for (const r of paymentRows as any[]) {
       if (!r.user_id) continue;
       const amount = Number(r.amount_usd) || 0;
       const u = acc(r.user_id); u.revenue += amount; u.fees += stripeFee(amount);

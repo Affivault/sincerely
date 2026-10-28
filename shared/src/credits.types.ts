@@ -28,6 +28,13 @@ export const CREDIT_PRICE_LIST: CreditPriceRow[] = [
   { action: 'enrich', label: 'Enrich a contact', price: CREDIT_PRICES.enrich, note: 'Refunded when nothing is found.' },
 ];
 
+/** What to say when a deep email check was skipped for want of credits. */
+export function deepCheckSkipped(n = 1): string {
+  return n === 1
+    ? `You're out of credits, so only the free checks ran. The deep check costs ${CREDIT_PRICES.verify} credit.`
+    : `You're out of credits, so ${n} addresses had only the free checks. The deep check costs ${CREDIT_PRICES.verify} credit each.`;
+}
+
 /** Credits a Stripe trial gets until its first payment, whatever the plan. */
 export const TRIAL_CREDIT_CAP = 100;
 
@@ -37,7 +44,7 @@ export const CREDIT_ACTION_LABELS: Record<string, string> = {
   verify: 'Deep checks',
   enrich: 'Enrichments',
   topup: 'Credit packs',
-  adjustment: 'Admin adjustments',
+  adjustment: 'Credit adjustments',
   other: 'Other',
 };
 

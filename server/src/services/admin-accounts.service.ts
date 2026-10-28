@@ -4,7 +4,7 @@ import { isOwnerEmail } from '../config/admin.js';
 import { billingService } from './billing.service.js';
 import { creditsService } from './credits.service.js';
 import { accountControls } from './account-controls.service.js';
-import { cents, fetchAllUsers, monthRange, stripeFee } from './admin.service.js';
+import { allRows, cents, fetchAllUsers, fetchPayments, fetchSubscriptionRows, monthRange, reportRows, stripeFee } from './admin.service.js';
 import { PLANS, type PlanId } from '@lemlist/shared';
 import type {
   AdminAccountDetail, AdminAccountRow, AdminAccountsResponse, AdminAuditEntry, AdminAuditResponse, AdminMonthRow,
@@ -29,16 +29,13 @@ const ALLOWED_STATUSES = new Set(['active', 'trialing', 'free', 'past_due', 'can
 
 const missingTable = (msg: string | undefined) => /account_controls|admin_audit_log|does not exist|schema cache/i.test(msg || '');
 
-async function fetchSubscriptionRows(): Promise<Map<string, any>> {
-  const { data, error } = await supabaseAdmin.from('subscriptions').select('*');
-  if (error) throw new AppError(error.message, 500);
-  return new Map((data || []).map((s: any) => [s.user_id, s]));
-}
-
 async function fetchControls(): Promise<{ ready: boolean; rows: Map<string, any> }> {
-  const { data, error } = await supabaseAdmin.from('account_controls').select('user_id, suspended_at, suspended_reason, note');
-  if (error) return { ready: false, rows: new Map() };
-  return { ready: true, rows: new Map((data || []).map((r: any) => [r.user_id, r])) };
+  try {
+    const rows = await allRows((a, b) => supabaseAdmin.from('account_controls').select('user_id, suspended_at, suspended_reason, note').order('user_id').range(a, b));
+    return { ready: true, rows: new Map(rows.map((r: any) => [r.user_id, r])) };
+  } catch {
+    return { ready: false, rows: new Map() };
+  }
 }
 
 async function getUser(userId: string) {
@@ -109,30 +106,22 @@ export const adminAccountsService = {
       fetchAllUsers(),
       fetchSubscriptionRows(),
       fetchControls(),
-      supabaseAdmin.rpc('admin_provider_costs', { p_from: from, p_to: to }),
-      supabaseAdmin.rpc('admin_credits_charged', { p_from: from, p_to: to }),
-      supabaseAdmin.from('billing_payments').select('user_id, amount_usd').gte('paid_at', from).lt('paid_at', to).limit(100000),
-      supabaseAdmin.rpc('admin_provider_costs', { p_from: EPOCH, p_to: FOREVER }),
-      supabaseAdmin.from('billing_payments').select('user_id, amount_usd').limit(100000),
+      reportRows('admin_provider_costs', from, to),
+      reportRows('admin_credits_charged', from, to),
+      fetchPayments(from, to),
+      reportRows('admin_provider_costs', EPOCH, FOREVER),
+      fetchPayments(),
     ]);
-    for (const r of [costs, charged, payments, lifetimeCosts, allPayments]) {
-      if (r.error) {
-        if (/admin_provider_costs|admin_credits_charged|billing_payments|provider_usage/.test(r.error.message)) {
-          throw new AppError('Accounts need database migration 100 to be run first.', 503);
-        }
-        throw new AppError(r.error.message, 500);
-      }
-    }
 
     const add = (m: Map<string, number>, id: string | null, n: number) => { if (id) m.set(id, (m.get(id) || 0) + n); };
     const cost = new Map<string, number>(), used = new Map<string, number>();
     const revenue = new Map<string, number>(), fees = new Map<string, number>();
     const lifeCost = new Map<string, number>(), lifeRevenue = new Map<string, number>(), lifeFees = new Map<string, number>();
-    for (const r of (costs.data || []) as any[]) add(cost, r.user_id, Number(r.cost_usd) || 0);
-    for (const r of (charged.data || []) as any[]) if (r.action !== 'topup') add(used, r.user_id, Number(r.credits) || 0);
-    for (const r of (payments.data || []) as any[]) { const a = Number(r.amount_usd) || 0; add(revenue, r.user_id, a); add(fees, r.user_id, stripeFee(a)); }
-    for (const r of (lifetimeCosts.data || []) as any[]) add(lifeCost, r.user_id, Number(r.cost_usd) || 0);
-    for (const r of (allPayments.data || []) as any[]) { const a = Number(r.amount_usd) || 0; add(lifeRevenue, r.user_id, a); add(lifeFees, r.user_id, stripeFee(a)); }
+    for (const r of costs as any[]) add(cost, r.user_id, Number(r.cost_usd) || 0);
+    for (const r of charged as any[]) if (r.action !== 'topup') add(used, r.user_id, Number(r.credits) || 0);
+    for (const r of payments as any[]) { const a = Number(r.amount_usd) || 0; add(revenue, r.user_id, a); add(fees, r.user_id, stripeFee(a)); }
+    for (const r of lifetimeCosts as any[]) add(lifeCost, r.user_id, Number(r.cost_usd) || 0);
+    for (const r of allPayments as any[]) { const a = Number(r.amount_usd) || 0; add(lifeRevenue, r.user_id, a); add(lifeFees, r.user_id, stripeFee(a)); }
 
     const accounts: AdminAccountRow[] = users.map((u: any) => {
       const sub = subs.get(u.id) || null;
@@ -172,41 +161,41 @@ export const adminAccountsService = {
     const months = lastMonths(6);
     const since = `${months[months.length - 1]}-01T00:00:00.000Z`;
 
-    const [sub, controlsRes, credits, limits, sent, inboxes, usageRes, ledgerRes, paymentsRes, lifeUsageRes, lifeLedgerRes, mailboxes, domains, contacts, campaigns, audit] = await Promise.all([
+    const mine = (table: string, cols: string, extra: (q: any) => any = (q) => q) => allRows((a, b) =>
+      extra(supabaseAdmin.from(table).select(cols).eq('user_id', userId)).order('created_at', { ascending: false }).order('id').range(a, b));
+    const [sub, controlsRes, credits, limits, sent, inboxes, usage, ledger, paymentsAll, lifeCosts, lifeCharged, mailboxes, domains, contacts, campaigns, audit] = await Promise.all([
       getSubscriptionRow(userId),
       supabaseAdmin.from('account_controls').select('suspended_at, suspended_reason, note').eq('user_id', userId).maybeSingle(),
       creditsService.summary(userId),
       billingService.getLimits(userId),
       billingService.getEmailsSentThisPeriod(userId),
       billingService.countInboxes(userId),
-      supabaseAdmin.from('provider_usage').select('id, action, endpoint, provider_credits, cost_usd, created_at').eq('user_id', userId).gte('created_at', since).order('created_at', { ascending: false }).limit(20000),
-      supabaseAdmin.from('prospect_credit_ledger').select('id, delta, kind, bucket, action, reason, created_at').eq('user_id', userId).gte('created_at', since).order('created_at', { ascending: false }).limit(20000),
-      supabaseAdmin.from('billing_payments').select('id, kind, amount_usd, currency, stripe_ref, paid_at').eq('user_id', userId).order('paid_at', { ascending: false }).limit(500),
-      supabaseAdmin.from('provider_usage').select('cost_usd').eq('user_id', userId).limit(100000),
-      supabaseAdmin.from('prospect_credit_ledger').select('delta, kind').eq('user_id', userId).in('kind', ['spend', 'refund']).limit(100000),
+      mine('provider_usage', 'id, action, endpoint, provider_credits, cost_usd, created_at', (q) => q.gte('created_at', since)),
+      mine('prospect_credit_ledger', 'id, delta, kind, bucket, action, reason, created_at', (q) => q.gte('created_at', since)),
+      allRows((a, b) => supabaseAdmin.from('billing_payments').select('id, kind, amount_usd, currency, stripe_ref, paid_at').eq('user_id', userId).order('paid_at', { ascending: false }).order('id').range(a, b)),
+      // All time, summed by the database: a busy account has more rows than are worth fetching.
+      reportRows('admin_provider_costs', EPOCH, FOREVER),
+      reportRows('admin_credits_charged', EPOCH, FOREVER),
       countFor('smtp_accounts', userId),
       countFor('sending_domains', userId),
       countFor('contacts', userId),
       countFor('campaigns', userId),
       this.auditLog(30, userId),
     ]);
-    for (const r of [usageRes, ledgerRes, paymentsRes, lifeUsageRes, lifeLedgerRes]) {
-      if (r.error) throw new AppError(r.error.message, 500);
-    }
     const controlsReady = !controlsRes.error;
     const controls = controlsRes.data || null;
 
     const byMonth = new Map<string, AdminMonthRow>(months.map((m) => [m, { month: m, credits_used: 0, provider_credits: 0, cost_usd: 0, revenue_usd: 0, fees_usd: 0, profit_usd: 0 }]));
     const monthOf = (iso: string) => byMonth.get(String(iso).slice(0, 7));
-    for (const r of (usageRes.data || []) as any[]) {
+    for (const r of usage as any[]) {
       const m = monthOf(r.created_at); if (!m) continue;
       m.provider_credits += Number(r.provider_credits) || 0; m.cost_usd += Number(r.cost_usd) || 0;
     }
-    for (const r of (ledgerRes.data || []) as any[]) {
+    for (const r of ledger as any[]) {
       if (r.kind !== 'spend' && r.kind !== 'refund') continue;
       const m = monthOf(r.created_at); if (m) m.credits_used -= Number(r.delta) || 0;
     }
-    const payments = ((paymentsRes.data || []) as any[]).map((p) => ({ ...p, amount_usd: Number(p.amount_usd) || 0 }));
+    const payments = (paymentsAll as any[]).map((p) => ({ ...p, amount_usd: Number(p.amount_usd) || 0 }));
     for (const p of payments) {
       const m = monthOf(p.paid_at); if (!m) continue;
       m.revenue_usd += p.amount_usd; m.fees_usd += stripeFee(p.amount_usd);
@@ -221,10 +210,10 @@ export const adminAccountsService = {
       profit_usd: cents(m.revenue_usd - m.fees_usd - m.cost_usd),
     }));
 
-    const lifeCost = ((lifeUsageRes.data || []) as any[]).reduce((s, r) => s + (Number(r.cost_usd) || 0), 0);
+    const lifeCost = (lifeCosts as any[]).filter((r) => r.user_id === userId).reduce((s, r) => s + (Number(r.cost_usd) || 0), 0);
     const lifeRevenue = payments.reduce((s, p) => s + p.amount_usd, 0);
     const lifeFees = payments.reduce((s, p) => s + stripeFee(p.amount_usd), 0);
-    const lifeUsed = -((lifeLedgerRes.data || []) as any[]).reduce((s, r) => s + (Number(r.delta) || 0), 0);
+    const lifeUsed = (lifeCharged as any[]).filter((r) => r.user_id === userId && r.action !== 'topup').reduce((s, r) => s + (Number(r.credits) || 0), 0);
     const thisMonth = monthRows[0];
 
     const suspended = !!controls?.suspended_at;
@@ -276,8 +265,8 @@ export const adminAccountsService = {
         lifetime_credits_used: tenth(lifeUsed),
       },
       months: monthRows,
-      ledger: ((ledgerRes.data || []) as any[]).slice(0, 100).map((r) => ({ ...r, delta: Number(r.delta) || 0 })),
-      calls: ((usageRes.data || []) as any[]).slice(0, 100).map((r) => ({ ...r, provider_credits: Number(r.provider_credits) || 0, cost_usd: Number(r.cost_usd) || 0 })),
+      ledger: (ledger as any[]).slice(0, 100).map((r) => ({ ...r, delta: Number(r.delta) || 0 })),
+      calls: (usage as any[]).slice(0, 100).map((r) => ({ ...r, provider_credits: Number(r.provider_credits) || 0, cost_usd: Number(r.cost_usd) || 0 })),
       payments,
       resources: { mailboxes, domains, contacts, campaigns },
       audit: audit.entries,
