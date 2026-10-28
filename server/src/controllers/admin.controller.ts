@@ -16,6 +16,14 @@ export const adminController = {
     try { res.json(await adminService.stats()); } catch (err) { next(err); }
   },
 
+  /** GET /admin/usage?month=YYYY-MM — cost, revenue and profit per account */
+  async usage(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const month = typeof req.query.month === 'string' ? req.query.month : undefined;
+      res.json(await adminService.usage(month));
+    } catch (err) { next(err); }
+  },
+
   /** GET /admin/health — relay, Redis and platform-wide counts (moved off public /health) */
   async health(_req: AuthRequest, res: Response, next: NextFunction) {
     try { res.json(await adminService.health()); } catch (err) { next(err); }

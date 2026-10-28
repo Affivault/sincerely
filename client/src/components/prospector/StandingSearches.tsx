@@ -1,4 +1,4 @@
-import { campaignStatusLabel } from '@lemlist/shared';
+import { CREDIT_PRICES, campaignStatusLabel, creditsLabel } from '@lemlist/shared';
 /* ═══════════════════════════════════════════════════════════════════════
    Standing searches: a search that keeps working after you close the tab.
 
@@ -32,7 +32,7 @@ function stopped(r: ProspectRuleRunResult): string {
   switch (r.stopped) {
     case 'cap': return 'daily cap reached';
     case 'exhausted': return 'no more new matches';
-    case 'no_credits': return 'out of prospect credits';
+    case 'no_credits': return 'out of credits';
     case 'no_provider': return 'no data provider configured';
     case 'no_destination': return 'its campaign has ended - paused so no credits are spent; pick a new campaign to restart';
     default: return r.error ? `error: ${r.error}` : 'error';
@@ -72,7 +72,7 @@ export function SaveStandingSearch({ filters, open, onClose }: { filters: Prospe
       <div className="space-y-3">
         <p className="text-body text-[var(--text-secondary)]">
           New people matching <span className="font-medium text-[var(--text-primary)]">{summary(filters)}</span> are revealed,
-          verified, and added to a campaign automatically. Each reveal uses one prospect credit.
+          verified, and added to a campaign automatically. Each new page of results costs {creditsLabel(CREDIT_PRICES.search)} and each email found {creditsLabel(CREDIT_PRICES.reveal)}.
         </p>
         <label className="block text-caption font-medium text-[var(--text-secondary)]">Name
           <input className={input} value={name} onChange={(e) => setName(e.target.value)} placeholder={summary(filters).slice(0, 60)} />

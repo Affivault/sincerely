@@ -70,6 +70,8 @@ export interface DcsVerificationResult {
   fail_reason: string | null;
   /** Who gave the verdict. Absent on results from before migration 099. */
   verified_by?: EmailVerifiedBy;
+  /** Set when the paid deep check was skipped because the account had no credits left. */
+  deep_skipped?: 'no_credits';
 }
 
 export interface Tag {

@@ -3,7 +3,7 @@ import { env } from '../config/env.js';
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { STRIPE_PRICES, PRICE_TO_PLAN, TRIAL_DAYS, type BillingInterval } from '../config/billing.config.js';
-import { CREDIT_PACKS, type PlanId } from '@lemlist/shared';
+import type { PlanId } from '@lemlist/shared';
 
 let stripe: Stripe | null = null;
 if (env.STRIPE_SECRET_KEY) {
@@ -150,50 +150,10 @@ export const stripeService = {
   },
 
   /**
-   * One-off checkout for a prospect credit pack. Prices are created inline
-   * (payment mode), so no Stripe dashboard setup is needed. Credits are
-   * granted by the checkout.session.completed webhook, idempotently.
+   * Grant a purchased credit pack from a completed checkout, idempotent per
+   * session. Packs are no longer sold; this stays so a checkout started
+   * before they were withdrawn is still honoured.
    */
-  async createCreditPackCheckout(userId: string, email: string | undefined, packId: string): Promise<string> {
-    const s = requireStripe();
-    const pack = CREDIT_PACKS.find((p) => p.id === packId);
-    if (!pack) throw new AppError('Unknown credit pack.', 400);
-
-    const customerId = await getOrCreateCustomer(userId, email);
-
-    const session = await s.checkout.sessions.create({
-      mode: 'payment',
-      customer: customerId,
-      line_items: [
-        {
-          quantity: 1,
-          price_data: {
-            currency: 'usd',
-            unit_amount: pack.priceUsd * 100,
-            product_data: {
-              name: `${pack.credits.toLocaleString()} prospect credits`,
-              description: 'Sincerely Prospector credits — never expire.',
-            },
-          },
-        },
-      ],
-      metadata: {
-        kind: 'prospect_credits',
-        user_id: userId,
-        pack_id: pack.id,
-        credits: String(pack.credits),
-      },
-      client_reference_id: userId,
-      allow_promotion_codes: true,
-      success_url: `${env.CLIENT_URL}/prospector?credits=success`,
-      cancel_url: `${env.CLIENT_URL}/prospector?credits=cancel`,
-    });
-
-    if (!session.url) throw new AppError('Failed to create checkout session.', 502);
-    return session.url;
-  },
-
-  /** Grant a purchased credit pack from a completed checkout — idempotent per session. */
   async grantCreditPack(session: Stripe.Checkout.Session): Promise<void> {
     const userId = (session.metadata?.user_id as string | undefined) || session.client_reference_id || undefined;
     const credits = Number(session.metadata?.credits || 0);
@@ -216,6 +176,57 @@ export const stripeService = {
       throw new AppError(`Failed to grant credits for session ${session.id}: ${error.message}`, 500);
     }
     console.log(`[Stripe] Granted ${credits} prospect credits to ${userId} (session ${session.id})`);
+    await this.recordPayment({
+      userId, customerId: (session.customer as string) || null, ref: session.id, kind: 'credit_pack',
+      amountCents: session.amount_total ?? 0, currency: session.currency || 'usd', paidAt: new Date(),
+    });
+  },
+
+  /** One row per payment in billing_payments, for the admin profit page. Idempotent per Stripe id. */
+  async recordPayment(p: { userId: string | null; customerId: string | null; ref: string; kind: 'subscription' | 'credit_pack'; amountCents: number; currency: string; paidAt: Date }): Promise<void> {
+    if (!(p.amountCents > 0)) return;
+    const { error } = await supabaseAdmin.from('billing_payments').upsert({
+      user_id: p.userId,
+      stripe_customer_id: p.customerId,
+      stripe_ref: p.ref,
+      kind: p.kind,
+      amount_usd: Math.round(p.amountCents) / 100,
+      currency: p.currency,
+      paid_at: p.paidAt.toISOString(),
+    }, { onConflict: 'stripe_ref', ignoreDuplicates: true });
+    // A missing table (migration 100 not run) must not fail the webhook.
+    if (error) console.warn(`[Stripe] Could not record payment ${p.ref}: ${error.message}`);
+  },
+
+  async recordInvoice(invoice: Stripe.Invoice): Promise<void> {
+    const customerId = typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id ?? null;
+    const userId = customerId ? await this.userIdForCustomer(customerId) : null;
+    const paidAt = invoice.status_transitions?.paid_at ? new Date(invoice.status_transitions.paid_at * 1000) : new Date(invoice.created * 1000);
+    if (!invoice.id) return;
+    await this.recordPayment({
+      userId, customerId, ref: invoice.id, kind: 'subscription',
+      amountCents: invoice.amount_paid ?? 0, currency: invoice.currency || 'usd', paidAt,
+    });
+  },
+
+  /**
+   * Pull paid invoices since `since` from Stripe into billing_payments, so
+   * revenue is right even when the webhook isn't subscribed to invoice.paid.
+   * Returns false when Stripe is not configured or could not be reached.
+   */
+  async syncPaidInvoices(since: Date): Promise<boolean> {
+    if (!stripe) return false;
+    try {
+      let n = 0;
+      for await (const invoice of stripe.invoices.list({ status: 'paid', created: { gte: Math.floor(since.getTime() / 1000) }, limit: 100 })) {
+        await this.recordInvoice(invoice);
+        if (++n >= 2000) break;
+      }
+      return true;
+    } catch (err) {
+      console.warn('[Stripe] Invoice sync failed:', (err as Error).message);
+      return false;
+    }
   },
 
   async createPortalSession(userId: string): Promise<string> {
@@ -268,6 +279,10 @@ export const stripeService = {
         if (session.mode === 'payment' && session.metadata?.kind === 'prospect_credits') {
           await this.grantCreditPack(session);
         }
+        break;
+      }
+      case 'invoice.paid': {
+        await this.recordInvoice(event.data.object as Stripe.Invoice);
         break;
       }
       case 'customer.subscription.created':

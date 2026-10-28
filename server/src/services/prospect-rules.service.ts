@@ -176,7 +176,14 @@ async function runRuleUnlocked(rule: ProspectRule): Promise<ProspectRuleRunResul
 
     outer:
     for (let page = 1; page <= MAX_PAGES; page++) {
-      const res = await prospectingService.search(rule.user_id, rule.filters || {}, page);
+      let res;
+      try {
+        res = await prospectingService.search(rule.user_id, rule.filters || {}, page);
+      } catch (e: any) {
+        // Search pages cost credits too: out of them, the rule stops quietly.
+        if (e?.statusCode === 403) { result.stopped = 'no_credits'; break outer; }
+        throw e;
+      }
       result.searched += res.results.length;
       for (const person of res.results) {
         if (result.revealed >= rule.daily_cap) { result.stopped = 'cap'; break outer; }

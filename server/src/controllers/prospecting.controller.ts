@@ -1,10 +1,9 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware.js';
 import { prospectingService } from '../services/prospecting.service.js';
-import { stripeService } from '../services/stripe.service.js';
 import { companyDirectoryService } from '../services/company-directory.service.js';
 import { suggestPlaces } from '../services/place-suggest.js';
-import { getActiveProvider, icypeasCompanySearch } from '../services/prospect-providers.js';
+import { getActiveProvider } from '../services/prospect-providers.js';
 import { AppError } from '../middleware/error.middleware.js';
 
 export const prospectingController = {
@@ -33,7 +32,7 @@ export const prospectingController = {
 
   /**
    * POST /prospecting/companies/search — our free directory when it is
-   * loaded, otherwise Icypeas's company database (no Sincerely credits).
+   * loaded, otherwise Icypeas's company database (search credits).
    */
   async searchCompanies(req: AuthRequest, res: Response, next: NextFunction) {
     try {
@@ -43,7 +42,8 @@ export const prospectingController = {
         return res.json({ ...(await companyDirectoryService.search(filters || {}, p)), source: 'directory' });
       }
       if (getActiveProvider()?.id !== 'icypeas') throw new AppError('Company search needs the Icypeas key or the company directory.', 400);
-      res.json(await icypeasCompanySearch(filters || {}, p).catch((e: any) => {
+      res.json(await prospectingService.searchCompanies(req.userId!, filters || {}, p).catch((e: any) => {
+        if (e instanceof AppError) throw e;
         throw new AppError(/at least one filter/.test(e?.message) ? e.message : `Company search failed: ${e?.message || 'provider error'}`, /at least one filter/.test(e?.message) ? 400 : 502);
       }));
     } catch (err) { next(err); }
@@ -57,15 +57,5 @@ export const prospectingController = {
   /** POST /prospecting/reveal — spend a credit, save the lead as a contact */
   async reveal(req: AuthRequest, res: Response, next: NextFunction) {
     try { res.json(await prospectingService.reveal(req.userId!, req.body || {})); } catch (err) { next(err); }
-  },
-
-  /** POST /prospecting/credits/checkout — Stripe checkout for a credit pack */
-  async buyCredits(req: AuthRequest, res: Response, next: NextFunction) {
-    try {
-      const { pack_id } = req.body || {};
-      if (!pack_id) return res.status(400).json({ error: 'pack_id is required' });
-      const url = await stripeService.createCreditPackCheckout(req.userId!, req.userEmail, String(pack_id));
-      res.json({ url });
-    } catch (err) { next(err); }
   },
 };

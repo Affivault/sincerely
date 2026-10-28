@@ -4,13 +4,12 @@ import { ProspectDrawer, companyAsProspect } from '../../components/prospector/P
 import { FilterPanel, EMPTY_FILTERS, DEFAULT_OPEN_ROWS, ALL_ROWS, countFilters, type FilterState } from '../../components/prospector/FilterPanel';
 import { useDebounce } from '../../hooks/useDebounce';
 import { DestinationPicker, rememberedListId } from '../../components/prospector/DestinationPicker';
-import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useRef, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { prospectingApi } from '../../api/prospecting.api';
 import { Button } from '../../components/ui/Button';
-import { Modal } from '../../components/ui/Modal';
 import { Spinner } from '../../components/ui/Spinner';
 import { Avatar } from '../../components/shared/Avatar';
 import { AddToCampaignModal } from '../../components/shared/AddToCampaignModal';
@@ -19,22 +18,22 @@ import { cn } from '../../lib/utils';
 import {
   Radar, Search, Building2, Users,
   Lock, Unlock, CheckCircle2, ChevronLeft, ChevronRight, X,
-  Linkedin, ArrowUpRight, Coins, KeyRound, FolderOpen, Plus, Megaphone, AlertTriangle, SearchX, Undo2,
+  Linkedin, ArrowUpRight, Coins, KeyRound, FolderOpen, Megaphone, AlertTriangle, SearchX, Undo2,
 } from 'lucide-react';
-import { CREDIT_PACKS, formatDayMonth, countAdvancedFilters } from '@lemlist/shared';
+import { CREDIT_PRICES, creditsLabel, formatCredits, formatDayMonth, countAdvancedFilters } from '@lemlist/shared';
 import { EmptyState } from '../../components/shared/EmptyState';
 import type {
   ProspectPerson, ProspectSearchFilters, ProspectSearchResponse,
 } from '@lemlist/shared';
 
-function CreditsMeter({ allowance, planRemaining, purchased, onBuy }: {
-  allowance: number; planRemaining: number; purchased: number; onBuy: () => void;
+function CreditsMeter({ allowance, planRemaining, purchased }: {
+  allowance: number; planRemaining: number; purchased: number;
 }) {
   if (allowance < 0) {
     return <span className="text-body font-medium text-[var(--text-secondary)]">Unlimited credits</span>;
   }
   const pct = allowance > 0 ? Math.max(0, Math.min(100, (planRemaining / allowance) * 100)) : 0;
-  const low = pct <= 15 && purchased === 0;
+  const low = pct <= 20 && purchased === 0;
   return (
     <div className="flex items-center gap-2.5 flex-wrap">
       <Coins className={cn('h-4 w-4', low ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--indigo-text)]')} />
@@ -42,80 +41,18 @@ function CreditsMeter({ allowance, planRemaining, purchased, onBuy }: {
         <div className={cn('h-full rounded-full transition-all', low ? 'bg-amber-500' : '[background:var(--indigo-grad)]')} style={{ width: `${pct}%` }} />
       </div>
       <span className="text-body font-medium text-[var(--text-primary)] tabular">
-        {planRemaining}<span className="text-[var(--text-tertiary)]">/{allowance}</span>
-        {purchased > 0 && <span className="text-[var(--indigo-text)]"> +{purchased.toLocaleString()}</span>}
+        {formatCredits(planRemaining)}<span className="text-[var(--text-tertiary)]">/{formatCredits(allowance)}</span>
+        {purchased > 0 && <span className="text-[var(--indigo-text)]"> +{formatCredits(purchased)}</span>}
         <span className="text-[var(--text-tertiary)]"> credits</span>
       </span>
-      <Button size="sm" variant="secondary" onClick={onBuy}><Plus className="h-3 w-3" /> Buy credits</Button>
+      <Link to="/billing#credits" className="text-caption font-medium text-[var(--indigo-text)] hover:underline">Usage and prices</Link>
     </div>
-  );
-}
-
-/** Credit-pack picker → Stripe checkout redirect. */
-function BuyCreditsModal({ onClose }: { onClose: () => void }) {
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const buy = async (packId: string) => {
-    setBusyId(packId);
-    try {
-      const { url } = await prospectingApi.buyCredits(packId);
-      window.location.href = url;
-    } catch (e: any) {
-      toast.error(e.response?.data?.error || 'Could not start checkout.');
-      setBusyId(null);
-    }
-  };
-  return (
-    <Modal isOpen onClose={onClose} title="Buy prospect credits" description="Purchased credits never expire and are used after your monthly plan credits." size="md">
-      <div className="space-y-2">
-        {CREDIT_PACKS.map((pack) => {
-          const perCredit = pack.priceUsd / pack.credits;
-          return (
-            <div key={pack.id} className="flex items-center gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-3">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] flex-shrink-0">
-                <Coins className="h-4 w-4 text-[var(--indigo-text)]" />
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className="text-strong font-semibold text-[var(--text-primary)] tabular">
-                  {pack.credits.toLocaleString()} credits
-                  <span className="ml-2 inline-flex items-center px-1.5 h-[17px] text-micro font-medium bg-[var(--bg-elevated)] text-[var(--text-tertiary)] rounded">{pack.label}</span>
-                </p>
-                <p className="text-caption text-[var(--text-tertiary)]">${perCredit.toFixed(3)} per lead</p>
-              </div>
-              <Button variant={pack.id === 'pack_2000' ? 'primary' : 'secondary'} disabled={busyId !== null} onClick={() => buy(pack.id)}>
-                {busyId === pack.id ? 'Redirecting…' : `$${pack.priceUsd}`}
-              </Button>
-            </div>
-          );
-        })}
-      </div>
-      <p className="mt-3 text-caption text-[var(--text-tertiary)]">Secure checkout via Stripe. Credits appear within a few seconds of payment.</p>
-    </Modal>
   );
 }
 
 export function ProspectorPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [buyOpen, setBuyOpen] = useState(false);
-
-  // Back from Stripe checkout — confirm and refresh the balance.
-  useEffect(() => {
-    const status = searchParams.get('credits');
-    if (!status) return;
-    if (status === 'success') {
-      toast.success('Payment received — your credits will appear in a few seconds.');
-      const t = setTimeout(() => qc.invalidateQueries({ queryKey: ['prospecting', 'status'] }), 4000);
-      setSearchParams({}, { replace: true });
-      return () => clearTimeout(t);
-    }
-    if (status === 'cancel') {
-      toast('Checkout cancelled — no charge was made.', { icon: 'ℹ️' });
-      setSearchParams({}, { replace: true });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   // Filters
   const [form, setForm] = useState<FilterState>(EMPTY_FILTERS);
   // Earlier filter states, newest last, so a stray click (or Clear all) is one Undo away.
@@ -175,8 +112,12 @@ export function ProspectorPage() {
       setResults(data);
       setPage(vars.p);
       setSelectedIds(new Set());
+      qc.invalidateQueries({ queryKey: ['prospecting', 'status'] });
     },
-    onError: (e: any) => toast.error(e.response?.data?.error || 'Search failed'),
+    onError: (e: any) => {
+      toast.error(e.response?.data?.error || 'Search failed');
+      if (e.response?.status === 403) qc.invalidateQueries({ queryKey: ['prospecting', 'status'] });
+    },
   });
 
   const revealMutation = useMutation({
@@ -298,7 +239,6 @@ export function ProspectorPage() {
             allowance={credits.allowance}
             planRemaining={credits.plan_remaining}
             purchased={credits.purchased}
-            onBuy={() => setBuyOpen(true)}
           />
         )}
       />
@@ -417,6 +357,7 @@ export function ProspectorPage() {
             <Button className="w-full" onClick={() => runSearch(1)} disabled={!providerReady || searchMutation.isPending}>
               {searchMutation.isPending ? <><Spinner size="sm" /> Searching…</> : <><Search className="h-3.5 w-3.5" /> Search prospects</>}
             </Button>
+            <p className="text-caption text-[var(--text-tertiary)] text-center">Each new page of 25 costs {creditsLabel(CREDIT_PRICES.search)}. The match count is free.</p>
             {/* The same search, working every day without you. */}
             <button
               type="button"
@@ -452,7 +393,7 @@ export function ProspectorPage() {
               <Button
                 size="sm"
                 onClick={bulkReveal}
-                disabled={bulkRevealing || revealingId !== null || (credits ? credits.remaining === 0 : false)}
+                disabled={bulkRevealing || revealingId !== null || (credits ? credits.allowance >= 0 && credits.remaining < CREDIT_PRICES.reveal : false)}
               >
                 {bulkRevealing
                   ? <><Spinner size="sm" /> Revealing…</>
@@ -466,7 +407,7 @@ export function ProspectorPage() {
               <Radar className="h-8 w-8 text-[var(--text-tertiary)] mx-auto mb-3" />
               <p className="text-heading font-semibold text-[var(--text-primary)]">Find your next customers</p>
               <p className="text-body text-[var(--text-tertiary)] mt-1 max-w-md mx-auto">
-                Stack as many filters as you like: towns, regions, whole markets, titles, skills, past employers. The match count updates as you go. Each verified email you reveal costs 1 credit and lands in your lead lists, ready for campaigns.
+                Stack as many filters as you like: towns, regions, whole markets, titles, skills, past employers. The match count updates as you go. Each new page of results costs {creditsLabel(CREDIT_PRICES.search)} and each email found costs {creditsLabel(CREDIT_PRICES.reveal)}. Found emails land in your lead lists, ready for campaigns.
               </p>
             </div>
           ) : results.results.length === 0 ? (
@@ -580,11 +521,11 @@ export function ProspectorPage() {
                                 size="sm"
                                 variant="secondary"
                                 onClick={() => revealMutation.mutate({ person: p })}
-                                disabled={revealingId !== null || bulkRevealing || (credits ? credits.remaining === 0 : false)}
+                                disabled={revealingId !== null || bulkRevealing || (credits ? credits.allowance >= 0 && credits.remaining < CREDIT_PRICES.reveal : false)}
                               >
                                 {revealingId === p.id
                                   ? <><Spinner size="sm" /> Revealing…</>
-                                  : <><Unlock className="h-3 w-3" /> Reveal · 1 credit</>}
+                                  : <><Unlock className="h-3 w-3" /> Reveal · {creditsLabel(CREDIT_PRICES.reveal)}</>}
                               </Button>
                             )}
                           </div>
@@ -608,17 +549,14 @@ export function ProspectorPage() {
           })()}
 
           {/* Out of credits nudge */}
-          {credits && credits.allowance >= 0 && credits.remaining === 0 && (
+          {credits && credits.allowance >= 0 && credits.remaining < CREDIT_PRICES.reveal && (
             <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-2.5 flex-wrap shadow-[inset_3px_0_0_theme(colors.amber.500)]">
               <span className="text-body text-[var(--text-secondary)] flex items-center gap-2">
-                <Coins className="h-3.5 w-3.5 text-amber-500" /> You're out of credits. Plan credits reset {formatDayMonth(new Date(credits.resets_at))}.
+                <Coins className="h-3.5 w-3.5 text-amber-500" /> {credits.remaining > 0 ? `${creditsLabel(credits.remaining)} left: not enough to find an email.` : "You're out of credits."} They reset {formatDayMonth(new Date(credits.resets_at))}.
               </span>
               <span className="flex items-center gap-3 flex-shrink-0">
-                <button onClick={() => setBuyOpen(true)} className="inline-flex items-center gap-1 text-body font-semibold text-[var(--indigo-text)] hover:underline">
-                  <Plus className="h-3 w-3" /> Buy credits
-                </button>
-                <Link to="/billing" className="text-body font-medium text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]">
-                  or upgrade plan
+                <Link to="/billing" className="inline-flex items-center gap-1 text-body font-semibold text-[var(--indigo-text)] hover:underline">
+                  Upgrade plan
                 </Link>
               </span>
             </div>
@@ -627,7 +565,6 @@ export function ProspectorPage() {
       </div>
       )}
 
-      {buyOpen && <BuyCreditsModal onClose={() => setBuyOpen(false)} />}
       {peekPerson && (
         <ProspectDrawer
           person={peekPerson.person}

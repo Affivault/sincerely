@@ -15,7 +15,7 @@ export interface PlanLimits {
   maxInboxes: number;
   /** Max emails sent per calendar month. -1 = unlimited. */
   emailsPerMonth: number;
-  /** Prospector reveal credits per calendar month. -1 = unlimited. */
+  /** Credits per calendar month (see credits.types.ts for prices). -1 = unlimited. */
   prospectCredits: number;
   features: PlanFeatures;
 }
@@ -37,7 +37,7 @@ export const PLANS: Record<PlanId, PlanInfo> = {
   },
   trial: {
     id: 'trial', name: 'Trial', priceMonthly: 0, priceAnnual: 0,
-    maxInboxes: 25, emailsPerMonth: 15000, prospectCredits: 500,
+    maxInboxes: 25, emailsPerMonth: 15000, prospectCredits: 100,
     features: { sara: true, abTesting: true },
   },
   starter: {
@@ -50,16 +50,18 @@ export const PLANS: Record<PlanId, PlanInfo> = {
     maxInboxes: 25, emailsPerMonth: 15000, prospectCredits: 1000,
     features: { sara: true, abTesting: true },
   },
+  // Credits are a real cost on every plan, so none is unlimited. A Scale
+  // deal sets its own number in subscriptions.credit_allowance.
   scale: {
     id: 'scale', name: 'Scale', priceMonthly: null, priceAnnual: null,
-    maxInboxes: -1, emailsPerMonth: -1, prospectCredits: -1,
+    maxInboxes: -1, emailsPerMonth: -1, prospectCredits: 5000,
     features: { sara: true, abTesting: true },
   },
   // Manually granted only (never sold through checkout): overrides every
-  // limit, forever. Grant via SQL: set subscriptions.plan = 'lifetime'.
+  // limit but credits (Growth's 1,000 a month), forever. Grant via SQL: set subscriptions.plan = 'lifetime'.
   lifetime: {
     id: 'lifetime', name: 'Lifetime', priceMonthly: null, priceAnnual: null,
-    maxInboxes: -1, emailsPerMonth: -1, prospectCredits: -1,
+    maxInboxes: -1, emailsPerMonth: -1, prospectCredits: 1000,
     features: { sara: true, abTesting: true },
   },
 };

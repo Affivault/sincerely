@@ -2,6 +2,7 @@ import { supabaseAdmin } from '../config/supabase.js';
 import net from 'net';
 import { AppError } from '../middleware/error.middleware.js';
 import type { DcsVerificationResult } from '@lemlist/shared';
+import { CREDIT_PRICES } from '@lemlist/shared';
 import { fireEvent } from './webhook.service.js';
 import {
   noteSmtpOutcome,
@@ -14,6 +15,8 @@ import { resolveDoh, resolveHostIp } from '../utils/dns-doh.js';
 import { chunk, fetchAllPages } from '../utils/batch.js';
 import { env } from '../config/env.js';
 import { icypeas, icypeasAwait } from './prospect-providers.js';
+import { creditsService, OutOfCreditsError } from './credits.service.js';
+import { withUsage } from './provider-usage.service.js';
 
 /**
  * Triple-Layer Verification Pipeline + Deliverability Confidence Score (DCS)
@@ -340,7 +343,7 @@ async function icypeasVerify(base: DcsVerificationResult): Promise<DcsVerificati
   const started = await icypeas('/email-verification', { email: base.email });
   const searchId = started?.item?._id || started?._id;
   if (!searchId) throw new Error('Icypeas did not return a verification id');
-  const item = await icypeasAwait(String(searchId));
+  const item = await icypeasAwait(String(searchId), 'email-verification');
   return resultFromCertainty(base, icypeasCertaintyFrom(item), String(item?.status || '').toUpperCase());
 }
 
@@ -349,16 +352,38 @@ async function icypeasVerify(base: DcsVerificationResult): Promise<DcsVerificati
  * failed Icypeas call falls back to the free result rather than failing the
  * verification: an address is never marked bad because a vendor was down.
  */
-export async function verifyEmailDeep(email: string, historicalBounceRate = 0): Promise<DcsVerificationResult> {
+export async function verifyEmailDeep(
+  email: string,
+  historicalBounceRate = 0,
+  opts: { chargeUserId?: string } = {},
+): Promise<DcsVerificationResult> {
   const base = await verifyEmail(email, historicalBounceRate);
   if (!base.syntax_ok || !base.domain_ok || base.smtp_checked || !env.ICYPEAS_API_KEY) return base;
+
+  /*
+   * The paid check costs CREDIT_PRICES.verify. Out of credits keeps the free
+   * result and says so, rather than failing the verification; a failed
+   * Icypeas call gives the credit back.
+   */
+  const userId = opts.chargeUserId;
+  const spend = { amount: CREDIT_PRICES.verify, action: 'verify', provider: 'icypeas', ref: email };
+  let bucket: string | null = null;
+  if (userId) {
+    try {
+      bucket = await creditsService.spend(userId, spend);
+    } catch (err) {
+      if (err instanceof OutOfCreditsError) return { ...base, deep_skipped: 'no_credits' };
+      throw err;
+    }
+  }
   try {
-    const deep = await icypeasVerify(base);
+    const deep = userId ? await withUsage(userId, 'verify', () => icypeasVerify(base)) : await icypeasVerify(base);
     // A known bounce still counts against an address Icypeas thinks is fine.
     if (historicalBounceRate > 0) deep.score = Math.max(0, deep.score - Math.round(historicalBounceRate * 20));
     return deep;
   } catch (err) {
     console.warn('[Verification] Icypeas check failed, keeping the free result:', (err as Error).message);
+    if (userId && bucket) await creditsService.refund(userId, { ...spend, reason: 'provider_error', bucket });
     return base;
   }
 }
@@ -397,7 +422,8 @@ async function saveResult(contactId: string, userId: string, result: DcsVerifica
 export async function verifyContact(
   contactId: string,
   userId: string,
-  opts: { deep?: boolean } = {}
+  // `charge: false` when the caller already paid for the check (Enrich).
+  opts: { deep?: boolean; charge?: boolean } = {}
 ): Promise<DcsVerificationResult> {
   const { data: contact } = await supabaseAdmin
     .from('contacts')
@@ -408,7 +434,9 @@ export async function verifyContact(
 
   if (!contact) throw new AppError('Contact not found', 404);
 
-  const result = await (opts.deep ? verifyEmailDeep : verifyEmail)(contact.email, contact.is_bounced ? 1 : 0);
+  const result = opts.deep
+    ? await verifyEmailDeep(contact.email, contact.is_bounced ? 1 : 0, opts.charge === false ? {} : { chargeUserId: userId })
+    : await verifyEmail(contact.email, contact.is_bounced ? 1 : 0);
 
   const updateErr = await saveResult(contactId, userId, result);
   if (updateErr) throw new Error(`Failed to save verification result: ${updateErr.message}`);
@@ -463,7 +491,7 @@ export async function batchVerify(
   let verified = 0;
   let failed = 0;
 
-  const check = opts.deep ? verifyEmailDeep : verifyEmail;
+  const check = (email: string, bounce: number) => (opts.deep ? verifyEmailDeep(email, bounce, { chargeUserId: userId }) : verifyEmail(email, bounce));
   const one = async (contact: { id: string; email: string; is_bounced: boolean }) => {
     const result = await check(contact.email, contact.is_bounced ? 1 : 0);
     const batchUpdateErr = await saveResult(contact.id, userId, result);

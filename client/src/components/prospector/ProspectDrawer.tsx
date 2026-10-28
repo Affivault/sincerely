@@ -6,6 +6,7 @@ import {
   ArrowUpRight, Briefcase, Building2, CheckCircle2, ChevronLeft, ChevronRight, ExternalLink,
   FolderPlus, GraduationCap, Linkedin, Lock, Unlock, Users, X,
 } from 'lucide-react';
+import { CREDIT_PRICES, creditsLabel } from '@lemlist/shared';
 import type { DirectoryCompany, EnrichedCompany, ProspectPerson } from '@lemlist/shared';
 import { prospectingApi } from '../../api/prospecting.api';
 import { Avatar } from '../shared/Avatar';
@@ -321,7 +322,7 @@ export function ProspectDrawer({
           {tab === 'prospects' && (
             <div className="space-y-3">
               <p className="text-caption text-[var(--text-tertiary)]">
-                Everyone the database holds at {companyName || 'this company'}. Listing them uses no Sincerely credits; revealing an email uses one.
+                Everyone the database holds at {companyName || 'this company'}. Each new page of 25 costs {creditsLabel(CREDIT_PRICES.search)} and revealing an email costs {creditsLabel(CREDIT_PRICES.reveal)}.
               </p>
               {!companyKey ? (
                 <p className="text-body text-[var(--text-tertiary)]">Their company isn't known, so there's no one to list.</p>

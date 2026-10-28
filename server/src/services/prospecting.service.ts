@@ -1,13 +1,15 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
-import { billingService } from './billing.service.js';
+import { creditsService } from './credits.service.js';
+import { withUsage } from './provider-usage.service.js';
 import { listsService } from './lists.service.js';
-import { getActiveProvider } from './prospect-providers.js';
+import { getActiveProvider, icypeasCompanyPagesToFetch, icypeasCompanySearch } from './prospect-providers.js';
 import { companyDirectoryService } from './company-directory.service.js';
-import { PLANS, normalizeLinkedinUrl, describeProspectSearch, rankProspects } from '@lemlist/shared';
+import { CREDIT_PRICES, normalizeLinkedinUrl, describeProspectSearch, rankProspects } from '@lemlist/shared';
 import { campaignContactsService } from './campaign-contacts.service.js';
 import type {
-  ProspectCreditsSummary,
+  CompanySearchFilters,
+  CompanySearchResponse,
   ProspectDestination,
   ProspectPerson,
   ProspectSearchFilters,
@@ -35,58 +37,11 @@ function pruneCache() {
   }
 }
 
-// UTC, not local time — matches billing.service.ts's currentPeriodStart(), so
-// the prospect-credit reset boundary and the billing period boundary agree
-// regardless of the server process's TZ.
-function monthStartIso(): string {
-  const now = new Date();
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
-}
-function nextMonthIso(): string {
-  const now = new Date();
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString();
-}
-
-async function creditsSummary(userId: string): Promise<ProspectCreditsSummary> {
-  const planId = await billingService.getPlanId(userId);
-  const allowance = PLANS[planId].prospectCredits;
-
-  // Plan bucket: this month's movements against the resetting allowance.
-  const { data: planRows, error: planError } = await supabaseAdmin
-    .from('prospect_credit_ledger')
-    .select('delta')
-    .eq('user_id', userId)
-    .eq('bucket', 'plan')
-    .gte('created_at', monthStartIso());
-  if (planError) throw new AppError(planError.message, 500);
-  const planNet = (planRows || []).reduce((s, r: any) => s + (r.delta || 0), 0);
-  const used = Math.max(0, -planNet);
-  const planRemaining = allowance < 0 ? -1 : Math.max(0, allowance - used);
-
-  // Purchased bucket: persistent balance, never expires.
-  const { data: purchasedRows, error: purchasedError } = await supabaseAdmin
-    .from('prospect_credit_ledger')
-    .select('delta')
-    .eq('user_id', userId)
-    .eq('bucket', 'purchased');
-  if (purchasedError) throw new AppError(purchasedError.message, 500);
-  const purchased = Math.max(0, (purchasedRows || []).reduce((s, r: any) => s + (r.delta || 0), 0));
-
-  return {
-    allowance,
-    used,
-    plan_remaining: planRemaining,
-    purchased,
-    remaining: allowance < 0 ? -1 : planRemaining + purchased,
-    resets_at: nextMonthIso(),
-  };
-}
-
 export const prospectingService = {
   async status(userId: string): Promise<ProspectorStatus> {
     const provider = getActiveProvider();
     const [credits, company_directory] = await Promise.all([
-      creditsSummary(userId),
+      creditsService.summary(userId),
       companyDirectoryService.status(),
     ]);
     return { provider: provider?.id ?? null, credits, company_directory };
@@ -112,7 +67,27 @@ export const prospectingService = {
     }
     const perPage = 25;
     const safePage = Math.min(Math.max(1, Number(page) || 1), 40);
-    const { results, total, emailsById } = await provider.search(filters, safePage, perPage);
+
+    /*
+     * A page costs credits only when the provider is paid for it: one held
+     * from the last few minutes is free, and a jump that walks forward pays
+     * for each page it walks. Charged up front, so an account without the
+     * credits never makes the paid call; refunded if the call fails or
+     * comes back empty (Icypeas bills per result, so an empty page is free).
+     */
+    const pages = provider.pagesToFetch ? provider.pagesToFetch(filters || {}, safePage, perPage) : 1;
+    const charge = Math.round(pages * CREDIT_PRICES.search * 10) / 10;
+    const spend = { amount: charge, action: 'search', provider: provider.id, ref: `page ${safePage}` };
+    const bucket = charge > 0 ? await creditsService.spend(userId, spend) : null;
+    let found;
+    try {
+      found = await withUsage(userId, 'search', () => provider.search(filters, safePage, perPage));
+    } catch (err) {
+      if (bucket) await creditsService.refund(userId, { ...spend, reason: 'provider_error', bucket });
+      throw err;
+    }
+    const { results, total, emailsById } = found;
+    if (bucket && results.length === 0) await creditsService.refund(userId, { ...spend, reason: 'no_results', bucket });
 
     // Stash search-time emails for the reveal step; strip them from the payload.
     pruneCache();
@@ -143,6 +118,25 @@ export const prospectingService = {
   },
 
   /**
+   * Icypeas's company database, priced like a people search: each new page
+   * of 25 costs CREDIT_PRICES.search, refunded when it fails or is empty.
+   */
+  async searchCompanies(userId: string, filters: CompanySearchFilters, page: number): Promise<CompanySearchResponse> {
+    const pages = icypeasCompanyPagesToFetch(filters || {}, page);
+    const charge = Math.round(pages * CREDIT_PRICES.search * 10) / 10;
+    const spend = { amount: charge, action: 'search', provider: 'icypeas', ref: `companies page ${page}` };
+    const bucket = charge > 0 ? await creditsService.spend(userId, spend) : null;
+    try {
+      const res = await withUsage(userId, 'search', () => icypeasCompanySearch(filters || {}, page));
+      if (bucket && res.results.length === 0) await creditsService.refund(userId, { ...spend, reason: 'no_results', bucket });
+      return res;
+    } catch (err) {
+      if (bucket) await creditsService.refund(userId, { ...spend, reason: 'provider_error', bucket });
+      throw err;
+    }
+  },
+
+  /**
    * `enrolListCampaigns: false` saves to the list without enrolling into the
    * campaigns it feeds - for standing searches, which verify an address
    * before deciding whether to enrol it.
@@ -169,29 +163,14 @@ export const prospectingService = {
         email: existing.email,
         contact_id: existing.contact_id,
         already_revealed: true,
-        credits: await creditsSummary(userId),
+        credits: await creditsService.summary(userId),
         enrolled_in: enrolledIn,
       };
     }
 
-    // Spend one credit atomically: monthly plan allowance first, then the
-    // purchased (never-expiring) balance.
-    const planId = await billingService.getPlanId(userId);
-    const allowance = PLANS[planId].prospectCredits;
-    const { data: spendRows, error: spendError } = await supabaseAdmin.rpc('try_spend_prospect_credits', {
-      p_user_id: userId,
-      p_amount: 1,
-      p_allowance: allowance,
-      p_reason: 'reveal',
-      p_provider: provider.id,
-      p_provider_person_id: personId,
-    });
-    if (spendError) throw new AppError(spendError.message, 500);
-    const spend = Array.isArray(spendRows) ? spendRows[0] : spendRows;
-    const spentBucket: string | null = spend?.spent_bucket ?? null;
-    if (!spentBucket) {
-      throw new AppError('You’re out of prospect credits. Buy a credit pack or upgrade your plan to keep revealing leads.', 403);
-    }
+    // Spend atomically, or refuse (403) and spend nothing.
+    const spend = { amount: CREDIT_PRICES.reveal, action: 'reveal', provider: provider.id, ref: personId };
+    const spentBucket = await creditsService.spend(userId, spend);
 
     // Get the email: search-time cache first, provider enrich as fallback.
     let email: string | null = null;
@@ -201,28 +180,22 @@ export const prospectingService = {
       email = cached.email;
     } else {
       try {
-        const res = await provider.enrichEmail(personId, input.person);
+        const res = await withUsage(userId, 'reveal', () => provider.enrichEmail(personId, input.person));
         email = res.email;
         enriched = res.person;
       } catch (err: any) {
         // Provider failure → refund the credit to the bucket it came from.
-        await supabaseAdmin.from('prospect_credit_ledger').insert({
-          user_id: userId, delta: 1, kind: 'refund', reason: 'provider_error',
-          provider: provider.id, provider_person_id: personId, bucket: spentBucket,
-        });
+        await creditsService.refund(userId, { ...spend, reason: 'provider_error', bucket: spentBucket });
         throw new AppError(err?.message || 'The data provider failed to enrich this lead. You were not charged.', 502);
       }
     }
 
     if (!email) {
       // No usable email → refund; only successful reveals cost credits.
-      await supabaseAdmin.from('prospect_credit_ledger').insert({
-        user_id: userId, delta: 1, kind: 'refund', reason: 'no_email_found',
-        provider: provider.id, provider_person_id: personId, bucket: spentBucket,
-      });
+      await creditsService.refund(userId, { ...spend, reason: 'no_email_found', bucket: spentBucket });
       return {
         found: false, email: null, contact_id: null, already_revealed: false,
-        credits: await creditsSummary(userId),
+        credits: await creditsService.summary(userId),
       };
     }
 
@@ -284,10 +257,7 @@ export const prospectingService = {
     }
     if (contactError || !contact) {
       // Contact write failed → refund; the user was charged for nothing.
-      await supabaseAdmin.from('prospect_credit_ledger').insert({
-        user_id: userId, delta: 1, kind: 'refund', reason: 'contact_write_error',
-        provider: provider.id, provider_person_id: personId, bucket: spentBucket,
-      });
+      await creditsService.refund(userId, { ...spend, reason: 'contact_write_error', bucket: spentBucket });
       throw new AppError(contactError?.message || 'Could not save the contact', 500);
     }
 
@@ -306,17 +276,11 @@ export const prospectingService = {
         // this exact reveal under the unique (user_id, provider, provider_person_id)
         // constraint — refund the credit we just spent so the user isn't charged
         // twice for one reveal.
-        await supabaseAdmin.from('prospect_credit_ledger').insert({
-          user_id: userId, delta: 1, kind: 'refund', reason: 'concurrent_reveal',
-          provider: provider.id, provider_person_id: personId, bucket: spentBucket,
-        });
+        await creditsService.refund(userId, { ...spend, reason: 'concurrent_reveal', bucket: spentBucket });
         alreadyRevealed = true;
       } else {
         // Any other insert failure → refund; the reveal was never recorded.
-        await supabaseAdmin.from('prospect_credit_ledger').insert({
-          user_id: userId, delta: 1, kind: 'refund', reason: 'reveal_insert_error',
-          provider: provider.id, provider_person_id: personId, bucket: spentBucket,
-        });
+        await creditsService.refund(userId, { ...spend, reason: 'reveal_insert_error', bucket: spentBucket });
         throw new AppError(revealInsertError.message, 500);
       }
     }
@@ -328,7 +292,7 @@ export const prospectingService = {
       email: contactRow.email,
       contact_id: contact.id,
       already_revealed: alreadyRevealed,
-      credits: await creditsSummary(userId),
+      credits: await creditsService.summary(userId),
       enrolled_in: enrolledIn,
     };
   },

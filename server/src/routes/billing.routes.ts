@@ -5,6 +5,7 @@ import { jwtOnly } from '../middleware/apikey.middleware.js';
 export const billingRoutes = Router();
 
 billingRoutes.get('/usage', billingController.usage);
+billingRoutes.get('/credits', billingController.credits);
 // Checkout/portal mint live Stripe sessions (portal lets the caller change
 // payment method, view invoices, cancel the subscription) — user-session only.
 billingRoutes.post('/checkout', jwtOnly, billingController.checkout);

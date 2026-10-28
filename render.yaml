@@ -51,6 +51,12 @@ services:
       # without a key the Prospector page shows a setup notice.
       - key: ICYPEAS_API_KEY
         sync: false
+      # For the admin "Usage and profit" page: our Icypeas login email (to
+      # read the balance) and what one Icypeas credit costs us (default 0.019).
+      - key: ICYPEAS_ACCOUNT_EMAIL
+        sync: false
+      - key: ICYPEAS_USD_PER_CREDIT
+        sync: false
       # Google Calendar (optional). Without these the feature is off and the
       # Availability page says so; nothing else changes. Listed here so a
       # blueprint re-apply cannot silently drop them.

@@ -5,7 +5,7 @@ import {
   ShieldCheck, Sparkles, Users,
 } from 'lucide-react';
 import {
-  COMPANY_DIRECTORY_ATTRIBUTION, ENRICH_CREDIT_COST, formatDate,
+  COMPANY_DIRECTORY_ATTRIBUTION, ENRICH_CREDIT_COST, creditsLabel, formatDate,
   type ContactEnrichment, type EnrichedCompany, type EnrichedPerson, type EnrichmentSuggestion,
 } from '@lemlist/shared';
 import { Avatar } from '../shared/Avatar';
@@ -78,11 +78,11 @@ export function Profile360({
       type="button"
       onClick={onEnrich}
       disabled={enriching}
-      title={`Looks up their LinkedIn profile, their company and checks their email. Uses ${ENRICH_CREDIT_COST} prospect credit, refunded if nothing is found.`}
+      title={`Looks up their LinkedIn profile, their company and checks their email. Costs ${creditsLabel(ENRICH_CREDIT_COST)}, refunded if nothing is found.`}
       className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg bg-[var(--indigo)] text-white text-caption font-semibold hover:bg-[var(--indigo-hover)] transition-colors disabled:opacity-60"
     >
       {enriching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-      {enriching ? 'Enriching…' : enrichment ? 'Enrich again' : 'Enrich'}
+      {enriching ? 'Enriching…' : `${enrichment ? 'Enrich again' : 'Enrich'} · ${creditsLabel(ENRICH_CREDIT_COST)}`}
     </button>
   );
 

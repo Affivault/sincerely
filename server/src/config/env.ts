@@ -32,6 +32,18 @@ const envSchema = z.object({
   // competing product, so it is for internal testing, never for customers.
   ICYPEAS_API_KEY: z.string().optional().default(''),
   PDL_API_KEY: z.string().optional().default(''),
+  // What one Icypeas credit costs us, for the admin profit page ($19 per 1,000).
+  ICYPEAS_USD_PER_CREDIT: z.string().optional().default('0.019').transform((v) => {
+    const n = Number(v);
+    return Number.isFinite(n) && n >= 0 ? n : 0.019;
+  }),
+  // The email of our Icypeas account: their balance route asks for it.
+  ICYPEAS_ACCOUNT_EMAIL: z.string().optional().default(''),
+  // Below this many Icypeas credits the admin page warns.
+  ICYPEAS_LOW_BALANCE: z.string().optional().default('250').transform((v) => {
+    const n = Number(v);
+    return Number.isFinite(n) && n >= 0 ? n : 250;
+  }),
   APOLLO_API_KEY: z.string().optional().default(''),
   ALLOW_APOLLO_PROVIDER: z.string().optional().default('').transform((v) => /^(1|true|yes)$/i.test(v.trim())),
   // One-click OAuth for integrations — set a provider's client id + secret

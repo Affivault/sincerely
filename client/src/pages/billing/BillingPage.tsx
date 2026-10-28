@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { billingApi } from '../../api/billing.api';
+import { CreditsPanel } from '../../components/billing/CreditsPanel';
 import { PLANS, isUnlimited, type PlanId, formatDate } from '@lemlist/shared';
 import { cn } from '../../lib/utils';
 import { CreditCard, Mail, Inbox, Check, Sparkles, Zap, Building2, ExternalLink } from 'lucide-react';
@@ -128,7 +129,7 @@ export function BillingPage() {
       <PageHeader
         icon={CreditCard}
         title="Billing & usage"
-        description="Your plan, this month's usage, and upgrade options."
+        description="Your plan, this month's usage and credits, and upgrade options."
         actions={
           usage?.hasBilling && (
             <button
@@ -178,6 +179,8 @@ export function BillingPage() {
           <UsageMeter icon={Inbox} label="Connected inboxes" used={usage?.inboxes ?? 0} limit={usage?.inboxLimit ?? 0} />
         </div>
       </div>
+
+      <CreditsPanel />
 
       {/* Plans */}
       <div className="flex items-center justify-between mb-4 mt-8">
@@ -266,6 +269,7 @@ export function BillingPage() {
               <ul className="space-y-2 text-body text-[var(--text-secondary)]">
                 <PlanLine>{fmtLimit(plan.maxInboxes)} sending inbox{plan.maxInboxes === 1 ? '' : 'es'}</PlanLine>
                 <PlanLine>{fmtLimit(plan.emailsPerMonth)} emails / month</PlanLine>
+                <PlanLine>{id === 'scale' ? 'Credits sized to your volume' : `${plan.prospectCredits.toLocaleString()} credits / month`}</PlanLine>
                 <PlanLine muted={!plan.features.sara}>Relay autonomous replies</PlanLine>
                 <PlanLine muted={!plan.features.abTesting}>A/B subject &amp; body testing</PlanLine>
               </ul>
