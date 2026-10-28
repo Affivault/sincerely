@@ -1,6 +1,6 @@
 import { StandingSearches, SaveStandingSearch } from '../../components/prospector/StandingSearches';
 import { CompanySearch } from '../../components/prospector/CompanySearch';
-import { FilterPanel, EMPTY_FILTERS, countFilters, type FilterState } from '../../components/prospector/FilterPanel';
+import { FilterPanel, EMPTY_FILTERS, DEFAULT_OPEN_ROWS, ALL_ROWS, countFilters, type FilterState } from '../../components/prospector/FilterPanel';
 import { useDebounce } from '../../hooks/useDebounce';
 import { DestinationPicker, rememberedListId } from '../../components/prospector/DestinationPicker';
 import { useEffect, useRef, useState } from 'react';
@@ -117,6 +117,9 @@ export function ProspectorPage() {
 
   // Filters
   const [form, setForm] = useState<FilterState>(EMPTY_FILTERS);
+  const [openRows, setOpenRows] = useState<Set<string>>(() => new Set(DEFAULT_OPEN_ROWS));
+  const toggleRow = (id: string) => setOpenRows((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  const allOpen = openRows.size >= ALL_ROWS.length;
   const [saveRuleOpen, setSaveRuleOpen] = useState(false);
   const [tab, setTab] = useState<'people' | 'companies'>('people');
   const [page, setPage] = useState(1);
@@ -342,7 +345,7 @@ export function ProspectorPage() {
       {tab === 'companies' && directoryReady ? (
         <CompanySearch onFindPeople={findPeopleAt} />
       ) : (
-      <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-4 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-4 items-start">
         {/* Filters: every one in view, no hidden step. */}
         {/* On wide screens the panel scrolls on its own, so results stay in view beside it. */}
         <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] lg:sticky lg:top-4 lg:flex lg:flex-col lg:max-h-[calc(100vh-10rem)]">
@@ -351,29 +354,37 @@ export function ProspectorPage() {
               <Search className="h-3 w-3" /> Filters
               {activeFilters > 0 && <span className="text-[var(--indigo-text)] tabular">· {activeFilters}</span>}
             </p>
-            {hasFilters && (
+            <span className="flex items-center gap-3">
               <button
-                onClick={() => setForm(EMPTY_FILTERS)}
+                onClick={() => setOpenRows(allOpen ? new Set(DEFAULT_OPEN_ROWS) : new Set(ALL_ROWS))}
                 className="text-caption font-medium text-[var(--text-tertiary)] hover:text-[var(--indigo-text)] transition-colors"
               >
-                Clear all
+                {allOpen ? 'Collapse' : 'Show every filter'}
               </button>
-            )}
+              {hasFilters && (
+                <button
+                  onClick={() => setForm(EMPTY_FILTERS)}
+                  className="text-caption font-medium text-[var(--text-tertiary)] hover:text-[var(--indigo-text)] transition-colors"
+                >
+                  Clear all
+                </button>
+              )}
+            </span>
           </div>
 
-          <div className="px-4 pb-4 lg:overflow-y-auto lg:min-h-0 lg:flex-1 [scrollbar-width:thin]">
-            <FilterPanel value={form} onChange={setForm} full={fullFilters} onSubmit={() => runSearch(1)} />
+          <div className="pb-2 border-t border-[var(--border-subtle)] lg:overflow-y-auto lg:min-h-0 lg:flex-1 [scrollbar-width:thin]">
+            <FilterPanel value={form} onChange={setForm} full={fullFilters} onSubmit={() => runSearch(1)} openRows={openRows} onToggleRow={toggleRow} />
           </div>
 
           {/* Stays in reach however far down the filters go. */}
           <div className="sticky bottom-0 lg:static flex-shrink-0 rounded-b-xl border-t border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4 space-y-2">
             {fullFilters && hasFilters && (
-              <p className="text-caption text-[var(--text-tertiary)] tabular flex items-center gap-1.5" aria-live="polite">
+              <div className="text-caption text-[var(--text-tertiary)] tabular flex items-center gap-1.5" aria-live="polite">
                 {matchCount !== null ? (
                   <><span className="text-strong font-semibold text-[var(--text-primary)]">{matchCount.toLocaleString()}</span> {matchCount === 1 ? 'person matches' : 'people match'}</>
                 ) : counting ? 'Counting matches…' : 'Search to see matches'}
                 {counting && matchCount !== null && <Spinner size="sm" />}
-              </p>
+              </div>
             )}
             <Button className="w-full" onClick={() => runSearch(1)} disabled={!providerReady || searchMutation.isPending}>
               {searchMutation.isPending ? <><Spinner size="sm" /> Searching…</> : <><Search className="h-3.5 w-3.5" /> Search prospects</>}

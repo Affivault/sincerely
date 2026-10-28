@@ -1,6 +1,6 @@
-import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { Fragment, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Ban, X, type LucideIcon } from 'lucide-react';
+import { Ban, Check, Plus, X, type LucideIcon } from 'lucide-react';
 import { prospectValueLabel } from '@lemlist/shared';
 import type { ProspectSuggestion } from '@lemlist/shared';
 import { prospectingApi } from '../../api/prospecting.api';
@@ -30,6 +30,8 @@ export function useCyclingExample(examples: string[], offset = 0): string {
 /** Values pasted or typed as a list: commas, semicolons and new lines all split. */
 const splitList = (s: string, commas = true) => s.split(commas ? /[,;\n\t]+/ : /[;\n\t]+/).map((v) => v.trim()).filter(Boolean);
 const MAX_VALUES = 200;
+/** Quick picks shown before "more", so a row stays short. */
+const PICKS_SHOWN = 6;
 
 /**
  * A filter box that takes as many values as the provider allows (200), with
@@ -38,8 +40,12 @@ const MAX_VALUES = 200;
  */
 export function TagFilter({
   label, icon: Icon, include, exclude, onChange, examples, prefix = 'Try', suggest, remote, listSeparator = true, offset = 0, preferPick = false,
+  quickPicks, name,
 }: {
-  label: string;
+  /** What the box is for, read out by screen readers when there is no visible label. */
+  name?: string;
+  /** Shown above the box; left out where the box sits under a row that already names it. */
+  label?: string;
   icon?: LucideIcon;
   include: string[];
   /** Undefined when the field has no exclude list. */
@@ -62,6 +68,8 @@ export function TagFilter({
    * like job title keeps exactly what was typed unless a row was arrowed to.
    */
   preferPick?: boolean;
+  /** One-click bundles under the box, e.g. "Sales leaders" adds five titles. */
+  quickPicks?: { label: string; values: string[] }[];
 }) {
   const id = useId();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -70,6 +78,7 @@ export function TagFilter({
   const [active, setActive] = useState(0);
   const [navigated, setNavigated] = useState(false);
   const [mode, setMode] = useState<'include' | 'exclude'>('include');
+  const [allPicks, setAllPicks] = useState(false);
   const example = useCyclingExample(examples, offset);
   const excludes = exclude || [];
   const total = include.length + excludes.length;
@@ -122,7 +131,7 @@ export function TagFilter({
       if (row && (navigated || exact || preferPick || !draft.trim())) pick(row);
       else if (draft.trim()) commitDraft();
     } else if (e.key === ',' && listSeparator) { e.preventDefault(); commitDraft(); }
-    else if (e.key === 'Escape') { setOpen(false); }
+    else if (e.key === 'Escape') { setOpen(false); setDraft(''); }
     else if (e.key === 'Backspace' && !draft) {
       const last = excludes.length && mode === 'exclude' ? excludes[excludes.length - 1] : include[include.length - 1];
       if (last) remove(last);
@@ -132,30 +141,15 @@ export function TagFilter({
   const excluding = mode === 'exclude' && !!exclude;
   const placeholder = excluding ? 'Leave out…' : total ? 'Add another…' : example ? `${prefix} ${example}` : '';
   const listId = `${id}-list`;
+  const ariaLabel = name || 'Add values';
 
   return (
     <div>
-      <div className="flex items-center gap-1.5 mb-1">
-        <label htmlFor={`${id}-in`} className="flex items-center gap-1.5 text-caption font-medium text-[var(--text-secondary)]">
+      {label && (
+        <label htmlFor={`${id}-in`} className="flex items-center gap-1.5 mb-1 text-caption font-medium text-[var(--text-secondary)]">
           {Icon && <Icon className="h-3 w-3 text-[var(--text-tertiary)]" />} {label}
         </label>
-        {total > 0 && <span className="text-micro font-medium text-[var(--indigo-text)] tabular">{total}</span>}
-        <span className="flex-1" />
-        {total > 0 && (
-          <button type="button" onClick={() => onChange([], [])}
-            className="text-micro font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">
-            Clear
-          </button>
-        )}
-        {exclude && (
-          <button type="button" onClick={() => setMode(excluding ? 'include' : 'exclude')} aria-pressed={excluding}
-            title="Values typed while this is on are left out of the search"
-            className={cn('inline-flex items-center gap-0.5 h-4 px-1 rounded text-micro font-medium transition-colors',
-              excluding ? cn(TONE.negative.bg, TONE.negative.text) : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]')}>
-            <Ban className="h-2.5 w-2.5" /> Exclude
-          </button>
-        )}
-      </div>
+      )}
 
       <div className="relative">
         <div
@@ -201,17 +195,22 @@ export function TagFilter({
               if ((listSeparator ? /[,;\n\t]/ : /[;\n\t]/).test(text)) { e.preventDefault(); add(splitList(text, listSeparator)); }
             }}
             placeholder={placeholder}
+            aria-label={label ? undefined : ariaLabel}
             className="flex-1 min-w-20 h-6 bg-transparent px-1 text-body text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none"
           />
         </div>
 
         {open && (options.length > 0 || draft.trim()) && (
           <ul id={listId} role="listbox"
-            className="absolute z-30 left-0 right-0 mt-1 max-h-64 overflow-auto rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] py-1 shadow-lg"
+            className="absolute z-30 left-0 right-0 mt-1 max-h-72 overflow-auto rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] py-1 shadow-lg"
             // Keep focus in the input so a click picks instead of blurring first.
             onMouseDown={(e) => e.preventDefault()}>
             {options.map((s, i) => (
-              <li key={s.value} id={`${listId}-${i}`} role="option" aria-selected={i === active}
+              <Fragment key={s.value}>
+              {s.group && s.group !== options[i - 1]?.group && (
+                <li role="presentation" className="px-2.5 pt-2 pb-1 text-micro font-semibold text-[var(--text-tertiary)] first:pt-1">{s.group}</li>
+              )}
+              <li id={`${listId}-${i}`} role="option" aria-selected={i === active}
                 onMouseEnter={() => { setActive(i); setNavigated(true); }} onClick={() => pick(s)}
  className={cn('flex items-center gap-2 px-2.5 py-1.5 cursor-pointer text-body',
                   i === active && (navigated || preferPick || !draft.trim()) ? 'bg-[var(--indigo-subtle)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)]')}>
@@ -219,6 +218,7 @@ export function TagFilter({
                 {s.hint && <span className="text-micro text-[var(--text-tertiary)] flex-shrink-0">{s.hint}</span>}
                 {s.kind && <span className="text-micro font-medium text-[var(--text-tertiary)] flex-shrink-0">{s.kind}</span>}
               </li>
+              </Fragment>
             ))}
             {draft.trim() && (
               <li role="option" aria-selected={false} onClick={commitDraft}
@@ -230,6 +230,56 @@ export function TagFilter({
           </ul>
         )}
       </div>
+
+      {(exclude || total > 0) && (
+        <div className="flex items-center gap-2 mt-1.5">
+          {exclude && (
+            <div role="group" aria-label="New values" className="inline-flex items-center rounded-md border border-[var(--border-subtle)] p-px">
+              {(['include', 'exclude'] as const).map((m) => (
+                <button key={m} type="button" aria-pressed={mode === m} onClick={() => setMode(m)}
+                  title={m === 'exclude' ? 'What you add now is left out of the search' : 'What you add now must match'}
+                  className={cn('inline-flex items-center gap-1 h-5 px-1.5 rounded text-micro font-medium transition-colors',
+                    mode === m
+                      ? m === 'exclude' ? cn(TONE.negative.bg, TONE.negative.text) : 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)]'
+                      : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]')}>
+                  {m === 'exclude' ? <><Ban className="h-2.5 w-2.5" /> Exclude</> : <><Check className="h-2.5 w-2.5" /> Include</>}
+                </button>
+              ))}
+            </div>
+          )}
+          <span className="flex-1" />
+          {total > 0 && (
+            <button type="button" onClick={() => onChange([], [])}
+              className="text-micro font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">
+              Clear {total}
+            </button>
+          )}
+        </div>
+      )}
+
+      {quickPicks?.length ? (
+        <div className="flex flex-wrap gap-1 mt-2">
+          {(allPicks ? quickPicks : quickPicks.slice(0, PICKS_SHOWN)).map((p) => {
+            const on = p.values.every((v) => include.includes(v));
+            return (
+              <button key={p.label} type="button" aria-pressed={on}
+                onClick={() => on ? onChange(include.filter((v) => !p.values.includes(v)), excludes) : add(p.values)}
+                title={p.values.join(', ')}
+                className={cn('inline-flex items-center gap-1 h-6 px-2 rounded-full border text-caption font-medium transition-colors',
+                  on ? 'border-[var(--indigo)]/30 bg-[var(--indigo-subtle)] text-[var(--indigo-text)]'
+                    : 'border-dashed border-[var(--border-default)] text-[var(--text-secondary)] hover:border-[var(--indigo)]/40 hover:text-[var(--indigo-text)]')}>
+                {on ? <Check className="h-3 w-3" /> : <Plus className="h-3 w-3" />} {p.label}
+              </button>
+            );
+          })}
+          {quickPicks.length > PICKS_SHOWN && (
+            <button type="button" onClick={() => setAllPicks(!allPicks)}
+              className="h-6 px-1.5 text-caption font-medium text-[var(--text-tertiary)] hover:text-[var(--indigo-text)] transition-colors">
+              {allPicks ? 'Fewer' : `${quickPicks.length - PICKS_SHOWN} more`}
+            </button>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }

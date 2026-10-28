@@ -16,6 +16,8 @@ export interface ProspectSuggestion {
   kind?: string;
   /** Why it matched when the text typed is not in the label, e.g. "for SaaS". */
   hint?: string;
+  /** The heading it sits under in a grouped dropdown, e.g. "Sales". */
+  group?: string;
 }
 
 const lines = (s: string) => s.split('\n').map((l) => l.trim()).filter(Boolean);
@@ -571,251 +573,137 @@ export const PROSPECT_COMPANY_TYPES = [
   'Nonprofit', 'Educational Institution', 'Government Agency',
 ];
 
-/** Common titles, most-searched first. */
-export const PROSPECT_JOB_TITLES = lines(`
-Founder
-Co-Founder
-CEO
-Owner
-Managing Director
-President
-General Manager
-Partner
-Chief Operating Officer
-COO
-Chief Marketing Officer
-CMO
-Chief Revenue Officer
-CRO
-Chief Technology Officer
-CTO
-Chief Financial Officer
-CFO
-Chief Product Officer
-Chief People Officer
-Chief Customer Officer
-Chief Growth Officer
-Chief Commercial Officer
-Chief Digital Officer
-Chief Information Officer
-Chief Data Officer
-Chief Strategy Officer
-VP Sales
-VP Marketing
-VP Growth
-VP Engineering
-VP Product
-VP Operations
-VP Business Development
-VP Customer Success
-VP Partnerships
-VP Finance
-VP People
-Head of Sales
-Head of Marketing
-Head of Growth
-Head of Demand Generation
-Head of Partnerships
-Head of Business Development
-Head of Customer Success
-Head of Product
-Head of Engineering
-Head of Operations
-Head of Revenue Operations
-Head of People
-Head of Talent Acquisition
-Head of Brand
-Head of Content
-Head of Digital
-Head of E-commerce
-Head of Performance Marketing
-Head of Finance
-Head of Procurement
-Head of Design
-Head of Data
-Head of IT
-Head of Security
-Sales Director
-Marketing Director
-Commercial Director
-Operations Director
-Finance Director
-Creative Director
-Art Director
-HR Director
-IT Director
-Director of Sales
-Director of Marketing
-Director of Growth
-Director of Partnerships
-Director of Business Development
-Director of Operations
-Director of Engineering
-Director of Product
-Director of Customer Success
-Director of Demand Generation
-Sales Manager
-Marketing Manager
-Growth Manager
-Account Manager
-Key Account Manager
-Partnerships Manager
-Business Development Manager
-Product Manager
-Project Manager
-Program Manager
-Operations Manager
-Office Manager
-Community Manager
-Content Manager
-Social Media Manager
-E-commerce Manager
-Brand Manager
-Product Marketing Manager
-Demand Generation Manager
-Performance Marketing Manager
-SEO Manager
-Email Marketing Manager
-Customer Success Manager
-Recruitment Manager
-Talent Acquisition Manager
-HR Manager
-Finance Manager
-Procurement Manager
-Purchasing Manager
-Engineering Manager
-Revenue Operations Manager
-Sales Operations Manager
-Account Executive
-Enterprise Account Executive
-Sales Development Representative
-SDR
-Business Development Representative
-BDR
-Sales Representative
-Sales Executive
-Inside Sales
-Field Sales
-Solutions Engineer
-Sales Engineer
-Customer Success
-Account Director
-Client Services Director
-Growth Marketer
-Marketing Executive
-Digital Marketing
-Copywriter
-Content Strategist
-Designer
-Product Designer
-UX Designer
-Software Engineer
-Senior Software Engineer
-Full Stack Developer
-Frontend Developer
-Backend Developer
-Data Scientist
-Data Analyst
-Data Engineer
-Machine Learning Engineer
-DevOps Engineer
-Engineer
-Consultant
-Senior Consultant
-Advisor
-Analyst
-Business Analyst
-Financial Analyst
-Accountant
-Controller
-Recruiter
-Talent Partner
-HR Business Partner
-Executive Assistant
-Investor
-Principal
-Associate
-Board Member
-Chairman
-Real Estate Agent
-Broker
-Lawyer
-Solicitor
-Attorney
-Doctor
-Teacher
-Professor
-Researcher
-Freelancer
-`);
+/*
+ * Titles and skills by function, so a dropdown can show them grouped and an
+ * empty box can offer a whole function at once. Within a group, most
+ * searched first. Both are free text on Icypeas: these are the spellings
+ * profiles actually use.
+ */
+const groups = (src: Record<string, string>) => Object.fromEntries(Object.entries(src).map(([k, v]) => [k, v.split('|').map((s) => s.trim()).filter(Boolean)]));
 
-export const PROSPECT_SKILLS = lines(`
-Sales
-B2B Sales
-SaaS
-Lead Generation
-Outbound
-Cold Calling
-Cold Email
-Account Management
-Business Development
-Negotiation
-Salesforce
-HubSpot
-Pipedrive
-CRM
-Marketing Strategy
-Digital Marketing
-Growth Marketing
-Demand Generation
-Content Marketing
-Email Marketing
-Marketing Automation
-SEO
-SEM
-Google Ads
-Facebook Ads
-LinkedIn Ads
-Social Media Marketing
-Copywriting
-Branding
-Product Marketing
-E-commerce
-Shopify
-Partnerships
-Customer Success
-Project Management
-Product Management
-Agile
-Scrum
-Leadership
-Strategy
-Operations
-Revenue Operations
-Recruiting
-Talent Acquisition
-Finance
-Accounting
-Financial Modeling
-Fundraising
-Data Analysis
-SQL
-Python
-JavaScript
-TypeScript
-React
-Node.js
-Java
-AWS
-Kubernetes
-Machine Learning
-Artificial Intelligence
-UX Design
-Figma
-Public Speaking
-Event Management
-Public Relations
-`);
+export const PROSPECT_TITLE_GROUPS: Record<string, string[]> = groups({
+  'Founders & executives': 'Founder|Co-Founder|CEO|Chief Executive Officer|Owner|Managing Director|President|General Manager|Partner|Managing Partner|Chairman|Board Member|Entrepreneur|Chief Operating Officer|COO|Chief Strategy Officer|Chief of Staff',
+  Sales: 'Chief Revenue Officer|CRO|Chief Sales Officer|VP Sales|Vice President of Sales|Head of Sales|Sales Director|Director of Sales|Regional Sales Director|Sales Manager|Area Sales Manager|Regional Sales Manager|Account Executive|Senior Account Executive|Enterprise Account Executive|Mid-Market Account Executive|Account Manager|Key Account Manager|Account Director|Sales Development Representative|SDR|Business Development Representative|BDR|Sales Representative|Sales Executive|Inside Sales Representative|Field Sales Representative|Sales Consultant|Solutions Engineer|Sales Engineer|Pre-Sales Consultant|Head of Sales Development|SDR Manager|Channel Sales Manager',
+  'Business development & partnerships': 'Head of Business Development|Director of Business Development|Business Development Manager|Business Development Director|VP Business Development|Head of Partnerships|Director of Partnerships|Partnerships Manager|Partner Manager|Alliances Manager|Head of Alliances|Channel Partner Manager|Affiliate Manager|Head of Affiliates',
+  Marketing: 'Chief Marketing Officer|CMO|VP Marketing|Head of Marketing|Marketing Director|Director of Marketing|Marketing Manager|Senior Marketing Manager|Product Marketing Manager|Head of Product Marketing|Brand Manager|Head of Brand|Content Manager|Head of Content|Content Strategist|Copywriter|Social Media Manager|Community Manager|Email Marketing Manager|CRM Manager|SEO Manager|Head of SEO|PPC Manager|Paid Media Manager|Performance Marketing Manager|Head of Performance Marketing|Digital Marketing Manager|Head of Digital|Marketing Executive|Marketing Coordinator|Events Manager|PR Manager|Communications Director|Head of Communications',
+  Growth: 'Head of Growth|VP Growth|Director of Growth|Growth Manager|Growth Marketer|Growth Lead|Chief Growth Officer|Demand Generation Manager|Head of Demand Generation|Director of Demand Generation|Lifecycle Marketing Manager|Acquisition Manager|User Acquisition Manager',
+  'Revenue operations': 'Head of Revenue Operations|VP Revenue Operations|Revenue Operations Manager|RevOps Manager|Sales Operations Manager|Head of Sales Operations|Marketing Operations Manager|Sales Enablement Manager|Head of Sales Enablement|CRM Administrator|Salesforce Administrator|HubSpot Administrator',
+  'Customer success & support': 'Chief Customer Officer|VP Customer Success|Head of Customer Success|Director of Customer Success|Customer Success Manager|Senior Customer Success Manager|Head of Customer Experience|Customer Experience Manager|Head of Support|Customer Support Manager|Head of Account Management|Implementation Manager|Onboarding Manager',
+  'Ecommerce & retail': 'Head of E-commerce|E-commerce Director|E-commerce Manager|Head of Digital Commerce|Marketplace Manager|Amazon Manager|Head of Retail|Retail Manager|Merchandising Manager|Category Manager|Buyer|Head of Buying',
+  Product: 'Chief Product Officer|CPO|VP Product|Head of Product|Director of Product|Group Product Manager|Senior Product Manager|Product Manager|Product Owner|Technical Product Manager|Head of Product Design',
+  Engineering: 'Chief Technology Officer|CTO|VP Engineering|Head of Engineering|Director of Engineering|Engineering Manager|Tech Lead|Principal Engineer|Staff Engineer|Senior Software Engineer|Software Engineer|Full Stack Developer|Frontend Developer|Backend Developer|Mobile Developer|DevOps Engineer|Site Reliability Engineer|Cloud Architect|Solutions Architect|QA Engineer|Head of Infrastructure',
+  'IT & security': 'Chief Information Officer|CIO|Chief Information Security Officer|CISO|IT Director|Head of IT|IT Manager|Systems Administrator|Network Engineer|Security Engineer|Head of Security|Security Analyst',
+  'Data & AI': 'Chief Data Officer|Head of Data|Director of Data|Data Scientist|Senior Data Scientist|Data Analyst|Data Engineer|Analytics Manager|Head of Analytics|Business Intelligence Manager|Machine Learning Engineer|AI Engineer|Head of AI',
+  Design: 'Head of Design|Design Director|Creative Director|Art Director|Product Designer|UX Designer|UI Designer|UX Researcher|Graphic Designer|Brand Designer',
+  Finance: 'Chief Financial Officer|CFO|VP Finance|Finance Director|Head of Finance|Financial Controller|Controller|Finance Manager|FP&A Manager|Head of FP&A|Accountant|Chartered Accountant|Tax Manager|Treasurer|Financial Analyst|Investor Relations Manager',
+  'HR & talent': 'Chief People Officer|CHRO|VP People|Head of People|HR Director|HR Manager|HR Business Partner|People Partner|Head of Talent Acquisition|Talent Acquisition Manager|Recruitment Manager|Recruiter|Technical Recruiter|Talent Partner|Head of Learning and Development|Compensation and Benefits Manager',
+  Operations: 'VP Operations|Head of Operations|Director of Operations|Operations Director|Operations Manager|Business Operations Manager|Office Manager|Executive Assistant|Project Manager|Program Manager|PMO Lead|Head of Procurement|Procurement Manager|Purchasing Manager|Supply Chain Manager|Head of Logistics|Logistics Manager|Facilities Manager',
+  'Legal & compliance': 'General Counsel|Chief Legal Officer|Head of Legal|Legal Counsel|Lawyer|Solicitor|Attorney|Paralegal|Compliance Manager|Head of Compliance|Data Protection Officer|Risk Manager',
+  'Agencies & consulting': 'Agency Owner|Agency Founder|Account Director|Client Services Director|Head of Client Services|Strategy Director|Planning Director|Consultant|Senior Consultant|Management Consultant|Principal Consultant|Associate Partner|Advisor|Freelance Consultant|Freelancer',
+  'Investors & finance firms': 'Investor|Venture Partner|General Partner|Principal|Associate|Analyst|Angel Investor|Portfolio Manager|Investment Manager|Fund Manager|Wealth Manager|Financial Advisor|Mortgage Advisor|Broker',
+  'Other professions': 'Real Estate Agent|Estate Agent|Property Manager|Doctor|Dentist|Pharmacist|Nurse|Teacher|Head Teacher|Professor|Lecturer|Researcher|Architect|Civil Engineer|Mechanical Engineer|Photographer|Journalist|Editor',
+});
+
+/** Common titles, by function, most-searched first within each. */
+export const PROSPECT_JOB_TITLES = [...new Set(Object.values(PROSPECT_TITLE_GROUPS).flat())];
+const TITLE_GROUP_OF = new Map(Object.entries(PROSPECT_TITLE_GROUPS).flatMap(([g, list]) => list.map((t) => [t, g] as const)));
+
+/** A whole buyer type in one pick: the titles that describe it. */
+export const PROSPECT_TITLE_PACKS: { label: string; values: string[] }[] = [
+  { label: 'Founders & CEOs', values: ['Founder', 'Co-Founder', 'CEO', 'Owner', 'Managing Director'] },
+  { label: 'Sales leaders', values: ['Chief Revenue Officer', 'VP Sales', 'Head of Sales', 'Sales Director', 'Director of Sales'] },
+  { label: 'Marketing leaders', values: ['Chief Marketing Officer', 'CMO', 'VP Marketing', 'Head of Marketing', 'Marketing Director'] },
+  { label: 'Growth', values: ['Head of Growth', 'VP Growth', 'Growth Manager', 'Head of Demand Generation'] },
+  { label: 'RevOps', values: ['Head of Revenue Operations', 'Revenue Operations Manager', 'Sales Operations Manager'] },
+  { label: 'Partnerships', values: ['Head of Partnerships', 'Partnerships Manager', 'Head of Business Development'] },
+  { label: 'Ecommerce', values: ['Head of E-commerce', 'E-commerce Director', 'E-commerce Manager'] },
+  { label: 'Tech leaders', values: ['CTO', 'VP Engineering', 'Head of Engineering', 'Director of Engineering'] },
+  { label: 'Finance leaders', values: ['CFO', 'Finance Director', 'Head of Finance', 'VP Finance'] },
+  { label: 'HR & talent', values: ['Chief People Officer', 'Head of People', 'HR Director', 'Head of Talent Acquisition'] },
+  { label: 'Ops leaders', values: ['COO', 'VP Operations', 'Head of Operations', 'Operations Director'] },
+  { label: 'Agency owners', values: ['Agency Owner', 'Agency Founder', 'Managing Director', 'Founder'] },
+];
+
+/** Short forms people type, mapped to the titles that spell them out. */
+export const TITLE_ALIASES: Record<string, string[]> = {
+  ceo: ['Chief Executive Officer', 'Managing Director'], cmo: ['Chief Marketing Officer', 'VP Marketing'], cro: ['Chief Revenue Officer', 'VP Sales'],
+  cto: ['Chief Technology Officer', 'VP Engineering'], cfo: ['Chief Financial Officer', 'Finance Director'], coo: ['Chief Operating Officer', 'VP Operations'],
+  cpo: ['Chief Product Officer', 'Chief People Officer'], md: ['Managing Director'], vp: ['VP Sales', 'VP Marketing', 'VP Growth'],
+  hr: ['HR Director', 'HR Manager', 'Head of People'], revops: ['Head of Revenue Operations', 'Revenue Operations Manager'],
+  ae: ['Account Executive', 'Senior Account Executive'], am: ['Account Manager', 'Key Account Manager'], csm: ['Customer Success Manager'],
+  pm: ['Product Manager', 'Project Manager'], seo: ['SEO Manager', 'Head of SEO'], ecom: ['Head of E-commerce', 'E-commerce Manager'],
+  boss: ['Founder', 'CEO', 'Owner'], 'decision maker': ['Founder', 'CEO', 'Managing Director', 'Owner'],
+};
+
+export const PROSPECT_SKILL_GROUPS: Record<string, string[]> = groups({
+  'Sales': 'Sales|B2B Sales|SaaS Sales|Enterprise Sales|Solution Selling|Consultative Selling|Account Management|Key Account Management|Business Development|Lead Generation|Prospecting|Outbound Sales|Cold Calling|Cold Email|Social Selling|Negotiation|Closing|Pipeline Management|Sales Forecasting|Sales Management|Channel Sales|Inside Sales|Customer Relationship Management (CRM)|MEDDIC|Challenger Sale|SPIN Selling',
+  'Sales & marketing tools': 'Salesforce|HubSpot|Pipedrive|Zoho CRM|Microsoft Dynamics|Outreach|Salesloft|Apollo|Lemlist|Gong|LinkedIn Sales Navigator|ZoomInfo|Marketo|Pardot|Mailchimp|Klaviyo|Intercom|Zendesk|Google Analytics|Google Ads|Meta Ads|Semrush|Ahrefs|Hotjar|Segment|Zapier|Make|Notion|Airtable|Monday.com|Asana|Jira',
+  'Marketing': 'Marketing Strategy|Digital Marketing|Growth Marketing|Demand Generation|Account-Based Marketing (ABM)|Content Marketing|Email Marketing|Marketing Automation|Lifecycle Marketing|Search Engine Optimization (SEO)|Search Engine Marketing (SEM)|Pay Per Click (PPC)|Paid Social|Social Media Marketing|Influencer Marketing|Affiliate Marketing|Performance Marketing|Conversion Rate Optimization|Copywriting|Brand Strategy|Branding|Product Marketing|Go-to-Market Strategy|Positioning|Public Relations|Event Marketing|Community Building|Marketing Analytics',
+  'Ecommerce': 'E-commerce|Shopify|Shopify Plus|WooCommerce|Magento|BigCommerce|Amazon Seller Central|Marketplace Management|Direct-to-Consumer (DTC)|Merchandising|Retail|Omnichannel|Subscription Commerce|Fulfillment',
+  'Product & design': 'Product Management|Product Strategy|Product Development|Roadmapping|User Research|UX Design|UI Design|Product Design|Figma|Design Thinking|A/B Testing|Agile|Scrum|Kanban|Lean Startup',
+  'Engineering': 'Software Development|JavaScript|TypeScript|React|Node.js|Python|Java|C#|Go|Ruby on Rails|PHP|Swift|Kotlin|SQL|PostgreSQL|MongoDB|GraphQL|REST APIs|Microservices|DevOps|CI/CD|Docker|Kubernetes|Terraform|Linux|Git',
+  'Cloud & IT': 'Amazon Web Services (AWS)|Microsoft Azure|Google Cloud Platform (GCP)|Cloud Computing|IT Strategy|IT Infrastructure|Network Security|Cybersecurity|Information Security|ITIL|SAP|Oracle|ServiceNow|Microsoft 365',
+  'Data & AI': 'Data Analysis|Data Science|Machine Learning|Artificial Intelligence (AI)|Generative AI|Large Language Models (LLM)|Deep Learning|Natural Language Processing|Business Intelligence|Tableau|Power BI|Looker|Excel|Statistics|Data Engineering|Snowflake|dbt|Big Data',
+  'Finance': 'Financial Analysis|Financial Modeling|Financial Planning|FP&A|Budgeting|Forecasting|Accounting|Bookkeeping|Audit|Tax|Corporate Finance|Mergers & Acquisitions (M&A)|Due Diligence|Valuation|Fundraising|Venture Capital|Private Equity|Investment Banking|Risk Management|Xero|QuickBooks|NetSuite',
+  'Leadership & strategy': 'Leadership|Team Leadership|People Management|Strategic Planning|Business Strategy|Change Management|P&L Management|Stakeholder Management|Executive Leadership|Board Relations|Turnaround|Scaling Startups|Entrepreneurship|Startups',
+  'Operations': 'Operations Management|Project Management|Program Management|Process Improvement|Lean Six Sigma|Supply Chain Management|Logistics|Procurement|Vendor Management|Inventory Management|Business Operations|Revenue Operations|Sales Operations|Customer Success|Customer Experience|Customer Support',
+  'HR & talent': 'Recruiting|Technical Recruiting|Talent Acquisition|Employer Branding|Human Resources|HR Strategy|Employee Engagement|Learning & Development|Performance Management|Compensation & Benefits|Workday|Greenhouse|Payroll',
+  'Legal & compliance': 'Contract Negotiation|Corporate Law|Commercial Law|Employment Law|Intellectual Property|GDPR|Compliance|Regulatory Affairs|Data Privacy',
+  'Communication': 'Public Speaking|Presentation Skills|Storytelling|Writing|Editing|Video Production|Podcasting|Photography',
+});
+
+export const PROSPECT_SKILLS = [...new Set(Object.values(PROSPECT_SKILL_GROUPS).flat())];
+const SKILL_GROUP_OF = new Map(Object.entries(PROSPECT_SKILL_GROUPS).flatMap(([g, list]) => list.map((t) => [t, g] as const)));
+
+/** A few one-click skill picks per function, for an empty skills box. */
+export const PROSPECT_SKILL_PACKS: { label: string; values: string[] }[] = [
+  { label: 'Outbound sellers', values: ['Outbound Sales', 'Cold Calling', 'Cold Email', 'Lead Generation', 'Prospecting'] },
+  { label: 'Salesforce users', values: ['Salesforce'] },
+  { label: 'HubSpot users', values: ['HubSpot'] },
+  { label: 'Paid ads', values: ['Google Ads', 'Meta Ads', 'Pay Per Click (PPC)', 'Paid Social'] },
+  { label: 'SEO & content', values: ['Search Engine Optimization (SEO)', 'Content Marketing', 'Copywriting'] },
+  { label: 'Shopify', values: ['Shopify', 'Shopify Plus', 'E-commerce'] },
+  { label: 'AI', values: ['Artificial Intelligence (AI)', 'Generative AI', 'Machine Learning'] },
+  { label: 'Fundraising', values: ['Fundraising', 'Venture Capital'] },
+  { label: 'Hiring', values: ['Recruiting', 'Talent Acquisition'] },
+];
+
+export const SKILL_ALIASES: Record<string, string[]> = {
+  seo: ['Search Engine Optimization (SEO)'], sem: ['Search Engine Marketing (SEM)'], ppc: ['Pay Per Click (PPC)', 'Google Ads'], abm: ['Account-Based Marketing (ABM)'],
+  ai: ['Artificial Intelligence (AI)', 'Generative AI', 'Machine Learning'], ml: ['Machine Learning'], llm: ['Large Language Models (LLM)'], crm: ['Customer Relationship Management (CRM)', 'Salesforce', 'HubSpot'],
+  aws: ['Amazon Web Services (AWS)'], gcp: ['Google Cloud Platform (GCP)'], js: ['JavaScript'], ts: ['TypeScript'], 'm&a': ['Mergers & Acquisitions (M&A)'],
+  dtc: ['Direct-to-Consumer (DTC)'], d2c: ['Direct-to-Consumer (DTC)'], facebook: ['Meta Ads'], ads: ['Google Ads', 'Meta Ads', 'Paid Social'], outbound: ['Outbound Sales', 'Cold Email', 'Cold Calling'],
+};
+
+/** Titles as suggestions, each tagged with its function. */
+export function suggestTitles(typed: string, limit = 60): ProspectSuggestion[] {
+  return rankSuggestions(PROSPECT_JOB_TITLES, typed, limit, TITLE_ALIASES).map((s) => ({ ...s, group: TITLE_GROUP_OF.get(s.value) }));
+}
+/** Skills as suggestions, each tagged with its area. */
+export function suggestSkills(typed: string, limit = 80): ProspectSuggestion[] {
+  return rankSuggestions(PROSPECT_SKILLS, typed, typed.trim() ? limit : PROSPECT_SKILLS.length, SKILL_ALIASES).map((s) => ({ ...s, group: SKILL_GROUP_OF.get(s.value) }));
+}
+
+/*
+ * One-click ranges for the numeric filters, so nobody has to think in raw
+ * numbers. "Custom" stays available beside them.
+ */
+export interface RangePreset { label: string; min: number | null; max: number | null }
+export const EXPERIENCE_PRESETS: RangePreset[] = [
+  { label: 'Under 2 yrs', min: null, max: 2 }, { label: '3-5 yrs', min: 3, max: 5 }, { label: '6-10 yrs', min: 6, max: 10 },
+  { label: '10-20 yrs', min: 10, max: 20 }, { label: '20+ yrs', min: 20, max: null },
+];
+export const TENURE_PRESETS: RangePreset[] = [
+  { label: 'New (under 1 yr)', min: null, max: 1 }, { label: '1-2 yrs', min: 1, max: 2 }, { label: '2-5 yrs', min: 2, max: 5 }, { label: '5+ yrs', min: 5, max: null },
+];
+export const REVENUE_PRESETS: RangePreset[] = [
+  { label: 'Under $1M', min: null, max: 1_000_000 }, { label: '$1-10M', min: 1_000_000, max: 10_000_000 }, { label: '$10-50M', min: 10_000_000, max: 50_000_000 },
+  { label: '$50-250M', min: 50_000_000, max: 250_000_000 }, { label: '$250M-1B', min: 250_000_000, max: 1_000_000_000 }, { label: '$1B+', min: 1_000_000_000, max: null },
+];
+export const GROWTH_PRESETS: RangePreset[] = [
+  { label: 'Shrinking', min: null, max: -1 }, { label: 'Steady', min: 0, max: 10 }, { label: 'Growing 10%+', min: 10, max: null },
+  { label: 'Fast 25%+', min: 25, max: null }, { label: 'Hypergrowth 50%+', min: 50, max: null },
+];
 
 export const PROSPECT_LANGUAGES = lines(`
 English
