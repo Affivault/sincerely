@@ -449,8 +449,9 @@ export function icypeasEmailFromItem(item: any): string | null {
  * What a settled search cost: the finder charges 1 credit for a found email,
  * the verifier 0.1 for every address it tests.
  */
-const SETTLED_CREDITS: Record<'email-search' | 'email-verification', (found: boolean) => number> = {
-  'email-search': (found) => (found ? 1 : 0),
+const SETTLED_CREDITS: Record<'email-search' | 'email-verification', (status: string) => number> = {
+  // DEBITED_NOT_FOUND says what it is: no email, but Icypeas charged for the search.
+  'email-search': (status) => (ICYPEAS_FOUND.has(status) || status.startsWith('DEBITED') ? 1 : 0),
   'email-verification': () => 0.1,
 };
 
@@ -462,7 +463,7 @@ export async function icypeasAwait(searchId: string, kind: 'email-search' | 'ema
     const status = String(item?.status || 'NONE').toUpperCase();
     if (ICYPEAS_PENDING.has(status)) continue;
     if (ICYPEAS_FOUND.has(status) || ICYPEAS_NOT_FOUND.has(status)) {
-      recordProviderUsage(`/${kind}`, SETTLED_CREDITS[kind](ICYPEAS_FOUND.has(status)));
+      recordProviderUsage(`/${kind}`, SETTLED_CREDITS[kind](status));
       return { ...item, status };
     }
     if (status === 'INSUFFICIENT_FUNDS') throw new Error('Provider error: the Icypeas account is out of credits');

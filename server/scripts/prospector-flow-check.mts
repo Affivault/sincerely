@@ -81,7 +81,7 @@ function from(name: string): any {
     return { data: single ? null : [], error: null };
   };
   const chain: any = {
-    select: () => chain, eq: () => chain, gte: () => chain, in: () => chain, not: () => chain,
+    select: () => chain, eq: () => chain, gte: () => chain, in: () => chain, not: () => chain, order: () => chain, range: () => chain,
     maybeSingle: () => { single = true; return chain; },
     single: () => { single = true; return chain; },
     upsert: (row: any) => { writes.push({ table: name, row }); return chain; },

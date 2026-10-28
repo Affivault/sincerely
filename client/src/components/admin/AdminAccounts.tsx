@@ -1,13 +1,14 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, ArrowDown, ChevronRight, XCircle } from 'lucide-react';
+import { AlertTriangle, ArrowDown, ChevronRight, Download, XCircle } from 'lucide-react';
 import { formatCredits, type AdminAccountRow } from '@lemlist/shared';
 import { adminApi } from '../../api/admin.api';
 import { Spinner } from '../ui/Spinner';
 import { Avatar } from '../shared/Avatar';
 import { SearchInput } from '../shared/SearchInput';
 import { useDebounce } from '../../hooks/useDebounce';
+import { downloadCsv } from '../../lib/csv';
 import { cn } from '../../lib/utils';
 import { PlanBadge, moneyTone, monthLabel, relTime, thisMonth, usd } from './adminFormat';
 
@@ -85,6 +86,14 @@ export function AdminAccounts() {
 
   const months = [thisMonth(), thisMonth(-1), thisMonth(-2), thisMonth(-3), thisMonth(-4), thisMonth(-5)];
 
+  // The accounts on screen, as a spreadsheet: for the accountant, or a look in Excel.
+  const exportCsv = () => downloadCsv(
+    `sincerely-accounts-${data?.month || month}.csv`,
+    ['Email', 'Plan', 'Status', 'Suspended', 'Joined', 'Last seen', 'Credits used', 'Credit allowance', 'Cost (USD)', 'Paid (USD)', 'Profit (USD)', 'Lifetime revenue (USD)', 'Lifetime profit (USD)', 'Account id'],
+    rows.map((a) => [a.email, a.plan, a.status, a.suspended ? 'yes' : 'no', a.created_at.slice(0, 10), a.last_sign_in_at?.slice(0, 10) ?? '',
+      a.credits_used, a.credit_allowance, a.cost_usd, a.revenue_usd, a.profit_usd, a.lifetime_revenue_usd, a.lifetime_profit_usd, a.id]),
+  );
+
   return (
     <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-2.5 border-b border-[var(--border-subtle)] flex-wrap">
@@ -109,6 +118,14 @@ export function AdminAccounts() {
         >
           {months.map((m) => <option key={m} value={m}>{monthLabel(m)}</option>)}
         </select>
+        <button
+          type="button"
+          onClick={exportCsv}
+          disabled={!rows.length}
+          className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-[var(--border-default)] text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] disabled:opacity-50"
+        >
+          <Download className="h-3.5 w-3.5" /> CSV
+        </button>
       </div>
 
       <div className="flex items-center gap-1.5 px-3 py-2 border-b border-[var(--border-subtle)] overflow-x-auto" role="tablist" aria-label="Filter accounts">

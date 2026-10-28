@@ -465,7 +465,7 @@ export async function batchVerify(
   userId: string,
   contactIds?: string[],
   opts: { deep?: boolean } = {}
-): Promise<{ verified: number; failed: number }> {
+): Promise<{ verified: number; failed: number; no_credits: number }> {
   // A paid check waits on Icypeas for a few seconds an address, so a deep
   // batch is smaller and runs a few at a time to stay inside one request.
   const max = opts.deep && env.ICYPEAS_API_KEY ? DEEP_BATCH : 100;
@@ -486,14 +486,17 @@ export async function batchVerify(
 
   const { data: contacts, error: selectErr } = await query.limit(max);
   if (selectErr) throw new Error(`Failed to load contacts to verify: ${selectErr.message}`);
-  if (!contacts || contacts.length === 0) return { verified: 0, failed: 0 };
+  if (!contacts || contacts.length === 0) return { verified: 0, failed: 0, no_credits: 0 };
 
   let verified = 0;
   let failed = 0;
+  // Checked with the free checks only, because the account ran out of credits.
+  let noCredits = 0;
 
   const check = (email: string, bounce: number) => (opts.deep ? verifyEmailDeep(email, bounce, { chargeUserId: userId }) : verifyEmail(email, bounce));
   const one = async (contact: { id: string; email: string; is_bounced: boolean }) => {
     const result = await check(contact.email, contact.is_bounced ? 1 : 0);
+    if (result.deep_skipped === 'no_credits') noCredits++;
     const batchUpdateErr = await saveResult(contact.id, userId, result);
     if (batchUpdateErr) {
       console.error(`[Verification] Failed to save result for contact ${contact.id}:`, batchUpdateErr.message);
@@ -506,7 +509,7 @@ export async function batchVerify(
   const lanes = opts.deep ? DEEP_LANES : 1;
   for (const group of chunk(contacts as any[], lanes)) await Promise.all(group.map(one));
 
-  return { verified, failed };
+  return { verified, failed, no_credits: noCredits };
 }
 
 /**

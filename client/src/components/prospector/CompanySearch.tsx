@@ -29,8 +29,8 @@ const place = (c: DirectoryCompany) => [c.locality, c.region, c.country].filter(
 
 /**
  * Company search over our own copy of the PDL Free Company Dataset when it
- * is loaded (free), otherwise Icypeas's company database (no Sincerely
- * credits, a small Icypeas cost per company, like a people search).
+ * is loaded (free), otherwise Icypeas's company database, priced like a
+ * people search: CREDIT_PRICES.search for each new page of 25.
  * Picking companies hands their domains to the people search; clicking one
  * opens its company page in the panel.
  */

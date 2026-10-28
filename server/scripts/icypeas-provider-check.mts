@@ -260,6 +260,8 @@ function from(name: string): any {
     eq: (c: string, v: any) => { filters.push([c, v]); return chain; },
     gte: (c: string, v: any) => { filters.push([c, v]); return chain; },
     in: () => chain,
+    order: () => chain,
+    range: () => chain,
     maybeSingle: () => { single = true; return chain; },
     single: () => { single = true; return chain; },
     insert: (row: any) => {

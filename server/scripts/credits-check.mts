@@ -61,10 +61,13 @@ let outOfCredits = false;
 function from(name: string): any {
   const filters: Array<[string, any]> = [];
   let single = false;
+  // PostgREST answers at most 1,000 rows however many are asked for.
+  let window: [number, number] = [0, 999];
   const run = () => {
     if (name === 'subscriptions') return { data: subscription, error: null };
     if (name === 'prospect_credit_ledger') {
-      return { data: ledger.filter((r) => filters.every(([c, v]) => c === 'created_at' || r[c] === v)), error: null };
+      const rows = ledger.filter((r) => filters.every(([c, v]) => c === 'created_at' || r[c] === v));
+      return { data: rows.slice(window[0], Math.min(window[1], window[0] + 999) + 1), error: null };
     }
     return { data: single ? null : [], error: null };
   };
@@ -75,6 +78,7 @@ function from(name: string): any {
     in: () => chain,
     order: () => chain,
     limit: () => chain,
+    range: (a: number, b: number) => { window = [a, b]; return chain; },
     maybeSingle: () => { single = true; return chain; },
     single: () => { single = true; return chain; },
     insert: (row: any) => {
@@ -205,6 +209,24 @@ console.log('\nA found email is logged as a reveal');
   await settle();
   is('not found is refunded', r.found === false && net() === 0);
   is('and nothing is logged, since Icypeas does not charge for it', usage.length === 0, JSON.stringify(usage));
+}
+
+console.log('\nA busy month is counted in full');
+{
+  reset();
+  subscription = { plan: 'growth', status: 'active' };
+  // 1,500 search pages: past the 1,000 rows one read returns.
+  for (let i = 0; i < 1500; i++) ledger.push({ id: `s${i}`, user_id: USER, delta: -0.5, kind: 'spend', bucket: 'plan', action: 'search', reason: 'search' });
+  const { creditsService } = await import('../src/services/credits.service.js');
+  const sum = await creditsService.summary(USER);
+  is('every spend counts: 750 used, 250 left', sum.used === 750 && sum.remaining === 250, JSON.stringify(sum));
+  const rep = await creditsService.report(USER);
+  is('and the month by action adds up the same', rep.by_action[0]?.credits === 750 && rep.by_action[0]?.count === 1500, JSON.stringify(rep.by_action));
+
+  ledger.push({ id: 'adj', user_id: USER, delta: 50, kind: 'adjustment', bucket: 'purchased', action: 'adjustment', reason: 'Owner-only note about this account' });
+  const after = await creditsService.report(USER);
+  is('given credits are spendable', after.credits.purchased === 50 && after.credits.remaining === 300);
+  is('but the owner\'s note on them never reaches the account', !JSON.stringify(after).includes('Owner-only note'));
 }
 
 console.log('\nCredits read as people write them');

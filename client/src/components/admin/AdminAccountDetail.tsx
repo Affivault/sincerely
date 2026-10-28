@@ -51,6 +51,10 @@ function Tile({ label, value, sub, tone }: { label: string; value: ReactNode; su
 }
 
 const limitLabel = (n: number) => (isUnlimited(n) ? 'unlimited' : n.toLocaleString());
+const planLine = (p: { emailsPerMonth: number; maxInboxes: number; prospectCredits: number }) => {
+  const line = `${limitLabel(p.emailsPerMonth)} emails, ${limitLabel(p.maxInboxes)} inboxes, ${formatCredits(p.prospectCredits)} credits a month`;
+  return line.charAt(0).toUpperCase() + line.slice(1);
+};
 
 /*
  * One account in full: what it is on, what it has used and cost us, what it
@@ -74,14 +78,15 @@ export function AdminAccountDetail({ id }: { id: string }) {
   const [reason, setReason] = useState('');
   const [copied, setCopied] = useState(false);
 
-  // The form follows the account when it loads or changes underneath.
-  useEffect(() => {
-    if (!data) return;
-    setPlan(data.account.plan);
-    setStatus(data.account.status);
-    setAllowance(data.subscription?.credit_allowance == null ? '' : String(data.subscription.credit_allowance));
-    setNote(data.controls.note || '');
-  }, [data]);
+  // The form follows the saved values: when they load or are changed, not on
+  // every background refetch, which would wipe an edit half typed.
+  const savedPlan = data?.account.plan, savedStatus = data?.account.status;
+  const savedAllowance = data?.subscription?.credit_allowance ?? null;
+  const savedNote = data?.controls.note ?? '';
+  useEffect(() => { if (savedPlan) setPlan(savedPlan); }, [savedPlan]);
+  useEffect(() => { if (savedStatus) setStatus(savedStatus); }, [savedStatus]);
+  useEffect(() => { setAllowance(savedAllowance == null ? '' : String(savedAllowance)); }, [savedAllowance]);
+  useEffect(() => { setNote(savedNote); }, [savedNote]);
 
   const refresh = () => qc.invalidateQueries({ queryKey: ['admin'] });
   const done = (msg: string) => () => { refresh(); toast.success(msg); };
@@ -177,7 +182,7 @@ export function AdminAccountDetail({ id }: { id: string }) {
         <div className="flex items-center gap-3 rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-3 flex-wrap">
           <Ban className="h-4 w-4 text-red-600 dark:text-red-400" />
           <p className="flex-1 text-body text-[var(--text-primary)]">
-            Suspended {controls.suspended_at ? relTime(controls.suspended_at).toLowerCase() : ''}{controls.suspended_reason ? `: ${controls.suspended_reason}` : '.'} They cannot sign in, and their campaigns and searches do not run.
+            Suspended {controls.suspended_at ? relTime(controls.suspended_at).toLowerCase() : ''}{controls.suspended_reason ? ` (${controls.suspended_reason.replace(/[.\s]+$/, '')})` : ''}. They cannot sign in, and their campaigns and searches do not run.
           </p>
           <Button size="sm" variant="secondary" disabled={unsuspendMut.isPending} onClick={() => unsuspendMut.mutate()}>
             {unsuspendMut.isPending ? 'Lifting…' : 'Lift suspension'}
@@ -314,7 +319,7 @@ export function AdminAccountDetail({ id }: { id: string }) {
               </label>
             </div>
             <p className="mt-2 text-micro text-[var(--text-tertiary)]">
-              {PLANS[plan as PlanId] ? `${limitLabel(PLANS[plan as PlanId].emailsPerMonth)} emails, ${limitLabel(PLANS[plan as PlanId].maxInboxes)} inboxes, ${formatCredits(PLANS[plan as PlanId].prospectCredits)} credits a month.` : ''}
+              {PLANS[plan as PlanId] ? `${planLine(PLANS[plan as PlanId])}.` : ''}
               {sub?.stripe_subscription_id && ' Pays through Stripe: Stripe sets the plan again at its next change.'}
             </p>
             <Button className="mt-3 w-full" disabled={!planChanged || planMut.isPending} onClick={() => planMut.mutate()}>

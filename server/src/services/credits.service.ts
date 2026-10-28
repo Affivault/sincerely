@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { billingService } from './billing.service.js';
+import { fetchAllPages } from '../utils/batch.js';
 import { CREDIT_PRICE_LIST } from '@lemlist/shared';
 import type { CreditActionTotal, CreditLedgerEntry, CreditUsageReport, ProspectCreditsSummary } from '@lemlist/shared';
 
@@ -34,6 +35,15 @@ export class OutOfCreditsError extends AppError {
   }
 }
 
+/** Every row a ledger query matches, a page at a time; a failed page fails the read. */
+async function ledgerRows(page: (from: number, to: number) => PromiseLike<{ data: any[] | null; error: { message: string } | null }>): Promise<any[]> {
+  try {
+    return await fetchAllPages(page);
+  } catch (err) {
+    throw new AppError((err as Error).message, 500);
+  }
+}
+
 /** Insert a ledger row; without the action column while migration 100 is not run. */
 async function insertLedger(row: Record<string, any>) {
   let { error } = await supabaseAdmin.from('prospect_credit_ledger').insert(row);
@@ -56,23 +66,27 @@ export const creditsService = {
   async summary(userId: string): Promise<ProspectCreditsSummary> {
     const allowance = await billingService.getCreditAllowance(userId);
 
-    const { data: planRows, error: planError } = await supabaseAdmin
+    // Paged: a busy month is well past PostgREST's 1,000-row page (every
+    // search page is a row), and a short read would show credits as unspent.
+    const planRows = await ledgerRows((from, to) => supabaseAdmin
       .from('prospect_credit_ledger')
-      .select('delta')
+      .select('id, delta')
       .eq('user_id', userId)
       .eq('bucket', 'plan')
-      .gte('created_at', monthStartIso());
-    if (planError) throw new AppError(planError.message, 500);
+      .gte('created_at', monthStartIso())
+      .order('id')
+      .range(from, to));
     const used = Math.max(0, -sum(planRows));
     const planRemaining = allowance < 0 ? -1 : Math.max(0, tenth(allowance - used));
 
     // Credits bought before packs were withdrawn still spend, after the plan's.
-    const { data: purchasedRows, error: purchasedError } = await supabaseAdmin
+    const purchasedRows = await ledgerRows((from, to) => supabaseAdmin
       .from('prospect_credit_ledger')
-      .select('delta')
+      .select('id, delta')
       .eq('user_id', userId)
-      .eq('bucket', 'purchased');
-    if (purchasedError) throw new AppError(purchasedError.message, 500);
+      .eq('bucket', 'purchased')
+      .order('id')
+      .range(from, to));
     const purchased = Math.max(0, sum(purchasedRows));
 
     return {
@@ -124,26 +138,24 @@ export const creditsService = {
   async report(userId: string): Promise<CreditUsageReport> {
     const [credits, trialCapped] = await Promise.all([this.summary(userId), billingService.isTrialCapped(userId)]);
 
-    let { data: rows, error } = await supabaseAdmin
+    const month = (cols: string) => ledgerRows((from, to) => supabaseAdmin
       .from('prospect_credit_ledger')
-      .select('id, delta, kind, action, reason, created_at')
+      .select(cols)
       .eq('user_id', userId)
       .gte('created_at', monthStartIso())
       .order('created_at', { ascending: false })
-      .limit(2000);
-    if (error && /action/.test(error.message || '')) {
-      ({ data: rows, error } = await supabaseAdmin
-        .from('prospect_credit_ledger')
-        .select('id, delta, kind, reason, created_at')
-        .eq('user_id', userId)
-        .gte('created_at', monthStartIso())
-        .order('created_at', { ascending: false })
-        .limit(2000) as any);
+      .order('id')
+      .range(from, to) as any);
+    let rows: any[];
+    try {
+      rows = await month('id, delta, kind, action, reason, created_at');
+    } catch (err) {
+      if (!/action/.test((err as Error).message || '')) throw err;
+      rows = await month('id, delta, kind, reason, created_at');
     }
-    if (error) throw new AppError(error.message, 500);
 
     const totals = new Map<string, CreditActionTotal>();
-    for (const r of (rows || []) as any[]) {
+    for (const r of rows) {
       if (r.kind !== 'spend' && r.kind !== 'refund') continue;
       const action = r.action || (r.kind === 'spend' ? r.reason : null) || 'other';
       const t = totals.get(action) || { action, credits: 0, count: 0 };
@@ -151,8 +163,11 @@ export const creditsService = {
       t.count += r.kind === 'spend' ? 1 : -1;
       totals.set(action, t);
     }
-    const history: CreditLedgerEntry[] = ((rows || []) as any[]).slice(0, 100).map((r) => ({
-      id: r.id, delta: tenth(Number(r.delta) || 0), kind: r.kind, action: r.action ?? null, reason: r.reason ?? null, created_at: r.created_at,
+    const history: CreditLedgerEntry[] = rows.slice(0, 100).map((r) => ({
+      id: r.id, delta: tenth(Number(r.delta) || 0), kind: r.kind, action: r.action ?? null,
+      // An adjustment's reason is the owner's private note: the account sees only that one was made.
+      reason: r.kind === 'adjustment' ? null : r.reason ?? null,
+      created_at: r.created_at,
     }));
 
     return {
