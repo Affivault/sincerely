@@ -1,6 +1,6 @@
 import { StandingSearches, SaveStandingSearch } from '../../components/prospector/StandingSearches';
 import { CompanySearch } from '../../components/prospector/CompanySearch';
-import { ProspectDrawer } from '../../components/prospector/ProspectDrawer';
+import { ProspectDrawer, companyAsProspect } from '../../components/prospector/ProspectDrawer';
 import { FilterPanel, EMPTY_FILTERS, DEFAULT_OPEN_ROWS, ALL_ROWS, countFilters, type FilterState } from '../../components/prospector/FilterPanel';
 import { useDebounce } from '../../hooks/useDebounce';
 import { DestinationPicker, rememberedListId } from '../../components/prospector/DestinationPicker';
@@ -143,7 +143,7 @@ export function ProspectorPage() {
   const [bulkRevealing, setBulkRevealing] = useState(false);
   const [campaignContactIds, setCampaignContactIds] = useState<string[] | null>(null);
   // The person and company panel; opening it is free.
-  const [peekPerson, setPeekPerson] = useState<ProspectPerson | null>(null);
+  const [peekPerson, setPeekPerson] = useState<{ person: ProspectPerson; tab: 'person' | 'company' } | null>(null);
   // Set while a bulk reveal is looping through mutateAsync calls, so the
   // per-reveal toasts stay quiet and one summary toast speaks for all of them.
   const suppressRevealToastsRef = useRef(false);
@@ -180,15 +180,16 @@ export function ProspectorPage() {
   });
 
   const revealMutation = useMutation({
-    mutationFn: (person: ProspectPerson) => prospectingApi.reveal({
+    // `to` is a list picked in the person panel; otherwise the page's list.
+    mutationFn: ({ person, to = listId }: { person: ProspectPerson; to?: string }) => prospectingApi.reveal({
       provider: person.provider,
       provider_person_id: person.id,
       person,
-      list_id: listId || null,
+      list_id: to || null,
       search: lastSearchRef.current,
     }),
-    onMutate: (person) => setRevealingId(person.id),
-    onSuccess: (res, person) => {
+    onMutate: ({ person }) => setRevealingId(person.id),
+    onSuccess: (res, { person, to = listId }) => {
       qc.invalidateQueries({ queryKey: ['prospecting', 'status'] });
       qc.invalidateQueries({ queryKey: ['contacts'] });
       if (res.enrolled_in?.length) qc.invalidateQueries({ queryKey: ['campaigns'] });
@@ -199,7 +200,7 @@ export function ProspectorPage() {
         } : prev);
         if (!suppressRevealToastsRef.current) {
           const into = res.enrolled_in?.length ? ` and added to ${res.enrolled_in.map((c) => c.name).join(', ')}` : '';
-          toast.success(res.already_revealed ? `Already unlocked: ${res.email}${into}` : `Saved ${res.email} to your leads${listId ? ' list' : ''}${into}`);
+          toast.success(res.already_revealed ? `Already unlocked: ${res.email}${into}` : `Saved ${res.email} to your leads${to ? ' list' : ''}${into}`);
         }
       } else if (!suppressRevealToastsRef.current) {
         toast(`No verified email found for ${person.full_name} — you weren't charged.`, { icon: 'ℹ️' });
@@ -224,7 +225,7 @@ export function ProspectorPage() {
       for (const person of targets) {
         if (remaining === 0) { skipped++; continue; }
         try {
-          const res = await revealMutation.mutateAsync(person);
+          const res = await revealMutation.mutateAsync({ person });
           if (res.found) { revealed++; if (remaining > 0) remaining--; } else { noEmail++; }
           for (const c of res.enrolled_in || []) joined.set(c.id, c.name);
         } catch {
@@ -260,6 +261,8 @@ export function ProspectorPage() {
   const credits = status?.credits;
   const providerReady = !!status?.provider;
   const directoryReady = !!status?.company_directory?.available;
+  // Company search: our free directory when loaded, else Icypeas's company database.
+  const companySearchReady = directoryReady || status?.provider === 'icypeas';
   const fullFilters = status?.provider === 'icypeas';
 
   // How many people match, live and free, while filters change.
@@ -332,9 +335,10 @@ export function ProspectorPage() {
         </div>
       )}
 
-      {/* Companies come from our own free directory once it is loaded; people
-          (and their emails) always come from the paid provider. */}
-      {directoryReady && (
+      {/* Companies come from our own free directory once it is loaded, else
+          from Icypeas's company database; people (and their emails) always
+          come from the paid provider. */}
+      {companySearchReady && (
         <div role="tablist" aria-label="Search for" className="inline-flex items-center gap-0.5 p-0.5 mb-4 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
           {([
             ['people', 'People', Users],
@@ -351,14 +355,14 @@ export function ProspectorPage() {
               )}
             >
               <Icon className="h-3.5 w-3.5" /> {label}
-              {id === 'companies' && <span className="ml-0.5 inline-flex items-center px-1.5 h-[17px] text-micro font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded">Free</span>}
+              {id === 'companies' && directoryReady && <span className="ml-0.5 inline-flex items-center px-1.5 h-[17px] text-micro font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded">Free</span>}
             </button>
           ))}
         </div>
       )}
 
-      {tab === 'companies' && directoryReady ? (
-        <CompanySearch onFindPeople={findPeopleAt} />
+      {tab === 'companies' && companySearchReady ? (
+        <CompanySearch icypeas={!directoryReady} onFindPeople={findPeopleAt} onOpen={(c) => setPeekPerson({ person: companyAsProspect(c), tab: 'company' })} />
       ) : (
       <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-4 items-start">
         {/* Filters: every one in view, no hidden step. */}
@@ -524,7 +528,7 @@ export function ProspectorPage() {
                             <Avatar name={p.full_name} size="lg" />
                             <div className="min-w-0">
                               <div className="flex items-center gap-1.5">
-                                <button type="button" onClick={() => setPeekPerson(p)} title="See their profile and company (free)" className="text-strong font-medium text-[var(--text-primary)] hover:text-[var(--indigo-text)] hover:underline truncate text-left">{p.full_name}</button>
+                                <button type="button" onClick={() => setPeekPerson({ person: p, tab: 'person' })} title="See their profile and company (free)" className="text-strong font-medium text-[var(--text-primary)] hover:text-[var(--indigo-text)] hover:underline truncate text-left">{p.full_name}</button>
                                 {p.linkedin_url && (
                                   <a href={p.linkedin_url} target="_blank" rel="noopener noreferrer" className="relative text-[var(--text-tertiary)] hover:text-[#0A66C2] transition-colors flex-shrink-0 after:absolute after:-inset-1.5 after:content-['']" title="Open LinkedIn" aria-label="Open LinkedIn">
                                     <Linkedin className="h-3 w-3" />
@@ -537,7 +541,7 @@ export function ProspectorPage() {
                         </td>
                         <td className="py-2.5 px-3">
                           {p.company
-                            ? <button type="button" onClick={() => setPeekPerson(p)} title="See the company and its people" className="block text-body text-[var(--text-primary)] hover:text-[var(--indigo-text)] hover:underline truncate max-w-[180px] text-left">{p.company}</button>
+                            ? <button type="button" onClick={() => setPeekPerson({ person: p, tab: 'company' })} title="See the company and its people" className="block text-body text-[var(--text-primary)] hover:text-[var(--indigo-text)] hover:underline truncate max-w-[180px] text-left">{p.company}</button>
                             : <p className="text-body text-[var(--text-primary)]">—</p>}
                           <p className="text-caption text-[var(--text-tertiary)] truncate">{[p.industry, p.company_size && `${p.company_size} people`].filter(Boolean).join(' · ')}</p>
                         </td>
@@ -575,7 +579,7 @@ export function ProspectorPage() {
                               <Button
                                 size="sm"
                                 variant="secondary"
-                                onClick={() => revealMutation.mutate(p)}
+                                onClick={() => revealMutation.mutate({ person: p })}
                                 disabled={revealingId !== null || bulkRevealing || (credits ? credits.remaining === 0 : false)}
                               >
                                 {revealingId === p.id
@@ -626,9 +630,12 @@ export function ProspectorPage() {
       {buyOpen && <BuyCreditsModal onClose={() => setBuyOpen(false)} />}
       {peekPerson && (
         <ProspectDrawer
-          person={peekPerson}
+          person={peekPerson.person}
+          initialTab={peekPerson.tab}
+          people={results?.results || []}
+          listId={listId}
           revealingId={revealingId}
-          onReveal={(person) => revealMutation.mutateAsync(person).catch(() => undefined)}
+          onReveal={(person, to) => revealMutation.mutateAsync({ person, to }).catch(() => undefined)}
           onClose={() => setPeekPerson(null)}
         />
       )}

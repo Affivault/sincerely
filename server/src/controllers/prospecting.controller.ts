@@ -4,6 +4,8 @@ import { prospectingService } from '../services/prospecting.service.js';
 import { stripeService } from '../services/stripe.service.js';
 import { companyDirectoryService } from '../services/company-directory.service.js';
 import { suggestPlaces } from '../services/place-suggest.js';
+import { getActiveProvider, icypeasCompanySearch } from '../services/prospect-providers.js';
+import { AppError } from '../middleware/error.middleware.js';
 
 export const prospectingController = {
   /** GET /prospecting/status — configured provider + this month's credits */
@@ -29,11 +31,21 @@ export const prospectingController = {
     try { res.json(suggestPlaces(String(req.query.q || ''))); } catch (err) { next(err); }
   },
 
-  /** POST /prospecting/companies/search — free company search from the directory (no credits) */
+  /**
+   * POST /prospecting/companies/search — our free directory when it is
+   * loaded, otherwise Icypeas's company database (no Sincerely credits).
+   */
   async searchCompanies(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const { filters, page } = req.body || {};
-      res.json(await companyDirectoryService.search(filters || {}, Number(page) || 1));
+      const p = Math.min(Math.max(1, Number(page) || 1), 40);
+      if ((await companyDirectoryService.status()).available) {
+        return res.json({ ...(await companyDirectoryService.search(filters || {}, p)), source: 'directory' });
+      }
+      if (getActiveProvider()?.id !== 'icypeas') throw new AppError('Company search needs the Icypeas key or the company directory.', 400);
+      res.json(await icypeasCompanySearch(filters || {}, p).catch((e: any) => {
+        throw new AppError(/at least one filter/.test(e?.message) ? e.message : `Company search failed: ${e?.message || 'provider error'}`, /at least one filter/.test(e?.message) ? 400 : 502);
+      }));
     } catch (err) { next(err); }
   },
 

@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { Building2, MapPin, Sparkles, Search, Linkedin, ChevronLeft, ChevronRight, SearchX, Users, Globe } from 'lucide-react';
-import { COMPANY_DIRECTORY_ATTRIBUTION } from '@lemlist/shared';
+import { COMPANY_DIRECTORY_ATTRIBUTION, PROSPECT_INDUSTRIES } from '@lemlist/shared';
 import type { CompanySearchResponse, CompanySearchFilters, DirectoryCompany } from '@lemlist/shared';
 import { prospectingApi } from '../../api/prospecting.api';
 import { Button } from '../ui/Button';
@@ -28,11 +28,13 @@ const titleCase = (s: string | null) => (s ? s.replace(/\b\w/g, (c) => c.toUpper
 const place = (c: DirectoryCompany) => [c.locality, c.region, c.country].filter(Boolean).map(titleCase).join(', ');
 
 /**
- * Company search over our own copy of the PDL Free Company Dataset: no
- * credits, no provider calls. Picking companies hands their domains to the
- * people search, which is where credits start.
+ * Company search over our own copy of the PDL Free Company Dataset when it
+ * is loaded (free), otherwise Icypeas's company database (no Sincerely
+ * credits, a small Icypeas cost per company, like a people search).
+ * Picking companies hands their domains to the people search; clicking one
+ * opens its company page in the panel.
  */
-export function CompanySearch({ onFindPeople }: { onFindPeople: (domains: string[]) => void }) {
+export function CompanySearch({ onFindPeople, onOpen, icypeas = false }: { onFindPeople: (domains: string[]) => void; onOpen: (c: DirectoryCompany) => void; icypeas?: boolean }) {
   const [companies, setCompanies] = useState<string[]>([]);
   const [locations, setLocations] = useState<string[]>([]);
   const [industries, setIndustries] = useState<string[]>([]);
@@ -60,6 +62,7 @@ export function CompanySearch({ onFindPeople }: { onFindPeople: (domains: string
   };
 
   const page = results?.page ?? 1;
+  const fromDirectory = results?.source !== 'icypeas';
   const totalPages = results ? Math.max(1, Math.ceil(Math.min(results.total, 1000) / 25)) : 1;
   const withDomain = (results?.results || []).filter((c) => c.domain);
   const allSelected = withDomain.length > 0 && withDomain.every((c) => selected.has(c.domain!));
@@ -85,7 +88,7 @@ export function CompanySearch({ onFindPeople }: { onFindPeople: (domains: string
             </button>
           )}
         </div>
-        <ChipInput label="Industry" icon={Sparkles} values={industries} onChange={setIndustries} placeholder="computer software…" suggestions={INDUSTRIES} />
+        <ChipInput label="Industry" icon={Sparkles} values={industries} onChange={setIndustries} placeholder={icypeas ? 'Software Development…' : 'computer software…'} suggestions={icypeas ? PROSPECT_INDUSTRIES : INDUSTRIES} />
         <ChipInput label="Location" icon={MapPin} values={locations} onChange={setLocations} placeholder="United Kingdom, London…" />
         <ChipInput label="Company" icon={Building2} values={companies} onChange={setCompanies} placeholder="Name starts with, or domain…" />
         <div>
@@ -113,7 +116,7 @@ export function CompanySearch({ onFindPeople }: { onFindPeople: (domains: string
         <Button className="w-full" onClick={() => run(1)} disabled={search.isPending}>
           {search.isPending ? <><Spinner size="sm" /> Searching…</> : <><Search className="h-3.5 w-3.5" /> Search companies</>}
         </Button>
-        <p className="text-caption text-[var(--text-tertiary)]">Company search is free. Credits are only used when you reveal a person's email.</p>
+        <p className="text-caption text-[var(--text-tertiary)]">No Sincerely credits. Credits are only used when you reveal a person's email.</p>
       </div>
 
       <div className="min-w-0 space-y-3">
@@ -133,7 +136,7 @@ export function CompanySearch({ onFindPeople }: { onFindPeople: (domains: string
             <Building2 className="h-8 w-8 text-[var(--text-tertiary)] mx-auto mb-3" />
             <p className="text-heading font-semibold text-[var(--text-primary)]">Build your account list first</p>
             <p className="text-body text-[var(--text-tertiary)] mt-1 max-w-md mx-auto">
-              Filter companies by industry, location and size for free, then find the right people at the ones you pick.
+              Filter companies by industry, location and size, click one to see its page, then find the right people at the ones you pick.
             </p>
           </div>
         ) : results.results.length === 0 ? (
@@ -187,7 +190,7 @@ export function CompanySearch({ onFindPeople }: { onFindPeople: (domains: string
                       </td>
                       <td className="py-2.5 pr-3">
                         <div className="flex items-center gap-1.5 min-w-0">
-                          <span className="text-strong font-medium text-[var(--text-primary)] truncate max-w-[220px]">{titleCase(c.name)}</span>
+                          <button type="button" onClick={() => onOpen(c)} title="See the company and its people" className="text-strong font-medium text-[var(--text-primary)] hover:text-[var(--indigo-text)] hover:underline truncate max-w-[220px] text-left">{fromDirectory ? titleCase(c.name) : c.name}</button>
                           {c.linkedin_url && (
                             <a href={c.linkedin_url} target="_blank" rel="noopener noreferrer" className="relative text-[var(--text-tertiary)] hover:text-[#0A66C2] transition-colors flex-shrink-0 after:absolute after:-inset-1.5 after:content-['']" title="Open LinkedIn" aria-label={`Open ${c.name} on LinkedIn`}>
                               <Linkedin className="h-3 w-3" />
@@ -204,7 +207,7 @@ export function CompanySearch({ onFindPeople }: { onFindPeople: (domains: string
                           {c.founded && <span> · since {c.founded}</span>}
                         </p>
                       </td>
-                      <td className="py-2.5 px-3 text-body text-[var(--text-secondary)] truncate max-w-[180px]">{titleCase(c.industry) || '—'}</td>
+                      <td className="py-2.5 px-3 text-body text-[var(--text-secondary)] truncate max-w-[180px]">{(fromDirectory ? titleCase(c.industry) : c.industry) || '—'}</td>
                       <td className="py-2.5 px-3 text-body text-[var(--text-secondary)] truncate max-w-[180px]">{place(c) || '—'}</td>
                       <td className="py-2.5 pr-4 pl-3">
                         <div className="flex justify-end">
@@ -229,11 +232,11 @@ export function CompanySearch({ onFindPeople }: { onFindPeople: (domains: string
         )}
 
         {/* CC BY 4.0 requires this credit wherever the data is shown. */}
-        <p className="text-caption text-[var(--text-tertiary)]">
+        {fromDirectory && results && <p className="text-caption text-[var(--text-tertiary)]">
           Company data:{' '}
           <a href={COMPANY_DIRECTORY_ATTRIBUTION.sourceUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">{COMPANY_DIRECTORY_ATTRIBUTION.source}</a>, licensed{' '}
           <a href={COMPANY_DIRECTORY_ATTRIBUTION.licenseUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">{COMPANY_DIRECTORY_ATTRIBUTION.license}</a>.
-        </p>
+        </p>}
       </div>
     </div>
   );

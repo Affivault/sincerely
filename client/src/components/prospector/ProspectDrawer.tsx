@@ -4,9 +4,9 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
   ArrowUpRight, Briefcase, Building2, CheckCircle2, ChevronLeft, ChevronRight, ExternalLink,
-  GraduationCap, Linkedin, Lock, Unlock, Users, X,
+  FolderPlus, GraduationCap, Linkedin, Lock, Unlock, Users, X,
 } from 'lucide-react';
-import type { EnrichedCompany, ProspectPerson } from '@lemlist/shared';
+import type { DirectoryCompany, EnrichedCompany, ProspectPerson } from '@lemlist/shared';
 import { prospectingApi } from '../../api/prospecting.api';
 import { Avatar } from '../shared/Avatar';
 import { Button } from '../ui/Button';
@@ -28,36 +28,62 @@ import { Refreshing } from '../ui/Refreshing';
    The Prospects tab lists everyone at the company. That is an ordinary
    Prospector search (no Sincerely credits, the provider's usual small
    per-result cost), so it only runs when the tab is opened.
+
+   Save to list is the page's reveal with a list of your choosing: one
+   credit for someone new (refunded when no email is found), free for
+   someone already unlocked, who is just added to the list. The arrows and
+   the left/right keys step through the search results without closing.
    ═══════════════════════════════════════════════════════════════════════ */
 
 type Tab = 'person' | 'company' | 'prospects';
 
+/* A company opened from company search has no person yet. It travels as a
+   placeholder person with this id, which hides the Person tab and saving
+   until you pick someone from the company's people. */
+const COMPANY_ONLY = '__company__';
+
+/** The panel's stand-in for a company with no person picked. */
+export function companyAsProspect(c: DirectoryCompany): ProspectPerson {
+  return {
+    id: COMPANY_ONLY, provider: 'icypeas', first_name: null, last_name: null, full_name: c.name,
+    job_title: null, company: c.name, company_domain: c.domain, company_size: c.size, industry: c.industry,
+    location: [c.locality, c.region, c.country].filter(Boolean).join(', ') || null, linkedin_url: null, has_email: false,
+  };
+}
+
 export function ProspectDrawer({
   person: initial,
+  initialTab = 'person',
+  people,
+  listId,
   revealingId,
   onReveal,
   onClose,
 }: {
   person: ProspectPerson;
+  initialTab?: 'person' | 'company';
+  /** The page of search results, for stepping to the previous or next person. */
+  people: ProspectPerson[];
+  /** The page's chosen list, the panel's default. */
+  listId: string;
   revealingId: string | null;
   /** The page's reveal, so credits, lists and toasts behave exactly as in the table. */
-  onReveal: (p: ProspectPerson) => Promise<{ found: boolean; contact_id: string | null } | void>;
+  onReveal: (p: ProspectPerson, to: string) => Promise<{ found: boolean; contact_id: string | null } | void>;
   onClose: () => void;
 }) {
   const [person, setPerson] = useState(initial);
-  const [tab, setTab] = useState<Tab>('person');
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [unlocked, setUnlocked] = useState<Record<string, string | null>>({});
+  const [saveTo, setSaveTo] = useState(listId);
   const panelRef = useRef<HTMLElement>(null);
   useFocusTrap(panelRef, true);
-  useEffect(() => { setPerson(initial); setTab('person'); }, [initial]);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  useEffect(() => { setPerson(initial); setTab(initialTab); }, [initial, initialTab]);
+
+  const companyOnly = person.id === COMPANY_ONLY;
+  const show = (p: ProspectPerson) => { setPerson(p); setTab((t) => (t === 'prospects' ? 'person' : t)); panelRef.current?.scrollTo({ top: 0 }); };
 
   const { data: details, isLoading } = useQuery({
-    queryKey: ['prospecting', 'details', person.id],
+    queryKey: ['prospecting', 'details', person.id, companyOnly ? person.company_domain || person.company : ''],
     queryFn: () => prospectingApi.details(person.id, { company: person.company, domain: person.company_domain }),
     staleTime: 10 * 60 * 1000,
     meta: { silentError: true },
@@ -75,8 +101,28 @@ export function ProspectDrawer({
     meta: { silentError: true },
   });
 
-  const reveal = async (p: ProspectPerson) => {
-    const res = await onReveal(p);
+  // Step through whichever list this person came from: the search results,
+  // or the company's people once you have moved into those.
+  const steps = companyOnly ? [] : people.some((p) => p.id === person.id) ? people : (colleagues?.results || []);
+  const at = steps.findIndex((p) => p.id === person.id);
+  const prev = at > 0 ? steps[at - 1] : null;
+  const next = at >= 0 && at < steps.length - 1 ? steps[at + 1] : null;
+  const stepRef = useRef({ prev, next, onClose });
+  stepRef.current = { prev, next, onClose };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') return stepRef.current.onClose();
+      const el = e.target as HTMLElement | null;
+      if (el && /^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName)) return;
+      if (e.key === 'ArrowLeft' && stepRef.current.prev) { e.preventDefault(); show(stepRef.current.prev); }
+      if (e.key === 'ArrowRight' && stepRef.current.next) { e.preventDefault(); show(stepRef.current.next); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const reveal = async (p: ProspectPerson, to = listId) => {
+    const res = await onReveal(p, to);
     if (res && res.found) setUnlocked((u) => ({ ...u, [p.id]: res.contact_id }));
   };
   const isUnlocked = (p: ProspectPerson) => p.already_revealed || p.id in unlocked;
@@ -87,6 +133,10 @@ export function ProspectDrawer({
   const companyName = company?.name || person.company;
   const website = company?.website || (person.company_domain ? `https://${person.company_domain}` : null);
   const location = enriched?.location || person.location;
+  // Others at the same company on this results page: already loaded, so free.
+  const sameCompany = (p: ProspectPerson) => p.id !== person.id && (
+    person.company_domain ? p.company_domain === person.company_domain : !!person.company && p.company?.toLowerCase() === person.company.toLowerCase());
+  const nearby = people.filter(sameCompany).slice(0, 5);
 
   return createPortal(
     <div className="fixed inset-0 z-[55]">
@@ -95,35 +145,63 @@ export function ProspectDrawer({
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        aria-label={`${person.full_name}, prospect details`}
+        aria-label={companyOnly ? `${person.full_name}, company details` : `${person.full_name}, prospect details`}
         tabIndex={-1}
         className="absolute right-0 top-0 h-full w-full max-w-[560px] bg-[var(--bg-surface)] border-l border-[var(--border-subtle)] shadow-[var(--shadow-xl)] overflow-y-auto"
         style={{ animation: 'slideInRight 220ms var(--ease-out) both' }}
       >
-        <button onClick={onClose} className="absolute right-3 top-3 z-10 icon-btn h-7 w-7 bg-[var(--bg-surface)]" title="Close (esc)" aria-label="Close">
-          <X className="h-4 w-4" />
-        </button>
+        <div className="absolute right-3 top-3 z-10 flex items-center gap-0.5 bg-[var(--bg-surface)]">
+          {at >= 0 && steps.length > 1 && (
+            <>
+              <button onClick={() => prev && show(prev)} disabled={!prev} className="icon-btn h-7 w-7 disabled:opacity-30" title={prev ? `Previous: ${prev.full_name} (←)` : 'Previous'} aria-label="Previous prospect"><ChevronLeft className="h-4 w-4" /></button>
+              <span className="text-micro tabular-nums text-[var(--text-tertiary)] px-0.5">{at + 1}/{steps.length}</span>
+              <button onClick={() => next && show(next)} disabled={!next} className="icon-btn h-7 w-7 disabled:opacity-30" title={next ? `Next: ${next.full_name} (→)` : 'Next'} aria-label="Next prospect"><ChevronRight className="h-4 w-4" /></button>
+            </>
+          )}
+          <button onClick={onClose} className="icon-btn h-7 w-7" title="Close (esc)" aria-label="Close">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
 
         {/* Who, and the one action that costs anything */}
         <div className="px-5 pt-5 pb-4 border-b border-[var(--border-subtle)]">
-          <div className="flex items-start gap-3 pr-8">
-            {enriched?.photo_url
+          <div className="flex items-start gap-3 pr-36">
+            {companyOnly
+              ? (company?.logo_url
+                ? <img src={company.logo_url} alt="" className="h-12 w-12 rounded-md object-contain bg-white flex-shrink-0" referrerPolicy="no-referrer" />
+                : <span className="h-12 w-12 rounded-md bg-[var(--bg-elevated)] flex items-center justify-center flex-shrink-0"><Building2 className="h-6 w-6 text-[var(--text-tertiary)]" /></span>)
+              : enriched?.photo_url
               ? <img src={enriched.photo_url} alt="" className="h-12 w-12 rounded-full object-cover flex-shrink-0" referrerPolicy="no-referrer" />
               : <Avatar name={person.full_name} size="xl" />}
             <div className="min-w-0 flex-1">
               <h2 className="text-title font-semibold text-[var(--text-primary)] leading-tight">{person.full_name}</h2>
-              <p className="text-body text-[var(--text-secondary)]">{[person.job_title, companyName].filter(Boolean).join(' at ') || '—'}</p>
+              {companyOnly ? (
+                <p className="text-body text-[var(--text-secondary)]">{[company?.industry || person.industry, company?.location || person.location].filter(Boolean).join(' · ') || 'Company'}</p>
+              ) : (
+              <p className="text-body text-[var(--text-secondary)]">
+                {person.job_title || (!companyName && '—')}
+                {person.job_title && companyName && ' at '}
+                {companyName && <button className="text-[var(--indigo-text)] hover:underline" onClick={() => setTab('company')}>{companyName}</button>}
+              </p>
+              )}
               {enriched?.headline && enriched.headline !== person.job_title && (
                 <p className="mt-0.5 text-caption text-[var(--text-tertiary)] line-clamp-2">{enriched.headline}</p>
               )}
             </div>
           </div>
-          <div className="mt-3 flex items-center gap-2">
-            <RevealButton person={person} unlocked={isUnlocked(person)} contactId={contactIdOf(person)} revealing={revealingId === person.id} disabled={revealingId !== null} onReveal={() => reveal(person)} />
-          </div>
+          {!companyOnly && <SaveToList
+            person={person}
+            unlocked={isUnlocked(person)}
+            contactId={contactIdOf(person)}
+            saving={revealingId === person.id}
+            busy={revealingId !== null}
+            listId={saveTo}
+            onListChange={setSaveTo}
+            onSave={() => reveal(person, saveTo)}
+          />}
           <nav className="mt-4 -mb-4 flex gap-1" role="tablist">
             {([
-              ['person', 'Person'],
+              ...(companyOnly ? [] : [['person', 'Person']]),
               ['company', 'Company'],
               ['prospects', details?.company_people != null ? `Prospects · ${details.company_people.toLocaleString()}` : 'Prospects'],
             ] as [Tab, string][]).map(([id, label]) => (
@@ -156,6 +234,24 @@ export function ProspectDrawer({
                   ['Company size', company?.size || person.company_size ? `${fmtSize(company?.size || person.company_size)} employees` : null],
                 ]} />
               </Section>
+              {nearby.length > 0 && (
+                <Section title={`More at ${companyName} in your results`}>
+                  <ul className="space-y-0.5">
+                    {nearby.map((c) => (
+                      <li key={c.id}>
+                        <button onClick={() => show(c)} className="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)]">
+                          <Avatar name={c.full_name} size="sm" />
+                          <span className="min-w-0 flex-1 truncate text-body text-[var(--text-primary)]">{c.full_name}</span>
+                          <span className="truncate text-caption text-[var(--text-tertiary)] max-w-[50%]">{c.job_title || ''}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  <button onClick={() => setTab('prospects')} className="mt-1 px-2 text-caption font-medium text-[var(--indigo-text)] hover:underline">
+                    See everyone at {companyName}{details?.company_people != null ? ` (${details.company_people.toLocaleString()})` : ''}
+                  </button>
+                </Section>
+              )}
               {enriched?.summary && <Section title="About"><Clamp text={enriched.summary} /></Section>}
               {enriched && enriched.experience.length > 0 && (
                 <Section title="Career">
@@ -196,7 +292,7 @@ export function ProspectDrawer({
 
           {!isLoading && tab === 'company' && (
             <div className="space-y-4">
-              <div className="flex items-center gap-3">
+              {!companyOnly && <div className="flex items-center gap-3">
                 {company?.logo_url
                   ? <img src={company.logo_url} alt="" className="h-11 w-11 rounded-md object-contain bg-white flex-shrink-0" referrerPolicy="no-referrer" />
                   : <span className="h-11 w-11 rounded-md bg-[var(--bg-elevated)] flex items-center justify-center flex-shrink-0"><Building2 className="h-5 w-5 text-[var(--text-tertiary)]" /></span>}
@@ -204,7 +300,7 @@ export function ProspectDrawer({
                   <p className="text-strong font-semibold text-[var(--text-primary)] truncate">{companyName || 'Unknown company'}</p>
                   {(company?.location) && <p className="text-caption text-[var(--text-secondary)] truncate">{company.location}</p>}
                 </div>
-              </div>
+              </div>}
               <Rows rows={[
                 ['Industry', company?.industry || person.industry],
                 ['Size', company?.size || person.company_size ? `${fmtSize(company?.size || person.company_size)} employees` : null],
@@ -273,6 +369,47 @@ export function ProspectDrawer({
       </aside>
     </div>,
     document.body,
+  );
+}
+
+/**
+ * Save this person into a lead list. Someone new is a reveal (1 credit,
+ * refunded when no email is found); someone already unlocked is only added
+ * to the list, which is free.
+ */
+function SaveToList({ person, unlocked, contactId, saving, busy, listId, onListChange, onSave }: {
+  person: ProspectPerson; unlocked: boolean; contactId: string | null; saving: boolean; busy: boolean;
+  listId: string; onListChange: (id: string) => void; onSave: () => void;
+}) {
+  const { data: destinations } = useQuery({ queryKey: ['prospecting', 'destinations'], queryFn: prospectingApi.destinations, staleTime: 60 * 1000 });
+  const chosen = destinations?.find((d) => d.id === listId);
+  return (
+    <div className="mt-3 flex items-center gap-2 flex-wrap">
+      <select value={listId} onChange={(e) => onListChange(e.target.value)} aria-label="List to save to"
+        className="h-8 min-w-0 max-w-[220px] rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2 text-body text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[var(--ring-focus)]">
+        <option value="">Leads, no list</option>
+        {(destinations || []).map((d) => (
+          <option key={d.id} value={d.id}>{d.folder ? `${d.folder} / ` : ''}{d.name}{d.campaigns.length ? ' · in a campaign' : ''}</option>
+        ))}
+      </select>
+      {unlocked ? (
+        <Button size="sm" variant="secondary" onClick={onSave} disabled={busy || !listId} title={listId ? 'Already unlocked, so this is free' : 'Pick a list first'}>
+          {saving ? <><Spinner size="sm" /> Saving…</> : <><FolderPlus className="h-3 w-3" /> Add to list · free</>}
+        </Button>
+      ) : (
+        <Button size="sm" onClick={onSave} disabled={busy} aria-label={`Save ${person.full_name} to ${chosen?.name || 'your leads'}`}>
+          {saving ? <><Spinner size="sm" /> Saving…</> : <><Unlock className="h-3 w-3" /> Save to list · 1 credit</>}
+        </Button>
+      )}
+      {unlocked && contactId && (
+        <Link to={`/contacts/${contactId}`} className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-caption font-medium text-emerald-700 dark:text-emerald-400 hover:bg-[var(--bg-hover)]">
+          <CheckCircle2 className="h-3 w-3" /> Open contact <ArrowUpRight className="h-3 w-3" />
+        </Link>
+      )}
+      {chosen && chosen.campaigns.length > 0 && (
+        <p className="w-full text-micro text-[var(--text-tertiary)]">Saving also adds them to {chosen.campaigns.map((c) => c.name).join(', ')}.</p>
+      )}
+    </div>
   );
 }
 
