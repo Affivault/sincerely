@@ -73,12 +73,12 @@ const ICYPEAS_PENDING = new Set(['NONE', 'SCHEDULED', 'IN_PROGRESS']);
 const ICYPEAS_NOT_FOUND = new Set(['NOT_FOUND', 'DEBITED_NOT_FOUND', 'NOT_DEBITED']);
 const ICYPEAS_FOUND = new Set(['FOUND', 'DEBITED']);
 
-async function icypeas(path: string, body: unknown): Promise<any> {
+export async function icypeas(path: string, body?: unknown, method: 'POST' | 'GET' = 'POST'): Promise<any> {
   const data = await http(`${ICYPEAS_BASE}${path}`, {
-    method: 'POST',
+    method,
     // Their auth header carries the bare API key, no "Bearer" prefix.
     headers: { 'Content-Type': 'application/json', Authorization: env.ICYPEAS_API_KEY },
-    body: JSON.stringify(body),
+    ...(method === 'POST' ? { body: JSON.stringify(body ?? {}) } : {}),
   });
   // Validation errors come back as HTTP 200 with success: false.
   if (data && data.success === false) {
@@ -301,7 +301,7 @@ export function icypeasEmailFromItem(item: any): string | null {
   return null;
 }
 
-async function icypeasAwait(searchId: string): Promise<any> {
+export async function icypeasAwait(searchId: string): Promise<any> {
   for (const delay of icypeasPolling.delaysMs) {
     await new Promise((r) => setTimeout(r, delay));
     const data = await icypeas('/bulk-single-searchs/read', { id: searchId });

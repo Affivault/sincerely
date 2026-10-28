@@ -12,6 +12,8 @@ import {
 } from './smtp-reachability.service.js';
 import { resolveDoh, resolveHostIp } from '../utils/dns-doh.js';
 import { chunk, fetchAllPages } from '../utils/batch.js';
+import { env } from '../config/env.js';
+import { icypeas, icypeasAwait } from './prospect-providers.js';
 
 /**
  * Triple-Layer Verification Pipeline + Deliverability Confidence Score (DCS)
@@ -254,12 +256,12 @@ export async function verifyEmail(email: string, historicalBounceRate = 0): Prom
   const syntaxOk = checkSyntax(email);
 
   if (!syntaxOk) {
-    return { email, syntax_ok: false, domain_ok: false, smtp_ok: false, smtp_checked: false, score: 0, fail_reason: 'Invalid email syntax' };
+    return { email, syntax_ok: false, domain_ok: false, smtp_ok: false, smtp_checked: false, score: 0, fail_reason: 'Invalid email syntax', verified_by: 'dns' };
   }
 
   const domainOk = await checkDomain(email);
   if (!domainOk) {
-    return { email, syntax_ok: true, domain_ok: false, smtp_ok: false, smtp_checked: true, score: 10, fail_reason: 'Domain has no mail records' };
+    return { email, syntax_ok: true, domain_ok: false, smtp_ok: false, smtp_checked: true, score: 10, fail_reason: 'Domain has no mail records', verified_by: 'dns' };
   }
 
   const smtpResult = await checkSmtp(email);
@@ -275,13 +277,128 @@ export async function verifyEmail(email: string, historicalBounceRate = 0): Prom
     // Carried even when the address isn't bad: "could not be checked" is the
     // most useful thing to say about a 60, and the UI needs to be able to say it.
     fail_reason: smtpResult.ok && smtpResult.checked ? null : (smtpResult.reason || 'SMTP check failed'),
+    verified_by: smtpResult.checked ? 'mail_server' : 'dns',
   };
+}
+
+/* ============================================
+   Mailbox check through Icypeas
+   ============================================
+
+   Our own SMTP probe needs outbound port 25, which Render and most hosts
+   block, so in production it almost never gets a verdict and every address
+   sat at 60 "could not be checked". When an ICYPEAS_API_KEY is set, an
+   address the free checks could not settle goes to Icypeas's email
+   verification instead (0.1 Icypeas credit an address).
+
+   Only verifications somebody asked for use it: the Verify buttons on the
+   lead and contact lists, and Enrich. The background auto-verify and the
+   Prospector's standing searches stay on the free checks, so nothing spends
+   credits on its own.
+
+   Icypeas does not publish the shape of a finished verification, so the
+   certainty is read from wherever it turns up.
+*/
+
+/** Certainty from a finished Icypeas verification item, lower-cased, or null. */
+export function icypeasCertaintyFrom(item: any): string | null {
+  const seen = new Set<any>();
+  const walk = (v: any, depth: number): string | null => {
+    if (!v || typeof v !== 'object' || depth > 4 || seen.has(v)) return null;
+    seen.add(v);
+    if (typeof v.certainty === 'string' && v.certainty.trim()) return v.certainty.trim().toLowerCase();
+    for (const child of Array.isArray(v) ? v : Object.values(v)) {
+      const hit = walk(child, depth + 1);
+      if (hit) return hit;
+    }
+    return null;
+  };
+  return walk(item, 0);
+}
+
+/** An Icypeas certainty as our result: the same fields the free checks fill. */
+export function resultFromCertainty(base: DcsVerificationResult, certainty: string | null, status: string): DcsVerificationResult {
+  const c = certainty || (['FOUND', 'DEBITED'].includes(status) ? 'probable' : 'not_found');
+  if (c === 'ultra_sure' || c === 'very_sure') {
+    return { ...base, smtp_ok: true, smtp_checked: true, score: 100, fail_reason: null, verified_by: 'icypeas' };
+  }
+  if (c === 'probable') {
+    return { ...base, smtp_ok: true, smtp_checked: true, score: 85, fail_reason: 'Probably deliverable: under 5% bounce risk', verified_by: 'icypeas' };
+  }
+  if (c === 'undeliverable') {
+    return { ...base, smtp_ok: false, smtp_checked: true, score: 5, fail_reason: 'Mailbox does not exist', verified_by: 'icypeas' };
+  }
+  // not_found, or anything new: Icypeas could not tell either way.
+  return {
+    ...base, smtp_ok: true, smtp_checked: false, score: 55,
+    fail_reason: 'Could not be confirmed: the mail server accepts every address or will not say',
+    verified_by: 'icypeas',
+  };
+}
+
+async function icypeasVerify(base: DcsVerificationResult): Promise<DcsVerificationResult> {
+  const started = await icypeas('/email-verification', { email: base.email });
+  const searchId = started?.item?._id || started?._id;
+  if (!searchId) throw new Error('Icypeas did not return a verification id');
+  const item = await icypeasAwait(String(searchId));
+  return resultFromCertainty(base, icypeasCertaintyFrom(item), String(item?.status || '').toUpperCase());
+}
+
+/**
+ * The free checks, then Icypeas when they could not reach a verdict. A
+ * failed Icypeas call falls back to the free result rather than failing the
+ * verification: an address is never marked bad because a vendor was down.
+ */
+export async function verifyEmailDeep(email: string, historicalBounceRate = 0): Promise<DcsVerificationResult> {
+  const base = await verifyEmail(email, historicalBounceRate);
+  if (!base.syntax_ok || !base.domain_ok || base.smtp_checked || !env.ICYPEAS_API_KEY) return base;
+  try {
+    const deep = await icypeasVerify(base);
+    // A known bounce still counts against an address Icypeas thinks is fine.
+    if (historicalBounceRate > 0) deep.score = Math.max(0, deep.score - Math.round(historicalBounceRate * 20));
+    return deep;
+  } catch (err) {
+    console.warn('[Verification] Icypeas check failed, keeping the free result:', (err as Error).message);
+    return base;
+  }
+}
+
+/**
+ * The columns a result is stored in. `dcs_smtp_ok` is only true or false
+ * when a mail server actually answered: it used to be written true for a
+ * check that never ran, and the lead list read that as "Valid".
+ */
+function resultColumns(result: DcsVerificationResult) {
+  return {
+    dcs_score: result.score,
+    dcs_syntax_ok: result.syntax_ok,
+    dcs_domain_ok: result.domain_ok,
+    dcs_smtp_ok: result.smtp_checked ? result.smtp_ok : null,
+    dcs_verified_at: new Date().toISOString(),
+    dcs_fail_reason: result.fail_reason,
+    email_verified_by: result.verified_by ?? null,
+  };
+}
+
+/** Save a result; retried without email_verified_by while migration 099 is not run. */
+async function saveResult(contactId: string, userId: string, result: DcsVerificationResult) {
+  const columns = resultColumns(result);
+  let { error } = await supabaseAdmin.from('contacts').update(columns).eq('id', contactId).eq('user_id', userId);
+  if (error && /email_verified_by/.test(error.message)) {
+    const { email_verified_by: _skip, ...rest } = columns;
+    ({ error } = await supabaseAdmin.from('contacts').update(rest).eq('id', contactId).eq('user_id', userId));
+  }
+  return error;
 }
 
 /**
  * Verify a contact and store DCS results.
  */
-export async function verifyContact(contactId: string, userId: string): Promise<DcsVerificationResult> {
+export async function verifyContact(
+  contactId: string,
+  userId: string,
+  opts: { deep?: boolean } = {}
+): Promise<DcsVerificationResult> {
   const { data: contact } = await supabaseAdmin
     .from('contacts')
     .select('email, user_id, is_bounced')
@@ -291,19 +408,9 @@ export async function verifyContact(contactId: string, userId: string): Promise<
 
   if (!contact) throw new AppError('Contact not found', 404);
 
-  const result = await verifyEmail(contact.email, contact.is_bounced ? 1 : 0);
+  const result = await (opts.deep ? verifyEmailDeep : verifyEmail)(contact.email, contact.is_bounced ? 1 : 0);
 
-  const { error: updateErr } = await supabaseAdmin
-    .from('contacts')
-    .update({
-      dcs_score: result.score,
-      dcs_syntax_ok: result.syntax_ok,
-      dcs_domain_ok: result.domain_ok,
-      dcs_smtp_ok: result.smtp_ok,
-      dcs_verified_at: new Date().toISOString(),
-      dcs_fail_reason: result.fail_reason,
-    })
-    .eq('id', contactId);
+  const updateErr = await saveResult(contactId, userId, result);
   if (updateErr) throw new Error(`Failed to save verification result: ${updateErr.message}`);
 
   if (contact.user_id) {
@@ -320,13 +427,20 @@ export async function verifyContact(contactId: string, userId: string): Promise<
   return result;
 }
 
+const DEEP_BATCH = 25;
+const DEEP_LANES = 5;
+
 /**
  * Batch verify contacts for a user. Returns count of verified contacts.
  */
 export async function batchVerify(
   userId: string,
-  contactIds?: string[]
+  contactIds?: string[],
+  opts: { deep?: boolean } = {}
 ): Promise<{ verified: number; failed: number }> {
+  // A paid check waits on Icypeas for a few seconds an address, so a deep
+  // batch is smaller and runs a few at a time to stay inside one request.
+  const max = opts.deep && env.ICYPEAS_API_KEY ? DEEP_BATCH : 100;
   let query = supabaseAdmin
     .from('contacts')
     .select('id, email, is_bounced')
@@ -337,42 +451,32 @@ export async function batchVerify(
     // caller picked these contacts on purpose, possibly to re-check ones
     // that already have a DCS score. Only the first hundred are taken per
     // call (see the limit below), so only those go into the URL.
-    query = query.in('id', chunk(contactIds, 100)[0]);
+    query = query.in('id', chunk(contactIds, max)[0]);
   } else {
     query = query.is('dcs_verified_at', null);
   }
 
-  const { data: contacts, error: selectErr } = await query.limit(100);
+  const { data: contacts, error: selectErr } = await query.limit(max);
   if (selectErr) throw new Error(`Failed to load contacts to verify: ${selectErr.message}`);
   if (!contacts || contacts.length === 0) return { verified: 0, failed: 0 };
 
   let verified = 0;
   let failed = 0;
 
-  for (const contact of contacts) {
-    const result = await verifyEmail(contact.email, contact.is_bounced ? 1 : 0);
-
-    const { error: batchUpdateErr } = await supabaseAdmin
-      .from('contacts')
-      .update({
-        dcs_score: result.score,
-        dcs_syntax_ok: result.syntax_ok,
-        dcs_domain_ok: result.domain_ok,
-        dcs_smtp_ok: result.smtp_ok,
-        dcs_verified_at: new Date().toISOString(),
-        dcs_fail_reason: result.fail_reason,
-      })
-      .eq('id', contact.id);
-
+  const check = opts.deep ? verifyEmailDeep : verifyEmail;
+  const one = async (contact: { id: string; email: string; is_bounced: boolean }) => {
+    const result = await check(contact.email, contact.is_bounced ? 1 : 0);
+    const batchUpdateErr = await saveResult(contact.id, userId, result);
     if (batchUpdateErr) {
       console.error(`[Verification] Failed to save result for contact ${contact.id}:`, batchUpdateErr.message);
       failed++;
-      continue;
+      return;
     }
-
     if (result.score >= 60) verified++;
     else failed++;
-  }
+  };
+  const lanes = opts.deep ? DEEP_LANES : 1;
+  for (const group of chunk(contacts as any[], lanes)) await Promise.all(group.map(one));
 
   return { verified, failed };
 }
@@ -394,7 +498,7 @@ export async function autoVerifyPending(maxContacts = 10): Promise<number> {
 
   const { data: contacts } = await supabaseAdmin
     .from('contacts')
-    .select('id, email, is_bounced')
+    .select('id, user_id, email, is_bounced')
     .is('dcs_verified_at', null)
     .in('user_id', userIds)
     .limit(maxContacts);
@@ -406,17 +510,7 @@ export async function autoVerifyPending(maxContacts = 10): Promise<number> {
     // verifyEmail handles its own errors and always resolves to a result,
     // so dcs_verified_at always gets stamped — no infinite retry loop.
     const result = await verifyEmail(contact.email, contact.is_bounced ? 1 : 0);
-    await supabaseAdmin
-      .from('contacts')
-      .update({
-        dcs_score: result.score,
-        dcs_syntax_ok: result.syntax_ok,
-        dcs_domain_ok: result.domain_ok,
-        dcs_smtp_ok: result.smtp_ok,
-        dcs_verified_at: new Date().toISOString(),
-        dcs_fail_reason: result.fail_reason,
-      })
-      .eq('id', contact.id);
+    await saveResult(contact.id, (contact as any).user_id, result);
     processed++;
   }
   return processed;

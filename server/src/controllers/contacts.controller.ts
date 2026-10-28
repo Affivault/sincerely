@@ -4,6 +4,7 @@ import { AuthRequest } from '../middleware/auth.middleware.js';
 import { contactsService } from '../services/contacts.service.js';
 import { contactHygieneService } from '../services/contact-hygiene.service.js';
 import { engagementService } from '../services/engagement.service.js';
+import { contactEnrichmentService } from '../services/contact-enrichment.service.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -256,6 +257,14 @@ export const contactsController = {
     try {
       if (badId(req, res)) return;
       res.json(await engagementService.forContact(req.userId!, req.params.id));
+    } catch (err) { next(err); }
+  },
+
+  /* -- Enrich: the 360 profile, only ever on a button press -- */
+  async enrich(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      if (badId(req, res)) return;
+      res.json(await contactEnrichmentService.enrich(req.userId!, req.params.id));
     } catch (err) { next(err); }
   },
 };

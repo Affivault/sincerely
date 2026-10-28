@@ -29,6 +29,8 @@ contactRoutes.get('/:id/campaigns', contactsController.campaignsForContact);
 contactRoutes.get('/:id/duplicates', contactsController.duplicatesFor);
 // The 0-100 score, recounted live, with what it is made of.
 contactRoutes.get('/:id/engagement', contactsController.engagement);
+// The person, their company and their email, looked up on a button press.
+contactRoutes.post('/:id/enrich', contactsController.enrich);
 contactRoutes.post('/', contactsController.create);
 contactRoutes.put('/:id', contactsController.update);
 contactRoutes.delete('/:id', contactsController.delete);

@@ -1,6 +1,7 @@
 import type { Lifecycle } from './lifecycle.types.js';
 import type { CampaignStatus, ContactCampaignStatus } from './enums.js';
 import type { StoredEngagementFactors } from './engagement.js';
+import type { ContactEnrichment, EmailVerifiedBy } from './contact-enrichment.types.js';
 
 export interface Contact {
   id: string;
@@ -34,6 +35,11 @@ export interface Contact {
   dcs_smtp_ok: boolean | null;
   dcs_verified_at: string | null;
   dcs_fail_reason: string | null;
+  /** Who gave the verdict on the address (migration 099). */
+  email_verified_by?: EmailVerifiedBy | null;
+  /** The 360 profile from the last manual Enrich (migration 099). */
+  enrichment?: ContactEnrichment | null;
+  profile_enriched_at?: string | null;
   /** How many live lead lists this contact belongs to (migration 036). */
   list_count?: number;
   /** The company this contact belongs to (migration 038). */
@@ -62,6 +68,8 @@ export interface DcsVerificationResult {
   smtp_checked: boolean;
   score: number;
   fail_reason: string | null;
+  /** Who gave the verdict. Absent on results from before migration 099. */
+  verified_by?: EmailVerifiedBy;
 }
 
 export interface Tag {
