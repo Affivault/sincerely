@@ -31,7 +31,7 @@ import { AppError } from '../middleware/error.middleware.js';
 import { billingService } from './billing.service.js';
 import { companiesService } from './companies.service.js';
 import { icypeas } from './prospect-providers.js';
-import { verifyEmailDeep } from './verification.service.js';
+import { verifyContact } from './verification.service.js';
 import {
   ENRICH_CREDIT_COST, PLANS, emailDomain, isFreeMailDomain, normalizeLinkedinUrl, registrableDomain,
 } from '@lemlist/shared';
@@ -89,7 +89,7 @@ function when(v: any): string | null {
 export function unwrapIcypeas(body: any): any {
   let v = body;
   for (let i = 0; i < 3 && v && typeof v === 'object'; i++) {
-    const inner = v.data ?? v.result ?? v.item ?? (Array.isArray(v.items) ? v.items[0] : undefined);
+    const inner = v.data ?? v.result ?? v.item ?? (Array.isArray(v.items) ? v.items[0] : undefined) ?? (Array.isArray(v.leads) ? v.leads[0] : undefined) ?? v._source;
     if (inner === undefined || inner === null) break;
     v = Array.isArray(inner) ? inner[0] : inner;
   }
@@ -238,6 +238,45 @@ async function directoryByDomain(domain: string) {
 
 const title = (s: string | null) => (s ? s.replace(/\b[a-z]/g, (ch) => ch.toUpperCase()) : null);
 
+/** The first result of a lead-database answer that passes `fits`. */
+function pickLead(body: any, fits: (lead: any) => boolean): any | null {
+  const leads: any[] = Array.isArray(body?.leads) ? body.leads : [];
+  const flat = leads.map((l) => (l?._source ? { _id: l._id, ...l._source } : l)).filter((l) => l && typeof l === 'object');
+  return flat.find(fits) || null;
+}
+
+const fold = (s: unknown) => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+function sameName(lead: any, first: string, last: string): boolean {
+  const f = fold(str(lead.firstname, lead.firstName, lead.first_name));
+  const l = fold(str(lead.lastname, lead.lastName, lead.last_name));
+  if (f || l) return f === fold(first) && l === fold(last);
+  const full = fold(str(lead.fullname, lead.fullName, lead.name));
+  return !!full && full.includes(fold(first)) && full.includes(fold(last));
+}
+
+/** The full profile where it has a field, the database record filling its gaps. */
+export function mergePerson(full: EnrichedPerson | null, lead: EnrichedPerson | null): EnrichedPerson | null {
+  if (!full) return lead;
+  if (!lead) return full;
+  const out: any = { ...full };
+  for (const key of Object.keys(lead) as (keyof EnrichedPerson)[]) {
+    const have = out[key];
+    if (have === null || have === undefined || (Array.isArray(have) && !have.length)) out[key] = lead[key];
+  }
+  return out as EnrichedPerson;
+}
+
+/*
+ * The shape of each Icypeas answer, keys only and no values, so a field
+ * this reader misses can be found in the server log without a guess.
+ */
+function logShape(label: string, body: any) {
+  if (!body || typeof body !== 'object') return;
+  const keys = (v: any) => (v && typeof v === 'object' && !Array.isArray(v) ? Object.keys(v).slice(0, 40).join(',') : Array.isArray(v) ? `[${v.length}]` : typeof v);
+  const first = Array.isArray(body.leads) ? body.leads[0] : body.data ?? body.result ?? body.item;
+  console.log(`[Enrich] ${label}: status=${body.status ?? body.item?.status ?? '-'} top=${keys(body)} first=${keys(first?._source ?? first)}`);
+}
+
 /* ── Credits ────────────────────────────────────────────────────────── */
 
 async function spend(userId: string, contactId: string): Promise<string> {
@@ -288,28 +327,60 @@ async function run(userId: string, contactId: string): Promise<EnrichContactResu
     let linkedin = normalizeLinkedinUrl(contact.linkedin_url) || null;
     const emailDom = registrableDomain(emailDomain(contact.email));
     const workDomain = emailDom && !isFreeMailDomain(emailDom) ? emailDom : null;
-    const companyHint = str(company?.domain, domainOf(contact.website), workDomain, contact.company, company?.name);
-    if (!linkedin && contact.first_name && contact.last_name && (companyHint || contact.job_title)) {
-      const found = await tryIcypeas('The LinkedIn search', () => icypeas('/url-search/profile', {
-        firstname: contact.first_name, lastname: contact.last_name,
-        companyOrDomain: companyHint || '', jobTitle: contact.job_title || '',
-      }), notes);
-      linkedin = found ? normalizeLinkedinUrl(findLinkedinUrl(found, 'in')) || null : null;
-    }
+    const knownDomain = str(company?.domain && domainOf(company.domain), domainOf(contact.website), workDomain);
+    const knownCompany = str(contact.company, company?.name);
+    const first = str(contact.first_name);
+    const last = str(contact.last_name);
+
+    // The lead database first: 0.02 credit, and it often holds the whole
+    // profile. Looked up by name at their company's website, then its name.
     let person: EnrichedPerson | null = null;
-    if (linkedin) {
+    if (first && last && (knownDomain || knownCompany)) {
+      const tries: Record<string, any>[] = [];
+      if (knownDomain) tries.push({ currentCompanyWebsite: { include: [knownDomain] } });
+      if (knownCompany) tries.push({ currentCompanyName: { include: [knownCompany] } });
+      for (const where of tries) {
+        const found = await tryIcypeas('The people database', () => icypeas('/find-people', {
+          query: { firstname: { include: [first] }, lastname: { include: [last] }, ...where },
+        }), notes);
+        logShape('find-people', found);
+        const lead = pickLead(found, (l) => sameName(l, first, last));
+        person = lead ? personFromProfile(lead) : null;
+        if (person) break;
+      }
+    }
+    if (!linkedin && person?.linkedin_url) linkedin = person.linkedin_url;
+
+    // Not in the database: search LinkedIn by name, free when nothing is found.
+    if (!linkedin && first && last && (knownCompany || knownDomain || contact.job_title)) {
+      for (const companyOrDomain of [...new Set([knownCompany, knownDomain].filter(Boolean) as string[])].concat(knownCompany || knownDomain ? [] : [''])) {
+        const found = await tryIcypeas('The LinkedIn search', () => icypeas('/url-search/profile', {
+          firstname: first, lastname: last, companyOrDomain, jobTitle: contact.job_title || '',
+        }), notes);
+        logShape('url-search/profile', found);
+        linkedin = found ? normalizeLinkedinUrl(findLinkedinUrl(found, 'in')) || null : null;
+        if (linkedin) break;
+      }
+    }
+
+    // The full profile (career, education, skills) costs 1.5 credits, so it
+    // is only read when the database answer lacks the career history.
+    if (linkedin && (!person || person.experience.length < 2)) {
       const scraped = await tryIcypeas('The profile reader', () => icypeas(`/scrape/profile?url=${encodeURIComponent(linkedin!)}`, undefined, 'GET'), notes);
-      person = scraped ? personFromProfile(scraped) : null;
-      if (person && !person.linkedin_url) person.linkedin_url = linkedin;
+      logShape('scrape/profile', scraped);
+      const full = scraped ? personFromProfile(scraped) : null;
+      person = mergePerson(full, person);
       if (!person && scraped) notes.push('Their LinkedIn profile could not be read.');
-    } else if (!contact.first_name || !contact.last_name) {
-      notes.push('Add their first and last name to find their LinkedIn profile.');
-    } else {
-      notes.push('No LinkedIn profile was found for them.');
+    }
+    if (person && !person.linkedin_url) person.linkedin_url = linkedin;
+    if (!person) {
+      notes.push(!first || !last
+        ? 'Add their first and last name to look them up.'
+        : linkedin ? 'Their LinkedIn profile could not be read.' : 'No LinkedIn profile was found for them.');
     }
 
     /* 2. Their company */
-    const domain = str(company?.domain && domainOf(company.domain), domainOf(contact.website), domainOf(person?.company_website ?? null), workDomain);
+    const domain = str(knownDomain, domainOf(person?.company_website ?? null));
     let enrichedCompany: EnrichedCompany | null = null;
     const recent = company?.profile_enriched_at && Date.now() - new Date(company.profile_enriched_at).getTime() < COMPANY_REUSE_MS;
     if (recent && company.enrichment) {
@@ -323,26 +394,42 @@ async function run(userId: string, contactId: string): Promise<EnrichContactResu
         location: [title(dir.locality), title(dir.region), title(dir.country)].filter(Boolean).join(', ') || null,
         description: null, specialties: [], followers: null, type: null, logo_url: null, sources: ['directory'],
       } : null;
-
-      let companyUrl = str(company?.linkedin_url, fromDir?.linkedin_url, person?.company_linkedin_url);
       const companyName = str(person?.company, contact.company, company?.name, fromDir?.name);
-      if (!companyUrl && (domain || companyName)) {
-        const found = await tryIcypeas('The company search', () => icypeas('/url-search/company', { companyOrDomain: domain || companyName }), notes);
-        companyUrl = found ? findLinkedinUrl(found, 'company') : null;
+
+      // The company database: 0.02 credit for description, headcount, HQ,
+      // industry and specialties, where the profile reader costs 1.5.
+      let fromIcy: EnrichedCompany | null = null;
+      if (domain || companyName) {
+        const found = await tryIcypeas('The company database', () => icypeas('/find-companies', {
+          query: domain ? { domain: { include: [domain] } } : { name: { include: [companyName] } },
+        }), notes);
+        logShape('find-companies', found);
+        const lead = pickLead(found, (l) => !domain || domainOf(str(l.website, l.domain)) === domain);
+        fromIcy = lead ? companyFromProfile(lead) : null;
       }
-      const scraped = companyUrl
-        ? await tryIcypeas('The company profile reader', () => icypeas(`/scrape/company?url=${encodeURIComponent(companyUrl!)}`, undefined, 'GET'), notes)
-        : null;
-      const fromIcy = scraped ? companyFromProfile(scraped) : null;
-      if (fromIcy && !fromIcy.linkedin_url) fromIcy.linkedin_url = companyUrl;
+      // Not in the database: find its page and read it.
+      if (!fromIcy) {
+        let companyUrl = str(company?.linkedin_url, fromDir?.linkedin_url, person?.company_linkedin_url);
+        if (!companyUrl && (domain || companyName)) {
+          const found = await tryIcypeas('The company search', () => icypeas('/url-search/company', { companyOrDomain: companyName || domain }), notes);
+          logShape('url-search/company', found);
+          companyUrl = found ? findLinkedinUrl(found, 'company') : null;
+        }
+        const scraped = companyUrl
+          ? await tryIcypeas('The company profile reader', () => icypeas(`/scrape/company?url=${encodeURIComponent(companyUrl!)}`, undefined, 'GET'), notes)
+          : null;
+        logShape('scrape/company', scraped);
+        fromIcy = scraped ? companyFromProfile(scraped) : null;
+        if (fromIcy && !fromIcy.linkedin_url) fromIcy.linkedin_url = companyUrl;
+      }
       enrichedCompany = mergeCompany(fromIcy, fromDir);
       if (!enrichedCompany) notes.push(domain || companyName ? 'Nothing more was found about their company.' : 'Their company is unknown: add a company or work email first.');
     }
 
-    /* 3. Their email */
+    /* 3. Their email, saved to the contact like any other check */
     const lastCheck = contact.dcs_verified_at ? new Date(contact.dcs_verified_at).getTime() : 0;
     const checkedRecently = contact.email_verified_by === 'icypeas' && Date.now() - lastCheck < EMAIL_REUSE_MS;
-    const check = checkedRecently ? null : await verifyEmailDeep(contact.email, contact.is_bounced ? 1 : 0);
+    const check = checkedRecently ? null : await verifyContact(contactId, userId, { deep: true }).catch(() => null);
     const now = new Date().toISOString();
     const email = check
       ? { score: check.score, verified_by: check.verified_by ?? null, fail_reason: check.fail_reason, checked_at: now }

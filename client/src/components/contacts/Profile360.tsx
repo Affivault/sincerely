@@ -238,7 +238,7 @@ function PersonColumn({ person }: { person: EnrichedPerson | null }) {
     return (
       <div>
         <p className="text-caption font-semibold text-[var(--text-primary)] mb-1">The person</p>
-        <p className="text-caption text-[var(--text-tertiary)]">No LinkedIn profile was found for them.</p>
+        <p className="text-caption text-[var(--text-tertiary)]">Nothing found about them yet. The note below says why.</p>
       </div>
     );
   }
@@ -303,7 +303,7 @@ function CompanyColumn({ company, companyId }: { company: EnrichedCompany | null
     return (
       <div>
         <p className="text-caption font-semibold text-[var(--text-primary)] mb-1">Their company</p>
-        <p className="text-caption text-[var(--text-tertiary)]">Nothing was found about their company.</p>
+        <p className="text-caption text-[var(--text-tertiary)]">Nothing found about their company yet.</p>
       </div>
     );
   }
