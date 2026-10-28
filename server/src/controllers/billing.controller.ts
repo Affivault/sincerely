@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware.js';
 import { billingService } from '../services/billing.service.js';
 import { stripeService } from '../services/stripe.service.js';
+import { creditsService } from '../services/credits.service.js';
 
 export const billingController = {
   /** GET /billing/usage — current plan, limits, and this period's usage. */
@@ -9,6 +10,15 @@ export const billingController = {
     try {
       const summary = await billingService.getUsageSummary(req.userId!);
       res.json(summary);
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  /** GET /billing/credits — balance, price list, this month by action, recent charges. */
+  async credits(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      res.json(await creditsService.report(req.userId!));
     } catch (err) {
       next(err);
     }

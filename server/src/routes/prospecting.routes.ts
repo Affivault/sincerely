@@ -24,7 +24,6 @@ prospectingRoutes.get('/destinations', prospectingController.destinations);
 prospectingRoutes.post('/reveal', prospectingController.reveal);
 // The person panel: what a search row already holds, never a credit.
 prospectingRoutes.get('/people/:id/details', wrapDetails);
-prospectingRoutes.post('/credits/checkout', prospectingController.buyCredits);
 
 /* Standing searches - saved searches that prospect, verify and enrol on a cadence. */
 const wrap = (fn: (req: AuthRequest) => Promise<unknown>, status = 200) =>

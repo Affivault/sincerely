@@ -7,6 +7,7 @@
 // going to production, and mind their terms on caching/reselling data.
 
 import { env } from '../config/env.js';
+import { icypeasCallCredits, recordProviderUsage } from './provider-usage.service.js';
 import { PROSPECT_FILTER_FIELDS, expandProspectLocations, prospectValueLabel } from '@lemlist/shared';
 import type { CompanySearchFilters, CompanySearchResponse, DirectoryCompany, ProspectPerson, ProspectProviderId, ProspectSearchFilters } from '@lemlist/shared';
 
@@ -28,6 +29,12 @@ export interface ProspectProvider {
   enrichEmail(personId: string, hint?: Partial<ProspectPerson>): Promise<{ email: string | null; person?: Partial<ProspectPerson> }>;
   /** How many people match, without spending credits. Null when the provider can't say for free. */
   count?(filters: ProspectSearchFilters): Promise<number | null>;
+  /**
+   * How many pages the provider would have to be paid for to show this one:
+   * 0 when it is already held, more than 1 when a jump walks forward. Absent
+   * means every search is a fresh, paid page.
+   */
+  pagesToFetch?(filters: ProspectSearchFilters, page: number, perPage: number): number;
 }
 
 const FETCH_TIMEOUT_MS = 20_000;
@@ -86,6 +93,7 @@ export async function icypeas(path: string, body?: unknown, method: 'POST' | 'GE
     const msg = v?.message || data.message || data.error || 'request rejected';
     throw new Error(`Provider error: ${typeof msg === 'string' ? msg : JSON.stringify(msg)}`);
   }
+  recordProviderUsage(path, icypeasCallCredits(path, data));
   return data;
 }
 
@@ -272,6 +280,23 @@ async function icypeasChunk(query: Record<string, any>, entry: IcypeasChunks, n:
   return leads;
 }
 
+/**
+ * How many chunks showing this page would pay for: 0 when it is held, more
+ * than 1 when a jump has to walk forward from the last one held.
+ */
+export function icypeasPagesToFetch(path: string, query: Record<string, any>, page: number, perPage: number): number {
+  const entry = queryChunks.get(`${path} ${JSON.stringify(query)}`);
+  const size = entry && Date.now() - entry.at <= CHUNK_TTL_MS ? entry.size : ICYPEAS_PAGE_SIZE;
+  const last = Math.floor(((page - 1) * perPage + perPage - 1) / size) + 1;
+  if (!entry || Date.now() - entry.at > CHUNK_TTL_MS) return last;
+  let missing = 0;
+  for (let n = last; n >= 1 && !entry.chunks.has(n); n--) {
+    missing++;
+    if (entry.tokens.has(n)) break;
+  }
+  return missing;
+}
+
 /** One of our 25-a-page pages, cut from Icypeas's chunks. A page can straddle two. */
 async function icypeasPage(path: string, query: Record<string, any>, page: number, perPage: number) {
   const entry = chunksFor(`${path} ${JSON.stringify(query)}`);
@@ -352,6 +377,11 @@ export function cachedCompany(domain: string): any | null {
   return hit && Date.now() - hit.at < SEEN_TTL_MS ? hit.lead : null;
 }
 
+/** Pages a company search would pay for (see icypeasPagesToFetch). */
+export function icypeasCompanyPagesToFetch(filters: CompanySearchFilters, page: number, perPage = 25): number {
+  return icypeasPagesToFetch('/find-companies', icypeasCompanyQuery(filters), page, perPage);
+}
+
 export async function icypeasCompanySearch(filters: CompanySearchFilters, page: number, perPage = 25): Promise<CompanySearchResponse> {
   const query = icypeasCompanyQuery(filters);
   if (!Object.keys(query).length) throw new Error('Add at least one filter to search companies.');
@@ -415,19 +445,59 @@ export function icypeasEmailFromItem(item: any): string | null {
   return null;
 }
 
-export async function icypeasAwait(searchId: string): Promise<any> {
+/*
+ * What a settled search cost: the finder charges 1 credit for a found email,
+ * the verifier 0.1 for every address it tests.
+ */
+const SETTLED_CREDITS: Record<'email-search' | 'email-verification', (found: boolean) => number> = {
+  'email-search': (found) => (found ? 1 : 0),
+  'email-verification': () => 0.1,
+};
+
+export async function icypeasAwait(searchId: string, kind: 'email-search' | 'email-verification' = 'email-search'): Promise<any> {
   for (const delay of icypeasPolling.delaysMs) {
     await new Promise((r) => setTimeout(r, delay));
     const data = await icypeas('/bulk-single-searchs/read', { id: searchId });
     const item = data.item || (Array.isArray(data.items) ? data.items[0] : null);
     const status = String(item?.status || 'NONE').toUpperCase();
     if (ICYPEAS_PENDING.has(status)) continue;
-    if (ICYPEAS_FOUND.has(status) || ICYPEAS_NOT_FOUND.has(status)) return { ...item, status };
+    if (ICYPEAS_FOUND.has(status) || ICYPEAS_NOT_FOUND.has(status)) {
+      recordProviderUsage(`/${kind}`, SETTLED_CREDITS[kind](ICYPEAS_FOUND.has(status)));
+      return { ...item, status };
+    }
     if (status === 'INSUFFICIENT_FUNDS') throw new Error('Provider error: the Icypeas account is out of credits');
     throw new Error(`Provider error: email search ended ${status}`);
   }
   // Thrown, so the reveal refunds; Icypeas only charges if it later finds one.
   throw new Error('Provider error: the email search is taking too long, try again in a minute');
+}
+
+/*
+ * Our own Icypeas balance, for the admin page. The route takes the account's
+ * email and its answer's fields are undocumented, so the first credit-like
+ * number found is used and the keys are logged when none is.
+ */
+export async function icypeasBalance(email: string): Promise<number | null> {
+  const data = await icypeas('/a/actions/subscription-information', { email });
+  const seen = new Set<any>();
+  const walk = (v: any, depth: number): number | null => {
+    if (!v || typeof v !== 'object' || depth > 4 || seen.has(v)) return null;
+    seen.add(v);
+    for (const [k, x] of Object.entries(v)) {
+      if (/credit/i.test(k) && !/used|spent|consumed|total|max|limit/i.test(k)) {
+        const n = typeof x === 'number' ? x : typeof x === 'string' && x.trim() !== '' ? Number(x) : NaN;
+        if (Number.isFinite(n)) return n;
+      }
+    }
+    for (const x of Object.values(v)) {
+      const n = walk(x, depth + 1);
+      if (n !== null) return n;
+    }
+    return null;
+  };
+  const credits = walk(data, 0);
+  if (credits === null) console.log(`[Icypeas] subscription-information keys: ${Object.keys(data || {}).join(',')}`);
+  return credits;
 }
 
 /* Counts are free on Icypeas but rate limited, and the panel asks on every change. */
@@ -445,6 +515,9 @@ export function icypeasCountFrom(data: any): number | null {
 
 export const icypeasProvider: ProspectProvider = {
   id: 'icypeas',
+  pagesToFetch(filters, page, perPage) {
+    return icypeasPagesToFetch('/find-people', icypeasQuery(filters), page, perPage);
+  },
   async count(filters) {
     const query = icypeasQuery(filters);
     if (!Object.keys(query).length) return null;
@@ -477,7 +550,7 @@ export const icypeasProvider: ProspectProvider = {
     const started = await icypeas('/email-search', { firstname: first || '', lastname: last || '', domainOrCompany: company });
     const searchId = started?.item?._id || started?._id;
     if (!searchId) throw new Error('Provider error: Icypeas did not return a search id');
-    const item = await icypeasAwait(String(searchId));
+    const item = await icypeasAwait(String(searchId), 'email-search');
     return { email: ICYPEAS_NOT_FOUND.has(item.status) ? null : icypeasEmailFromItem(item) };
   },
 };

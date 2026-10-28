@@ -28,12 +28,13 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { env } from '../config/env.js';
 import { AppError } from '../middleware/error.middleware.js';
-import { billingService } from './billing.service.js';
+import { creditsService } from './credits.service.js';
+import { withUsage } from './provider-usage.service.js';
 import { companiesService } from './companies.service.js';
 import { icypeas } from './prospect-providers.js';
 import { verifyContact } from './verification.service.js';
 import {
-  ENRICH_CREDIT_COST, PLANS, emailDomain, isFreeMailDomain, normalizeLinkedinUrl, registrableDomain,
+  ENRICH_CREDIT_COST, emailDomain, isFreeMailDomain, normalizeLinkedinUrl, registrableDomain,
 } from '@lemlist/shared';
 import type {
   ContactEnrichment, EnrichContactResult, EnrichedCompany, EnrichedJob, EnrichedPerson, EnrichedSchool,
@@ -286,27 +287,14 @@ const LOOKUP_SIZE = 5;
 
 /* ── Credits ────────────────────────────────────────────────────────── */
 
+const enrichSpend = (contactId: string) => ({ amount: ENRICH_CREDIT_COST, action: 'enrich', provider: 'icypeas', ref: contactId });
+
 async function spend(userId: string, contactId: string): Promise<string> {
-  const planId = await billingService.getPlanId(userId);
-  const { data, error } = await supabaseAdmin.rpc('try_spend_prospect_credits', {
-    p_user_id: userId,
-    p_amount: ENRICH_CREDIT_COST,
-    p_allowance: PLANS[planId].prospectCredits,
-    p_reason: 'enrich',
-    p_provider: 'icypeas',
-    p_provider_person_id: contactId,
-  });
-  if (error) throw new AppError(error.message, 500);
-  const bucket = (Array.isArray(data) ? data[0] : data)?.spent_bucket ?? null;
-  if (!bucket) throw new AppError('You’re out of prospect credits. Buy a credit pack or upgrade your plan to enrich more contacts.', 403);
-  return bucket;
+  return creditsService.spend(userId, enrichSpend(contactId));
 }
 
 async function refund(userId: string, contactId: string, bucket: string, reason: string) {
-  await supabaseAdmin.from('prospect_credit_ledger').insert({
-    user_id: userId, delta: ENRICH_CREDIT_COST, kind: 'refund', reason,
-    provider: 'icypeas', provider_person_id: contactId, bucket,
-  });
+  await creditsService.refund(userId, { ...enrichSpend(contactId), reason, bucket });
 }
 
 /* ── The enrichment ────────────────────────────────────────────────── */
@@ -438,7 +426,7 @@ async function run(userId: string, contactId: string): Promise<EnrichContactResu
     /* 3. Their email, saved to the contact like any other check */
     const lastCheck = contact.dcs_verified_at ? new Date(contact.dcs_verified_at).getTime() : 0;
     const checkedRecently = contact.email_verified_by === 'icypeas' && Date.now() - lastCheck < EMAIL_REUSE_MS;
-    const check = checkedRecently ? null : await verifyContact(contactId, userId, { deep: true }).catch(() => null);
+    const check = checkedRecently ? null : await verifyContact(contactId, userId, { deep: true, charge: false }).catch(() => null);
     const now = new Date().toISOString();
     const email = check
       ? { score: check.score, verified_by: check.verified_by ?? null, fail_reason: check.fail_reason, checked_at: now }
@@ -545,7 +533,7 @@ export const contactEnrichmentService = {
     if (running.has(key)) throw new AppError('This contact is already being enriched.', 409);
     running.add(key);
     try {
-      return await run(userId, contactId);
+      return await withUsage(userId, 'enrich', () => run(userId, contactId));
     } finally {
       running.delete(key);
     }

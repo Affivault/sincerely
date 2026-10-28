@@ -51,7 +51,7 @@ export const verificationController = {
         res.status(400).json({ error: 'email is required' });
         return;
       }
-      const result = await verificationService.verifyEmailDeep(email);
+      const result = await verificationService.verifyEmailDeep(email, 0, { chargeUserId: req.userId! });
       res.json(result);
     } catch (err) { next(err); }
   },

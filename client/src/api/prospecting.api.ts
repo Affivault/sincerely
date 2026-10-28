@@ -40,9 +40,6 @@ export const prospectingApi = {
 
   reveal: async (input: RevealProspectInput) =>
     (await apiClient.post<RevealProspectResponse>('/prospecting/reveal', input)).data,
-
-  buyCredits: async (packId: string) =>
-    (await apiClient.post<{ url: string }>('/prospecting/credits/checkout', { pack_id: packId })).data,
 };
 
 export const prospectRulesApi = {

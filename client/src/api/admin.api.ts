@@ -1,11 +1,14 @@
 import { apiClient } from './client';
-import type { AdminStats, AdminUserRow, AdminUsersResponse } from '@lemlist/shared';
+import type { AdminStats, AdminUsageReport, AdminUserRow, AdminUsersResponse } from '@lemlist/shared';
 
 export const adminApi = {
   users: async (search?: string) =>
     (await apiClient.get<AdminUsersResponse>('/admin/users', { params: search ? { search } : undefined })).data,
 
   stats: async () => (await apiClient.get<AdminStats>('/admin/stats')).data,
+
+  usage: async (month?: string) =>
+    (await apiClient.get<AdminUsageReport>('/admin/usage', { params: month ? { month } : undefined })).data,
 
   grantLifetime: async (email: string) =>
     (await apiClient.post<AdminUserRow>('/admin/grant-lifetime', { email })).data,

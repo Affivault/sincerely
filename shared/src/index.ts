@@ -45,6 +45,7 @@ export * from './attribution.types.js';
 export * from './triage.types.js';
 export * from './pipeline.types.js';
 export * from './prospecting.types.js';
+export * from './credits.types.js';
 export * from './prospect-suggestions.js';
 export * from './prospect-ranking.js';
 export * from './email-finder.types.js';

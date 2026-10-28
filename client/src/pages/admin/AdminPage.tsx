@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { ADMIN_EMAILS, PLANS, type AdminUserRow, type PlanId, formatDate } from '@lemlist/shared';
 import { keepPrevious } from '../../lib/listQuery';
+import { UsageProfitPanel } from '../../components/admin/UsageProfitPanel';
 
 const PLAN_BADGE: Record<string, string> = {
   lifetime: 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)] border border-[rgba(47,63,156,0.3)]',
@@ -142,6 +143,8 @@ export function AdminPage() {
         ))}
       </div>
 
+      <UsageProfitPanel />
+
       {/* Grant lifetime access */}
       <div className="relative rounded-xl border border-[rgba(47,63,156,0.3)] bg-[var(--bg-surface)] overflow-hidden mb-5">
         <span className="absolute inset-x-0 top-0 h-[2.5px] bg-[var(--indigo)]" />
@@ -152,7 +155,7 @@ export function AdminPage() {
             </span>
             <div>
               <p className="text-strong font-semibold text-[var(--text-primary)]">Grant lifetime access</p>
-              <p className="text-caption text-[var(--text-tertiary)]">Free forever · unlimited inboxes, emails & prospect credits · every feature · Stripe can never downgrade it.</p>
+              <p className="text-caption text-[var(--text-tertiary)]">Free forever · unlimited inboxes and emails, 1,000 credits a month · every feature · Stripe can never downgrade it.</p>
             </div>
           </div>
           <form

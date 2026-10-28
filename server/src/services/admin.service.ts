@@ -1,7 +1,11 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { env, localhostUrlProblems } from '../config/env.js';
 import { AppError } from '../middleware/error.middleware.js';
-import type { AdminStats, AdminUserRow, AdminUsersResponse } from '@lemlist/shared';
+import { stripeService } from './stripe.service.js';
+import { icypeasBalance } from './prospect-providers.js';
+import type {
+  AdminProviderBalance, AdminStats, AdminUsageActionRow, AdminUsageReport, AdminUsageUserRow, AdminUserRow, AdminUsersResponse,
+} from '@lemlist/shared';
 
 // How many auth users we'll scan at most (pages × perPage). Fine well past
 // the point where this platform needs a real search index.
@@ -29,12 +33,129 @@ async function fetchSubscriptions(): Promise<Map<string, { plan: string; status:
   return new Map((data || []).map((s: any) => [s.user_id, { plan: s.plan, status: s.status }]));
 }
 
+const cents = (n: number) => Math.round(n * 100) / 100;
+/** Stripe's standard card fee, as an estimate: the real one is on each charge's balance transaction. */
+const stripeFee = (amountUsd: number) => (amountUsd > 0 ? amountUsd * 0.029 + 0.3 : 0);
+
+function monthRange(month?: string): { label: string; from: Date; to: Date } {
+  const now = new Date();
+  const m = /^(\d{4})-(\d{2})$/.exec(month || '');
+  const year = m ? Number(m[1]) : now.getUTCFullYear();
+  const mon = m ? Number(m[2]) - 1 : now.getUTCMonth();
+  const from = new Date(Date.UTC(year, mon, 1));
+  const to = new Date(Date.UTC(year, mon + 1, 1));
+  return { label: from.toISOString().slice(0, 7), from, to };
+}
+
+async function providerBalance(): Promise<AdminProviderBalance> {
+  if (!env.ICYPEAS_API_KEY) return { credits: null, low: false, note: 'No ICYPEAS_API_KEY on the server.' };
+  if (!env.ICYPEAS_ACCOUNT_EMAIL) return { credits: null, low: false, note: 'Set ICYPEAS_ACCOUNT_EMAIL on the server to show the Icypeas balance.' };
+  try {
+    const credits = await icypeasBalance(env.ICYPEAS_ACCOUNT_EMAIL);
+    if (credits === null) return { credits: null, low: false, note: 'Icypeas answered without a balance we could read.' };
+    return { credits, low: credits < env.ICYPEAS_LOW_BALANCE, note: null };
+  } catch (err) {
+    return { credits: null, low: false, note: `Icypeas balance unavailable: ${(err as Error).message}` };
+  }
+}
+
 async function countRows(table: string): Promise<number> {
   const { count } = await supabaseAdmin.from(table).select('*', { count: 'exact', head: true });
   return count || 0;
 }
 
 export const adminService = {
+  /**
+   * What each account cost us this month (Icypeas calls) against what it
+   * paid (Stripe), plus our own Icypeas balance. Revenue is pulled from
+   * Stripe on each load, so it does not depend on the webhook's event list.
+   */
+  async usage(month?: string): Promise<AdminUsageReport> {
+    const range = monthRange(month);
+    const [revenueSynced, balance] = await Promise.all([
+      stripeService.syncPaidInvoices(range.from),
+      providerBalance(),
+    ]);
+    const [costs, charged, payments, users, subs] = await Promise.all([
+      supabaseAdmin.rpc('admin_provider_costs', { p_from: range.from.toISOString(), p_to: range.to.toISOString() }),
+      supabaseAdmin.rpc('admin_credits_charged', { p_from: range.from.toISOString(), p_to: range.to.toISOString() }),
+      supabaseAdmin.from('billing_payments').select('user_id, amount_usd').gte('paid_at', range.from.toISOString()).lt('paid_at', range.to.toISOString()).limit(10000),
+      fetchAllUsers(),
+      fetchSubscriptions(),
+    ]);
+    for (const r of [costs, charged, payments]) {
+      if (r.error) {
+        if (/admin_provider_costs|admin_credits_charged|billing_payments|provider_usage/.test(r.error.message)) {
+          throw new AppError('Usage and profit needs database migration 100 to be run first.', 503);
+        }
+        throw new AppError(r.error.message, 500);
+      }
+    }
+
+    type Acc = { credits: number; provider: number; cost: number; revenue: number; fees: number };
+    const per = new Map<string, Acc>();
+    const acc = (id: string) => {
+      let a = per.get(id);
+      if (!a) per.set(id, (a = { credits: 0, provider: 0, cost: 0, revenue: 0, fees: 0 }));
+      return a;
+    };
+    const actions = new Map<string, AdminUsageActionRow>();
+    const act = (name: string) => {
+      let a = actions.get(name);
+      if (!a) actions.set(name, (a = { action: name, calls: 0, provider_credits: 0, cost_usd: 0, credits_charged: 0 }));
+      return a;
+    };
+    let unattributed = 0;
+    for (const r of (costs.data || []) as any[]) {
+      const pc = Number(r.provider_credits) || 0, cost = Number(r.cost_usd) || 0;
+      const a = act(r.action || 'other');
+      a.calls += Number(r.calls) || 0; a.provider_credits += pc; a.cost_usd += cost;
+      if (r.user_id) { const u = acc(r.user_id); u.provider += pc; u.cost += cost; } else unattributed += cost;
+    }
+    for (const r of (charged.data || []) as any[]) {
+      const c = Number(r.credits) || 0;
+      if (r.action !== 'topup') act(r.action || 'other').credits_charged += c;
+      if (r.user_id) acc(r.user_id).credits += c;
+    }
+    for (const r of (payments.data || []) as any[]) {
+      if (!r.user_id) continue;
+      const amount = Number(r.amount_usd) || 0;
+      const u = acc(r.user_id); u.revenue += amount; u.fees += stripeFee(amount);
+    }
+
+    const emails = new Map(users.map((u: any) => [u.id, u.email || '(no email)']));
+    const rows: AdminUsageUserRow[] = [...per.entries()].map(([id, a]) => {
+      const sub = subs.get(id);
+      const profit = a.revenue - a.fees - a.cost;
+      return {
+        user_id: id, email: emails.get(id) || '(deleted account)', plan: sub?.plan || 'free', status: sub?.status || 'free',
+        credits_charged: Math.round(a.credits * 10) / 10, provider_credits: Math.round(a.provider * 100) / 100,
+        cost_usd: cents(a.cost), revenue_usd: cents(a.revenue), fees_usd: cents(a.fees), profit_usd: cents(profit),
+        losing: a.cost > 0 && a.cost > a.revenue - a.fees,
+      };
+    }).sort((x, y) => y.cost_usd - x.cost_usd || y.revenue_usd - x.revenue_usd);
+
+    const total = (k: 'provider_credits' | 'cost_usd' | 'revenue_usd' | 'fees_usd' | 'credits_charged') => rows.reduce((s, r) => s + r[k], 0);
+    const cost = total('cost_usd') + unattributed;
+    return {
+      month: range.label,
+      usd_per_provider_credit: env.ICYPEAS_USD_PER_CREDIT,
+      totals: {
+        provider_credits: Math.round([...actions.values()].reduce((s, a) => s + a.provider_credits, 0) * 100) / 100,
+        cost_usd: cents(cost),
+        revenue_usd: cents(total('revenue_usd')),
+        fees_usd: cents(total('fees_usd')),
+        profit_usd: cents(total('revenue_usd') - total('fees_usd') - cost),
+        credits_charged: Math.round(total('credits_charged') * 10) / 10,
+      },
+      unattributed_cost_usd: cents(unattributed),
+      by_action: [...actions.values()].map((a) => ({ ...a, provider_credits: Math.round(a.provider_credits * 100) / 100, cost_usd: cents(a.cost_usd), credits_charged: Math.round(a.credits_charged * 10) / 10 })).sort((x, y) => y.cost_usd - x.cost_usd),
+      users: rows,
+      provider_balance: balance,
+      revenue_synced: revenueSynced,
+    };
+  },
+
   async listUsers(search?: string): Promise<AdminUsersResponse> {
     const [users, subs] = await Promise.all([fetchAllUsers(), fetchSubscriptions()]);
     const q = (search || '').trim().toLowerCase();

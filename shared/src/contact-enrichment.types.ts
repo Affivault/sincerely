@@ -10,6 +10,8 @@
    suggestion instead.
    ═══════════════════════════════════════════════════════════════════════ */
 
+import { CREDIT_PRICES } from './credits.types.js';
+
 /** Who checked an address: a paid mailbox check, our own mail-server probe, or DNS alone. */
 export type EmailVerifiedBy = 'icypeas' | 'mail_server' | 'dns';
 
@@ -106,5 +108,5 @@ export interface EnrichContactResult {
   credits_charged: number;
 }
 
-/** Prospect credits one enrichment costs, refunded when nothing is found. */
-export const ENRICH_CREDIT_COST = 1;
+/** Credits one enrichment costs, refunded when nothing is found. */
+export const ENRICH_CREDIT_COST = CREDIT_PRICES.enrich;

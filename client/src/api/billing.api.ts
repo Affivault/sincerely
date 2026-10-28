@@ -1,10 +1,16 @@
 import { apiClient } from './client';
-import type { UsageSummary } from '@lemlist/shared';
+import type { CreditUsageReport, UsageSummary } from '@lemlist/shared';
 
 export const billingApi = {
   /** Current plan, limits, and this period's usage for the signed-in user. */
   usage: async () => {
     const { data } = await apiClient.get<UsageSummary>('/billing/usage');
+    return data;
+  },
+
+  /** Credits: balance, price list, this month by action, recent charges. */
+  credits: async () => {
+    const { data } = await apiClient.get<CreditUsageReport>('/billing/credits');
     return data;
   },
 

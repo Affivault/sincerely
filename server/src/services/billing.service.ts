@@ -6,7 +6,7 @@ import {
   type PlanLimits,
   type PlanFeatures,
   type SubscriptionStatus,
-  type UsageSummary, plural } from '@lemlist/shared';
+  type UsageSummary, plural, TRIAL_CREDIT_CAP } from '@lemlist/shared';
 
 // New users (and anyone without an active/trialing subscription) sit on the
 // restrictive Free plan until they subscribe.
@@ -46,9 +46,37 @@ function planFromSubscription(sub: any | null): PlanId {
   return 'free';
 }
 
+/*
+ * A Stripe trial is free until its first payment, so it gets at most
+ * TRIAL_CREDIT_CAP credits whatever plan it is trialling. A hand-set
+ * subscriptions.credit_allowance (a Scale deal) wins over the plan's.
+ */
+function creditAllowanceFor(sub: any | null): number {
+  const planId = planFromSubscription(sub);
+  const custom = sub?.credit_allowance;
+  if (custom !== null && custom !== undefined && Number.isFinite(Number(custom))) return Number(custom);
+  const base = PLANS[planId].prospectCredits;
+  if (trialCapped(sub)) return base < 0 ? TRIAL_CREDIT_CAP : Math.min(base, TRIAL_CREDIT_CAP);
+  return base;
+}
+
+function trialCapped(sub: any | null): boolean {
+  return !!sub && sub.plan !== 'lifetime' && sub.status === 'trialing';
+}
+
 export const billingService = {
   async getPlanId(userId: string): Promise<PlanId> {
     return planFromSubscription(await getSubscription(userId));
+  },
+
+  /** Credits a month for this account (-1 = unlimited, which no plan is any more). */
+  async getCreditAllowance(userId: string): Promise<number> {
+    return creditAllowanceFor(await getSubscription(userId));
+  },
+
+  async isTrialCapped(userId: string): Promise<boolean> {
+    const sub = await getSubscription(userId);
+    return trialCapped(sub) && (sub?.credit_allowance === null || sub?.credit_allowance === undefined);
   },
 
   async getLimits(userId: string): Promise<PlanLimits> {

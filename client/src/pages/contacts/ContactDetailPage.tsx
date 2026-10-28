@@ -51,6 +51,7 @@ import {
   Sparkles, Megaphone, MapPin, Loader2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { ENRICH_CREDIT_COST, creditsLabel } from '@lemlist/shared';
 
 
 export function ContactDetailPage() {
@@ -159,7 +160,7 @@ export function ContactDetailPage() {
 
   /*
    * Enrich: their LinkedIn profile, their company and their email, on a
-   * button press only. It spends a prospect credit, so nothing calls it
+   * button press only. It spends credits, so nothing calls it
    * except the two buttons on this page.
    */
   const enrich = useMutation({
@@ -170,7 +171,7 @@ export function ContactDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['prospecting', 'status'] });
       const found = !!r.enrichment.person || !!r.enrichment.company;
       const filled = r.filled.length + r.company_filled.length;
-      if (!found) toast('Nothing new was found, so no credit was used.');
+      if (!found) toast('Nothing new was found, so no credits were used.');
       else toast.success(filled > 0 ? `Enriched: ${filled} empty field${filled === 1 ? '' : 's'} filled in` : 'Enriched: the profile is up to date');
     },
     onError: (e: any) => toast.error(e?.response?.data?.error || 'Could not enrich this contact'),
@@ -372,11 +373,11 @@ export function ContactDetailPage() {
           <button
             onClick={() => enrich.mutate()}
             disabled={enrich.isPending}
-            title="Fill in their profile and their company, and check their email. Uses 1 prospect credit, refunded if nothing is found."
+            title={`Fill in their profile and their company, and check their email. Costs ${creditsLabel(ENRICH_CREDIT_COST)}, refunded if nothing is found.`}
             className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors disabled:opacity-60"
           >
             {enrich.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-            {enrich.isPending ? 'Enriching…' : 'Enrich'}
+            {enrich.isPending ? 'Enriching…' : `Enrich · ${creditsLabel(ENRICH_CREDIT_COST)}`}
           </button>
           <button
             onClick={() => setShowCampaignModal(true)}

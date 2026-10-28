@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { Building2, MapPin, Sparkles, Search, Linkedin, ChevronLeft, ChevronRight, SearchX, Users, Globe } from 'lucide-react';
-import { COMPANY_DIRECTORY_ATTRIBUTION, PROSPECT_INDUSTRIES } from '@lemlist/shared';
+import { COMPANY_DIRECTORY_ATTRIBUTION, CREDIT_PRICES, PROSPECT_INDUSTRIES, creditsLabel } from '@lemlist/shared';
 import type { CompanySearchResponse, CompanySearchFilters, DirectoryCompany } from '@lemlist/shared';
 import { prospectingApi } from '../../api/prospecting.api';
 import { Button } from '../ui/Button';
@@ -116,7 +116,7 @@ export function CompanySearch({ onFindPeople, onOpen, icypeas = false }: { onFin
         <Button className="w-full" onClick={() => run(1)} disabled={search.isPending}>
           {search.isPending ? <><Spinner size="sm" /> Searching…</> : <><Search className="h-3.5 w-3.5" /> Search companies</>}
         </Button>
-        <p className="text-caption text-[var(--text-tertiary)]">No Sincerely credits. Credits are only used when you reveal a person's email.</p>
+        <p className="text-caption text-[var(--text-tertiary)]">Free from our company directory. From the live database, each new page of 25 costs {creditsLabel(CREDIT_PRICES.search)}.</p>
       </div>
 
       <div className="min-w-0 space-y-3">
