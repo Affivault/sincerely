@@ -277,6 +277,13 @@ function logShape(label: string, body: any) {
   console.log(`[Enrich] ${label}: status=${body.status ?? body.item?.status ?? '-'} top=${keys(body)} first=${keys(first?._source ?? first)}`);
 }
 
+/*
+ * Icypeas charges 0.02 credit for every result a database lookup returns, and
+ * returns 100 when no size is given: a common name at a big company paid for
+ * a hundred namesakes to keep one.
+ */
+const LOOKUP_SIZE = 5;
+
 /* ── Credits ────────────────────────────────────────────────────────── */
 
 async function spend(userId: string, contactId: string): Promise<string> {
@@ -342,6 +349,7 @@ async function run(userId: string, contactId: string): Promise<EnrichContactResu
       for (const where of tries) {
         const found = await tryIcypeas('The people database', () => icypeas('/find-people', {
           query: { firstname: { include: [first] }, lastname: { include: [last] }, ...where },
+          pagination: { size: LOOKUP_SIZE },
         }), notes);
         logShape('find-people', found);
         const lead = pickLead(found, (l) => sameName(l, first, last));
@@ -402,6 +410,7 @@ async function run(userId: string, contactId: string): Promise<EnrichContactResu
       if (domain || companyName) {
         const found = await tryIcypeas('The company database', () => icypeas('/find-companies', {
           query: domain ? { domain: { include: [domain] } } : { name: { include: [companyName] } },
+          pagination: { size: LOOKUP_SIZE },
         }), notes);
         logShape('find-companies', found);
         const lead = pickLead(found, (l) => !domain || domainOf(str(l.website, l.domain)) === domain);
