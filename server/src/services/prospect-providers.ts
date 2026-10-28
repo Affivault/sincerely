@@ -227,18 +227,20 @@ export function icypeasLeadToProspect(lead: any): ProspectPerson {
 }
 
 /*
- * Pages are token-chained (each response carries the token for the next one)
- * and the first page can only be asked for at Icypeas's default size, since
- * the docs require a token whenever the pagination object is sent. So results
- * are fetched in Icypeas-sized chunks, kept per query for a few minutes, and
- * our 25-a-page numbering is cut out of them. A jump past the furthest chunk
- * seen walks forward to it.
+ * Pages are token-chained (each response carries the token for the next one),
+ * so results are fetched in chunks, kept per query for a few minutes, and our
+ * 25-a-page numbering is cut out of them. A jump past the furthest chunk seen
+ * walks forward to it.
+ *
+ * Icypeas charges 0.02 credit for every result it returns, so a chunk is one
+ * of our pages. Leaving the size off returns Icypeas's default of 100: 2
+ * credits for a search that showed 25 people.
  */
 interface IcypeasChunks { chunks: Map<number, any[]>; tokens: Map<number, string>; size: number; total: number; at: number }
 const queryChunks = new Map<string, IcypeasChunks>();
 const CHUNK_TTL_MS = 10 * 60 * 1000;
 const CHUNK_KEYS_MAX = 200;
-const ICYPEAS_PAGE_SIZE = 100;
+const ICYPEAS_PAGE_SIZE = 25;
 
 function chunksFor(key: string): IcypeasChunks {
   const now = Date.now();
@@ -260,9 +262,8 @@ async function icypeasChunk(query: Record<string, any>, entry: IcypeasChunks, n:
   }
   const token = entry.tokens.get(n);
   if (n > 1 && !token) return null; // the previous chunk was the last one
-  const data = await icypeas('/find-people', n === 1 ? { query } : { query, pagination: { token, size: entry.size } });
+  const data = await icypeas('/find-people', { query, pagination: n === 1 ? { size: entry.size } : { token, size: entry.size } });
   const leads = (Array.isArray(data?.leads) ? data.leads : []).map((lead: any) => (lead?._source ? { _id: lead._id, ...lead._source } : lead));
-  if (n === 1) entry.size = Number(data?.pagination?.size) || leads.length || ICYPEAS_PAGE_SIZE;
   entry.total = Number(data?.total) || entry.total;
   const next = data?.pagination?.token;
   if (typeof next === 'string' && next && leads.length >= entry.size) entry.tokens.set(n + 1, next);
