@@ -27,7 +27,7 @@ const is = (label: string, cond: boolean, detail = '') => {
   else { fail++; console.log(`  FAIL ${label}${detail ? `\n         ${detail}` : ''}`); }
 };
 
-const { personFromProfile, companyFromProfile, mergeCompany, findLinkedinUrl, unwrapIcypeas } =
+const { personFromProfile, companyFromProfile, mergeCompany, mergePerson, findLinkedinUrl, unwrapIcypeas } =
   await import('../src/services/contact-enrichment.service.js');
 const { icypeasCertaintyFrom, resultFromCertainty } = await import('../src/services/verification.service.js');
 
@@ -97,6 +97,34 @@ console.log('\nA company profile');
   is('HQ joined', c?.location === 'London, England, GB');
   is('specialties', c?.specialties.length === 2);
   is('linkedin page', c?.linkedin_url === 'https://www.linkedin.com/company/acme');
+}
+
+console.log('\nA company from the company database');
+{
+  const c = companyFromProfile({
+    success: true, total: 1,
+    leads: [{ name: 'eToro', lid: 'etoro', url: 'https://www.linkedin.com/company/etoro/', description: 'Social investing.',
+      address: 'Tel Aviv, Israel', numberOfEmployees: 2712, industry: 'Financial Services', website: 'http://www.etoro.com',
+      specialties: ['Trading'], employeeGrowth: [], _id: 'x' }],
+  });
+  is('read from leads[0]', c?.name === 'eToro' && c?.domain === 'etoro.com', JSON.stringify(c));
+  is('address as location', c?.location === 'Tel Aviv, Israel');
+  is('employees and linkedin', c?.size === '2712' && c?.linkedin_url === 'https://www.linkedin.com/company/etoro');
+  is('description and specialties', c?.description === 'Social investing.' && c?.specialties[0] === 'Trading');
+}
+
+console.log('\nA person from the people database');
+{
+  const p = personFromProfile({ leads: [{ _id: 'a', _source: { firstname: 'Farhan', lastname: 'Badami', lastJobTitle: 'Affiliate Manager', lastCompanyName: 'eToro', profileUrl: 'https://www.linkedin.com/in/farhan' } }] });
+  is('_source unwrapped', p?.first_name === 'Farhan' && p?.job_title === 'Affiliate Manager' && p?.linkedin_url === 'https://www.linkedin.com/in/farhan', JSON.stringify(p));
+}
+
+console.log('\nThe full profile fills the database record');
+{
+  const lead: any = { first_name: 'A', job_title: 'Lead title', experience: [], skills: ['x'], education: [] };
+  const full: any = { first_name: 'A', job_title: null, experience: [{ title: 't' }], skills: [], education: [] };
+  const m: any = mergePerson(full, lead);
+  is('full wins, lead fills blanks', m.job_title === 'Lead title' && m.experience.length === 1 && m.skills[0] === 'x');
 }
 
 console.log('\nThe directory fills gaps only');
