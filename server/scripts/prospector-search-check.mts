@@ -8,6 +8,7 @@
  *   - industries suggest Icypeas's own names, also for words like "SaaS"
  *   - a standing search keeps every filter it was saved with, up to 200 values
  *   - the free match count reads whichever field the response uses
+ *   - a page of results comes back best fits first
  */
 process.env.SUPABASE_URL ||= 'https://stub.supabase.co';
 process.env.SUPABASE_SERVICE_ROLE_KEY ||= 'stub';
@@ -28,7 +29,7 @@ const {
   expandProspectLocations, prospectValueLabel, rankSuggestions, sanitizeAdvancedFilters,
   PROSPECT_INDUSTRIES, INDUSTRY_ALIASES, LOCATION_GROUPS,
   suggestTitles, suggestSkills, PROSPECT_TITLE_PACKS, PROSPECT_SKILL_PACKS, PROSPECT_JOB_TITLES, PROSPECT_SKILLS,
-  EXPERIENCE_PRESETS, TENURE_PRESETS, REVENUE_PRESETS, GROWTH_PRESETS,
+  EXPERIENCE_PRESETS, TENURE_PRESETS, REVENUE_PRESETS, GROWTH_PRESETS, rankProspects,
 } = await import('@lemlist/shared');
 
 console.log('\nLocations become what Icypeas matches');
@@ -114,6 +115,26 @@ console.log('\nThe free match count');
   is('reads count', icypeasCountFrom({ count: '56' }) === 56);
   is('reads a nested total', icypeasCountFrom({ item: { total: 7 } }) === 7);
   is('says nothing when it cannot tell', icypeasCountFrom({ success: true }) === null);
+}
+
+console.log('\nResults come back best fits first');
+{
+  const person = (id: string, job_title: string, extra: Record<string, unknown> = {}) => ({
+    id, provider: 'icypeas', first_name: null, last_name: null, full_name: id, job_title, company: null, company_domain: null,
+    company_size: null, industry: null, location: null, linkedin_url: null, has_email: false, ...extra,
+  }) as any;
+  const page = [
+    person('a', 'Sales Development Representative'),
+    person('b', 'VP of Sales, EMEA'),
+    person('c', 'VP Sales'),
+    person('d', 'Head of Sales', { location: 'Berlin, Germany' }),
+  ];
+  const order = (f: object) => rankProspects(page, f).map((p: any) => p.id).join('');
+  is('the exact title leads, a close one follows', order({ titles: ['VP Sales'] }).startsWith('cb'), order({ titles: ['VP Sales'] }));
+  is('seniority lifts the matching titles', order({ seniorities: ['director'] })[0] === 'd', order({ seniorities: ['director'] }));
+  is('a market group counts as a place match', order({ locations: ['group:dach'] })[0] === 'd', order({ locations: ['group:dach'] }));
+  is('with nothing to go on, the provider order stays', order({}) === 'abcd');
+  is('nobody is dropped', rankProspects(page, { titles: ['Nothing alike'] }).length === 4);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

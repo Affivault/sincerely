@@ -4,7 +4,7 @@ import { billingService } from './billing.service.js';
 import { listsService } from './lists.service.js';
 import { getActiveProvider } from './prospect-providers.js';
 import { companyDirectoryService } from './company-directory.service.js';
-import { PLANS, normalizeLinkedinUrl, describeProspectSearch } from '@lemlist/shared';
+import { PLANS, normalizeLinkedinUrl, describeProspectSearch, rankProspects } from '@lemlist/shared';
 import { campaignContactsService } from './campaign-contacts.service.js';
 import type {
   ProspectCreditsSummary,
@@ -138,7 +138,8 @@ export const prospectingService = {
       }
     }
 
-    return { results, page: safePage, total, provider: provider.id };
+    // Best fits first within the page; the provider has already done the filtering.
+    return { results: rankProspects(results, filters || {}), page: safePage, total, provider: provider.id };
   },
 
   /**

@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Ban, Check, Plus, X, type LucideIcon } from 'lucide-react';
-import { prospectValueLabel } from '@lemlist/shared';
+import { foldText, prospectValueLabel } from '@lemlist/shared';
 import type { ProspectSuggestion } from '@lemlist/shared';
 import { prospectingApi } from '../../api/prospecting.api';
 import { useDebounce } from '../../hooks/useDebounce';
@@ -36,7 +36,9 @@ const PICKS_SHOWN = 6;
 /**
  * A filter box that takes as many values as the provider allows (200), with
  * a dropdown of real values as you type, and, where the field supports it,
- * values to leave out: switch to Exclude, or click a tag to flip it.
+ * values to leave out: switch to Exclude for the next value you add.
+ * Clicking a tag does nothing but its cross removes it, so a stray click
+ * can't quietly turn a filter inside out.
  */
 export function TagFilter({
   label, icon: Icon, include, exclude, onChange, examples, prefix = 'Try', suggest, remote, listSeparator = true, offset = 0, preferPick = false,
@@ -111,14 +113,20 @@ export function TagFilter({
       onChange([...new Set([...include, ...values])].slice(0, MAX_VALUES), excludes.filter((v) => !values.includes(v)));
     }
     setDraft('');
+    // Exclude is for one value at a time; staying in it would silently leave out everything typed next.
+    setMode('include');
   };
   const commitDraft = () => add(listSeparator ? splitList(draft) : [draft.trim()].filter(Boolean));
   const pick = (s: ProspectSuggestion) => { add([s.value]); inputRef.current?.focus(); };
   const remove = (v: string) => onChange(include.filter((x) => x !== v), excludes.filter((x) => x !== v));
-  const flip = (v: string) => {
-    if (!exclude) return;
-    if (include.includes(v)) onChange(include.filter((x) => x !== v), [...excludes, v]);
-    else onChange([...include, v], excludes.filter((x) => x !== v));
+  // Leaving the box: free text keeps what was typed, but a known-value field only keeps a real match,
+  // so "Lon" half-typed in Location never becomes a filter that finds nobody.
+  const onLeave = () => {
+    setOpen(false);
+    if (!draft.trim()) return;
+    if (!preferPick) { commitDraft(); return; }
+    const exact = options.find((o) => foldText(o.label || o.value) === foldText(draft.trim()) || foldText(o.value) === foldText(draft.trim()));
+    if (exact) add([exact.value]); else setDraft('');
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -164,12 +172,10 @@ export function TagFilter({
             <span key={`${out ? '-' : '+'}${v}`}
               className={cn('inline-flex items-center gap-0.5 max-w-full pl-1.5 pr-0.5 h-5 rounded text-caption font-medium',
                 out ? cn(TONE.negative.bg, TONE.negative.text) : 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)]')}>
-              <button type="button" onClick={(e) => { e.stopPropagation(); flip(v); }} disabled={!exclude}
-                title={exclude ? (out ? 'Excluded: click to include instead' : 'Click to exclude instead') : undefined}
-                className="inline-flex items-center gap-0.5 truncate disabled:cursor-default">
+              <span title={out ? 'Left out of the search' : undefined} className="inline-flex items-center gap-0.5 truncate">
                 {out && <Ban className="h-2.5 w-2.5 flex-shrink-0" />}
-                <span className="truncate">{prospectValueLabel(v)}</span>
-              </button>
+                <span className="truncate">{out ? `Not ${prospectValueLabel(v)}` : prospectValueLabel(v)}</span>
+              </span>
               <button type="button" aria-label={`Remove ${prospectValueLabel(v)}`} onClick={(e) => { e.stopPropagation(); remove(v); }}
                 className="relative rounded p-0.5 hover:bg-black/5 dark:hover:bg-white/10 after:absolute after:-inset-1 after:content-['']">
                 <X className="h-2.5 w-2.5" />
@@ -187,7 +193,7 @@ export function TagFilter({
             value={draft}
             onChange={(e) => { setDraft(e.target.value); setOpen(true); }}
             onFocus={() => setOpen(true)}
-            onBlur={() => { setOpen(false); if (draft.trim()) commitDraft(); }}
+            onBlur={onLeave}
             onKeyDown={onKeyDown}
             onPaste={(e) => {
               const text = e.clipboardData.getData('text');
@@ -237,7 +243,7 @@ export function TagFilter({
             <div role="group" aria-label="New values" className="inline-flex items-center rounded-md border border-[var(--border-subtle)] p-px">
               {(['include', 'exclude'] as const).map((m) => (
                 <button key={m} type="button" aria-pressed={mode === m} onClick={() => setMode(m)}
-                  title={m === 'exclude' ? 'What you add now is left out of the search' : 'What you add now must match'}
+                  title={m === 'exclude' ? 'The next value you add is left out of the search' : 'What you add must match'}
                   className={cn('inline-flex items-center gap-1 h-5 px-1.5 rounded text-micro font-medium transition-colors',
                     mode === m
                       ? m === 'exclude' ? cn(TONE.negative.bg, TONE.negative.text) : 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)]'
