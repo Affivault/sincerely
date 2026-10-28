@@ -76,6 +76,32 @@ console.log('\nFilters to an Icypeas query');
   is('an open-ended size has no ceiling', JSON.stringify(icypeasQuery({ companySizes: ['10001+'] })['currentCompany.headcount']) === JSON.stringify({ '>=': 10001 }));
 }
 
+console.log('\nCompany search through Icypeas');
+{
+  const { icypeasCompanyQuery, icypeasCompanyToDirectory, icypeasCompanySearch, cachedCompany } = providers;
+  const q = icypeasCompanyQuery({ companies: ['eToro', 'https://www.stripe.com/x'], industries: ['Financial Services'], locations: ['GB'], companySizes: ['51-200', '201-500'] });
+  is('names and domains split', q.name?.include[0] === 'eToro' && q.domain?.include[0] === 'stripe.com', JSON.stringify(q));
+  is('industry and location as include lists', q.industry?.include[0] === 'Financial Services' && q.location?.include[0] === 'GB');
+  is('sizes become one headcount range', JSON.stringify(q.headcount) === JSON.stringify({ '>=': 51, '<=': 500 }));
+  is('only keys find-companies accepts', Object.keys(q).every((k) => ['name', 'domain', 'industry', 'location', 'headcount'].includes(k)));
+  const c = icypeasCompanyToDirectory({ name: 'eToro', lid: 'etoro', url: 'https://www.linkedin.com/company/etoro/', address: 'Tel Aviv, Israel', numberOfEmployees: 2712, industry: 'Financial Services', website: 'http://www.etoro.com', description: 'Social investing.' });
+  is('a company lead reads as a directory row', c.id === 'etoro' && c.domain === 'etoro.com' && c.size === '2712' && c.linkedin_url === 'https://www.linkedin.com/company/etoro' && c.locality === 'Tel Aviv, Israel' && c.description === 'Social investing.', JSON.stringify(c));
+
+  let asked: any = null;
+  handler = (path, body) => {
+    if (path !== '/find-companies') return { success: true };
+    asked = body;
+    return { success: true, total: 2, leads: [{ _id: 'x', _source: { name: 'Acme', website: 'acme.com', industry: 'Software' } }, { _id: 'y', _source: { name: 'NoSite' } }] };
+  };
+  const res = await icypeasCompanySearch({ industries: ['Software'] }, 1);
+  is('searches find-companies with the query', asked?.query?.industry?.include[0] === 'Software');
+  is('results, total and source', res.results.length === 2 && res.total === 2 && res.source === 'icypeas' && res.results[0].name === 'Acme');
+  is('a company with a website is kept for the panel', cachedCompany('acme.com')?.name === 'Acme');
+  let threw = false;
+  try { await icypeasCompanySearch({}, 1); } catch { threw = true; }
+  is('no filters is refused, not a search of everything', threw);
+}
+
 console.log('\nA lead to a prospect');
 {
   const p = icypeasLeadToProspect({

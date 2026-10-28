@@ -7,7 +7,8 @@
 
      person          the lead the search already paid for, held for an
                      hour after the search (prospect-providers.cachedLead)
-     company         the same lead's company fields, filled in from the
+     company         the same lead's company fields (or the company row of
+                     a recent company search), filled in from the
                      account's own company record (Enrich keeps a full
                      profile there) and the free company directory
      company_people  Icypeas's find-people count, which is free
@@ -18,7 +19,7 @@
    ═══════════════════════════════════════════════════════════════════════ */
 
 import { supabaseAdmin } from '../config/supabase.js';
-import { cachedLead, getActiveProvider } from './prospect-providers.js';
+import { cachedCompany, cachedLead, getActiveProvider } from './prospect-providers.js';
 import { companyFromProfile, mergeCompany, personFromProfile } from './contact-enrichment.service.js';
 import type { EnrichedCompany, ProspectDetails } from '@lemlist/shared';
 
@@ -63,6 +64,10 @@ export const prospectDetailsService = {
 
     const domain = cleanDomain(company?.domain) || cleanDomain(hint.domain);
     const name = company?.name || (hint.company ? String(hint.company).trim().slice(0, 200) : null);
+
+    // A company found in a recent company search: already paid for.
+    const seen = domain ? cachedCompany(domain) : null;
+    if (seen) company = mergeCompany(company, companyFromProfile(seen));
 
     // What the account already knows: its own record (a full profile once
     // anyone there was enriched), then the free directory.

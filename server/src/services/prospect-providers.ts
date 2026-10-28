@@ -8,7 +8,7 @@
 
 import { env } from '../config/env.js';
 import { PROSPECT_FILTER_FIELDS, expandProspectLocations, prospectValueLabel } from '@lemlist/shared';
-import type { ProspectPerson, ProspectProviderId, ProspectSearchFilters } from '@lemlist/shared';
+import type { CompanySearchFilters, CompanySearchResponse, DirectoryCompany, ProspectPerson, ProspectProviderId, ProspectSearchFilters } from '@lemlist/shared';
 
 export interface ProviderSearchResult {
   results: ProspectPerson[];
@@ -252,15 +252,15 @@ function chunksFor(key: string): IcypeasChunks {
   return entry;
 }
 
-async function icypeasChunk(query: Record<string, any>, entry: IcypeasChunks, n: number): Promise<any[] | null> {
+async function icypeasChunk(query: Record<string, any>, entry: IcypeasChunks, n: number, path = '/find-people'): Promise<any[] | null> {
   const have = entry.chunks.get(n);
   if (have) return have;
   if (n > 1 && !entry.chunks.has(n - 1) && !entry.tokens.has(n)) {
-    if (!(await icypeasChunk(query, entry, n - 1))) return null;
+    if (!(await icypeasChunk(query, entry, n - 1, path))) return null;
   }
   const token = entry.tokens.get(n);
   if (n > 1 && !token) return null; // the previous chunk was the last one
-  const data = await icypeas('/find-people', n === 1 ? { query } : { query, pagination: { token, size: entry.size } });
+  const data = await icypeas(path, n === 1 ? { query } : { query, pagination: { token, size: entry.size } });
   const leads = (Array.isArray(data?.leads) ? data.leads : []).map((lead: any) => (lead?._source ? { _id: lead._id, ...lead._source } : lead));
   if (n === 1) entry.size = Number(data?.pagination?.size) || leads.length || ICYPEAS_PAGE_SIZE;
   entry.total = Number(data?.total) || entry.total;
@@ -269,6 +269,99 @@ async function icypeasChunk(query: Record<string, any>, entry: IcypeasChunks, n:
   entry.chunks.set(n, leads);
   entry.at = Date.now();
   return leads;
+}
+
+/** One of our 25-a-page pages, cut from Icypeas's chunks. A page can straddle two. */
+async function icypeasPage(path: string, query: Record<string, any>, page: number, perPage: number) {
+  const entry = chunksFor(`${path} ${JSON.stringify(query)}`);
+  const from = (page - 1) * perPage;
+  const leads: any[] = [];
+  while (leads.length < perPage) {
+    const at = from + leads.length;
+    const n = Math.floor(at / entry.size) + 1;
+    const chunk = await icypeasChunk(query, entry, n, path);
+    if (!chunk) break;
+    const slice = chunk.slice(at - (n - 1) * entry.size, at - (n - 1) * entry.size + perPage - leads.length);
+    if (!slice.length) break;
+    leads.push(...slice);
+  }
+  return { leads, entry, from };
+}
+
+/*
+ * Company search through Icypeas's company database, for when our own free
+ * directory is not loaded. Same cost as a people search: Icypeas charges a
+ * small amount per company returned, and no Sincerely credits are spent.
+ * Its query takes name, domain, industry, location and a headcount range.
+ */
+export function icypeasCompanyQuery(filters: CompanySearchFilters): Record<string, any> {
+  const q: Record<string, any> = {};
+  const companies = clean(filters.companies);
+  const domains = companies.filter(looksLikeDomain).map((c) => c.replace(/^https?:\/\/(www\.)?/i, '').replace(/\/.*$/, '').toLowerCase());
+  const names = companies.filter((c) => !looksLikeDomain(c));
+  if (names.length) q.name = include(names);
+  if (domains.length) q.domain = include(domains);
+  const industries = clean(filters.industries);
+  if (industries.length) q.industry = include(industries);
+  const locations = expandProspectLocations(clean(filters.locations));
+  if (locations.length) q.location = include(locations);
+  const ranges = clean(filters.companySizes)
+    .map((r) => r.match(/^(\d+)\s*(?:-\s*(\d+)|\+)?$/))
+    .filter((m): m is RegExpMatchArray => !!m)
+    .map((m) => ({ min: Number(m[1]), max: m[2] ? Number(m[2]) : Infinity }));
+  if (ranges.length) {
+    const min = Math.min(...ranges.map((r) => r.min));
+    const max = Math.max(...ranges.map((r) => r.max));
+    q.headcount = Number.isFinite(max) ? { '>=': min, '<=': max } : { '>=': min };
+  }
+  return q;
+}
+
+const domainFrom = (url: unknown) => {
+  const host = String(url ?? '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/[/?#].*$/, '');
+  return host.includes('.') && !host.includes('linkedin.com') ? host : null;
+};
+
+/** One company from Icypeas's database, in the directory's shape. */
+export function icypeasCompanyToDirectory(lead: any): DirectoryCompany {
+  const domain = domainFrom(lead.website) || domainFrom(lead.domain);
+  const employees = lead.numberOfEmployees ?? lead.headcount;
+  return {
+    id: String(lead.lid || lead._id || lead.urn || domain || lead.name),
+    name: String(lead.name || domain || 'Unknown company'),
+    domain,
+    linkedin_url: typeof lead.url === 'string' && /linkedin\.com/i.test(lead.url) ? lead.url.replace(/\/$/, '') : null,
+    founded: Number(lead.founded ?? lead.foundedOn?.year) || null,
+    size: employees != null && employees !== '' ? String(employees) : null,
+    industry: lead.industry ? String(lead.industry) : null,
+    country: null,
+    region: null,
+    locality: typeof lead.address === 'string' ? lead.address : null,
+    description: typeof lead.description === 'string' ? lead.description : null,
+  };
+}
+
+/* Companies seen in a company search, by domain, so the company panel can show them for free. */
+const seenCompanies = new Map<string, { lead: any; at: number }>();
+const COMPANIES_MAX = 2000;
+
+/** A company from a recent company search, while it is still held. */
+export function cachedCompany(domain: string): any | null {
+  const hit = seenCompanies.get(domain.toLowerCase());
+  return hit && Date.now() - hit.at < SEEN_TTL_MS ? hit.lead : null;
+}
+
+export async function icypeasCompanySearch(filters: CompanySearchFilters, page: number, perPage = 25): Promise<CompanySearchResponse> {
+  const query = icypeasCompanyQuery(filters);
+  if (!Object.keys(query).length) throw new Error('Add at least one filter to search companies.');
+  const { leads, entry, from } = await icypeasPage('/find-companies', query, page, perPage);
+  const results = leads.map(icypeasCompanyToDirectory);
+  results.forEach((c, i) => {
+    if (!c.domain) return;
+    if (seenCompanies.size >= COMPANIES_MAX) seenCompanies.delete(seenCompanies.keys().next().value as string);
+    seenCompanies.set(c.domain, { lead: leads[i], at: Date.now() });
+  });
+  return { results, page, total: entry.total || from + results.length, source: 'icypeas' };
 }
 
 /*
@@ -366,19 +459,7 @@ export const icypeasProvider: ProspectProvider = {
   },
   async search(filters, page, perPage) {
     const query = icypeasQuery(filters);
-    const entry = chunksFor(JSON.stringify(query));
-    const from = (page - 1) * perPage;
-    const leads: any[] = [];
-    // A page can straddle two chunks.
-    while (leads.length < perPage) {
-      const at = from + leads.length;
-      const n = Math.floor(at / entry.size) + 1;
-      const chunk = await icypeasChunk(query, entry, n);
-      if (!chunk) break;
-      const slice = chunk.slice(at - (n - 1) * entry.size, at - (n - 1) * entry.size + perPage - leads.length);
-      if (!slice.length) break;
-      leads.push(...slice);
-    }
+    const { leads, entry, from } = await icypeasPage('/find-people', query, page, perPage);
     const results = leads.map(icypeasLeadToProspect);
     results.forEach(remember);
     results.forEach((person, i) => keepLead(person.id, leads[i]));

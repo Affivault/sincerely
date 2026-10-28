@@ -221,6 +221,8 @@ export interface DirectoryCompany {
   country: string | null;
   region: string | null;
   locality: string | null;
+  /** What the company does, when the source has it (Icypeas does, the directory doesn't). */
+  description?: string | null;
 }
 
 export interface CompanySearchResponse {
@@ -228,6 +230,8 @@ export interface CompanySearchResponse {
   page: number;
   /** Total matches (approximate on large result sets) */
   total: number;
+  /** Our free directory, or Icypeas's company database when the directory isn't loaded. */
+  source?: 'directory' | 'icypeas';
 }
 
 /** Shown wherever directory results are, as CC BY 4.0 requires. */
