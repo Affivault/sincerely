@@ -105,6 +105,7 @@ const bearer = (sub: string, email: string) => ({ headers: { authorization: `Bea
 console.log('\nThe owner is known to the server alone');
 {
   is('the owner is recognised, in any case', isOwnerEmail(OWNER) && isOwnerEmail('  Steven@UseSincerely.com '));
+  is('the second owner is recognised', isOwnerEmail('affivault@gmail.com') && isOwnerEmail(' AffiVault@Gmail.com'));
   is('nobody else is', !isOwnerEmail('someone@example.com') && !isOwnerEmail('') && !isOwnerEmail(undefined));
   is('the shared package does not export an admin list', !('ADMIN_EMAILS' in shared));
 
