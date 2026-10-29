@@ -22,6 +22,8 @@
  *   - an account's own limits and switches win over its plan's; the owners'
  *     plan limits and prices apply everywhere at once and can be put back;
  *     the stop-all-sending switch stops every account; bad settings are refused
+ *   - bulk actions are bounded, need what each action needs, and one account
+ *     failing does not stop the rest; alert switches are kept
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -60,7 +62,7 @@ function from(name: string): any {
   const run = () => {
     if (name === 'account_controls') return { data: controls[filters.user_id] ?? null, error: null };
     if (name === 'subscriptions') return { data: subscription, error: null };
-    if (name === 'platform_settings') return { data: Object.values(platformRows), error: null };
+    if (name === 'platform_settings') return { data: filters.key ? (platformRows[filters.key] ?? null) : Object.values(platformRows), error: null };
     if (name === 'billing_payments') return { data: payments.find((p) => p.stripe_ref === filters.stripe_ref) ?? null, error: null };
     if (name === 'prospect_credit_ledger') return { data: ledger.filter((r) => r.user_id === filters.user_id && (!filters.bucket || r.bucket === filters.bucket)), error: null };
     return { data: null, error: null };
@@ -71,7 +73,7 @@ function from(name: string): any {
     gte: () => chain, in: () => chain, order: () => chain, limit: () => chain, range: () => chain,
     maybeSingle: () => chain, single: () => chain,
     insert: (row: any) => {
-      if (name === 'platform_settings') return { data: Object.values(platformRows), error: null };
+      if (name === 'platform_settings') return { data: filters.key ? (platformRows[filters.key] ?? null) : Object.values(platformRows), error: null };
     if (name === 'billing_payments') return { data: payments.find((p) => p.stripe_ref === filters.stripe_ref) ?? null, error: null };
     if (name === 'prospect_credit_ledger') ledger.push(row);
       if (name === 'admin_audit_log') audit.push(row);
@@ -356,6 +358,30 @@ console.log('\nPlatform settings and an account\'s own limits');
   await adminPlatformService.setKillSwitch(OWNER, false);
   is('and turning it off lets them send again', (await accountControls.isSendingPaused(USER_ID)) === false);
   platformSettings.reset();
+}
+
+console.log('\nBulk actions and alerts');
+{
+  const { adminInsightsService } = await import('../src/services/admin-insights.service.js');
+  for (const [label, fn] of [
+    ['picking nobody is refused', () => adminInsightsService.bulk(OWNER, 'hold_sending', [], {})],
+    ['more than 200 at once is refused', () => adminInsightsService.bulk(OWNER, 'hold_sending', Array.from({ length: 201 }, (_, i) => `id-${i}`), {})],
+    ['giving credits needs an amount and a reason', () => adminInsightsService.bulk(OWNER, 'give_credits', [USER_ID], { amount: 50, note: ' ' })],
+    ['an unknown action is refused', () => adminInsightsService.bulk(OWNER, 'nuke' as any, [USER_ID], {})],
+  ] as const) {
+    try { await (fn as any)(); is(label, false); } catch (e: any) { is(label, e?.statusCode === 400); }
+  }
+  controls = {}; audit = [];
+  const r = await adminInsightsService.bulk(OWNER, 'suspend', [OWNER_ID, USER_ID, USER_ID], { reason: 'abuse' });
+  is('one that fails (an owner) does not stop the rest', r.done === 1 && r.failed.length === 1 && r.failed[0].id === OWNER_ID);
+  is('and each one done is logged as if by hand', audit.filter((a) => a.action === 'suspend').length === 1 && !!controls[USER_ID]?.suspended_at);
+  await adminAccountsService.unsuspend(OWNER, USER_ID);
+
+  platformRows = {};
+  await adminInsightsService.saveAlertSettings(OWNER, { new_paying: true, icypeas_low: false, bogus: true } as any);
+  const a = await adminInsightsService.alertSettings();
+  is('alert switches are kept', a.ready && a.enabled.new_paying === true && a.enabled.icypeas_low === false && a.enabled.payment_failed === true && !('bogus' in a.enabled));
+  platformRows = {};
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

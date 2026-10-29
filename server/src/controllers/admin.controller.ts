@@ -5,6 +5,7 @@ import { adminAccountsService } from '../services/admin-accounts.service.js';
 import { supabaseAdmin } from '../config/supabase.js';
 import { adminControlService as ctl } from '../services/admin-control.service.js';
 import { adminPlatformService as platform } from '../services/admin-platform.service.js';
+import { adminInsightsService as insights } from '../services/admin-insights.service.js';
 
 /** An admin action: its result as JSON, or 204 when it has none. */
 const act = (fn: (req: AuthRequest) => Promise<unknown>) => async (req: AuthRequest, res: Response, next: NextFunction) => {
@@ -194,4 +195,10 @@ export const adminController = {
   sending: act(() => platform.sending()),
   mailboxActive: act((req) => platform.setMailboxActive(req.userEmail!, req.params.mailboxId, req.body?.active !== false)),
   overrides: act((req) => platform.setOverrides(req.userEmail!, req.params.id, req.body)),
+
+  /* ─── Insights, alerts, bulk ───────────────────────────────────────── */
+  insights: act(() => insights.insights()),
+  alerts: act(() => insights.alertSettings()),
+  saveAlerts: act((req) => insights.saveAlertSettings(req.userEmail!, req.body?.enabled || {})),
+  bulk: act((req) => insights.bulk(req.userEmail!, req.body?.action, req.body?.ids, { amount: req.body?.amount, note: req.body?.note, reason: req.body?.reason })),
 };

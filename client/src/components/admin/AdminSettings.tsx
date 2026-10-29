@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Coins, DoorOpen, Layers, Megaphone } from 'lucide-react';
-import { CREDIT_ACTION_LABELS, formatDateTime, type AdminSettingsResponse, type CreditAction, type PlanId, type PlatformSettings, type SignupMode } from '@lemlist/shared';
+import { AlertTriangle, BellRing, Coins, DoorOpen, Layers, Megaphone } from 'lucide-react';
+import { CREDIT_ACTION_LABELS, formatDateTime, type AdminAlertKind, type AdminSettingsResponse, type CreditAction, type PlanId, type PlatformSettings, type SignupMode } from '@lemlist/shared';
 import { adminApi } from '../../api/admin.api';
 import { Button } from '../ui/Button';
 import { Spinner } from '../ui/Spinner';
@@ -26,6 +26,7 @@ export function AdminSettings() {
       <AdminHeader title="Settings" sub="Applies to every account, within half a minute, with no deploy. Blank means the default." />
       <div className="space-y-4">
         {!data.ready && <Banner tone="warn" icon={AlertTriangle}>Run database migration 102 to save settings. Until then the platform runs on its defaults.</Banner>}
+        <AlertsCard />
         <SignupsCard data={data} />
         <AnnouncementCard data={data} />
         <PlansCard data={data} />
@@ -230,6 +231,43 @@ function PricesCard({ data }: { data: AdminSettingsResponse }) {
       <div className="mt-3 flex items-center gap-2">
         <Button size="sm" disabled={!changed || mut.isPending || !data.ready} onClick={() => confirm({ title: 'Change credit prices?', body: 'New prices apply to the next search, reveal, check or enrichment on every account.', confirmLabel: 'Save prices' }, () => mut.mutate(undefined, { onSuccess: saved }))}>Save prices</Button>
         {changed && <Button size="sm" variant="ghost" onClick={() => setForm(fromSettings())}>Undo changes</Button>}
+      </div>
+    </Card>
+  );
+}
+
+const ALERTS: Array<{ k: AdminAlertKind; label: string; sub: string }> = [
+  { k: 'icypeas_low', label: 'Icypeas balance is low', sub: 'At most once a day, until it is topped up.' },
+  { k: 'payment_failed', label: 'A payment failed', sub: 'When an account goes past due.' },
+  { k: 'risky_sending', label: 'An account’s sending goes wrong', sub: 'Bounces or spam reports over the lines on the Sending page.' },
+  { k: 'new_paying', label: 'A new paying customer', sub: 'When an account starts paying.' },
+];
+
+/* Email the owners when something needs them. Sent from each owner's own connected mailbox to themselves. */
+function AlertsCard() {
+  const qc = useQueryClient();
+  const { data } = useQuery({ queryKey: ['admin', 'alerts'], queryFn: adminApi.alerts });
+  const mut = useAdminAction((enabled: Partial<Record<AdminAlertKind, boolean>>) => adminApi.saveAlerts(enabled), 'Alerts saved.', 'The alerts could not be saved.');
+  if (!data) return null;
+  return (
+    <Card title="Email alerts" icon={BellRing}>
+      <p className="text-caption text-[var(--text-tertiary)] mb-2">Checked every half hour, and emailed to each admin from their own connected mailbox, so connect one to get them.</p>
+      <div className="divide-y divide-[var(--border-subtle)]">
+        {ALERTS.map((a) => (
+          <label key={a.k} className="flex items-center gap-3 py-2.5 cursor-pointer">
+            <span className="flex-1 min-w-0">
+              <span className="block text-body font-medium text-[var(--text-primary)]">{a.label}</span>
+              <span className="block text-caption text-[var(--text-tertiary)]">{a.sub}{data.last_sent[a.k] ? ` Last sent ${formatDateTime(data.last_sent[a.k]!)}.` : ''}</span>
+            </span>
+            <input
+              type="checkbox"
+              checked={!!data.enabled[a.k]}
+              disabled={!data.ready || mut.isPending}
+              onChange={(e) => mut.mutate({ [a.k]: e.target.checked }, { onSuccess: (r) => qc.setQueryData(['admin', 'alerts'], r) })}
+              className="h-4 w-4 accent-[var(--indigo)]"
+            />
+          </label>
+        ))}
       </div>
     </Card>
   );

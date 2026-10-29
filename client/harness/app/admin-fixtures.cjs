@@ -120,6 +120,8 @@ function adminAnswer(method, path) {
     if (/\/extend-trial$/.test(path)) return { until: ahead(16) };
     if (path.startsWith('/admin/settings')) return settings();
     if (/\/overrides$/.test(path)) return { limits: {}, features: {} };
+    if (path === '/admin/bulk') return { done: 2, failed: [] };
+    if (path === '/admin/alerts') return { enabled: { icypeas_low: true, payment_failed: true, risky_sending: true, new_paying: true }, last_sent: {}, ready: true };
     return { success: true };
   }
   if (path === '/admin/stats') return { total_users: 312, lifetime_users: 4, paying_users: 41, free_users: 267, mailboxes: 388, domains: 97, contacts: 184220, campaigns: 520, trialing_users: 9, past_due_users: 2, active_7d: 128, signups_30d: 37, est_mrr_usd: 3261 };
@@ -139,6 +141,16 @@ function adminAnswer(method, path) {
       est_mrr_usd: 3261, past_due: [{ id: accounts[2].id, email: accounts[2].email, plan: 'growth' }], revenue_synced: true };
   }
   if (path === '/admin/settings') return settings();
+  if (path === '/admin/alerts') return { enabled: { icypeas_low: true, payment_failed: true, risky_sending: true, new_paying: false }, last_sent: { icypeas_low: ago(2) }, ready: true };
+  if (path === '/admin/insights') {
+    const ms = Array.from({ length: 12 }, (_, i) => month(i - 11));
+    return {
+      months: ms.map((m, i) => ({ month: m, signups: [8, 11, 9, 14, 18, 16, 22, 27, 25, 31, 37, 19][i], active_senders: [3, 5, 6, 8, 11, 13, 15, 19, 22, 26, 31, 28][i], revenue_usd: [0, 39, 98, 196, 316, 455, 612, 790, 1020, 1288, 1576, 1103][i], payers: [0, 1, 2, 4, 6, 8, 11, 14, 18, 22, 27, 21][i], churned: i === 11 ? null : [0, 0, 0, 0, 1, 0, 1, 1, 2, 1, 2][i], trials_ended: [0, 1, 2, 3, 3, 4, 5, 6, 6, 8, 9, 3][i], trials_converted: [0, 1, 1, 2, 1, 2, 3, 3, 4, 5, 5, 1][i] })),
+      est_mrr_usd: 3261,
+      top_cost: accounts.filter((a) => a.cost_usd > 0).sort((a, b) => b.cost_usd - a.cost_usd).slice(0, 6).map((a) => ({ user_id: a.id, email: a.email, plan: a.plan, cost_usd: a.cost_usd, revenue_usd: a.revenue_usd, profit_usd: a.profit_usd })),
+      provider_balance: { credits: 8420, low: false, note: null },
+    };
+  }
   if (path === '/admin/sending') return sending();
   if (path === '/admin/audit') return { entries: audit, controls_ready: true };
   return undefined;
