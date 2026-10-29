@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
-  Ban, BadgeCheck, KeyRound, Link2, LogOut, Mail, MailX, PauseCircle, PlayCircle, Trash2, UserCog,
+  Ban, BadgeCheck, KeyRound, Link2, LogOut, Mail, MailX, PauseCircle, PlayCircle, SlidersHorizontal, Trash2, UserCog,
 } from 'lucide-react';
 import { formatDateTime, type AdminAccountDetail } from '@lemlist/shared';
 import { adminApi } from '../../api/admin.api';
@@ -92,6 +92,8 @@ export function AccountControls({ id, data, onDeleted }: { id: string; data: Adm
         </Row>
       </Card>
 
+      <LimitsCard id={id} data={data} />
+
       <Card title="Suspend, or delete" icon={UserCog} tone="danger">
         {a.suspended ? (
           <Row title="Suspended" sub={`${controls.suspended_at ? `Since ${formatDateTime(controls.suspended_at)}` : ''}${controls.suspended_reason ? `: ${controls.suspended_reason}` : ''}. They cannot sign in, and nothing of theirs runs.`}>
@@ -130,5 +132,81 @@ export function AccountControls({ id, data, onDeleted }: { id: string; data: Adm
         <input value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={a.email} aria-label="Type their email" className={inputCls} autoFocus />
       </Modal>
     </div>
+  );
+}
+
+const FEATURES = [
+  { k: 'sara', label: 'Relay, the reply agent' },
+  { k: 'abTesting', label: 'A/B tests' },
+] as const;
+
+/* This account's own limits and feature switches, over its plan's. */
+function LimitsCard({ id, data }: { id: string; data: AdminAccountDetail }) {
+  const o = data.controls.overrides || { limits: {}, features: {} };
+  const plan = data.plan_limits;
+  const initial = () => ({
+    inboxes: o.limits.maxInboxes == null ? '' : String(o.limits.maxInboxes),
+    emails: o.limits.emailsPerMonth == null ? '' : String(o.limits.emailsPerMonth),
+    features: { ...o.features } as Record<string, boolean | undefined>,
+  });
+  const [form, setForm] = useState(initial);
+  const key = JSON.stringify(o);
+  useEffect(() => { setForm(initial()); }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  const changed = JSON.stringify(form) !== JSON.stringify(initial());
+  const body = () => ({
+    limits: {
+      ...(form.inboxes.trim() !== '' ? { maxInboxes: Number(form.inboxes) } : {}),
+      ...(form.emails.trim() !== '' ? { emailsPerMonth: Number(form.emails) } : {}),
+    },
+    features: Object.fromEntries(Object.entries(form.features).filter(([, v]) => typeof v === 'boolean')) as Record<string, boolean>,
+  });
+  const mut = useAdminAction(() => adminApi.setOverrides(id, body()), 'Their limits are saved.', 'The limits could not be saved.');
+  const show = (n: number) => (n < 0 ? 'unlimited' : n.toLocaleString());
+
+  return (
+    <Card title="Their own limits" icon={SlidersHorizontal}>
+      <p className="text-caption text-[var(--text-tertiary)] mb-3">Over their plan’s, for this account only. Blank is the plan’s; -1 is unlimited. Credits are set on the Credits tab.</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <label className="text-caption text-[var(--text-tertiary)]">
+          Inboxes
+          <input type="number" min={-1} value={form.inboxes} onChange={(e) => setForm((p) => ({ ...p, inboxes: e.target.value }))} placeholder={`Plan: ${show(plan.maxInboxes)}`} className={cn(inputCls, 'mt-1')} />
+        </label>
+        <label className="text-caption text-[var(--text-tertiary)]">
+          Emails a month
+          <input type="number" min={-1} value={form.emails} onChange={(e) => setForm((p) => ({ ...p, emails: e.target.value }))} placeholder={`Plan: ${show(plan.emailsPerMonth)}`} className={cn(inputCls, 'mt-1')} />
+        </label>
+      </div>
+      <div className="mt-3 space-y-2">
+        {FEATURES.map((f) => {
+          const v = form.features[f.k];
+          const planOn = !!plan.features[f.k];
+          return (
+            <div key={f.k} className="flex items-center gap-3 flex-wrap">
+              <span className="flex-1 text-body text-[var(--text-primary)]">{f.label}</span>
+              <div role="radiogroup" aria-label={f.label} className="inline-flex rounded-lg border border-[var(--border-default)] overflow-hidden text-caption">
+                {([['plan', `Plan (${planOn ? 'on' : 'off'})`], ['on', 'On'], ['off', 'Off']] as const).map(([val, label]) => {
+                  const active = val === 'plan' ? v === undefined : v === (val === 'on');
+                  return (
+                    <button
+                      key={val}
+                      role="radio"
+                      aria-checked={active}
+                      onClick={() => setForm((p) => ({ ...p, features: { ...p.features, [f.k]: val === 'plan' ? undefined : val === 'on' } }))}
+                      className={cn('h-7 px-2.5 border-l first:border-l-0 border-[var(--border-default)]', active ? 'bg-[var(--text-primary)] text-[var(--bg-app)]' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]')}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-3 flex items-center gap-2">
+        <Button size="sm" variant="secondary" disabled={!changed || mut.isPending || !data.controls_ready} onClick={() => mut.mutate(undefined)}>{mut.isPending ? 'Saving…' : 'Save limits'}</Button>
+        {changed && <Button size="sm" variant="ghost" onClick={() => setForm(initial())}>Undo</Button>}
+      </div>
+    </Card>
   );
 }

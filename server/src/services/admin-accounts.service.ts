@@ -282,7 +282,9 @@ export const adminAccountsService = {
         note: controls?.note ?? null,
         sessions_revoked_at: controls?.sessions_revoked_at ?? null,
         sending_paused_at: controls?.sending_paused_at ?? null,
+        overrides: { limits: controls?.limit_overrides || {}, features: controls?.feature_overrides || {} },
       },
+      plan_limits: { maxInboxes: PLANS[billingService.planFromSubscription(sub)]?.maxInboxes ?? 0, emailsPerMonth: PLANS[billingService.planFromSubscription(sub)]?.emailsPerMonth ?? 0, features: { ...(PLANS[billingService.planFromSubscription(sub)]?.features || {}) } },
       stripe,
       live_campaigns,
       credits: {

@@ -19,6 +19,9 @@
  *   - "sign out everywhere" refuses tokens issued before it
  *   - a sending hold stops every send; refunds only touch the account's own
  *     payments; the owners can never be deleted
+ *   - an account's own limits and switches win over its plan's; the owners'
+ *     plan limits and prices apply everywhere at once and can be put back;
+ *     the stop-all-sending switch stops every account; bad settings are refused
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -49,6 +52,7 @@ let ledger: any[] = [];
 let audit: any[] = [];
 let bans: Record<string, string> = {};
 let payments: any[] = [];
+let platformRows: Record<string, any> = {};
 const subscription: any = { plan: 'growth', status: 'active' };
 
 function from(name: string): any {
@@ -56,6 +60,7 @@ function from(name: string): any {
   const run = () => {
     if (name === 'account_controls') return { data: controls[filters.user_id] ?? null, error: null };
     if (name === 'subscriptions') return { data: subscription, error: null };
+    if (name === 'platform_settings') return { data: Object.values(platformRows), error: null };
     if (name === 'billing_payments') return { data: payments.find((p) => p.stripe_ref === filters.stripe_ref) ?? null, error: null };
     if (name === 'prospect_credit_ledger') return { data: ledger.filter((r) => r.user_id === filters.user_id && (!filters.bucket || r.bucket === filters.bucket)), error: null };
     return { data: null, error: null };
@@ -66,16 +71,18 @@ function from(name: string): any {
     gte: () => chain, in: () => chain, order: () => chain, limit: () => chain, range: () => chain,
     maybeSingle: () => chain, single: () => chain,
     insert: (row: any) => {
-      if (name === 'billing_payments') return { data: payments.find((p) => p.stripe_ref === filters.stripe_ref) ?? null, error: null };
+      if (name === 'platform_settings') return { data: Object.values(platformRows), error: null };
+    if (name === 'billing_payments') return { data: payments.find((p) => p.stripe_ref === filters.stripe_ref) ?? null, error: null };
     if (name === 'prospect_credit_ledger') ledger.push(row);
       if (name === 'admin_audit_log') audit.push(row);
       return Promise.resolve({ data: null, error: null });
     },
     upsert: (row: any) => {
+      if (name === 'platform_settings') platformRows[row.key] = row;
       if (name === 'account_controls') controls[row.user_id] = { ...(controls[row.user_id] || {}), ...row };
       return Promise.resolve({ data: null, error: null });
     },
-    delete: () => chain,
+    delete: () => { if (name === 'platform_settings') { const d: any = { eq: (_c: string, k: string) => { delete platformRows[k]; return Promise.resolve({ data: null, error: null }); } }; return d; } return chain; },
     update: (patch: any) => { if (name === 'subscriptions') Object.assign(subscription, patch); return chain; },
     then: (res: any, rej: any) => Promise.resolve(run()).then(res, rej),
   };
@@ -293,6 +300,62 @@ console.log('\nA hold on sending, refunds, deleting');
   catch (e: any) { is('an owner account cannot be deleted', e?.statusCode === 400); }
   try { await adminControlService.deleteAccount(OWNER, USER_ID, 'wrong@example.com'); is('deleting needs their email typed exactly', false); }
   catch (e: any) { is('deleting needs their email typed exactly', e?.statusCode === 400); }
+}
+
+console.log('\nPlatform settings and an account\'s own limits');
+{
+  const { platformSettings } = await import('../src/services/platform-settings.service.js');
+  const { adminPlatformService } = await import('../src/services/admin-platform.service.js');
+  Object.assign(subscription, { plan: 'growth', status: 'active', stripe_subscription_id: null, credit_allowance: null });
+  controls = {}; accountControls.forget(USER_ID); platformRows = {}; platformSettings.reset();
+
+  controls[USER_ID] = { user_id: USER_ID, limit_overrides: { maxInboxes: 60 }, feature_overrides: { abTesting: false } };
+  accountControls.forget(USER_ID);
+  const own = await billingService.getLimits(USER_ID);
+  is('an account\'s own inbox limit wins over the plan\'s', own.maxInboxes === 60);
+  is('and its own switch turns a plan feature off', own.features.abTesting === false && own.features.sara === true);
+  is('what it leaves blank stays the plan\'s', own.emailsPerMonth === shared.PLANS.growth.emailsPerMonth);
+  controls = {}; accountControls.forget(USER_ID);
+
+  try { await adminPlatformService.setOverrides(OWNER, USER_ID, { limits: { maxInboxes: -5 } }); is('a nonsense limit is refused', false); }
+  catch (e: any) { is('a nonsense limit is refused', e?.statusCode === 400); }
+
+  const growthCredits = shared.PLANS.growth.prospectCredits;
+  const reveal = shared.CREDIT_PRICES.reveal;
+  await adminPlatformService.savePlans(OWNER, { growth: { prospectCredits: 1500, emailsPerMonth: 20000 } });
+  is('the owners\' plan credits apply at once', (await billingService.getCreditAllowance(USER_ID)) === 1500);
+  is('and so do their plan limits', (await billingService.getLimits(USER_ID)).emailsPerMonth === 20000);
+  await adminPlatformService.savePrices(OWNER, { reveal: 1.5 });
+  is('a new price is what is charged', shared.CREDIT_PRICES.reveal === 1.5);
+  is('and what the price list says', shared.CREDIT_PRICE_LIST.find((r) => r.action === 'reveal')?.price === 1.5);
+  await adminPlatformService.savePlans(OWNER, {});
+  await adminPlatformService.savePrices(OWNER, {});
+  is('clearing them puts the defaults back', shared.PLANS.growth.prospectCredits === growthCredits && shared.CREDIT_PRICES.reveal === reveal);
+  is('each change is in the log', audit.filter((a) => /^setting_/.test(a.action)).length === 4);
+
+  for (const [label, fn] of [
+    ['unlimited credits are refused', () => adminPlatformService.savePlans(OWNER, { growth: { prospectCredits: -1 } })],
+    ['a negative price is refused', () => adminPlatformService.savePrices(OWNER, { search: -1 })],
+    ['an unknown sign-up mode is refused', () => adminPlatformService.saveSignups(OWNER, { mode: 'maybe', allow: [] })],
+    ['a bad address on the invite list is refused', () => adminPlatformService.saveSignups(OWNER, { mode: 'invite', allow: ['not an address'] })],
+    ['an announcement over 280 characters is refused', () => adminPlatformService.saveAnnouncement(OWNER, { text: 'x'.repeat(281) })],
+    ['a javascript: link is refused', () => adminPlatformService.saveAnnouncement(OWNER, { text: 'hi', link_url: 'javascript:alert(1)' })],
+    ['stopping all sending needs a reason', () => adminPlatformService.setKillSwitch(OWNER, true, '  ')],
+  ] as const) {
+    try { await (fn as any)(); is(label, false); } catch (e: any) { is(label, e?.statusCode === 400); }
+  }
+
+  await adminPlatformService.saveSignups(OWNER, { mode: 'invite', allow: ['@Acme.com', 'jane@x.io'] });
+  is('the invite list is kept, lower case', JSON.stringify((await platformSettings.get()).signups) === JSON.stringify({ mode: 'invite', allow: ['@acme.com', 'jane@x.io'] }));
+  const pub = await platformSettings.publicInfo();
+  is('the public info says invite-only and nothing more about who', pub.signups === 'invite' && !('allow' in (pub as any)));
+  await adminPlatformService.saveSignups(OWNER, { mode: 'open', allow: [] });
+
+  await adminPlatformService.setKillSwitch(OWNER, true, 'incident');
+  is('the platform switch stops every account\'s sending', (await billingService.reserveEmailQuota(USER_ID)) === false && (await accountControls.isSendingPaused(USER_ID)) === true);
+  await adminPlatformService.setKillSwitch(OWNER, false);
+  is('and turning it off lets them send again', (await accountControls.isSendingPaused(USER_ID)) === false);
+  platformSettings.reset();
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -50,6 +50,8 @@ const audit = [
   { id: 'a2', actor_email: 'steven@usesincerely.com', action: 'suspend', target_user_id: accounts[4].id, target_email: accounts[4].email, details: { reason: 'Chargeback' }, created_at: ago(3) },
   { id: 'a3', actor_email: 'steven@usesincerely.com', action: 'plan', target_user_id: accounts[5].id, target_email: accounts[5].email, details: { from: { plan: 'growth', status: 'active' }, to: { plan: 'scale', status: 'active' } }, created_at: ago(9) },
   { id: 'a4', actor_email: 'steven@usesincerely.com', action: 'allowance', target_user_id: accounts[5].id, target_email: accounts[5].email, details: { from: null, to: 7500 }, created_at: ago(9) },
+  { id: 'a6', actor_email: 'steven@usesincerely.com', action: 'setting_signups', target_user_id: null, target_email: null, details: { mode: 'invite', allowed: 2 }, created_at: ago(1) },
+  { id: 'a7', actor_email: 'steven@usesincerely.com', action: 'overrides', target_user_id: accounts[5].id, target_email: accounts[5].email, details: { limits: { maxInboxes: 60 }, features: {} }, created_at: ago(1.5) },
   { id: 'a5', actor_email: 'steven@usesincerely.com', action: 'lifetime_grant', target_user_id: accounts[3].id, target_email: accounts[3].email, details: {}, created_at: ago(20) },
 ];
 
@@ -59,7 +61,8 @@ function detail(id) {
   return {
     account: a,
     subscription: { plan: a.plan, status: a.status, trial_ends_at: a.status === 'trialing' ? ahead(9) : null, current_period_end: ahead(18), stripe_customer_id: a.has_stripe ? 'cus_Q1w2e3r4' : null, stripe_subscription_id: a.has_stripe ? 'sub_9z8y7x' : null, credit_allowance: a.custom_allowance ? a.credit_allowance : null },
-    controls: { suspended_at: a.suspended ? ago(3) : null, suspended_reason: a.suspended ? 'Chargeback' : null, note: a.custom_allowance ? 'Scale deal: 7,500 credits a month, billed annually.' : null, sessions_revoked_at: null, sending_paused_at: a.plan === 'starter' && a.status === 'active' ? ago(1) : null },
+    controls: { suspended_at: a.suspended ? ago(3) : null, suspended_reason: a.suspended ? 'Chargeback' : null, note: a.custom_allowance ? 'Scale deal: 7,500 credits a month, billed annually.' : null, sessions_revoked_at: null, sending_paused_at: a.plan === 'starter' && a.status === 'active' ? ago(1) : null, overrides: a.plan === 'scale' ? { limits: { maxInboxes: 60 }, features: {} } : { limits: {}, features: a.plan === 'starter' ? { sara: true } : {} } },
+    plan_limits: { maxInboxes: a.plan === 'starter' ? 3 : 25, emailsPerMonth: a.plan === 'starter' ? 1500 : 15000, features: { sara: a.plan !== 'starter', abTesting: a.plan !== 'starter' } },
     stripe: a.has_stripe ? { status: a.status, price_usd: a.revenue_usd, interval: 'month', cancel_at_period_end: a.plan === 'growth', cancel_at: a.plan === 'growth' ? ahead(18) : null, trial_end: null, current_period_end: ahead(18), discount: a.plan === 'scale' ? '20% off for 3 months' : null, balance_usd: a.plan === 'scale' ? -25 : 0 } : null,
     live_campaigns: a.suspended ? 0 : 3,
     credits: { allowance: a.credit_allowance, used: a.credits_used, plan_remaining: Math.max(0, a.credit_allowance - a.credits_used), bonus: 50, remaining: Math.max(0, a.credit_allowance - a.credits_used) + 50, resets_at: ahead(18) },
@@ -75,7 +78,30 @@ function detail(id) {
   };
 }
 
+const planDefaults = { free: { name: 'Free', maxInboxes: 1, emailsPerMonth: 100, prospectCredits: 25 }, trial: { name: 'Trial', maxInboxes: 25, emailsPerMonth: 15000, prospectCredits: 100 }, starter: { name: 'Starter', maxInboxes: 3, emailsPerMonth: 1500, prospectCredits: 250 }, growth: { name: 'Growth', maxInboxes: 25, emailsPerMonth: 15000, prospectCredits: 1000 }, scale: { name: 'Scale', maxInboxes: -1, emailsPerMonth: -1, prospectCredits: 5000 }, lifetime: { name: 'Lifetime', maxInboxes: -1, emailsPerMonth: -1, prospectCredits: 1000 } };
+const announcement = process.env.HARNESS_ANNOUNCE === '1' ? { id: 'a1', text: 'Scheduled maintenance on Sunday 2 to 3am UTC. Sending pauses for that hour.', tone: 'info', link_url: '/settings', link_label: 'Details' } : null;
+const settings = () => ({
+  settings: { plans: { starter: { emailsPerMonth: 2000 } }, credit_prices: { reveal: 1.5 }, signups: { mode: 'invite', allow: ['@northbeam.io', 'jane@acme.com'] }, announcement: { id: 'a1', text: 'Scheduled maintenance on Sunday 2 to 3am UTC.', tone: 'info', link_url: null, link_label: null }, kill_switch: null },
+  defaults: { plans: planDefaults, credit_prices: { search: 0.5, reveal: 1, verify: 0.1, enrich: 2 } },
+  ready: true,
+  updated: { signups: { by: 'steven@usesincerely.com', at: ago(1) }, plans: { by: 'steven@usesincerely.com', at: ago(4) } },
+});
+function sending() {
+  const boxes = accounts.flatMap((a, i) => (a.plan === 'free' ? [] : [0, 1].map((k) => {
+    const sent = [420, 260, 180, 90, 0, 1210, 0, 40, 0][i] - k * 30;
+    const bounced = i === 1 ? 31 - k * 4 : Math.round(sent * 0.012);
+    const complained = i === 1 ? 2 : 0;
+    return { id: `mb${i}${k}`, user_id: a.id, email: `${['sales', 'hello'][k]}@${a.email.split('@')[1]}`, owner_email: a.email, is_active: !(i === 5 && k === 1), is_verified: true, autopilot_state: i === 2 && k === 0 ? 'slowed' : 'active', sent: Math.max(0, sent), bounced, complained, bounce_rate: sent > 0 ? bounced / sent : 0, complaint_rate: sent > 0 ? complained / sent : 0, flagged: i === 1 };
+  })));
+  return { days: 7, totals: { sent: 3820, bounced: 118, complained: 4, bounce_rate: 0.0309, complaint_rate: 0.001, mailboxes: boxes.length, paused_mailboxes: 1 },
+    mailboxes: boxes.sort((a, b) => Number(b.flagged) - Number(a.flagged) || b.bounce_rate - a.bounce_rate),
+    domains: accounts.filter((a) => a.plan !== 'free').map((a, i) => ({ id: `d${i}`, user_id: a.id, domain: a.email.split('@')[1], owner_email: a.email, spf_ok: i !== 2, dkim_ok: i !== 2 && i !== 4, dmarc_ok: i % 2 === 0, last_checked_at: ago(i) })),
+    risky: [{ id: accounts[1].id, email: accounts[1].email, sent: 470, bounce_rate: 0.123, complaint_rate: 0.0085, reasons: ['12.3% bounced', '0.85% marked as spam'], held: true }],
+    kill_switch: null, thresholds: { bounce: 0.05, complaint: 0.003, min_sent: 20 } };
+}
+
 function adminAnswer(method, path) {
+  if (path === '/api/platform') return { signups: process.env.HARNESS_SIGNUPS || 'open', announcement, credit_prices: { search: 0.5, reveal: 1, verify: 0.1, enrich: 2 }, plans: planDefaults };
   if (path === '/billing/usage' || path === '/billing/refresh') {
     const u = { plan: 'growth', planName: 'Growth', status: 'active', trialEndsAt: null, periodStart: ago(12).slice(0, 10), currentPeriodEnd: ahead(18), emailsSent: 1874, emailsLimit: 10000, inboxes: 3, inboxLimit: 10, features: { sara: true, abTesting: true }, hasBilling: true };
     return owner() ? { ...u, isOwner: true } : u;
@@ -92,6 +118,8 @@ function adminAnswer(method, path) {
     if (/\/pause-campaigns$/.test(path)) return { paused: 3 };
     if (/\/refund$/.test(path)) return { refunded_usd: 99 };
     if (/\/extend-trial$/.test(path)) return { until: ahead(16) };
+    if (path.startsWith('/admin/settings')) return settings();
+    if (/\/overrides$/.test(path)) return { limits: {}, features: {} };
     return { success: true };
   }
   if (path === '/admin/stats') return { total_users: 312, lifetime_users: 4, paying_users: 41, free_users: 267, mailboxes: 388, domains: 97, contacts: 184220, campaigns: 520, trialing_users: 9, past_due_users: 2, active_7d: 128, signups_30d: 37, est_mrr_usd: 3261 };
@@ -110,6 +138,8 @@ function adminAnswer(method, path) {
       plan_mix: [{ plan: 'free', status: 'free', count: 267 }, { plan: 'starter', status: 'active', count: 18 }, { plan: 'growth', status: 'active', count: 17 }, { plan: 'growth', status: 'trialing', count: 9 }, { plan: 'scale', status: 'active', count: 4 }, { plan: 'growth', status: 'past_due', count: 2 }, { plan: 'lifetime', status: 'active', count: 4 }],
       est_mrr_usd: 3261, past_due: [{ id: accounts[2].id, email: accounts[2].email, plan: 'growth' }], revenue_synced: true };
   }
+  if (path === '/admin/settings') return settings();
+  if (path === '/admin/sending') return sending();
   if (path === '/admin/audit') return { entries: audit, controls_ready: true };
   return undefined;
 }

@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
 import { AuthShell, BrandPreview, GoogleIcon } from '../../components/AuthShell';
 import '../sincerely-landing.css';
+import { takeSignupRefusal } from '../../lib/platform';
 
 const SUSPENDED = 'This account has been suspended. Contact Sincerely support if you think this is a mistake.';
 
@@ -21,6 +22,7 @@ export function LoginPage() {
         toast.error(SUSPENDED, { duration: 8000 });
       }
     } catch { /* storage blocked */ }
+    if (takeSignupRefusal()) toast.error('Sign-ups are closed or by invitation right now, so no new account was made.', { duration: 8000 });
   }, []);
 
   const handleSubmit = async (e: FormEvent) => {
