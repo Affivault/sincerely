@@ -110,6 +110,12 @@ export const adminService = {
    * paid (Stripe), plus our own Icypeas balance. Revenue is pulled from
    * Stripe on each load, so it does not depend on the webhook's event list.
    */
+  /** Pull this month's and last month's payments from Stripe now, whenever they were last pulled. */
+  async syncStripeNow(): Promise<boolean> {
+    const now = new Date();
+    return stripeService.syncPaidInvoices(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1)), true);
+  },
+
   async usage(month?: string): Promise<AdminUsageReport> {
     const range = monthRange(month);
     const [revenueSynced, balance] = await Promise.all([
@@ -289,6 +295,17 @@ export const adminService = {
     const user = users.find((u) => (u.email || '').toLowerCase() === clean);
     if (!user) throw new AppError(`No account found for ${clean} — they need to sign up first.`, 404);
 
+    // Lifetime is free forever: a Stripe subscription still running would keep charging them.
+    const { data: current } = await supabaseAdmin.from('subscriptions').select('plan, stripe_subscription_id').eq('user_id', user.id).maybeSingle();
+    if (current?.plan !== 'lifetime' && current?.stripe_subscription_id && stripeService.isConfigured()) {
+      try {
+        const live = await stripeService.liveSubscription(current.stripe_subscription_id);
+        if (live) await stripeService.cancelSubscriptionNow(live);
+      } catch (err) {
+        throw new AppError(`Their Stripe subscription could not be cancelled, so nothing was changed: ${(err as Error).message}`, 502);
+      }
+    }
+
     const { error } = await supabaseAdmin
       .from('subscriptions')
       .upsert(
@@ -312,7 +329,7 @@ export const adminService = {
   async revokeLifetime(userId: string): Promise<void> {
     const { data: sub, error: readError } = await supabaseAdmin
       .from('subscriptions')
-      .select('plan')
+      .select('plan, stripe_customer_id')
       .eq('user_id', userId)
       .maybeSingle();
     if (readError) throw new AppError(readError.message, 500);
@@ -323,5 +340,10 @@ export const adminService = {
       .update({ plan: 'free', status: 'free', updated_at: new Date().toISOString() })
       .eq('user_id', userId);
     if (error) throw new AppError(error.message, 500);
+    // If they still pay through Stripe, Stripe's plan applies again.
+    if (sub.stripe_customer_id && stripeService.isConfigured()) {
+      await stripeService.syncCustomer(sub.stripe_customer_id).catch((err) =>
+        console.warn(`[Admin] Could not re-read ${userId} from Stripe after revoking lifetime: ${(err as Error).message}`));
+    }
   },
 };

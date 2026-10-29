@@ -56,3 +56,7 @@ export const queryClient = new QueryClient({
     },
   },
 });
+
+// The admin backend shows live numbers: refetched every minute while open
+// (not in a background tab), and fresh on every visit.
+queryClient.setQueryDefaults(['admin'], { staleTime: 10_000, refetchInterval: 60_000 });

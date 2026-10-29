@@ -26,7 +26,12 @@ export const adminApi = {
     (await apiClient.get<AdminAccountDetail>(`/admin/accounts/${encodeURIComponent(id)}`)).data,
 
   setPlan: async (id: string, plan: string, status?: string) =>
-    (await apiClient.post<{ stripe_managed: boolean }>(`/admin/accounts/${encodeURIComponent(id)}/plan`, { plan, status })).data,
+    (await apiClient.post<{ stripe: 'changed' | 'canceled' | null }>(`/admin/accounts/${encodeURIComponent(id)}/plan`, { plan, status })).data,
+
+  syncStripe: async (id: string) =>
+    (await apiClient.post<{ synced: boolean }>(`/admin/accounts/${encodeURIComponent(id)}/stripe-sync`)).data,
+
+  syncAll: async () => (await apiClient.post<{ synced: boolean }>('/admin/sync')).data,
 
   setAllowance: async (id: string, creditAllowance: number | null) => {
     await apiClient.post(`/admin/accounts/${encodeURIComponent(id)}/allowance`, { credit_allowance: creditAllowance });

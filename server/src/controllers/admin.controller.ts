@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware.js';
 import { adminService } from '../services/admin.service.js';
 import { adminAccountsService } from '../services/admin-accounts.service.js';
+import { supabaseAdmin } from '../config/supabase.js';
 
 export const adminController = {
   /** GET /admin/users?search= — all accounts with their plan */
@@ -25,6 +26,11 @@ export const adminController = {
     } catch (err) { next(err); }
   },
 
+  /** POST /admin/sync — pull this month and last from Stripe now, skipping the five-minute wait */
+  async sync(_req: AuthRequest, res: Response, next: NextFunction) {
+    try { res.json({ synced: await adminService.syncStripeNow() }); } catch (err) { next(err); }
+  },
+
   /** GET /admin/health — relay, Redis and platform-wide counts (moved off public /health) */
   async health(_req: AuthRequest, res: Response, next: NextFunction) {
     try { res.json(await adminService.health()); } catch (err) { next(err); }
@@ -45,8 +51,9 @@ export const adminController = {
     try {
       const { user_id } = req.body || {};
       if (!user_id) return res.status(400).json({ error: 'user_id is required' });
+      const { data } = await supabaseAdmin.auth.admin.getUserById(String(user_id));
       await adminService.revokeLifetime(String(user_id));
-      await adminAccountsService.audit(req.userEmail!, 'lifetime_revoke', { id: String(user_id), email: null });
+      await adminAccountsService.audit(req.userEmail!, 'lifetime_revoke', { id: String(user_id), email: data?.user?.email ?? null });
       res.status(204).send();
     } catch (err) { next(err); }
   },
@@ -71,6 +78,11 @@ export const adminController = {
       if (typeof plan !== 'string') return res.status(400).json({ error: 'plan is required' });
       res.json(await adminAccountsService.setPlan(req.userEmail!, req.params.id, plan, typeof status === 'string' ? status : undefined));
     } catch (err) { next(err); }
+  },
+
+  /** POST /admin/accounts/:id/stripe-sync — pull this account fresh from Stripe */
+  async syncStripe(req: AuthRequest, res: Response, next: NextFunction) {
+    try { res.json(await adminAccountsService.syncFromStripe(req.userEmail!, req.params.id)); } catch (err) { next(err); }
   },
 
   /** POST /admin/accounts/:id/allowance { credit_allowance: number | null } */
