@@ -101,6 +101,22 @@ export function describeAudit(e: AdminAuditEntry): string {
     case 'release_sending': return 'Lifted the sending hold';
     case 'view_as': return 'Viewed the app as them (read-only)';
     case 'delete_account': return 'Deleted the account';
+    case 'overrides': {
+      const l = d.limits || {}; const f = d.features || {};
+      const parts = [
+        l.maxInboxes !== undefined ? `${l.maxInboxes < 0 ? 'unlimited' : l.maxInboxes} inboxes` : '',
+        l.emailsPerMonth !== undefined ? `${l.emailsPerMonth < 0 ? 'unlimited' : Number(l.emailsPerMonth).toLocaleString()} emails a month` : '',
+        ...Object.entries(f).map(([k, v]) => `${k === 'sara' ? 'Relay' : k === 'abTesting' ? 'A/B tests' : k} ${v ? 'on' : 'off'}`),
+      ].filter(Boolean);
+      return parts.length ? `Set their own limits: ${parts.join(', ')}` : 'Put their limits back to the plan’s';
+    }
+    case 'mailbox_paused': return `Paused the mailbox ${d.mailbox}`;
+    case 'mailbox_resumed': return `Turned the mailbox ${d.mailbox} back on`;
+    case 'setting_plans': return 'Changed the plan limits for everyone';
+    case 'setting_credit_prices': return 'Changed the credit prices';
+    case 'setting_signups': return d.mode === 'open' ? 'Opened sign-ups' : d.mode === 'closed' ? 'Closed sign-ups' : `Made sign-ups invite-only (${d.allowed ?? 0} on the list)`;
+    case 'setting_announcement': return d.text ? `Posted the announcement: “${d.text}”` : 'Took the announcement down';
+    case 'setting_kill_switch': return d.on ? `Stopped all sending on the platform: “${d.reason}”` : 'Turned sending back on for the platform';
     default: return e.action;
   }
 }

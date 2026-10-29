@@ -51,7 +51,7 @@ import {
   Sparkles, Megaphone, MapPin, Loader2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { ENRICH_CREDIT_COST, creditsLabel, deepCheckSkipped } from '@lemlist/shared';
+import { CREDIT_PRICES, creditsLabel, deepCheckSkipped } from '@lemlist/shared';
 
 
 export function ContactDetailPage() {
@@ -374,11 +374,11 @@ export function ContactDetailPage() {
           <button
             onClick={() => enrich.mutate()}
             disabled={enrich.isPending}
-            title={`Fill in their profile and their company, and check their email. Costs ${creditsLabel(ENRICH_CREDIT_COST)}, refunded if nothing is found.`}
+            title={`Fill in their profile and their company, and check their email. Costs ${creditsLabel(CREDIT_PRICES.enrich)}, refunded if nothing is found.`}
             className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors disabled:opacity-60"
           >
             {enrich.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-            {enrich.isPending ? 'Enriching…' : `Enrich · ${creditsLabel(ENRICH_CREDIT_COST)}`}
+            {enrich.isPending ? 'Enriching…' : `Enrich · ${creditsLabel(CREDIT_PRICES.enrich)}`}
           </button>
           <button
             onClick={() => setShowCampaignModal(true)}

@@ -1,5 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { platformQuery } from '../../lib/platform';
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
 import { AuthShell, GoogleIcon } from '../../components/AuthShell';
@@ -13,6 +15,13 @@ export function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [resending, setResending] = useState(false);
+  const { data: platform } = useQuery(platformQuery);
+  const mode = platform?.signups ?? 'open';
+
+  // Supabase reports a sign-up the database turned away as a bare database error.
+  const signupError = (message: string) => (/SIGNUPS_CLOSED|Database error saving new user/i.test(message)
+    ? (mode === 'invite' ? 'Sign-ups are by invitation right now, and this address is not on the list.' : 'Sign-ups are closed right now.')
+    : message);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -32,7 +41,7 @@ export function SignupPage() {
 
     const { error } = await signUp(email, password);
     if (error) {
-      toast.error(error.message);
+      toast.error(signupError(error.message));
     } else {
       toast.success('Account created! Check your email for confirmation.');
       setSubmitted(true);
@@ -88,13 +97,20 @@ export function SignupPage() {
     <AuthShell brand={brand}>
       <h1 className="md-auth__form-h1">Create your account</h1>
       <p className="md-auth__form-sub">Get started for free — no credit card required</p>
+      {mode !== 'open' && (
+        <p role="status" className="md-auth__form-sub" style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(245, 158, 11, 0.12)' }}>
+          {mode === 'closed'
+            ? 'Sign-ups are closed right now. If you already have an account, sign in.'
+            : 'Sign-ups are by invitation right now. Use the address you were invited with.'}
+        </p>
+      )}
 
       <button
         type="button"
         className="md-auth__oauth"
         onClick={async () => {
           const { error } = await signInWithOAuth('google');
-          if (error) toast.error(error.message);
+          if (error) toast.error(signupError(error.message));
         }}
       >
         <GoogleIcon />

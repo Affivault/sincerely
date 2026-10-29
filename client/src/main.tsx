@@ -8,6 +8,7 @@ import { queryClient } from './lib/queryClient';
 import App from './App';
 import { ABSOLUTE_API_URL } from './lib/constants';
 import { claimViewAs } from './lib/viewAs';
+import { claimSignupRefusal, platformQuery } from './lib/platform';
 import './index.css';
 
 /**
@@ -26,6 +27,10 @@ import './index.css';
 
 // A tab opened from the admin backend to view the app as an account.
 claimViewAs();
+// A Google sign-up that sign-ups did not admit.
+claimSignupRefusal();
+// Live prices and plan limits, as early as possible so screens quote the current ones.
+void queryClient.prefetchQuery(platformQuery);
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

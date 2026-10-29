@@ -6,7 +6,8 @@ import type { ProspectCreditsSummary } from './prospecting.types.js';
 
 export type CreditAction = 'search' | 'reveal' | 'verify' | 'enrich';
 
-/** The price list, in credits. */
+/** The price list, in credits. The owners can change these without a deploy
+    (platform settings), so read them when needed rather than copying them. */
 export const CREDIT_PRICES: Record<CreditAction, number> = {
   search: 0.5,
   reveal: 1,
@@ -22,10 +23,10 @@ export interface CreditPriceRow {
 }
 
 export const CREDIT_PRICE_LIST: CreditPriceRow[] = [
-  { action: 'search', label: 'Search: each new page of 25 people', price: CREDIT_PRICES.search, note: 'Pages loaded in the last 10 minutes and match counts are free.' },
-  { action: 'reveal', label: 'Find a work email', price: CREDIT_PRICES.reveal, note: 'Only when an email is found. People you already revealed are free.' },
-  { action: 'verify', label: 'Verify an email (deep check)', price: CREDIT_PRICES.verify, note: 'Only when the free checks cannot settle it.' },
-  { action: 'enrich', label: 'Enrich a contact', price: CREDIT_PRICES.enrich, note: 'Refunded when nothing is found.' },
+  { action: 'search', label: 'Search: each new page of 25 people', get price() { return CREDIT_PRICES.search; }, note: 'Pages loaded in the last 10 minutes and match counts are free.' },
+  { action: 'reveal', label: 'Find a work email', get price() { return CREDIT_PRICES.reveal; }, note: 'Only when an email is found. People you already revealed are free.' },
+  { action: 'verify', label: 'Verify an email (deep check)', get price() { return CREDIT_PRICES.verify; }, note: 'Only when the free checks cannot settle it.' },
+  { action: 'enrich', label: 'Enrich a contact', get price() { return CREDIT_PRICES.enrich; }, note: 'Refunded when nothing is found.' },
 ];
 
 /** What to say when a deep email check was skipped for want of credits. */

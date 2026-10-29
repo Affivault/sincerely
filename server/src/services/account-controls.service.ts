@@ -1,4 +1,6 @@
 import { supabaseAdmin } from '../config/supabase.js';
+import type { AccountOverrides } from '@lemlist/shared';
+import { platformSettings } from './platform-settings.service.js';
 
 /*
  * Suspension. A suspended account is turned away by the auth middleware on
@@ -11,7 +13,7 @@ import { supabaseAdmin } from '../config/supabase.js';
  */
 
 const TTL_MS = 30_000;
-interface ControlState { suspended: boolean; revokedAt: number | null; sendingPaused: boolean; at: number }
+interface ControlState { suspended: boolean; revokedAt: number | null; sendingPaused: boolean; overrides: AccountOverrides; at: number }
 const cache = new Map<string, ControlState>();
 
 // Accounts that stop calling would otherwise stay in the map for good.
@@ -27,11 +29,11 @@ async function load(userId: string): Promise<ControlState | null> {
   if (hit && Date.now() - hit.at < TTL_MS) return hit;
   let { data, error } = await supabaseAdmin
     .from('account_controls')
-    .select('suspended_at, sessions_revoked_at, sending_paused_at')
+    .select('suspended_at, sessions_revoked_at, sending_paused_at, limit_overrides, feature_overrides')
     .eq('user_id', userId)
     .maybeSingle();
   // Before migration 102 only suspension exists.
-  if (error && /sessions_revoked_at|sending_paused_at/.test(error.message || '')) {
+  if (error && /sessions_revoked_at|sending_paused_at|limit_overrides|feature_overrides/.test(error.message || '')) {
     ({ data, error } = await supabaseAdmin.from('account_controls').select('suspended_at').eq('user_id', userId).maybeSingle() as any);
   }
   // A missing table (migration 101 not run) or a blip must not lock
@@ -42,6 +44,7 @@ async function load(userId: string): Promise<ControlState | null> {
     suspended: !!row.suspended_at,
     revokedAt: row.sessions_revoked_at ? new Date(row.sessions_revoked_at).getTime() : null,
     sendingPaused: !!row.sending_paused_at,
+    overrides: { limits: row.limit_overrides || {}, features: row.feature_overrides || {} },
     at: Date.now(),
   };
   cache.set(userId, state);
@@ -59,9 +62,15 @@ export const accountControls = {
     return !!revokedAt && !!issuedAtSec && issuedAtSec * 1000 < revokedAt;
   },
 
-  /** Has the owner put a hold on everything this account sends? */
+  /** Has the owner put a hold on everything this account sends, or stopped sending on the whole platform? */
   async isSendingPaused(userId: string): Promise<boolean> {
+    if (await platformSettings.sendingKilled()) return true;
     return !!(await load(userId))?.sendingPaused;
+  },
+
+  /** The owner's limits and feature switches for this account, over its plan's. */
+  async overrides(userId: string): Promise<AccountOverrides> {
+    return (await load(userId))?.overrides || { limits: {}, features: {} };
   },
 
   /** Called after a change so it takes effect on the next request. */

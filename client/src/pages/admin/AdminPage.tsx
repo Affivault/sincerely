@@ -6,6 +6,8 @@ import { AdminOverview } from '../../components/admin/AdminOverview';
 import { AdminAccounts } from '../../components/admin/AdminAccounts';
 import { AdminBilling } from '../../components/admin/AdminBilling';
 import { AdminActivity } from '../../components/admin/AdminActivity';
+import { AdminSending } from '../../components/admin/AdminSending';
+import { AdminSettings } from '../../components/admin/AdminSettings';
 
 /*
  * The admin backend. It exists for the platform owners alone: the server
@@ -24,6 +26,8 @@ export function AdminPage() {
 
   const body = pathname.startsWith('/admin/accounts') ? <AdminAccounts />
     : pathname.startsWith('/admin/billing') ? <AdminBilling />
+    : pathname.startsWith('/admin/sending') ? <AdminSending />
+    : pathname.startsWith('/admin/settings') ? <AdminSettings />
     : pathname.startsWith('/admin/activity') ? <AdminActivity />
     : <AdminOverview />;
 

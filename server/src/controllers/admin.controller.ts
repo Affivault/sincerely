@@ -4,6 +4,7 @@ import { adminService } from '../services/admin.service.js';
 import { adminAccountsService } from '../services/admin-accounts.service.js';
 import { supabaseAdmin } from '../config/supabase.js';
 import { adminControlService as ctl } from '../services/admin-control.service.js';
+import { adminPlatformService as platform } from '../services/admin-platform.service.js';
 
 /** An admin action: its result as JSON, or 204 when it has none. */
 const act = (fn: (req: AuthRequest) => Promise<unknown>) => async (req: AuthRequest, res: Response, next: NextFunction) => {
@@ -182,4 +183,15 @@ export const adminController = {
   viewAs: act((req) => ctl.viewAs(req.userEmail!, req.params.id)),
   /** POST /admin/accounts/:id/delete { confirm_email } */
   deleteAccount: act((req) => ctl.deleteAccount(req.userEmail!, req.params.id, String(req.body?.confirm_email ?? ''))),
+
+  /* ─── The platform ─────────────────────────────────────────────────── */
+  settings: act(() => platform.settings()),
+  savePlans: act((req) => platform.savePlans(req.userEmail!, req.body?.plans)),
+  savePrices: act((req) => platform.savePrices(req.userEmail!, req.body?.prices)),
+  saveSignups: act((req) => platform.saveSignups(req.userEmail!, req.body)),
+  saveAnnouncement: act((req) => platform.saveAnnouncement(req.userEmail!, req.body)),
+  killSwitch: act((req) => platform.setKillSwitch(req.userEmail!, req.body?.on === true, req.body?.reason)),
+  sending: act(() => platform.sending()),
+  mailboxActive: act((req) => platform.setMailboxActive(req.userEmail!, req.params.mailboxId, req.body?.active !== false)),
+  overrides: act((req) => platform.setOverrides(req.userEmail!, req.params.id, req.body)),
 };

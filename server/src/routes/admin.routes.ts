@@ -52,3 +52,14 @@ adminRoutes.post('/accounts/:id/pause-campaigns', adminController.pauseCampaigns
 adminRoutes.post('/accounts/:id/sending-hold', adminController.sendingHold);
 adminRoutes.post('/accounts/:id/view-as', adminController.viewAs);
 adminRoutes.post('/accounts/:id/delete', adminController.deleteAccount);
+adminRoutes.post('/accounts/:id/overrides', adminController.overrides);
+
+// The platform: settings that apply to everyone, and sending across every account.
+adminRoutes.get('/settings', adminController.settings);
+adminRoutes.post('/settings/plans', adminController.savePlans);
+adminRoutes.post('/settings/prices', adminController.savePrices);
+adminRoutes.post('/settings/signups', adminController.saveSignups);
+adminRoutes.post('/settings/announcement', adminController.saveAnnouncement);
+adminRoutes.post('/settings/kill-switch', adminController.killSwitch);
+adminRoutes.get('/sending', adminController.sending);
+adminRoutes.post('/mailboxes/:mailboxId/active', adminController.mailboxActive);

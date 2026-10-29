@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { accountControls } from './account-controls.service.js';
+import { platformSettings } from './platform-settings.service.js';
 import {
   PLANS,
   type PlanId,
@@ -75,7 +76,7 @@ export const billingService = {
 
   /** Credits a month for this account (-1 = unlimited, which no plan is any more). */
   async getCreditAllowance(userId: string): Promise<number> {
-    const [sub, suspended] = await Promise.all([getSubscription(userId), accountControls.isSuspended(userId)]);
+    const [sub, suspended] = await Promise.all([getSubscription(userId), accountControls.isSuspended(userId), platformSettings.get()]);
     return suspended ? 0 : creditAllowanceFor(sub);
   },
 
@@ -93,9 +94,20 @@ export const billingService = {
     return trialCapped(sub) && (sub?.credit_allowance === null || sub?.credit_allowance === undefined);
   },
 
+  /** The plan's limits (as the owners have set them), then this account's own overrides. */
   async getLimits(userId: string): Promise<PlanLimits> {
-    const [planId, suspended] = await Promise.all([this.getPlanId(userId), accountControls.isSuspended(userId)]);
-    return suspended ? SUSPENDED_LIMITS : PLANS[planId];
+    const [planId, suspended, own] = await Promise.all([
+      this.getPlanId(userId), accountControls.isSuspended(userId), accountControls.overrides(userId), platformSettings.get(),
+    ]);
+    if (suspended) return SUSPENDED_LIMITS;
+    const plan = PLANS[planId];
+    const n = (v: unknown, fallback: number) => (typeof v === 'number' && Number.isFinite(v) ? v : fallback);
+    return {
+      ...plan,
+      maxInboxes: n(own.limits.maxInboxes, plan.maxInboxes),
+      emailsPerMonth: n(own.limits.emailsPerMonth, plan.emailsPerMonth),
+      features: { ...plan.features, ...Object.fromEntries(Object.entries(own.features).filter(([, v]) => typeof v === 'boolean')) },
+    };
   },
 
   async hasFeature(userId: string, feature: keyof PlanFeatures): Promise<boolean> {
@@ -195,9 +207,11 @@ export const billingService = {
     const sub = await getSubscription(userId);
     const planId = planFromSubscription(sub);
     const plan = PLANS[planId];
-    const [emailsSent, inboxes] = await Promise.all([
+    // The limits shown are the ones enforced: the owners' numbers and this account's overrides.
+    const [emailsSent, inboxes, limits] = await Promise.all([
       this.getEmailsSentThisPeriod(userId),
       this.countInboxes(userId),
+      this.getLimits(userId),
     ]);
     return {
       plan: planId,
@@ -207,10 +221,10 @@ export const billingService = {
       periodStart: currentPeriodStart(),
       currentPeriodEnd: sub?.current_period_end ?? null,
       emailsSent,
-      emailsLimit: plan.emailsPerMonth,
+      emailsLimit: limits.emailsPerMonth,
       inboxes,
-      inboxLimit: plan.maxInboxes,
-      features: plan.features,
+      inboxLimit: limits.maxInboxes,
+      features: limits.features,
       hasBilling: !!sub?.stripe_customer_id,
     };
   },

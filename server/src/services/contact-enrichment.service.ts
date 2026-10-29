@@ -19,7 +19,7 @@
    person typed is overwritten: where the profile disagrees with what is on
    file, the difference comes back as a suggestion the page can offer.
 
-   Costs ENRICH_CREDIT_COST credits, refunded when nothing at all
+   Costs CREDIT_PRICES.enrich credits, refunded when nothing at all
    is found. Icypeas does not publish the response shapes of its scrapers,
    so the readers below accept the plausible spellings, like the Prospector
    adapter does; the raw answers are not stored.
@@ -34,7 +34,7 @@ import { companiesService } from './companies.service.js';
 import { icypeas } from './prospect-providers.js';
 import { verifyContact } from './verification.service.js';
 import {
-  ENRICH_CREDIT_COST, emailDomain, isFreeMailDomain, normalizeLinkedinUrl, registrableDomain,
+  CREDIT_PRICES, emailDomain, isFreeMailDomain, normalizeLinkedinUrl, registrableDomain,
 } from '@lemlist/shared';
 import type {
   ContactEnrichment, EnrichContactResult, EnrichedCompany, EnrichedJob, EnrichedPerson, EnrichedSchool,
@@ -287,7 +287,7 @@ const LOOKUP_SIZE = 5;
 
 /* ── Credits ────────────────────────────────────────────────────────── */
 
-const enrichSpend = (contactId: string) => ({ amount: ENRICH_CREDIT_COST, action: 'enrich', provider: 'icypeas', ref: contactId });
+const enrichSpend = (contactId: string) => ({ amount: CREDIT_PRICES.enrich, action: 'enrich', provider: 'icypeas', ref: contactId });
 
 async function spend(userId: string, contactId: string): Promise<string> {
   return creditsService.spend(userId, enrichSpend(contactId));
@@ -496,7 +496,7 @@ async function run(userId: string, contactId: string): Promise<EnrichContactResu
     // Only what Icypeas found is paid for: the directory and a reused
     // company profile are free, and finding nothing gives the credit back.
     const paidFor = person || (!recent && enrichedCompany?.sources.includes('icypeas'));
-    const charged = paidFor ? ENRICH_CREDIT_COST : 0;
+    const charged = paidFor ? CREDIT_PRICES.enrich : 0;
     if (!charged) await refund(userId, contactId, bucket, 'nothing_found');
 
     return { enrichment, filled, company_filled: companyFilled, company_id: companyId, suggestions, credits_charged: charged };

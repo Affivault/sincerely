@@ -109,4 +109,5 @@ export interface EnrichContactResult {
 }
 
 /** Credits one enrichment costs, refunded when nothing is found. */
+/** @deprecated A copy taken at load, so it misses a price the owners change: read CREDIT_PRICES.enrich. */
 export const ENRICH_CREDIT_COST = CREDIT_PRICES.enrich;

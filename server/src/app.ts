@@ -9,6 +9,7 @@ import { webhookInboundRoutes } from './routes/webhook-inbound.routes.js';
 import { trackingRoutes } from './routes/tracking.routes.js';
 import { publicBookingRoutes } from './routes/booking.routes.js';
 import { publicResultsRoutes } from './routes/results.routes.js';
+import { platformRoutes } from './routes/platform.routes.js';
 import { integrationsOAuthRoutes } from './routes/integrations-oauth.routes.js';
 import { calendarOAuthRoutes } from './routes/calendar-oauth.routes.js';
 import { billingController } from './controllers/billing.controller.js';
@@ -68,6 +69,9 @@ app.use('/api/oauth/calendar', calendarOAuthRoutes);
 app.use('/api/book', publicBookingRoutes);
 // Shared results pages: read-only, the token is the key (services/results-share).
 app.use('/api/report', publicResultsRoutes);
+
+// Sign-up mode, announcement, live prices and plan limits (no auth, nothing private).
+app.use('/api/platform', platformRoutes);
 
 // Routes (authenticated)
 app.use('/api/v1', routes);

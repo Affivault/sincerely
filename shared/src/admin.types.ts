@@ -1,6 +1,9 @@
 // Admin console — platform-owner only. Who the owner is lives on the server
 // (server/src/config/admin.ts), never in the shared package or the client.
 
+import type { PlanFeatures, PlanId } from './billing.types.js';
+import type { CreditAction } from './credits.types.js';
+
 export interface AdminUserRow {
   id: string;
   email: string;
@@ -175,7 +178,11 @@ export interface AdminAccountDetail {
     sessions_revoked_at: string | null;
     /** While set, nothing of theirs sends (migration 102). */
     sending_paused_at: string | null;
+    /** The owner's limits and switches over the plan's (migration 102). */
+    overrides: AccountOverrides;
   };
+  /** The plan's own limits, before this account's overrides. */
+  plan_limits: { maxInboxes: number; emailsPerMonth: number; features: PlanFeatures };
   /** What Stripe says right now, when they have a subscription there and Stripe answered. */
   stripe: AdminStripeSummary | null;
   /** Running or scheduled campaigns. */
@@ -217,4 +224,105 @@ export interface AdminNote { note: string }
 export interface AdminAuditResponse {
   entries: AdminAuditEntry[];
   controls_ready: boolean;
+}
+
+/* ─── Platform settings: changed by the owners without a deploy ────────── */
+
+export type SignupMode = 'open' | 'invite' | 'closed';
+
+/** One plan's numbers as the owners have set them; anything left out is the plan's default. */
+export interface PlanOverride {
+  maxInboxes?: number;
+  emailsPerMonth?: number;
+  prospectCredits?: number;
+}
+
+export interface Announcement {
+  /** Changes whenever the text does, so a dismissed banner comes back for a new one. */
+  id: string;
+  text: string;
+  tone: 'info' | 'warn';
+  link_url?: string | null;
+  link_label?: string | null;
+}
+
+export interface PlatformSettings {
+  plans: Partial<Record<PlanId, PlanOverride>>;
+  credit_prices: Partial<Record<CreditAction, number>>;
+  signups: { mode: SignupMode; allow: string[] };
+  announcement: Announcement | null;
+  /** While set, nothing sends on the whole platform. */
+  kill_switch: { reason: string; at: string; by: string } | null;
+}
+
+/** GET /admin/settings: what is set, beside the defaults it overrides. */
+export interface AdminSettingsResponse {
+  settings: PlatformSettings;
+  defaults: { plans: Record<PlanId, PlanOverride & { name: string }>; credit_prices: Record<CreditAction, number> };
+  ready: boolean;
+  updated: Partial<Record<keyof PlatformSettings, { by: string | null; at: string }>>;
+}
+
+/** GET /api/platform: what the app needs before anyone signs in. */
+export interface PublicPlatformInfo {
+  signups: SignupMode;
+  announcement: Announcement | null;
+  credit_prices: Record<CreditAction, number>;
+  plans: Record<PlanId, Required<PlanOverride>>;
+}
+
+/** Per-account limits and feature switches over the plan's. */
+export interface AccountOverrides {
+  limits: { maxInboxes?: number; emailsPerMonth?: number };
+  features: Partial<Record<keyof PlanFeatures, boolean>>;
+}
+
+/* ─── Sending and safety, across every account ─────────────────────────── */
+
+export interface AdminMailboxRow {
+  id: string;
+  user_id: string;
+  email: string;
+  owner_email: string | null;
+  is_active: boolean;
+  is_verified: boolean;
+  autopilot_state: string | null;
+  sent: number;
+  bounced: number;
+  complained: number;
+  bounce_rate: number;
+  complaint_rate: number;
+  flagged: boolean;
+}
+
+export interface AdminDomainRow {
+  id: string;
+  user_id: string;
+  domain: string;
+  owner_email: string | null;
+  spf_ok: boolean | null;
+  dkim_ok: boolean | null;
+  dmarc_ok: boolean | null;
+  last_checked_at: string | null;
+}
+
+export interface AdminRiskyAccount {
+  id: string;
+  email: string;
+  sent: number;
+  bounce_rate: number;
+  complaint_rate: number;
+  reasons: string[];
+  held: boolean;
+}
+
+export interface AdminSendingReport {
+  days: number;
+  totals: { sent: number; bounced: number; complained: number; bounce_rate: number; complaint_rate: number; mailboxes: number; paused_mailboxes: number };
+  mailboxes: AdminMailboxRow[];
+  domains: AdminDomainRow[];
+  risky: AdminRiskyAccount[];
+  kill_switch: PlatformSettings['kill_switch'];
+  /** Thresholds a mailbox or account is flagged at, as fractions. */
+  thresholds: { bounce: number; complaint: number; min_sent: number };
 }

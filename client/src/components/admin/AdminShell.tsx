@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useIsFetching, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import {
-  Activity, CreditCard, LayoutDashboard, RefreshCw, Search, ShieldCheck, Users, type LucideIcon,
+  Activity, CreditCard, LayoutDashboard, RefreshCw, Search, Send, Settings2, ShieldCheck, Users, type LucideIcon,
 } from 'lucide-react';
 import { adminApi } from '../../api/admin.api';
 import { Avatar } from '../shared/Avatar';
@@ -24,6 +24,8 @@ export const ADMIN_PLACES: Place[] = [
   { to: '/admin', label: 'Overview', icon: LayoutDashboard, end: true },
   { to: '/admin/accounts', label: 'Accounts', icon: Users },
   { to: '/admin/billing', label: 'Billing', icon: CreditCard },
+  { to: '/admin/sending', label: 'Sending', icon: Send },
+  { to: '/admin/settings', label: 'Settings', icon: Settings2 },
   { to: '/admin/activity', label: 'Activity', icon: Activity },
 ];
 
