@@ -77,7 +77,7 @@ export function fetchPayments(from?: string, to?: string) {
 export const cents = (n: number) => Math.round(n * 100) / 100;
 
 /** Each active paid subscription at its plan's monthly list price. Discounts and annual billing are not known here. */
-function estimatedMrr(subs: Iterable<any>): number {
+export function estimatedMrrOf(subs: Iterable<any>): number {
   let mrr = 0;
   for (const sub of subs) {
     if (sub.status !== 'active' || !sub.stripe_subscription_id) continue;
@@ -98,7 +98,7 @@ export function monthRange(month?: string): { label: string; from: Date; to: Dat
   return { label: from.toISOString().slice(0, 7), from, to };
 }
 
-async function providerBalance(): Promise<AdminProviderBalance> {
+export async function providerBalance(): Promise<AdminProviderBalance> {
   if (!env.ICYPEAS_API_KEY) return { credits: null, low: false, note: 'No ICYPEAS_API_KEY on the server.' };
   if (!env.ICYPEAS_ACCOUNT_EMAIL) return { credits: null, low: false, note: 'Set ICYPEAS_ACCOUNT_EMAIL on the server to show the Icypeas balance.' };
   try {
@@ -302,7 +302,7 @@ export const adminService = {
       past_due_users: pastDue,
       active_7d: users.filter((u: any) => since(u.last_sign_in_at, 7)).length,
       signups_30d: users.filter((u: any) => since(u.created_at, 30)).length,
-      est_mrr_usd: estimatedMrr(subs.values()),
+      est_mrr_usd: estimatedMrrOf(subs.values()),
     };
   },
 
@@ -339,7 +339,7 @@ export const adminService = {
       payments,
       totals: { gross_usd: cents(gross), refunds_usd: cents(refunds), net_usd: cents(gross - refunds), fees_usd: cents(fees), count: payments.length },
       plan_mix: [...mix.values()].sort((a, b) => b.count - a.count),
-      est_mrr_usd: estimatedMrr(subs.values()),
+      est_mrr_usd: estimatedMrrOf(subs.values()),
       past_due: pastDue,
       revenue_synced: revenueSynced,
     };

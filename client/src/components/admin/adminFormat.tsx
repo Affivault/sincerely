@@ -116,6 +116,10 @@ export function describeAudit(e: AdminAuditEntry): string {
     case 'setting_credit_prices': return 'Changed the credit prices';
     case 'setting_signups': return d.mode === 'open' ? 'Opened sign-ups' : d.mode === 'closed' ? 'Closed sign-ups' : `Made sign-ups invite-only (${d.allowed ?? 0} on the list)`;
     case 'setting_announcement': return d.text ? `Posted the announcement: “${d.text}”` : 'Took the announcement down';
+    case 'setting_alerts': {
+      const on = Object.entries(d.enabled || {}).filter(([, v]) => v).length;
+      return `Changed the email alerts (${on} on)`;
+    }
     case 'setting_kill_switch': return d.on ? `Stopped all sending on the platform: “${d.reason}”` : 'Turned sending back on for the platform';
     default: return e.action;
   }

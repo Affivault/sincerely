@@ -1,6 +1,6 @@
 import { apiClient } from './client';
 import type {
-  AccountOverrides, AdminAccountDetail, AdminAccountsResponse, AdminBillingReport, AdminSendingReport, AdminSettingsResponse, PlatformSettings, AdminAuditResponse, AdminStats, AdminUsageReport, AdminUserRow, AdminUsersResponse,
+  AccountOverrides, AdminAlertKind, AdminAlertSettings, AdminBulkAction, AdminBulkResult, AdminInsights, AdminAccountDetail, AdminAccountsResponse, AdminBillingReport, AdminSendingReport, AdminSettingsResponse, PlatformSettings, AdminAuditResponse, AdminStats, AdminUsageReport, AdminUserRow, AdminUsersResponse,
 } from '@lemlist/shared';
 
 const acct = (id: string) => `/admin/accounts/${encodeURIComponent(id)}`;
@@ -93,4 +93,11 @@ export const adminApi = {
   killSwitch: async (on: boolean, reason?: string) => (await apiClient.post<AdminSettingsResponse>('/admin/settings/kill-switch', { on, reason })).data,
   sending: async () => (await apiClient.get<AdminSendingReport>('/admin/sending')).data,
   setMailboxActive: async (mailboxId: string, active: boolean) => { await apiClient.post(`/admin/mailboxes/${encodeURIComponent(mailboxId)}/active`, { active }); },
+
+  /* Insights, alerts, bulk */
+  insights: async () => (await apiClient.get<AdminInsights>('/admin/insights')).data,
+  alerts: async () => (await apiClient.get<AdminAlertSettings & { ready: boolean }>('/admin/alerts')).data,
+  saveAlerts: async (enabled: Partial<Record<AdminAlertKind, boolean>>) => (await apiClient.post<AdminAlertSettings & { ready: boolean }>('/admin/alerts', { enabled })).data,
+  bulk: async (action: AdminBulkAction, ids: string[], opts: { amount?: number; note?: string; reason?: string } = {}) =>
+    (await apiClient.post<AdminBulkResult>('/admin/bulk', { action, ids, ...opts }, { timeout: 120_000 })).data,
 };

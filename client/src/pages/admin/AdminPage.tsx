@@ -7,6 +7,7 @@ import { AdminAccounts } from '../../components/admin/AdminAccounts';
 import { AdminBilling } from '../../components/admin/AdminBilling';
 import { AdminActivity } from '../../components/admin/AdminActivity';
 import { AdminSending } from '../../components/admin/AdminSending';
+import { AdminInsights } from '../../components/admin/AdminInsights';
 import { AdminSettings } from '../../components/admin/AdminSettings';
 
 /*
@@ -25,6 +26,7 @@ export function AdminPage() {
   if (id) return <Navigate to={`/admin/accounts?a=${encodeURIComponent(id)}`} replace />;
 
   const body = pathname.startsWith('/admin/accounts') ? <AdminAccounts />
+    : pathname.startsWith('/admin/insights') ? <AdminInsights />
     : pathname.startsWith('/admin/billing') ? <AdminBilling />
     : pathname.startsWith('/admin/sending') ? <AdminSending />
     : pathname.startsWith('/admin/settings') ? <AdminSettings />

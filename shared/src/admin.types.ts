@@ -326,3 +326,43 @@ export interface AdminSendingReport {
   /** Thresholds a mailbox or account is flagged at, as fractions. */
   thresholds: { bounce: number; complaint: number; min_sent: number };
 }
+
+/* ─── Insights, alerts and bulk actions ─────────────────────────────────── */
+
+export interface AdminInsightsMonth {
+  month: string;
+  signups: number;
+  /** Accounts that sent at least one email that month. */
+  active_senders: number;
+  /** Money in that month, refunds taken off. */
+  revenue_usd: number;
+  /** Accounts that paid for a subscription that month. */
+  payers: number;
+  /** Paid the month before, not this month, and no longer subscribed. Null for the month still running. */
+  churned: number | null;
+  /** Trials that ended that month, and how many of them went on to pay. */
+  trials_ended: number;
+  trials_converted: number;
+}
+
+export interface AdminInsights {
+  months: AdminInsightsMonth[];
+  est_mrr_usd: number;
+  top_cost: Array<{ user_id: string; email: string; plan: string; cost_usd: number; revenue_usd: number; profit_usd: number }>;
+  provider_balance: { credits: number | null; low: boolean; note: string | null };
+}
+
+export type AdminAlertKind = 'icypeas_low' | 'payment_failed' | 'risky_sending' | 'new_paying';
+
+export interface AdminAlertSettings {
+  enabled: Record<AdminAlertKind, boolean>;
+  /** When each kind last emailed, so the owners are told once, not every half hour. */
+  last_sent: Partial<Record<AdminAlertKind, string>>;
+}
+
+export type AdminBulkAction = 'hold_sending' | 'release_sending' | 'pause_campaigns' | 'give_credits' | 'suspend' | 'unsuspend';
+
+export interface AdminBulkResult {
+  done: number;
+  failed: Array<{ id: string; email: string | null; error: string }>;
+}

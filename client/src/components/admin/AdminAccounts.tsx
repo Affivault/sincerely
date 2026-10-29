@@ -13,6 +13,7 @@ import { cn } from '../../lib/utils';
 import { PlanBadge, moneyTone, monthLabel, relTime, thisMonth, usd } from './adminFormat';
 import { AdminHeader } from './AdminShell';
 import { AccountPanel } from './AccountPanel';
+import { BulkBar } from './BulkBar';
 
 type Filter = 'all' | 'paying' | 'trial' | 'free' | 'lifetime' | 'suspended' | 'losing' | 'near_cap';
 type Sort = 'newest' | 'last_seen' | 'credits' | 'cost' | 'revenue' | 'profit' | 'lifetime_profit';
@@ -93,6 +94,9 @@ export function AdminAccounts() {
   const [search, setSearch] = useState('');
   const q = useDebounce(search, 150).trim().toLowerCase();
 
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const toggle = (id: string) => setSelected((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['admin', 'accounts', month],
     queryFn: () => adminApi.accounts(month),
@@ -124,6 +128,10 @@ export function AdminAccounts() {
   );
 
   const th = { sort, asc, onSort: sortBy };
+  // Only what is on screen can be selected, so a filter change drops the rest.
+  const visible = useMemo(() => new Set(rows.map((a) => a.id)), [rows]);
+  const picked = [...selected].filter((id) => visible.has(id));
+  const allPicked = rows.length > 0 && picked.length === rows.length;
 
   return (
     <>
@@ -209,7 +217,17 @@ export function AdminAccounts() {
               <table className="w-full min-w-[960px] text-left">
                 <thead>
                   <tr className="sticky top-0 z-[1] bg-[var(--bg-surface)] border-b border-[var(--border-subtle)] text-caption text-[var(--text-tertiary)]">
-                    <th className="py-2.5 pl-4 pr-3 font-medium"><button onClick={() => sortBy('newest')} className={cn('inline-flex items-center gap-1 hover:text-[var(--text-primary)]', sort === 'newest' && 'text-[var(--text-primary)]')}>Account{sort === 'newest' && (asc ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}</button></th>
+                    <th className="py-2.5 pl-4 w-8">
+                      <input
+                        type="checkbox"
+                        aria-label={allPicked ? 'Clear the selection' : 'Select every account shown'}
+                        checked={allPicked}
+                        ref={(el) => { if (el) el.indeterminate = picked.length > 0 && !allPicked; }}
+                        onChange={() => setSelected(allPicked ? new Set() : new Set(rows.map((a) => a.id)))}
+                        className="h-3.5 w-3.5 accent-[var(--indigo)]"
+                      />
+                    </th>
+                    <th className="py-2.5 pl-1 pr-3 font-medium"><button onClick={() => sortBy('newest')} className={cn('inline-flex items-center gap-1 hover:text-[var(--text-primary)]', sort === 'newest' && 'text-[var(--text-primary)]')}>Account{sort === 'newest' && (asc ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}</button></th>
                     <Th {...th}>Plan</Th>
                     <Th {...th} id="credits">Credits this month</Th>
                     <Th {...th} id="cost" right>Cost</Th>
@@ -232,7 +250,10 @@ export function AdminAccounts() {
                         a.losing && !a.suspended && 'bg-amber-500/5',
                       )}
                     >
-                      <td className="py-2.5 pl-4 pr-3">
+                      <td className="py-2.5 pl-4 w-8" onClick={(e) => e.stopPropagation()}>
+                        <input type="checkbox" aria-label={`Select ${a.email}`} checked={selected.has(a.id)} onChange={() => toggle(a.id)} className="h-3.5 w-3.5 accent-[var(--indigo)]" />
+                      </td>
+                      <td className="py-2.5 pl-1 pr-3">
                         <div className="flex items-center gap-2.5 min-w-0">
                           <Avatar email={a.email} size="lg" />
                           <div className="min-w-0">
@@ -266,6 +287,7 @@ export function AdminAccounts() {
         </>
       )}
     </div>
+    {picked.length > 0 && <BulkBar ids={picked} emails={rows.filter((a) => selected.has(a.id)).map((a) => a.email)} onDone={() => setSelected(new Set())} />}
     {openId && <AccountPanel id={openId} onClose={() => setParam({ a: null, tab: null }, false)} />}
     </>
   );

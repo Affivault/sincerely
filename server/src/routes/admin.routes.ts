@@ -63,3 +63,9 @@ adminRoutes.post('/settings/announcement', adminController.saveAnnouncement);
 adminRoutes.post('/settings/kill-switch', adminController.killSwitch);
 adminRoutes.get('/sending', adminController.sending);
 adminRoutes.post('/mailboxes/:mailboxId/active', adminController.mailboxActive);
+
+// Insights over time, the owners' email alerts, and actions on many accounts.
+adminRoutes.get('/insights', adminController.insights);
+adminRoutes.get('/alerts', adminController.alerts);
+adminRoutes.post('/alerts', adminController.saveAlerts);
+adminRoutes.post('/bulk', adminController.bulk);

@@ -59,7 +59,7 @@ const BookPage             = lazyRoute('/b/:slug', () => import('./pages/public/
 const ManageBookingPage    = lazyRoute('/booking/:token', () => import('./pages/public/ManageBookingPage'), m => m.ManageBookingPage);
 const CalendarPage         = lazyRoute('/calendar', () => import('./pages/crm/CalendarPage'), m => m.CalendarPage);
 const ProspectorPage       = lazyRoute('/prospector', () => import('./pages/prospector/ProspectorPage'), m => m.ProspectorPage);
-const AdminPage            = lazyRoute(['/admin', '/admin/accounts', '/admin/accounts/:id', '/admin/billing', '/admin/sending', '/admin/settings', '/admin/activity'], () => import('./pages/admin/AdminPage'), m => m.AdminPage);
+const AdminPage            = lazyRoute(['/admin', '/admin/accounts', '/admin/accounts/:id', '/admin/insights', '/admin/billing', '/admin/sending', '/admin/settings', '/admin/activity'], () => import('./pages/admin/AdminPage'), m => m.AdminPage);
 const SettingsPage         = lazyRoute('/settings', () => import('./pages/settings/SettingsPage'), m => m.SettingsPage);
 const SendingHealthPage    = lazyRoute('/email-accounts/health', () => import('./pages/smtp/SendingHealthPage'), m => m.SendingHealthPage);
 const AssetBuilderPage     = lazyRoute('/assets', () => import('./pages/assets/AssetBuilderPage'), m => m.AssetBuilderPage);
@@ -232,6 +232,7 @@ export default function App() {
           <Route path="/admin/accounts"     element={<AdminPage />} />
           <Route path="/admin/accounts/:id" element={<AdminPage />} />
           <Route path="/admin/billing"      element={<AdminPage />} />
+          <Route path="/admin/insights"     element={<AdminPage />} />
           <Route path="/admin/sending"      element={<AdminPage />} />
           <Route path="/admin/settings"     element={<AdminPage />} />
           <Route path="/admin/activity"     element={<AdminPage />} />
