@@ -13,6 +13,8 @@
  *     never be suspended
  *   - given credits are bonus credits, taken credits come off the month, and
  *     every change is written to the audit log
+ *   - a paying account's plan is changed in Stripe itself, so Stripe's next
+ *     event cannot quietly put the old plan back
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -66,7 +68,7 @@ function from(name: string): any {
       if (name === 'account_controls') controls[row.user_id] = { ...(controls[row.user_id] || {}), ...row };
       return Promise.resolve({ data: null, error: null });
     },
-    update: () => chain,
+    update: (patch: any) => { if (name === 'subscriptions') Object.assign(subscription, patch); return chain; },
     then: (res: any, rej: any) => Promise.resolve(run()).then(res, rej),
   };
   return chain;
@@ -179,6 +181,45 @@ console.log('\nGiving and taking credits');
     try { await adminAccountsService.adjustCredits(OWNER, USER_ID, amount, note); is(`${label} is refused`, false); }
     catch (e: any) { is(`${label} is refused`, e?.statusCode === 400); }
   }
+}
+
+console.log('\nA paying account is changed in Stripe too');
+{
+  const { stripeService } = await import('../src/services/stripe.service.js');
+  const calls: string[] = [];
+  const fake: any = { id: 'sub_1', status: 'active' };
+  let reachable = true;
+  Object.assign(stripeService as any, {
+    isConfigured: () => true,
+    liveSubscription: async () => { if (!reachable) throw new Error('down'); return fake; },
+    changeSubscriptionPlan: async (_s: any, plan: string) => { calls.push(`change:${plan}`); },
+    cancelSubscriptionNow: async () => { calls.push('cancel'); },
+  });
+  const reset = () => { Object.assign(subscription, { plan: 'growth', status: 'active', stripe_subscription_id: 'sub_1' }); calls.length = 0; audit = []; };
+
+  reset();
+  const up = await adminAccountsService.setPlan(OWNER, USER_ID, 'starter');
+  is('Starter or Growth swaps the price in Stripe', up.stripe === 'changed' && calls.join() === 'change:starter');
+  is('and the log says Stripe was changed', audit[0]?.details?.stripe === 'changed');
+
+  reset();
+  const free = await adminAccountsService.setPlan(OWNER, USER_ID, 'free');
+  is('Free cancels the Stripe subscription', free.stripe === 'canceled' && calls.join() === 'cancel' && subscription.plan === 'free');
+
+  reset();
+  await adminAccountsService.setPlan(OWNER, USER_ID, 'lifetime');
+  is('Lifetime cancels it too, so they are not charged for a free plan', calls.join() === 'cancel' && subscription.plan === 'lifetime');
+
+  reset();
+  try { await adminAccountsService.setPlan(OWNER, USER_ID, 'scale'); is('Scale on a paying account is refused, not half done', false); }
+  catch (e: any) { is('Scale on a paying account is refused, not half done', e?.statusCode === 400 && calls.length === 0 && subscription.plan === 'growth'); }
+
+  reset(); reachable = false;
+  try { await adminAccountsService.setPlan(OWNER, USER_ID, 'free'); is('Stripe down: nothing is changed', false); }
+  catch (e: any) { is('Stripe down: nothing is changed', e?.statusCode === 502 && subscription.plan === 'growth' && audit.length === 0); }
+  reachable = true;
+
+  Object.assign(subscription, { plan: 'growth', status: 'active', stripe_subscription_id: null });
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

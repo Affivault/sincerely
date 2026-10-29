@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Navigate, NavLink, useLocation, useParams } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useIsFetching, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { adminApi } from '../../api/admin.api';
 import { useIsOwner } from '../../hooks/useIsOwner';
@@ -8,7 +8,7 @@ import { Button } from '../../components/ui/Button';
 import { Spinner } from '../../components/ui/Spinner';
 import { cn } from '../../lib/utils';
 import {
-  ShieldCheck, Crown, Users, Mail, Globe, Megaphone, Infinity as InfinityIcon, Gift, Sparkles,
+  ShieldCheck, Crown, Users, Mail, Globe, Megaphone, Infinity as InfinityIcon, Gift, Sparkles, RefreshCw,
 } from 'lucide-react';
 import { UsageProfitPanel } from '../../components/admin/UsageProfitPanel';
 import { AdminAccounts } from '../../components/admin/AdminAccounts';
@@ -49,6 +49,8 @@ export function AdminPage() {
           <h1 className="text-title font-semibold text-[var(--text-primary)] tracking-[-0.01em]">Admin</h1>
           <p className="text-body text-[var(--text-tertiary)]">Accounts, credits, cost and profit across Sincerely.</p>
         </div>
+        <span className="flex-1" />
+        <LiveStatus />
       </div>
 
       <nav aria-label="Admin" className="flex items-center gap-1 mb-5 border-b border-[var(--border-subtle)]">
@@ -70,6 +72,45 @@ export function AdminPage() {
       </nav>
 
       {body}
+    </div>
+  );
+}
+
+/** When the numbers on screen were fetched, and a button to pull everything fresh, Stripe included. */
+function LiveStatus() {
+  const qc = useQueryClient();
+  const fetching = useIsFetching({ queryKey: ['admin'] }) > 0;
+  const [syncing, setSyncing] = useState(false);
+  const [, tick] = useState(0);
+  useEffect(() => { const t = setInterval(() => tick((n) => n + 1), 5_000); return () => clearInterval(t); }, []);
+
+  const updated = Math.max(0, ...qc.getQueryCache().findAll({ queryKey: ['admin'] }).map((q) => q.state.dataUpdatedAt));
+  const secs = updated ? Math.max(0, Math.round((Date.now() - updated) / 1000)) : null;
+  const ago = secs == null ? '' : secs < 10 ? 'just now' : secs < 60 ? `${secs}s ago` : `${Math.floor(secs / 60)}m ago`;
+
+  const refresh = async () => {
+    setSyncing(true);
+    try {
+      const { synced } = await adminApi.syncAll();
+      if (!synced) toast.error('Stripe could not be reached, so payments may be behind.');
+    } catch {
+      toast.error('Stripe could not be reached, so payments may be behind.');
+    } finally {
+      await qc.invalidateQueries({ queryKey: ['admin'] });
+      setSyncing(false);
+    }
+  };
+
+  const busy = syncing || fetching;
+  return (
+    <div className="flex items-center gap-2 text-caption text-[var(--text-tertiary)]" aria-live="polite">
+      <span className="inline-flex items-center gap-1.5">
+        <span className={cn('h-1.5 w-1.5 rounded-full', busy ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500')} />
+        {busy ? 'Updating…' : ago ? `Updated ${ago}` : 'Live'}
+      </span>
+      <Button size="sm" variant="secondary" disabled={syncing} onClick={refresh}>
+        <RefreshCw className={cn('h-3.5 w-3.5', syncing && 'animate-spin')} /> Refresh
+      </Button>
     </div>
   );
 }

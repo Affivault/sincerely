@@ -66,7 +66,8 @@ export function describeAudit(e: AdminAuditEntry): string {
     case 'plan': {
       const from = d.from ? `${planName(d.from.plan)}${d.from.status && d.from.status !== 'active' && d.from.status !== 'free' ? ` (${d.from.status})` : ''}` : 'none';
       const to = d.to ? `${planName(d.to.plan)}${d.to.status && d.to.status !== 'active' && d.to.status !== 'free' ? ` (${d.to.status})` : ''}` : '?';
-      return `Changed the plan from ${from} to ${to}`;
+      const inStripe = d.stripe === 'changed' ? ', in Stripe too' : d.stripe === 'canceled' ? ' and cancelled their Stripe subscription' : '';
+      return `Changed the plan from ${from} to ${to}${inStripe}`;
     }
     case 'allowance':
       return d.to === null || d.to === undefined
@@ -81,6 +82,7 @@ export function describeAudit(e: AdminAuditEntry): string {
     case 'note': return d.length ? 'Updated the private note' : 'Cleared the private note';
     case 'lifetime_grant': return 'Granted lifetime access';
     case 'lifetime_revoke': return 'Revoked lifetime access';
+    case 'stripe_sync': return 'Synced the account from Stripe';
     default: return e.action;
   }
 }

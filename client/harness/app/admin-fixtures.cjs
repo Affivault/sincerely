@@ -83,7 +83,8 @@ function adminAnswer(method, path) {
   // The server hides every admin endpoint from anyone but the owner.
   if (!owner()) return { __status: 404, __body: { error: 'Not found' } };
   if (method === 'POST') {
-    if (/\/plan$/.test(path)) return { stripe_managed: false };
+    if (/\/plan$/.test(path)) return { stripe: 'changed' };
+    if (/\/(stripe-)?sync$/.test(path)) return { synced: true };
     return { success: true };
   }
   if (path === '/admin/stats') return { total_users: 312, lifetime_users: 4, paying_users: 41, free_users: 267, mailboxes: 388, domains: 97, contacts: 184220, campaigns: 520 };

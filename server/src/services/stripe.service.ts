@@ -219,12 +219,13 @@ export const stripeService = {
    * revenue is right even when the webhook isn't subscribed to invoice.paid.
    * Returns false when Stripe is not configured or could not be reached.
    */
-  async syncPaidInvoices(since: Date): Promise<boolean> {
+  async syncPaidInvoices(since: Date, force = false): Promise<boolean> {
     if (!stripe) return false;
-    // The admin page calls this on every load; Stripe needs asking at most every few minutes.
+    // The admin page calls this on every load; Stripe needs asking at most
+    // every few minutes, unless the owner asks for fresh numbers.
     const key = since.toISOString();
     const last = lastSync.get(key);
-    if (last && Date.now() - last < SYNC_EVERY_MS) return true;
+    if (!force && last && Date.now() - last < SYNC_EVERY_MS) return true;
     try {
       const gte = Math.floor(since.getTime() / 1000);
       const known = await this.knownRefs(since);
@@ -245,6 +246,61 @@ export const stripeService = {
     } catch (err) {
       console.warn('[Stripe] Invoice sync failed:', (err as Error).message);
       return false;
+    }
+  },
+
+  /* --- Admin: change billing in Stripe itself, so a change made from the
+   * admin backend is the one Stripe bills and its next event keeps. --- */
+
+  /** The subscription if Stripe still bills it (active, trialing or owed), else null. */
+  async liveSubscription(subscriptionId: string | null | undefined): Promise<Stripe.Subscription | null> {
+    if (!stripe || !subscriptionId) return null;
+    const sub = await stripe.subscriptions.retrieve(subscriptionId);
+    return ['active', 'trialing', 'past_due', 'unpaid', 'incomplete'].includes(sub.status) ? sub : null;
+  },
+
+  /**
+   * Move a live subscription to another sold plan, on the interval it is
+   * billed on now. No proration: the new price starts at the next renewal,
+   * so nobody is charged by surprise mid-period.
+   */
+  async changeSubscriptionPlan(sub: Stripe.Subscription, plan: 'starter' | 'growth'): Promise<void> {
+    const s = requireStripe();
+    const item = sub.items.data[0];
+    if (!item) throw new AppError('This Stripe subscription has no price on it; change it in Stripe.', 400);
+    const current = item.price?.id;
+    const interval: BillingInterval = current === STRIPE_PRICES.starter.annual || current === STRIPE_PRICES.growth.annual ? 'annual' : 'monthly';
+    const price = STRIPE_PRICES[plan][interval];
+    if (current === price) return;
+    const updated = await s.subscriptions.update(sub.id, {
+      items: [{ id: item.id, price }],
+      proration_behavior: 'none',
+    });
+    await this.syncSubscription(updated, Math.floor(Date.now() / 1000));
+  },
+
+  /** End a subscription now, with no refund. Stripe stops billing it at once. */
+  async cancelSubscriptionNow(sub: Stripe.Subscription): Promise<void> {
+    const s = requireStripe();
+    const canceled = await s.subscriptions.cancel(sub.id, { prorate: false });
+    await this.syncSubscription(canceled, Math.floor(Date.now() / 1000));
+  },
+
+  /**
+   * Pull one customer fresh from Stripe: their subscription, paid invoices
+   * and refunds. For when the account looks out of step with Stripe.
+   */
+  async syncCustomer(customerId: string): Promise<void> {
+    const s = requireStripe();
+    const subs = await s.subscriptions.list({ customer: customerId, status: 'all', limit: 20 });
+    const live = subs.data.find((x) => ['active', 'trialing', 'past_due', 'unpaid'].includes(x.status));
+    const latest = live || subs.data[0];
+    if (latest) await this.syncSubscription(latest, Math.floor(Date.now() / 1000));
+    for await (const invoice of s.invoices.list({ customer: customerId, status: 'paid', limit: 100 })) {
+      await this.recordInvoice(invoice);
+    }
+    for await (const charge of s.charges.list({ customer: customerId, limit: 100, expand: ['data.refunds'] })) {
+      for (const refund of charge.refunds?.data || []) await this.recordRefund({ ...refund, charge } as Stripe.Refund);
     }
   },
 

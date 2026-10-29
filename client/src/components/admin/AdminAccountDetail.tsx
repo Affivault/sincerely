@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import {
   AlertTriangle, ArrowLeft, Ban, Check, Copy, CreditCard, ExternalLink, Gauge, History, Mail, NotebookPen,
-  PlusCircle, ShieldCheck, Wallet,
+  PlusCircle, RefreshCw, ShieldCheck, Wallet,
 } from 'lucide-react';
 import { CREDIT_ACTION_LABELS, PLANS, formatCredits, formatDateTime, isUnlimited, type PlanId } from '@lemlist/shared';
 import { adminApi } from '../../api/admin.api';
@@ -95,11 +95,18 @@ export function AdminAccountDetail({ id }: { id: string }) {
     mutationFn: () => adminApi.setPlan(id, plan, status),
     onSuccess: (r) => {
       refresh();
-      toast.success(r.stripe_managed
-        ? 'Plan saved. This account pays through Stripe, so Stripe will set the plan again at its next change.'
-        : 'Plan saved.');
+      toast.success(r.stripe === 'changed'
+        ? 'Plan changed in Stripe too. The new price starts at their next renewal.'
+        : r.stripe === 'canceled'
+          ? 'Plan saved, and their Stripe subscription is cancelled.'
+          : 'Plan saved.');
     },
     onError: (e) => toast.error(errMsg(e, 'The plan could not be changed.')),
+  });
+  const syncMut = useMutation({
+    mutationFn: () => adminApi.syncStripe(id),
+    onSuccess: () => { refresh(); toast.success('Synced from Stripe.'); },
+    onError: (e) => toast.error(errMsg(e, 'Stripe could not be reached.')),
   });
   const allowanceMut = useMutation({
     mutationFn: (v: number | null) => adminApi.setAllowance(id, v),
@@ -139,6 +146,8 @@ export function AdminAccountDetail({ id }: { id: string }) {
 
   const { account: a, credits, emails, totals, controls, subscription: sub } = data;
   const planChanged = plan !== a.plan || status !== a.status;
+  // Stripe still bills them, so a plan change is made there too (a lifetime grant already cancelled it).
+  const paysInStripe = !!sub?.stripe_subscription_id && a.plan !== 'lifetime' && ['active', 'trialing', 'past_due'].includes(a.status);
   const allowanceValue = allowance.trim() === '' ? null : Number(allowance);
   const allowanceChanged = allowanceValue !== (sub?.credit_allowance ?? null);
   const amountN = Number(amount);
@@ -170,9 +179,14 @@ export function AdminAccountDetail({ id }: { id: string }) {
               {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}{a.id.slice(0, 8)}
             </button>
             {sub?.stripe_customer_id && (
-              <a href={`https://dashboard.stripe.com/customers/${sub.stripe_customer_id}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-[var(--text-primary)]">
-                <CreditCard className="h-3 w-3" /> Stripe <ExternalLink className="h-2.5 w-2.5" />
-              </a>
+              <>
+                <a href={`https://dashboard.stripe.com/customers/${sub.stripe_customer_id}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-[var(--text-primary)]">
+                  <CreditCard className="h-3 w-3" /> Stripe <ExternalLink className="h-2.5 w-2.5" />
+                </a>
+                <button onClick={() => syncMut.mutate()} disabled={syncMut.isPending} className="inline-flex items-center gap-1 hover:text-[var(--text-primary)] disabled:opacity-60">
+                  <RefreshCw className={cn('h-3 w-3', syncMut.isPending && 'animate-spin')} /> {syncMut.isPending ? 'Syncing…' : 'Sync from Stripe'}
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -320,9 +334,23 @@ export function AdminAccountDetail({ id }: { id: string }) {
             </div>
             <p className="mt-2 text-micro text-[var(--text-tertiary)]">
               {PLANS[plan as PlanId] ? `${planLine(PLANS[plan as PlanId])}.` : ''}
-              {sub?.stripe_subscription_id && ' Pays through Stripe: Stripe sets the plan again at its next change.'}
+              {paysInStripe && ' Pays through Stripe: Starter and Growth change their Stripe price from the next renewal, and Free or Lifetime cancels their Stripe subscription.'}
             </p>
-            <Button className="mt-3 w-full" disabled={!planChanged || planMut.isPending} onClick={() => planMut.mutate()}>
+            <Button
+              className="mt-3 w-full"
+              disabled={!planChanged || planMut.isPending}
+              onClick={() => {
+                if (!paysInStripe || plan === a.plan) return planMut.mutate();
+                const cancels = plan === 'free' || plan === 'lifetime';
+                confirm({
+                  title: cancels ? 'Cancel their Stripe subscription?' : `Move them to ${PLANS[plan as PlanId]?.name} in Stripe?`,
+                  body: cancels
+                    ? `${a.email} stops being billed now, with no refund, and goes on ${PLANS[plan as PlanId]?.name}.`
+                    : `${a.email} is billed the ${PLANS[plan as PlanId]?.name} price from their next renewal. Nothing is charged now.`,
+                  confirmLabel: cancels ? 'Cancel and save' : 'Change in Stripe',
+                }, () => planMut.mutate());
+              }}
+            >
               {planMut.isPending ? 'Saving…' : 'Save plan'}
             </Button>
           </Card>

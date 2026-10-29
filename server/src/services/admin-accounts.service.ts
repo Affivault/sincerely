@@ -4,6 +4,7 @@ import { isOwnerEmail } from '../config/admin.js';
 import { billingService } from './billing.service.js';
 import { creditsService } from './credits.service.js';
 import { accountControls } from './account-controls.service.js';
+import { stripeService } from './stripe.service.js';
 import { allRows, cents, fetchAllUsers, fetchPayments, fetchSubscriptionRows, monthRange, reportRows, stripeFee } from './admin.service.js';
 import { PLANS, type PlanId } from '@lemlist/shared';
 import type {
@@ -71,6 +72,16 @@ async function writeControls(userId: string, patch: Record<string, any>) {
   }
 }
 
+/** The Stripe subscription if Stripe still bills it; a Stripe outage fails the change rather than leaving the two apart. */
+async function stripeLive(subscriptionId: string | null | undefined) {
+  if (!subscriptionId || !stripeService.isConfigured()) return null;
+  try {
+    return await stripeService.liveSubscription(subscriptionId);
+  } catch (err) {
+    throw new AppError(`Stripe could not be reached, so nothing was changed: ${(err as Error).message}`, 502);
+  }
+}
+
 async function countFor(table: string, userId: string): Promise<number> {
   const { count } = await supabaseAdmin.from(table).select('id', { count: 'exact', head: true }).eq('user_id', userId);
   return count || 0;
@@ -102,6 +113,8 @@ export const adminAccountsService = {
   async list(month?: string): Promise<AdminAccountsResponse> {
     const range = monthRange(month);
     const from = range.from.toISOString(), to = range.to.toISOString();
+    // Revenue comes from Stripe, so ask it first, as the overview does.
+    await stripeService.syncPaidInvoices(range.from);
     const [users, subs, controls, costs, charged, payments, lifetimeCosts, allPayments] = await Promise.all([
       fetchAllUsers(),
       fetchSubscriptionRows(),
@@ -276,18 +289,61 @@ export const adminAccountsService = {
 
   /* ─── Controls ─────────────────────────────────────────────────────── */
 
-  async setPlan(actor: string, userId: string, plan: string, status?: string) {
+  /**
+   * Put an account on a plan. A paying account is changed in Stripe itself,
+   * so Stripe bills the new plan and its next event keeps it: Starter and
+   * Growth swap the price (from the next renewal), Free and Lifetime cancel
+   * the subscription now. Scale and Trial are not sold through Stripe.
+   */
+  async setPlan(actor: string, userId: string, plan: string, status?: string): Promise<{ stripe: 'changed' | 'canceled' | null }> {
     if (!PLANS[plan as PlanId]) throw new AppError('Unknown plan.', 400);
     const nextStatus = status || (plan === 'free' ? 'free' : 'active');
     if (!ALLOWED_STATUSES.has(nextStatus)) throw new AppError('Unknown status.', 400);
     const user = await getUser(userId);
-    const before = await writeSubscription(userId, { plan, status: nextStatus });
+    const before = await getSubscriptionRow(userId);
+    const from = { plan: before?.plan || 'free', status: before?.status || 'free' };
+
+    let stripe: 'changed' | 'canceled' | null = null;
+    const live = before?.plan === 'lifetime' ? null : await stripeLive(before?.stripe_subscription_id);
+    if (live) {
+      if (plan !== 'starter' && plan !== 'growth' && plan !== 'free' && plan !== 'lifetime') {
+        throw new AppError(`${PLANS[plan as PlanId].name} is not sold through Stripe. Move them to Free first, which cancels their Stripe subscription, then set ${PLANS[plan as PlanId].name}.`, 400);
+      }
+      try {
+        if (plan === 'starter' || plan === 'growth') {
+          await stripeService.changeSubscriptionPlan(live, plan);
+          stripe = 'changed';
+        } else {
+          await stripeService.cancelSubscriptionNow(live);
+          stripe = 'canceled';
+        }
+      } catch (err) {
+        if (err instanceof AppError) throw err;
+        throw new AppError(`Stripe refused the change, so nothing was changed: ${(err as Error).message}`, 502);
+      }
+    }
+    // Stripe has written a changed plan already; everything else is ours to write.
+    if (stripe !== 'changed') await writeSubscription(userId, { plan, status: nextStatus });
+
     await this.audit(actor, 'plan', { id: userId, email: user.email || null }, {
-      from: { plan: before?.plan || 'free', status: before?.status || 'free' },
-      to: { plan, status: nextStatus },
+      from, to: { plan, status: stripe === 'changed' ? from.status : nextStatus }, ...(stripe ? { stripe } : {}),
     });
-    // Stripe owns a paying subscription: its next webhook writes its own plan back.
-    return { stripe_managed: !!before?.stripe_subscription_id && plan !== 'lifetime' };
+    return { stripe };
+  },
+
+  /** Pull this account fresh from Stripe: subscription, payments and refunds. */
+  async syncFromStripe(actor: string, userId: string): Promise<{ synced: boolean }> {
+    const user = await getUser(userId);
+    const sub = await getSubscriptionRow(userId);
+    if (!sub?.stripe_customer_id) return { synced: false };
+    if (!stripeService.isConfigured()) throw new AppError('Stripe is not configured on the server.', 503);
+    try {
+      await stripeService.syncCustomer(sub.stripe_customer_id);
+    } catch (err) {
+      throw new AppError(`Stripe could not be reached: ${(err as Error).message}`, 502);
+    }
+    await this.audit(actor, 'stripe_sync', { id: userId, email: user.email || null });
+    return { synced: true };
   },
 
   async setAllowance(actor: string, userId: string, value: number | null) {
