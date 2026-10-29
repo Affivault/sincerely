@@ -3,6 +3,16 @@ import { AuthRequest } from '../middleware/auth.middleware.js';
 import { adminService } from '../services/admin.service.js';
 import { adminAccountsService } from '../services/admin-accounts.service.js';
 import { supabaseAdmin } from '../config/supabase.js';
+import { adminControlService as ctl } from '../services/admin-control.service.js';
+
+/** An admin action: its result as JSON, or 204 when it has none. */
+const act = (fn: (req: AuthRequest) => Promise<unknown>) => async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const out = await fn(req);
+    if (out === undefined) res.status(204).send();
+    else res.json(out);
+  } catch (err) { next(err); }
+};
 
 export const adminController = {
   /** GET /admin/users?search= — all accounts with their plan */
@@ -134,4 +144,42 @@ export const adminController = {
       res.json(await adminAccountsService.auditLog(limit));
     } catch (err) { next(err); }
   },
+
+  /** GET /admin/billing?month=YYYY-MM — payments and refunds, plan mix, past due */
+  billing: act((req) => adminService.billing(typeof req.query.month === 'string' ? req.query.month : undefined)),
+
+  /* ─── Billing in Stripe, and the account ─────────────────────────────── */
+
+  /** POST /admin/accounts/:id/cancel { when: 'now' | 'period_end' } */
+  cancelSubscription: act((req) => ctl.cancelSubscription(req.userEmail!, req.params.id, req.body?.when === 'now' ? 'now' : 'period_end')),
+  /** POST /admin/accounts/:id/resume */
+  resumeSubscription: act((req) => ctl.resumeSubscription(req.userEmail!, req.params.id)),
+  /** POST /admin/accounts/:id/extend-trial { days } */
+  extendTrial: act((req) => ctl.extendTrial(req.userEmail!, req.params.id, Number(req.body?.days))),
+  /** POST /admin/accounts/:id/stripe-credit { amount_usd, note } */
+  stripeCredit: act((req) => ctl.creditBalance(req.userEmail!, req.params.id, Number(req.body?.amount_usd), String(req.body?.note ?? ''))),
+  /** POST /admin/accounts/:id/discount { percent, months } */
+  discount: act((req) => ctl.applyDiscount(req.userEmail!, req.params.id, Number(req.body?.percent), Number(req.body?.months))),
+  /** DELETE /admin/accounts/:id/discount */
+  removeDiscount: act((req) => ctl.removeDiscount(req.userEmail!, req.params.id)),
+  /** POST /admin/accounts/:id/refund { payment, amount_usd? } */
+  refund: act((req) => ctl.refund(req.userEmail!, req.params.id, String(req.body?.payment ?? ''), req.body?.amount_usd ?? null)),
+  /** POST /admin/accounts/:id/sign-in-link { kind: 'magiclink' | 'recovery' } */
+  signInLink: act((req) => ctl.signInLink(req.userEmail!, req.params.id, req.body?.kind === 'recovery' ? 'recovery' : 'magiclink')),
+  /** POST /admin/accounts/:id/reset-email */
+  resetEmail: act((req) => ctl.sendPasswordReset(req.userEmail!, req.params.id)),
+  /** POST /admin/accounts/:id/email { email } */
+  changeEmail: act((req) => ctl.changeEmail(req.userEmail!, req.params.id, String(req.body?.email ?? ''))),
+  /** POST /admin/accounts/:id/verify-email */
+  verifyEmail: act((req) => ctl.verifyEmail(req.userEmail!, req.params.id)),
+  /** POST /admin/accounts/:id/sign-out */
+  signOut: act((req) => ctl.signOutEverywhere(req.userEmail!, req.params.id)),
+  /** POST /admin/accounts/:id/pause-campaigns */
+  pauseCampaigns: act((req) => ctl.pauseCampaigns(req.userEmail!, req.params.id)),
+  /** POST /admin/accounts/:id/sending-hold { hold: boolean } */
+  sendingHold: act((req) => ctl.setSendingHold(req.userEmail!, req.params.id, req.body?.hold !== false)),
+  /** POST /admin/accounts/:id/view-as */
+  viewAs: act((req) => ctl.viewAs(req.userEmail!, req.params.id)),
+  /** POST /admin/accounts/:id/delete { confirm_email } */
+  deleteAccount: act((req) => ctl.deleteAccount(req.userEmail!, req.params.id, String(req.body?.confirm_email ?? ''))),
 };

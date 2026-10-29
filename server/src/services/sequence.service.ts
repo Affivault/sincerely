@@ -4,6 +4,7 @@ import { classifyReply } from './sara.service.js';
 import { sendCampaignEmail, describeSmtpError } from './email-sender.service.js';
 import { suppressionService } from './suppression.service.js';
 import { billingService } from './billing.service.js';
+import { accountControls } from './account-controls.service.js';
 import { defaultBookingLinkUrl } from './booking.service.js';
 import * as sse from './sse.service.js';
 import { nowInTimezone, partsInTimezone, startOfDayInTimezone, tzWallTimeToUtc } from '../utils/timezone.js';
@@ -573,6 +574,17 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
     await supabaseAdmin
       .from('campaign_contacts')
       .update({ next_send_at: nextWindow.toISOString() })
+      .eq('id', cc.id);
+    return;
+  }
+
+  // The owner has put a hold on this account's sending: check again in an
+  // hour, so it carries on soon after the hold is lifted.
+  if (ownerId && await accountControls.isSendingPaused(ownerId)) {
+    if (dailyLimit > 0) await refundCampaignDailySend(cc.campaign_id, dailyPeriodStart);
+    await supabaseAdmin
+      .from('campaign_contacts')
+      .update({ next_send_at: new Date(Date.now() + 60 * 60 * 1000).toISOString() })
       .eq('id', cc.id);
     return;
   }

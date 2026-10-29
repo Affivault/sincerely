@@ -5,6 +5,7 @@ import { Sidebar } from './Sidebar';
 import { Header, HEADER_H } from './Header';
 import { ErrorBoundary } from '../ErrorBoundary';
 import { UpgradeNag } from '../UpgradeNag';
+import { ViewAsBanner } from '../admin/ViewAsBanner';
 import { CommandPalette, PeekDrawer, ShortcutsOverlay, warmOverlays } from './Overlays';
 import { ConfirmProvider } from '../ui/ConfirmDialog';
 import { OverflowTooltip } from '../ui/OverflowTooltip';
@@ -304,6 +305,7 @@ function AppContent() {
         }}
       >
       <div className="min-h-[calc(100vh-16px)] bg-[var(--bg-surface)]">
+        <ViewAsBanner />
         {showBar && here.section && <SectionBar section={here.section} active={here.tab} />}
         {/* Generous workspace width — effectively full-bleed on laptops so data
             tables breathe, while capping ultrawide so forms stay readable.

@@ -59,7 +59,9 @@ function detail(id) {
   return {
     account: a,
     subscription: { plan: a.plan, status: a.status, trial_ends_at: a.status === 'trialing' ? ahead(9) : null, current_period_end: ahead(18), stripe_customer_id: a.has_stripe ? 'cus_Q1w2e3r4' : null, stripe_subscription_id: a.has_stripe ? 'sub_9z8y7x' : null, credit_allowance: a.custom_allowance ? a.credit_allowance : null },
-    controls: { suspended_at: a.suspended ? ago(3) : null, suspended_reason: a.suspended ? 'Chargeback' : null, note: a.custom_allowance ? 'Scale deal: 7,500 credits a month, billed annually.' : null },
+    controls: { suspended_at: a.suspended ? ago(3) : null, suspended_reason: a.suspended ? 'Chargeback' : null, note: a.custom_allowance ? 'Scale deal: 7,500 credits a month, billed annually.' : null, sessions_revoked_at: null, sending_paused_at: a.plan === 'starter' && a.status === 'active' ? ago(1) : null },
+    stripe: a.has_stripe ? { status: a.status, price_usd: a.revenue_usd, interval: 'month', cancel_at_period_end: a.plan === 'growth', cancel_at: a.plan === 'growth' ? ahead(18) : null, trial_end: null, current_period_end: ahead(18), discount: a.plan === 'scale' ? '20% off for 3 months' : null, balance_usd: a.plan === 'scale' ? -25 : 0 } : null,
+    live_campaigns: a.suspended ? 0 : 3,
     credits: { allowance: a.credit_allowance, used: a.credits_used, plan_remaining: Math.max(0, a.credit_allowance - a.credits_used), bonus: 50, remaining: Math.max(0, a.credit_allowance - a.credits_used) + 50, resets_at: ahead(18) },
     emails: { sent: 1874, limit: 10000, inboxes: 3, inbox_limit: 10 },
     totals: { lifetime_revenue_usd: a.lifetime_revenue_usd, lifetime_cost_usd: a.cost_usd * 2.5, lifetime_fees_usd: 9.51, lifetime_profit_usd: a.lifetime_profit_usd, lifetime_credits_used: a.credits_used * 2.4 },
@@ -85,9 +87,14 @@ function adminAnswer(method, path) {
   if (method === 'POST') {
     if (/\/plan$/.test(path)) return { stripe: 'changed' };
     if (/\/(stripe-)?sync$/.test(path)) return { synced: true };
+    if (/\/view-as$/.test(path)) return { token: 'harness-view-as', expires_at: ahead(1 / 48), email: 'maud@northbeam.io' };
+    if (/\/sign-in-link$/.test(path)) return { link: 'https://app.usesincerely.com/auth/v1/verify?token=harness&type=magiclink' };
+    if (/\/pause-campaigns$/.test(path)) return { paused: 3 };
+    if (/\/refund$/.test(path)) return { refunded_usd: 99 };
+    if (/\/extend-trial$/.test(path)) return { until: ahead(16) };
     return { success: true };
   }
-  if (path === '/admin/stats') return { total_users: 312, lifetime_users: 4, paying_users: 41, free_users: 267, mailboxes: 388, domains: 97, contacts: 184220, campaigns: 520 };
+  if (path === '/admin/stats') return { total_users: 312, lifetime_users: 4, paying_users: 41, free_users: 267, mailboxes: 388, domains: 97, contacts: 184220, campaigns: 520, trialing_users: 9, past_due_users: 2, active_7d: 128, signups_30d: 37, est_mrr_usd: 3261 };
   if (path === '/admin/usage') {
     const users = accounts.filter((a) => a.credits_used || a.revenue_usd).map((a) => ({ user_id: a.id, email: a.email, plan: a.plan, status: a.status, credits_charged: a.credits_used, provider_credits: a.credits_used * 0.6, cost_usd: a.cost_usd, revenue_usd: a.revenue_usd, fees_usd: a.revenue_usd ? 3.17 : 0, profit_usd: a.profit_usd, losing: a.losing }));
     return { month: month(), usd_per_provider_credit: 0.019, totals: { provider_credits: 1428.4, cost_usd: 27.14, revenue_usd: 437, fees_usd: 13.57, profit_usd: 396.29, credits_charged: 2418.5 }, unattributed_cost_usd: 0.42,
@@ -96,6 +103,13 @@ function adminAnswer(method, path) {
   }
   if (path === '/admin/accounts') return { month: month(), accounts, controls_ready: true };
   if (/^\/admin\/accounts\/[^/]+$/.test(path)) return detail(path.split('/').pop());
+  if (path === '/admin/billing') {
+    const payments = accounts.filter((a) => a.revenue_usd).flatMap((a, i) => [{ id: `bp${i}`, user_id: a.id, email: a.email, kind: 'subscription', amount_usd: a.revenue_usd, stripe_ref: `in_1Q${i}abc`, paid_at: ago(i * 3 + 1) }]);
+    payments.push({ id: 'bp-pack', user_id: accounts[1].id, email: accounts[1].email, kind: 'credit_pack', amount_usd: 49, stripe_ref: 'cs_test_a1', paid_at: ago(5) }, { id: 'bp-ref', user_id: accounts[0].id, email: accounts[0].email, kind: 'refund', amount_usd: -20, stripe_ref: 're_1Qabc', paid_at: ago(6) });
+    return { month: month(), payments, totals: { gross_usd: 486, refunds_usd: 20, net_usd: 466, fees_usd: 15.29, count: payments.length },
+      plan_mix: [{ plan: 'free', status: 'free', count: 267 }, { plan: 'starter', status: 'active', count: 18 }, { plan: 'growth', status: 'active', count: 17 }, { plan: 'growth', status: 'trialing', count: 9 }, { plan: 'scale', status: 'active', count: 4 }, { plan: 'growth', status: 'past_due', count: 2 }, { plan: 'lifetime', status: 'active', count: 4 }],
+      est_mrr_usd: 3261, past_due: [{ id: accounts[2].id, email: accounts[2].email, plan: 'growth' }], revenue_synced: true };
+  }
   if (path === '/admin/audit') return { entries: audit, controls_ready: true };
   return undefined;
 }

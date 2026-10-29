@@ -15,6 +15,10 @@
  *     every change is written to the audit log
  *   - a paying account's plan is changed in Stripe itself, so Stripe's next
  *     event cannot quietly put the old plan back
+ *   - "view as" is read-only, and a forged one is just a bad token
+ *   - "sign out everywhere" refuses tokens issued before it
+ *   - a sending hold stops every send; refunds only touch the account's own
+ *     payments; the owners can never be deleted
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -44,6 +48,7 @@ let controls: Record<string, any> = {};
 let ledger: any[] = [];
 let audit: any[] = [];
 let bans: Record<string, string> = {};
+let payments: any[] = [];
 const subscription: any = { plan: 'growth', status: 'active' };
 
 function from(name: string): any {
@@ -51,6 +56,7 @@ function from(name: string): any {
   const run = () => {
     if (name === 'account_controls') return { data: controls[filters.user_id] ?? null, error: null };
     if (name === 'subscriptions') return { data: subscription, error: null };
+    if (name === 'billing_payments') return { data: payments.find((p) => p.stripe_ref === filters.stripe_ref) ?? null, error: null };
     if (name === 'prospect_credit_ledger') return { data: ledger.filter((r) => r.user_id === filters.user_id && (!filters.bucket || r.bucket === filters.bucket)), error: null };
     return { data: null, error: null };
   };
@@ -60,7 +66,8 @@ function from(name: string): any {
     gte: () => chain, in: () => chain, order: () => chain, limit: () => chain, range: () => chain,
     maybeSingle: () => chain, single: () => chain,
     insert: (row: any) => {
-      if (name === 'prospect_credit_ledger') ledger.push(row);
+      if (name === 'billing_payments') return { data: payments.find((p) => p.stripe_ref === filters.stripe_ref) ?? null, error: null };
+    if (name === 'prospect_credit_ledger') ledger.push(row);
       if (name === 'admin_audit_log') audit.push(row);
       return Promise.resolve({ data: null, error: null });
     },
@@ -68,6 +75,7 @@ function from(name: string): any {
       if (name === 'account_controls') controls[row.user_id] = { ...(controls[row.user_id] || {}), ...row };
       return Promise.resolve({ data: null, error: null });
     },
+    delete: () => chain,
     update: (patch: any) => { if (name === 'subscriptions') Object.assign(subscription, patch); return chain; },
     then: (res: any, rej: any) => Promise.resolve(run()).then(res, rej),
   };
@@ -79,6 +87,8 @@ const { supabaseAdmin } = await import('../src/config/supabase.js');
 (supabaseAdmin as any).auth.admin.getUserById = async (id: string) => ({
   data: { user: { id, email: id === OWNER_ID ? OWNER : 'someone@example.com', created_at: new Date().toISOString() } }, error: null,
 });
+// Tokens we did not sign go to Supabase, which turns them down.
+(supabaseAdmin as any).auth.getUser = async () => ({ data: { user: null }, error: { message: 'invalid JWT' } });
 (supabaseAdmin as any).auth.admin.updateUserById = async (id: string, attrs: any) => { bans[id] = attrs.ban_duration; return { data: {}, error: null }; };
 
 const { isOwnerEmail } = await import('../src/config/admin.js');
@@ -102,7 +112,11 @@ async function call(mw: any, req: any) {
   await mw(req, res, () => { passed = true; });
   return { res, passed };
 }
-const bearer = (sub: string, email: string) => ({ headers: { authorization: `Bearer ${jwt.sign({ sub, email }, process.env.SUPABASE_JWT_SECRET!)}` } });
+const bearer = (sub: string, email: string, method = 'GET', iat?: number) => ({
+  method,
+  headers: { authorization: `Bearer ${jwt.sign(iat ? { sub, email, iat } : { sub, email }, process.env.SUPABASE_JWT_SECRET!)}` },
+});
+const withToken = (token: string, method = 'GET') => ({ method, headers: { authorization: `Bearer ${token}` } });
 
 console.log('\nThe owner is known to the server alone');
 {
@@ -220,6 +234,65 @@ console.log('\nA paying account is changed in Stripe too');
   reachable = true;
 
   Object.assign(subscription, { plan: 'growth', status: 'active', stripe_subscription_id: null });
+}
+
+console.log('\nViewing the app as an account');
+{
+  const { viewAs } = await import('../src/services/view-as.service.js');
+  const { token } = viewAs.mint(USER_ID, 'someone@example.com', OWNER);
+  const read = await call(authMiddleware, withToken(token, 'GET'));
+  is('it reads as them', read.passed);
+  const req: any = withToken(token, 'GET');
+  await call(authMiddleware, req);
+  is('as that account, with who is looking', req.userId === USER_ID && req.viewAsBy === OWNER);
+  for (const m of ['POST', 'PUT', 'PATCH', 'DELETE']) {
+    const w = await call(authMiddleware, withToken(token, m));
+    is(`and cannot ${m}`, !w.passed && w.res.statusCode === 403 && w.res.body?.code === 'VIEW_AS_READ_ONLY');
+  }
+  const forged = jwt.sign({ sub: USER_ID, email: 'someone@example.com', act: OWNER }, 'not-our-key', { issuer: 'sincerely-view-as', expiresIn: '30m' });
+  const f = await call(authMiddleware, withToken(forged));
+  is('a forged one is refused', !f.passed && f.res.statusCode === 401);
+  const expired = jwt.sign({ sub: USER_ID, email: 'someone@example.com', act: OWNER, exp: Math.floor(Date.now() / 1000) - 60 }, 'x');
+  is('and an expired or foreign one is not a view-as token at all', viewAs.verify(expired) === null);
+}
+
+console.log('\nSigning out everywhere');
+{
+  controls = {}; accountControls.forget(USER_ID);
+  const old = Math.floor(Date.now() / 1000) - 120;
+  controls[USER_ID] = { user_id: USER_ID, sessions_revoked_at: new Date(Date.now() - 60_000).toISOString() };
+  accountControls.forget(USER_ID);
+  const before = await call(authMiddleware, bearer(USER_ID, 'someone@example.com', 'GET', old));
+  is('a token issued before it is refused', !before.passed && before.res.statusCode === 401);
+  const after = await call(authMiddleware, bearer(USER_ID, 'someone@example.com', 'GET'));
+  is('signing in again works', after.passed);
+  controls = {}; accountControls.forget(USER_ID);
+}
+
+console.log('\nA hold on sending, refunds, deleting');
+{
+  controls = { [USER_ID]: { user_id: USER_ID, sending_paused_at: new Date().toISOString() } };
+  accountControls.forget(USER_ID);
+  is('a held account has no email quota', (await billingService.hasEmailQuota(USER_ID)) === false);
+  is('and cannot reserve a send', (await billingService.reserveEmailQuota(USER_ID)) === false);
+  controls = {}; accountControls.forget(USER_ID);
+
+  const { adminControlService } = await import('../src/services/admin-control.service.js');
+  const { stripeService } = await import('../src/services/stripe.service.js');
+  let refunded = '';
+  Object.assign(stripeService as any, { isConfigured: () => true, refundPayment: async (ref: string) => { refunded = ref; return { refunded_usd: 99 }; } });
+  payments = [{ stripe_ref: 'in_theirs', amount_usd: 99, kind: 'subscription', user_id: USER_ID }, { stripe_ref: 'in_other', amount_usd: 99, kind: 'subscription', user_id: 'someone-else' }];
+  try { await adminControlService.refund(OWNER, USER_ID, 'in_other'); is('another account\'s payment cannot be refunded from here', false); }
+  catch (e: any) { is('another account\'s payment cannot be refunded from here', e?.statusCode === 404 && refunded === ''); }
+  try { await adminControlService.refund(OWNER, USER_ID, 'in_theirs', 150); is('nor more than was paid', false); }
+  catch (e: any) { is('nor more than was paid', e?.statusCode === 400 && refunded === ''); }
+  await adminControlService.refund(OWNER, USER_ID, 'in_theirs');
+  is('their own is refunded, and logged', refunded === 'in_theirs' && audit.some((a) => a.action === 'refund'));
+
+  try { await adminControlService.deleteAccount(OWNER, OWNER_ID, OWNER); is('an owner account cannot be deleted', false); }
+  catch (e: any) { is('an owner account cannot be deleted', e?.statusCode === 400); }
+  try { await adminControlService.deleteAccount(OWNER, USER_ID, 'wrong@example.com'); is('deleting needs their email typed exactly', false); }
+  catch (e: any) { is('deleting needs their email typed exactly', e?.statusCode === 400); }
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

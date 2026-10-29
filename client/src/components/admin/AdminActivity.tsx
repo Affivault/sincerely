@@ -5,12 +5,15 @@ import { formatDateTime } from '@lemlist/shared';
 import { adminApi } from '../../api/admin.api';
 import { Spinner } from '../ui/Spinner';
 import { describeAudit } from './adminFormat';
+import { AdminHeader } from './AdminShell';
 
 /* Every change made from the admin backend, newest first. */
 export function AdminActivity() {
   const { data, isLoading, isError, error } = useQuery({ queryKey: ['admin', 'audit'], queryFn: () => adminApi.audit(300) });
 
   return (
+    <>
+    <AdminHeader title="Activity" sub="Every change made from the admin backend, newest first." />
     <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
       <div className="flex items-center gap-2 px-4 h-12 border-b border-[var(--border-subtle)]">
         <History className="h-4 w-4 text-[var(--indigo-text)]" />
@@ -35,7 +38,7 @@ export function AdminActivity() {
                 <p className="text-body text-[var(--text-primary)]">{describeAudit(e)}</p>
                 <p className="text-caption text-[var(--text-tertiary)] truncate">
                   {e.target_user_id
-                    ? <Link to={`/admin/accounts/${e.target_user_id}`} className="hover:underline text-[var(--text-secondary)]">{e.target_email || e.target_user_id}</Link>
+                    ? <Link to={`/admin/accounts?a=${e.target_user_id}`} className="hover:underline text-[var(--text-secondary)]">{e.target_email || e.target_user_id}</Link>
                     : 'Platform'}
                   {' · by '}{e.actor_email}
                 </p>
@@ -46,5 +49,6 @@ export function AdminActivity() {
         </ul>
       )}
     </div>
+    </>
   );
 }

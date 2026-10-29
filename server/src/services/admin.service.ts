@@ -4,8 +4,9 @@ import { AppError } from '../middleware/error.middleware.js';
 import { stripeService } from './stripe.service.js';
 import { icypeasBalance } from './prospect-providers.js';
 import { fetchAllPages } from '../utils/batch.js';
+import { PLANS, type PlanId } from '@lemlist/shared';
 import type {
-  AdminProviderBalance, AdminStats, AdminUsageActionRow, AdminUsageReport, AdminUsageUserRow, AdminUserRow, AdminUsersResponse,
+  AdminBillingPayment, AdminBillingReport, AdminProviderBalance, AdminStats, AdminUsageActionRow, AdminUsageReport, AdminUsageUserRow, AdminUserRow, AdminUsersResponse,
 } from '@lemlist/shared';
 
 // How many auth users we'll scan at most (pages × perPage). Fine well past
@@ -74,6 +75,16 @@ export function fetchPayments(from?: string, to?: string) {
 }
 
 export const cents = (n: number) => Math.round(n * 100) / 100;
+
+/** Each active paid subscription at its plan's monthly list price. Discounts and annual billing are not known here. */
+function estimatedMrr(subs: Iterable<any>): number {
+  let mrr = 0;
+  for (const sub of subs) {
+    if (sub.status !== 'active' || !sub.stripe_subscription_id) continue;
+    mrr += PLANS[sub.plan as PlanId]?.priceMonthly || 0;
+  }
+  return cents(mrr);
+}
 /** Stripe's standard card fee, as an estimate: the real one is on each charge's balance transaction. */
 export const stripeFee = (amountUsd: number) => (amountUsd > 0 ? amountUsd * 0.029 + 0.3 : 0);
 
@@ -263,17 +274,21 @@ export const adminService = {
   async stats(): Promise<AdminStats> {
     const [users, subs, mailboxes, domains, contacts, campaigns] = await Promise.all([
       fetchAllUsers(),
-      fetchSubscriptions(),
+      fetchSubscriptionRows(),
       countRows('smtp_accounts'),
       countRows('sending_domains'),
       countRows('contacts'),
       countRows('campaigns'),
     ]);
-    let lifetime = 0, paying = 0;
+    let lifetime = 0, paying = 0, trialing = 0, pastDue = 0;
     for (const sub of subs.values()) {
       if (sub.plan === 'lifetime') lifetime++;
       else if ((sub.status === 'active' || sub.status === 'trialing') && sub.plan !== 'free' && sub.plan !== 'trial') paying++;
+      if (sub.status === 'trialing' && sub.plan !== 'lifetime') trialing++;
+      if (sub.status === 'past_due') pastDue++;
     }
+    const now = Date.now();
+    const since = (iso: string | null | undefined, days: number) => !!iso && now - new Date(iso).getTime() < days * 86400000;
     return {
       total_users: users.length,
       lifetime_users: lifetime,
@@ -283,6 +298,50 @@ export const adminService = {
       domains,
       contacts,
       campaigns,
+      trialing_users: trialing,
+      past_due_users: pastDue,
+      active_7d: users.filter((u: any) => since(u.last_sign_in_at, 7)).length,
+      signups_30d: users.filter((u: any) => since(u.created_at, 30)).length,
+      est_mrr_usd: estimatedMrr(subs.values()),
+    };
+  },
+
+  /** Every payment and refund in a month, with who made it, and the plan mix now. */
+  async billing(month?: string): Promise<AdminBillingReport> {
+    const range = monthRange(month);
+    const revenueSynced = await stripeService.syncPaidInvoices(range.from);
+    const [rows, users, subs] = await Promise.all([
+      allRows((a, b) => supabaseAdmin.from('billing_payments').select('id, user_id, kind, amount_usd, stripe_ref, paid_at')
+        .gte('paid_at', range.from.toISOString()).lt('paid_at', range.to.toISOString())
+        .order('paid_at', { ascending: false }).order('id').range(a, b)).catch(() => [] as any[]),
+      fetchAllUsers(),
+      fetchSubscriptionRows(),
+    ]);
+    const emailOf = new Map(users.map((u: any) => [u.id, u.email || null]));
+    const payments: AdminBillingPayment[] = (rows as any[]).map((r) => ({
+      id: r.id, user_id: r.user_id, email: r.user_id ? emailOf.get(r.user_id) ?? null : null,
+      kind: r.kind, amount_usd: Number(r.amount_usd) || 0, stripe_ref: r.stripe_ref, paid_at: r.paid_at,
+    }));
+    const gross = payments.filter((p) => p.amount_usd > 0).reduce((s, p) => s + p.amount_usd, 0);
+    const refunds = -payments.filter((p) => p.amount_usd < 0).reduce((s, p) => s + p.amount_usd, 0);
+    const fees = payments.reduce((s, p) => s + stripeFee(p.amount_usd), 0);
+
+    const mix = new Map<string, { plan: string; status: string; count: number }>();
+    const pastDue: AdminBillingReport['past_due'] = [];
+    for (const sub of subs.values()) {
+      const key = `${sub.plan}|${sub.status}`;
+      const m = mix.get(key) || { plan: sub.plan, status: sub.status, count: 0 };
+      m.count++; mix.set(key, m);
+      if (sub.status === 'past_due') pastDue.push({ id: sub.user_id, email: emailOf.get(sub.user_id) || '(no email)', plan: sub.plan });
+    }
+    return {
+      month: range.label,
+      payments,
+      totals: { gross_usd: cents(gross), refunds_usd: cents(refunds), net_usd: cents(gross - refunds), fees_usd: cents(fees), count: payments.length },
+      plan_mix: [...mix.values()].sort((a, b) => b.count - a.count),
+      est_mrr_usd: estimatedMrr(subs.values()),
+      past_due: pastDue,
+      revenue_synced: revenueSynced,
     };
   },
 

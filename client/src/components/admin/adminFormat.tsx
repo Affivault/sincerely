@@ -83,6 +83,24 @@ export function describeAudit(e: AdminAuditEntry): string {
     case 'lifetime_grant': return 'Granted lifetime access';
     case 'lifetime_revoke': return 'Revoked lifetime access';
     case 'stripe_sync': return 'Synced the account from Stripe';
+    case 'cancel_subscription': return d.when === 'now' ? 'Cancelled their Stripe subscription now' : 'Set their subscription to cancel at the period end';
+    case 'resume_subscription': return 'Kept their subscription (undid the cancellation)';
+    case 'extend_trial': return `Extended the trial by ${d.days} day${d.days === 1 ? '' : 's'}`;
+    case 'stripe_credit': return `Gave ${usd(Number(d.amount_usd) || 0)} account credit in Stripe${d.note ? `: “${d.note}”` : ''}`;
+    case 'discount': return `Applied ${d.percent}% off${d.months ? ` for ${d.months} month${d.months === 1 ? '' : 's'}` : ' for good'}`;
+    case 'discount_removed': return 'Removed their discount';
+    case 'refund': return `Refunded ${usd(Number(d.amount_usd) || 0)}`;
+    case 'sign_in_link': return 'Made a one-time sign-in link';
+    case 'reset_link': return 'Made a password reset link';
+    case 'reset_email': return 'Sent a password reset email';
+    case 'email': return `Changed the email from ${d.from} to ${d.to}`;
+    case 'verify_email': return 'Marked the email as confirmed';
+    case 'sign_out': return 'Signed them out everywhere';
+    case 'pause_campaigns': return `Paused ${d.paused ?? 0} campaign${d.paused === 1 ? '' : 's'}`;
+    case 'hold_sending': return 'Put all sending on hold';
+    case 'release_sending': return 'Lifted the sending hold';
+    case 'view_as': return 'Viewed the app as them (read-only)';
+    case 'delete_account': return 'Deleted the account';
     default: return e.action;
   }
 }

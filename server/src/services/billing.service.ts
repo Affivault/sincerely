@@ -137,6 +137,7 @@ export const billingService = {
 
   /** False when the user has hit their monthly email cap. */
   async hasEmailQuota(userId: string): Promise<boolean> {
+    if (await accountControls.isSendingPaused(userId)) return false;
     const limits = await this.getLimits(userId);
     if (limits.emailsPerMonth < 0) return true; // unlimited
     const sent = await this.getEmailsSentThisPeriod(userId);
@@ -149,6 +150,8 @@ export const billingService = {
    * this on every real send path so the cap can't be raced or bypassed.
    */
   async reserveEmailQuota(userId: string): Promise<boolean> {
+    // The owner's hold on an account's sending stops every send path here.
+    if (await accountControls.isSendingPaused(userId)) return false;
     const limits = await this.getLimits(userId);
     const { data, error } = await supabaseAdmin.rpc('reserve_email_quota', {
       p_user_id: userId,
