@@ -304,6 +304,109 @@ export const stripeService = {
     }
   },
 
+  /** What Stripe says about a subscription, for the admin account page. */
+  async subscriptionSummary(subscriptionId: string): Promise<{
+    status: string; price_usd: number | null; interval: string | null; cancel_at_period_end: boolean;
+    cancel_at: string | null; trial_end: string | null; current_period_end: string | null; discount: string | null; balance_usd: number;
+  } | null> {
+    if (!stripe) return null;
+    const sub = await stripe.subscriptions.retrieve(subscriptionId, { expand: ['discounts', 'customer'] });
+    const item = sub.items.data[0];
+    const price = item?.price;
+    const periodEnd = ((sub as any).current_period_end as number | undefined) ?? ((item as any)?.current_period_end as number | undefined);
+    const disc = (sub.discounts || []).map((d: any) => (typeof d === 'object' ? d?.source?.coupon ?? d?.coupon : null)).find(Boolean) as any;
+    const coupon = disc && typeof disc === 'object' ? disc : null;
+    const customer = typeof sub.customer === 'object' && !('deleted' in sub.customer && sub.customer.deleted) ? (sub.customer as Stripe.Customer) : null;
+    return {
+      status: sub.status,
+      price_usd: price?.unit_amount != null ? price.unit_amount / 100 : null,
+      interval: price?.recurring?.interval ?? null,
+      cancel_at_period_end: !!sub.cancel_at_period_end,
+      cancel_at: sub.cancel_at ? new Date(sub.cancel_at * 1000).toISOString() : null,
+      trial_end: sub.trial_end ? new Date(sub.trial_end * 1000).toISOString() : null,
+      current_period_end: periodEnd ? new Date(periodEnd * 1000).toISOString() : null,
+      discount: coupon ? (coupon.percent_off ? `${coupon.percent_off}% off` : coupon.amount_off ? `$${coupon.amount_off / 100} off` : coupon.name || 'Discount') + (coupon.duration === 'repeating' && coupon.duration_in_months ? ` for ${coupon.duration_in_months} months` : coupon.duration === 'forever' ? ' forever' : '') : null,
+      // Stripe keeps credit as a negative balance.
+      balance_usd: customer ? -(customer.balance || 0) / 100 : 0,
+    };
+  },
+
+  async updateCustomerEmail(customerId: string, email: string): Promise<void> {
+    await requireStripe().customers.update(customerId, { email });
+  },
+
+  /** Stop at the end of the paid period, or take that back. */
+  async setCancelAtPeriodEnd(subscriptionId: string, cancel: boolean): Promise<void> {
+    const s = requireStripe();
+    const updated = await s.subscriptions.update(subscriptionId, { cancel_at_period_end: cancel });
+    await this.syncSubscription(updated, Math.floor(Date.now() / 1000));
+  },
+
+  /** Push a trial's end out by some days. A paid subscription gets the days free before its next charge. */
+  async extendTrial(subscriptionId: string, days: number): Promise<string> {
+    const s = requireStripe();
+    const sub = await s.subscriptions.retrieve(subscriptionId);
+    const item = sub.items.data[0];
+    const periodEnd = ((sub as any).current_period_end as number | undefined) ?? ((item as any)?.current_period_end as number | undefined);
+    const from = Math.max(sub.trial_end || 0, sub.status === 'trialing' ? 0 : periodEnd || 0, Math.floor(Date.now() / 1000));
+    const trialEnd = from + Math.round(days * 86400);
+    const updated = await s.subscriptions.update(subscriptionId, { trial_end: trialEnd, proration_behavior: 'none' });
+    await this.syncSubscription(updated, Math.floor(Date.now() / 1000));
+    return new Date(trialEnd * 1000).toISOString();
+  },
+
+  /** Put money on the customer's Stripe balance: it comes off their next invoices. */
+  async creditBalance(customerId: string, amountUsd: number, description: string): Promise<void> {
+    const s = requireStripe();
+    await s.customers.createBalanceTransaction(customerId, {
+      amount: -Math.round(amountUsd * 100), currency: 'usd', description: description.slice(0, 350),
+    });
+  },
+
+  /** A percentage off for some months (0 = forever), on the subscription. */
+  async applyDiscount(subscriptionId: string, percentOff: number, months: number): Promise<void> {
+    const s = requireStripe();
+    const coupon = await s.coupons.create(months > 0
+      ? { percent_off: percentOff, duration: 'repeating', duration_in_months: months, name: `Sincerely ${percentOff}% off` }
+      : { percent_off: percentOff, duration: 'forever', name: `Sincerely ${percentOff}% off` });
+    await s.subscriptions.update(subscriptionId, { discounts: [{ coupon: coupon.id }] });
+  },
+
+  /** Take any discount off the subscription. */
+  async removeDiscount(subscriptionId: string): Promise<void> {
+    const s = requireStripe();
+    await s.subscriptions.update(subscriptionId, { discounts: '' as any });
+  },
+
+  /**
+   * Refund one recorded payment (an invoice, or a checkout session from the
+   * old credit packs), in full or in part, and record the refund.
+   */
+  async refundPayment(ref: string, amountUsd?: number): Promise<{ refunded_usd: number }> {
+    const s = requireStripe();
+    let target: { payment_intent?: string; charge?: string } | null = null;
+    if (ref.startsWith('in_')) {
+      const invoice = await s.invoices.retrieve(ref, { expand: ['payments'] });
+      for (const p of invoice.payments?.data || []) {
+        const pay: any = p.payment;
+        if (pay?.payment_intent) { target = { payment_intent: typeof pay.payment_intent === 'string' ? pay.payment_intent : pay.payment_intent.id }; break; }
+        if (pay?.charge) { target = { charge: typeof pay.charge === 'string' ? pay.charge : pay.charge.id }; break; }
+      }
+    } else if (ref.startsWith('cs_')) {
+      const session = await s.checkout.sessions.retrieve(ref);
+      if (session.payment_intent) target = { payment_intent: typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent.id };
+    }
+    if (!target) throw new AppError('Stripe has no payment to refund for this one.', 400);
+    const refund = await s.refunds.create({
+      ...target,
+      ...(amountUsd && amountUsd > 0 ? { amount: Math.round(amountUsd * 100) } : {}),
+      reason: 'requested_by_customer',
+      expand: ['charge'],
+    });
+    await this.recordRefund(refund);
+    return { refunded_usd: (refund.amount || 0) / 100 };
+  },
+
   /** Stripe ids already in billing_payments since a date, so a sync skips them. */
   async knownRefs(since: Date): Promise<Set<string>> {
     const known = new Set<string>();

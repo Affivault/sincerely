@@ -7,6 +7,7 @@ import { AuthProvider } from './context/AuthContext';
 import { queryClient } from './lib/queryClient';
 import App from './App';
 import { ABSOLUTE_API_URL } from './lib/constants';
+import { claimViewAs } from './lib/viewAs';
 import './index.css';
 
 /**
@@ -22,6 +23,9 @@ import './index.css';
  * here and is meaningless to another program reading it from outside.
  */
 (window as unknown as { __SINCERELY_API_URL?: string }).__SINCERELY_API_URL = ABSOLUTE_API_URL;
+
+// A tab opened from the admin backend to view the app as an account.
+claimViewAs();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

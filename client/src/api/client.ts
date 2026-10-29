@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { API_URL } from '../lib/constants';
 import { notifyUpgrade } from '../lib/upgradeNag';
 import { rememberReturnTo } from '../lib/returnTo';
+import { endViewAs, viewAsSession } from '../lib/viewAs';
 
 /** Off to sign in again, keeping the page they were on to come back to. */
 function toLogin() {
@@ -20,6 +21,13 @@ const apiClient = axios.create({
 
 // Attach Supabase auth token to every request
 apiClient.interceptors.request.use(async (config) => {
+  // The owner viewing the app as an account: their token, not the session.
+  const viewing = viewAsSession();
+  if (viewing) {
+    config.headers.Authorization = `Bearer ${viewing.token}`;
+    (config as any)._viewAs = true;
+    return config;
+  }
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.access_token) {
@@ -84,6 +92,13 @@ apiClient.interceptors.response.use(
     // Plan-limit hit — pop the upgrade modal.
     if (error.response?.status === 403 && error.response?.data?.code === 'UPGRADE_REQUIRED') {
       notifyUpgrade(error.response.data.error);
+    }
+    // A view-as token has run out: back to the owner's own admin, never a
+    // refresh of the owner's session (which would retry as the owner).
+    if (error.response?.status === 401 && error.config?._viewAs) {
+      endViewAs();
+      window.location.href = '/admin/accounts';
+      return Promise.reject(error);
     }
     if (error.config && error.response?.status === 401 && !error.config._retry) {
       error.config._retry = true;

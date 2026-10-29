@@ -1,7 +1,9 @@
 import { apiClient } from './client';
 import type {
-  AdminAccountDetail, AdminAccountsResponse, AdminAuditResponse, AdminStats, AdminUsageReport, AdminUserRow, AdminUsersResponse,
+  AdminAccountDetail, AdminAccountsResponse, AdminBillingReport, AdminAuditResponse, AdminStats, AdminUsageReport, AdminUserRow, AdminUsersResponse,
 } from '@lemlist/shared';
+
+const acct = (id: string) => `/admin/accounts/${encodeURIComponent(id)}`;
 
 export const adminApi = {
   users: async (search?: string) =>
@@ -55,4 +57,28 @@ export const adminApi = {
 
   audit: async (limit = 200) =>
     (await apiClient.get<AdminAuditResponse>('/admin/audit', { params: { limit } })).data,
+
+  billing: async (month?: string) =>
+    (await apiClient.get<AdminBillingReport>('/admin/billing', { params: month ? { month } : undefined })).data,
+
+  /* Billing, changed in Stripe itself */
+  cancelSubscription: async (id: string, when: 'now' | 'period_end') => { await apiClient.post(`${acct(id)}/cancel`, { when }); },
+  resumeSubscription: async (id: string) => { await apiClient.post(`${acct(id)}/resume`); },
+  extendTrial: async (id: string, days: number) => (await apiClient.post<{ until: string }>(`${acct(id)}/extend-trial`, { days })).data,
+  stripeCredit: async (id: string, amountUsd: number, note: string) => { await apiClient.post(`${acct(id)}/stripe-credit`, { amount_usd: amountUsd, note }); },
+  discount: async (id: string, percent: number, months: number) => { await apiClient.post(`${acct(id)}/discount`, { percent, months }); },
+  removeDiscount: async (id: string) => { await apiClient.delete(`${acct(id)}/discount`); },
+  refund: async (id: string, payment: string, amountUsd: number | null) =>
+    (await apiClient.post<{ refunded_usd: number }>(`${acct(id)}/refund`, { payment, amount_usd: amountUsd })).data,
+
+  /* The account */
+  signInLink: async (id: string, kind: 'magiclink' | 'recovery') => (await apiClient.post<{ link: string }>(`${acct(id)}/sign-in-link`, { kind })).data,
+  resetEmail: async (id: string) => { await apiClient.post(`${acct(id)}/reset-email`); },
+  changeEmail: async (id: string, email: string) => { await apiClient.post(`${acct(id)}/email`, { email }); },
+  verifyEmail: async (id: string) => { await apiClient.post(`${acct(id)}/verify-email`); },
+  signOut: async (id: string) => { await apiClient.post(`${acct(id)}/sign-out`); },
+  pauseCampaigns: async (id: string) => (await apiClient.post<{ paused: number }>(`${acct(id)}/pause-campaigns`)).data,
+  sendingHold: async (id: string, hold: boolean) => { await apiClient.post(`${acct(id)}/sending-hold`, { hold }); },
+  viewAs: async (id: string) => (await apiClient.post<{ token: string; expires_at: string; email: string }>(`${acct(id)}/view-as`)).data,
+  deleteAccount: async (id: string, confirmEmail: string) => { await apiClient.post(`${acct(id)}/delete`, { confirm_email: confirmEmail }); },
 };

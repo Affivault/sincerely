@@ -1,3 +1,4 @@
+import type Stripe from 'stripe';
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { isOwnerEmail } from '../config/admin.js';
@@ -5,6 +6,7 @@ import { billingService } from './billing.service.js';
 import { creditsService } from './credits.service.js';
 import { accountControls } from './account-controls.service.js';
 import { stripeService } from './stripe.service.js';
+import { adminControlService } from './admin-control.service.js';
 import { allRows, cents, fetchAllUsers, fetchPayments, fetchSubscriptionRows, monthRange, reportRows, stripeFee } from './admin.service.js';
 import { PLANS, type PlanId } from '@lemlist/shared';
 import type {
@@ -28,7 +30,7 @@ const FOREVER = '2100-01-01T00:00:00.000Z';
 const BAN_FOREVER = '876000h';
 const ALLOWED_STATUSES = new Set(['active', 'trialing', 'free', 'past_due', 'canceled']);
 
-const missingTable = (msg: string | undefined) => /account_controls|admin_audit_log|does not exist|schema cache/i.test(msg || '');
+export const missingTable = (msg: string | undefined) => /account_controls|admin_audit_log|does not exist|schema cache/i.test(msg || '');
 
 async function fetchControls(): Promise<{ ready: boolean; rows: Map<string, any> }> {
   try {
@@ -39,13 +41,13 @@ async function fetchControls(): Promise<{ ready: boolean; rows: Map<string, any>
   }
 }
 
-async function getUser(userId: string) {
+export async function getUser(userId: string) {
   const { data, error } = await supabaseAdmin.auth.admin.getUserById(userId);
   if (error || !data?.user) throw new AppError('No account with that id.', 404);
   return data.user;
 }
 
-async function getSubscriptionRow(userId: string): Promise<any | null> {
+export async function getSubscriptionRow(userId: string): Promise<any | null> {
   const { data, error } = await supabaseAdmin.from('subscriptions').select('*').eq('user_id', userId).maybeSingle();
   if (error) throw new AppError(error.message, 500);
   return data ?? null;
@@ -62,7 +64,7 @@ async function writeSubscription(userId: string, patch: Record<string, any>) {
   return existing;
 }
 
-async function writeControls(userId: string, patch: Record<string, any>) {
+export async function writeControls(userId: string, patch: Record<string, any>) {
   const { error } = await supabaseAdmin
     .from('account_controls')
     .upsert({ user_id: userId, ...patch, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
@@ -73,13 +75,25 @@ async function writeControls(userId: string, patch: Record<string, any>) {
 }
 
 /** The Stripe subscription if Stripe still bills it; a Stripe outage fails the change rather than leaving the two apart. */
-async function stripeLive(subscriptionId: string | null | undefined) {
+export async function stripeLive(subscriptionId: string | null | undefined): Promise<Stripe.Subscription | null> {
   if (!subscriptionId || !stripeService.isConfigured()) return null;
   try {
     return await stripeService.liveSubscription(subscriptionId);
   } catch (err) {
     throw new AppError(`Stripe could not be reached, so nothing was changed: ${(err as Error).message}`, 502);
   }
+}
+
+/** The account's controls row, with migration 102's columns when they exist. */
+async function controlsRow(userId: string): Promise<{ data: any; error: any }> {
+  const full = await supabaseAdmin.from('account_controls').select('suspended_at, suspended_reason, note, sessions_revoked_at, sending_paused_at, limit_overrides, feature_overrides').eq('user_id', userId).maybeSingle();
+  if (!full.error || !/sessions_revoked_at|sending_paused_at|limit_overrides|feature_overrides/.test(full.error.message || '')) return full;
+  return supabaseAdmin.from('account_controls').select('suspended_at, suspended_reason, note').eq('user_id', userId).maybeSingle();
+}
+
+async function liveCampaigns(userId: string): Promise<number> {
+  const { count } = await supabaseAdmin.from('campaigns').select('id', { count: 'exact', head: true }).eq('user_id', userId).in('status', ['running', 'scheduled']);
+  return count || 0;
 }
 
 async function countFor(table: string, userId: string): Promise<number> {
@@ -176,9 +190,9 @@ export const adminAccountsService = {
 
     const mine = (table: string, cols: string, extra: (q: any) => any = (q) => q) => allRows((a, b) =>
       extra(supabaseAdmin.from(table).select(cols).eq('user_id', userId)).order('created_at', { ascending: false }).order('id').range(a, b));
-    const [sub, controlsRes, credits, limits, sent, inboxes, usage, ledger, paymentsAll, lifeCosts, lifeCharged, mailboxes, domains, contacts, campaigns, audit] = await Promise.all([
+    const [sub, controlsRes, credits, limits, sent, inboxes, usage, ledger, paymentsAll, lifeCosts, lifeCharged, mailboxes, domains, contacts, campaigns, audit, stripe, live_campaigns] = await Promise.all([
       getSubscriptionRow(userId),
-      supabaseAdmin.from('account_controls').select('suspended_at, suspended_reason, note').eq('user_id', userId).maybeSingle(),
+      controlsRow(userId),
       creditsService.summary(userId),
       billingService.getLimits(userId),
       billingService.getEmailsSentThisPeriod(userId),
@@ -194,6 +208,8 @@ export const adminAccountsService = {
       countFor('contacts', userId),
       countFor('campaigns', userId),
       this.auditLog(30, userId),
+      adminControlService.stripeSummary(userId),
+      liveCampaigns(userId),
     ]);
     const controlsReady = !controlsRes.error;
     const controls = controlsRes.data || null;
@@ -264,7 +280,11 @@ export const adminAccountsService = {
         suspended_at: controls?.suspended_at ?? null,
         suspended_reason: controls?.suspended_reason ?? null,
         note: controls?.note ?? null,
+        sessions_revoked_at: controls?.sessions_revoked_at ?? null,
+        sending_paused_at: controls?.sending_paused_at ?? null,
       },
+      stripe,
+      live_campaigns,
       credits: {
         allowance: credits.allowance, used: credits.used, plan_remaining: credits.plan_remaining,
         bonus: credits.purchased, remaining: credits.remaining, resets_at: credits.resets_at,

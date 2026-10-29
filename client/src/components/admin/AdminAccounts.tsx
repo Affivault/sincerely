@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useMemo, useState, type ReactNode } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, ArrowDown, ChevronRight, Download, XCircle } from 'lucide-react';
+import { AlertTriangle, ArrowDown, ArrowUp, ChevronRight, Download, XCircle } from 'lucide-react';
 import { formatCredits, type AdminAccountRow } from '@lemlist/shared';
 import { adminApi } from '../../api/admin.api';
 import { Spinner } from '../ui/Spinner';
@@ -11,6 +11,8 @@ import { useDebounce } from '../../hooks/useDebounce';
 import { downloadCsv } from '../../lib/csv';
 import { cn } from '../../lib/utils';
 import { PlanBadge, moneyTone, monthLabel, relTime, thisMonth, usd } from './adminFormat';
+import { AdminHeader } from './AdminShell';
+import { AccountPanel } from './AccountPanel';
 
 type Filter = 'all' | 'paying' | 'trial' | 'free' | 'lifetime' | 'suspended' | 'losing' | 'near_cap';
 type Sort = 'newest' | 'last_seen' | 'credits' | 'cost' | 'revenue' | 'profit' | 'lifetime_profit';
@@ -36,6 +38,20 @@ const SORTS: Array<{ id: Sort; label: string; key: (a: AdminAccountRow) => numbe
   { id: 'lifetime_profit', label: 'Lifetime profit', key: (a) => a.lifetime_profit_usd },
 ];
 
+/** A column heading that sorts by its column; again flips the order. */
+function Th({ id, children, right, sort, asc, onSort }: { id?: Sort; children: ReactNode; right?: boolean; sort: Sort; asc: boolean; onSort: (s: Sort) => void }) {
+  return (
+    <th className={cn('py-2.5 px-3 font-medium', right && 'text-right')} aria-sort={id && id === sort ? (asc ? 'ascending' : 'descending') : undefined}>
+      {id ? (
+        <button onClick={() => onSort(id)} className={cn('inline-flex items-center gap-1 hover:text-[var(--text-primary)]', id === sort && 'text-[var(--text-primary)]')}>
+          {children}
+          {id === sort && (asc ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
+        </button>
+      ) : children}
+    </th>
+  );
+}
+
 function CreditMeter({ used, allowance }: { used: number; allowance: number }) {
   const pct = allowance > 0 ? Math.min(100, (used / allowance) * 100) : used > 0 ? 100 : 0;
   const tone = pct >= 100 ? 'bg-red-500' : pct >= 80 ? 'bg-amber-500' : 'bg-[var(--indigo)]';
@@ -57,11 +73,24 @@ function CreditMeter({ used, allowance }: { used: number; allowance: number }) {
  * against what they pay. Click through for the account in full.
  */
 export function AdminAccounts() {
-  const navigate = useNavigate();
+  // Filter, sort and the open account live in the address, so a view can be
+  // linked to (the overview does) and Back closes the panel.
+  const [params, setParams] = useSearchParams();
+  const filter = (FILTERS.some((f) => f.id === params.get('f')) ? params.get('f') : 'all') as Filter;
+  const sort = (SORTS.some((x) => x.id === params.get('s')) ? params.get('s') : 'newest') as Sort;
+  const asc = params.get('o') === 'asc';
+  const openId = params.get('a');
+  const setParam = (patch: Record<string, string | null>, replace = true) => {
+    const next = new URLSearchParams(params);
+    for (const [k, v] of Object.entries(patch)) { if (v === null) next.delete(k); else next.set(k, v); }
+    setParams(next, { replace });
+  };
+  const setFilter = (f: Filter) => setParam({ f: f === 'all' ? null : f });
+  const setSort = (s: Sort) => setParam({ s: s === 'newest' ? null : s, o: null });
+  const sortBy = (s: Sort) => (s === sort ? setParam({ o: asc ? null : 'asc' }) : setSort(s));
+  const open = (id: string) => setParam({ a: id, tab: null }, false);
   const [month, setMonth] = useState(thisMonth());
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<Filter>('all');
-  const [sort, setSort] = useState<Sort>('newest');
   const q = useDebounce(search, 150).trim().toLowerCase();
 
   const { data, isLoading, isError, error } = useQuery({
@@ -76,8 +105,8 @@ export function AdminAccounts() {
     const s = SORTS.find((x) => x.id === sort)!;
     return all
       .filter((a) => f.test(a) && (!q || a.email.toLowerCase().includes(q) || a.id.startsWith(q)))
-      .sort((a, b) => s.key(b) - s.key(a));
-  }, [all, filter, sort, q]);
+      .sort((a, b) => (asc ? s.key(a) - s.key(b) : s.key(b) - s.key(a)));
+  }, [all, filter, sort, asc, q]);
 
   const totals = useMemo(() => rows.reduce(
     (t, a) => ({ credits: t.credits + a.credits_used, cost: t.cost + a.cost_usd, revenue: t.revenue + a.revenue_usd, profit: t.profit + a.profit_usd }),
@@ -94,7 +123,11 @@ export function AdminAccounts() {
       a.credits_used, a.credit_allowance, a.cost_usd, a.revenue_usd, a.profit_usd, a.lifetime_revenue_usd, a.lifetime_profit_usd, a.id]),
   );
 
+  const th = { sort, asc, onSort: sortBy };
+
   return (
+    <>
+    <AdminHeader title="Accounts" sub={data ? `${all.length.toLocaleString()} accounts. Click one to manage it.` : 'Every account on Sincerely.'} />
     <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-2.5 border-b border-[var(--border-subtle)] flex-wrap">
         <SearchInput value={search} onChange={setSearch} placeholder="Search by email or id…" className="w-full sm:w-72" />
@@ -175,15 +208,15 @@ export function AdminAccounts() {
             <div className="overflow-x-auto">
               <table className="w-full min-w-[960px] text-left">
                 <thead>
-                  <tr className="border-b border-[var(--border-subtle)] text-caption font-medium text-[var(--text-tertiary)]">
-                    <th className="py-2.5 pl-4 pr-3">Account</th>
-                    <th className="py-2.5 px-3">Plan</th>
-                    <th className="py-2.5 px-3">Credits this month</th>
-                    <th className="py-2.5 px-3 text-right">Cost</th>
-                    <th className="py-2.5 px-3 text-right">Paid</th>
-                    <th className="py-2.5 px-3 text-right">Profit</th>
-                    <th className="py-2.5 px-3 text-right">Lifetime profit</th>
-                    <th className="py-2.5 px-3">Last seen</th>
+                  <tr className="sticky top-0 z-[1] bg-[var(--bg-surface)] border-b border-[var(--border-subtle)] text-caption text-[var(--text-tertiary)]">
+                    <th className="py-2.5 pl-4 pr-3 font-medium"><button onClick={() => sortBy('newest')} className={cn('inline-flex items-center gap-1 hover:text-[var(--text-primary)]', sort === 'newest' && 'text-[var(--text-primary)]')}>Account{sort === 'newest' && (asc ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}</button></th>
+                    <Th {...th}>Plan</Th>
+                    <Th {...th} id="credits">Credits this month</Th>
+                    <Th {...th} id="cost" right>Cost</Th>
+                    <Th {...th} id="revenue" right>Paid</Th>
+                    <Th {...th} id="profit" right>Profit</Th>
+                    <Th {...th} id="lifetime_profit" right>Lifetime profit</Th>
+                    <Th {...th} id="last_seen">Last seen</Th>
                     <th className="py-2.5 pr-3 w-6" aria-hidden />
                   </tr>
                 </thead>
@@ -191,9 +224,10 @@ export function AdminAccounts() {
                   {rows.map((a) => (
                     <tr
                       key={a.id}
-                      onClick={() => navigate(`/admin/accounts/${a.id}`)}
+                      onClick={() => open(a.id)}
                       className={cn(
                         'group border-b border-[var(--border-subtle)] last:border-0 hover:bg-[var(--bg-hover)] cursor-pointer transition-colors',
+                        openId === a.id && 'bg-[var(--bg-hover)] shadow-[inset_2px_0_0_var(--indigo)]',
                         a.suspended && 'opacity-60',
                         a.losing && !a.suspended && 'bg-amber-500/5',
                       )}
@@ -203,8 +237,8 @@ export function AdminAccounts() {
                           <Avatar email={a.email} size="lg" />
                           <div className="min-w-0">
                             <Link
-                              to={`/admin/accounts/${a.id}`}
-                              onClick={(e) => e.stopPropagation()}
+                              to={`/admin/accounts?a=${a.id}`}
+                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); open(a.id); }}
                               className="block text-strong font-medium text-[var(--text-primary)] truncate max-w-[260px] hover:underline focus-visible:underline"
                             >
                               {a.email}
@@ -232,5 +266,7 @@ export function AdminAccounts() {
         </>
       )}
     </div>
+    {openId && <AccountPanel id={openId} onClose={() => setParam({ a: null, tab: null }, false)} />}
+    </>
   );
 }

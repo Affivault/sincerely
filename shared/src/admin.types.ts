@@ -20,6 +20,37 @@ export interface AdminStats {
   domains: number;
   contacts: number;
   campaigns: number;
+  /** On a Stripe trial now. */
+  trialing_users: number;
+  /** A payment failed and Stripe is retrying. */
+  past_due_users: number;
+  /** Signed in during the last 7 days. */
+  active_7d: number;
+  /** Signed up in the last 30 days. */
+  signups_30d: number;
+  /** Monthly recurring revenue at list price: each active paid plan's monthly price. */
+  est_mrr_usd: number;
+}
+
+export interface AdminBillingPayment {
+  id: string;
+  user_id: string | null;
+  email: string | null;
+  kind: string;
+  amount_usd: number;
+  stripe_ref: string;
+  paid_at: string;
+}
+
+export interface AdminBillingReport {
+  month: string;
+  payments: AdminBillingPayment[];
+  totals: { gross_usd: number; refunds_usd: number; net_usd: number; fees_usd: number; count: number };
+  plan_mix: Array<{ plan: string; status: string; count: number }>;
+  est_mrr_usd: number;
+  /** Accounts whose last payment failed. */
+  past_due: Array<{ id: string; email: string; plan: string }>;
+  revenue_synced: boolean;
 }
 
 export interface AdminUsersResponse {
@@ -112,6 +143,19 @@ export interface AdminAuditEntry {
 }
 
 /** GET /admin/accounts/:id */
+export interface AdminStripeSummary {
+  status: string;
+  price_usd: number | null;
+  interval: string | null;
+  cancel_at_period_end: boolean;
+  cancel_at: string | null;
+  trial_end: string | null;
+  current_period_end: string | null;
+  discount: string | null;
+  /** Credit on their Stripe balance, taken off their next invoices. */
+  balance_usd: number;
+}
+
 export interface AdminAccountDetail {
   account: AdminAccountRow;
   subscription: {
@@ -127,7 +171,15 @@ export interface AdminAccountDetail {
     suspended_at: string | null;
     suspended_reason: string | null;
     note: string | null;
+    /** Set when the owner signed them out everywhere (migration 102). */
+    sessions_revoked_at: string | null;
+    /** While set, nothing of theirs sends (migration 102). */
+    sending_paused_at: string | null;
   };
+  /** What Stripe says right now, when they have a subscription there and Stripe answered. */
+  stripe: AdminStripeSummary | null;
+  /** Running or scheduled campaigns. */
+  live_campaigns: number;
   credits: {
     allowance: number;
     used: number;
