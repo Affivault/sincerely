@@ -1,6 +1,7 @@
 import { useDealHealth, DealHealthDot } from './DealHealth';
 import { useMemo, useState } from 'react';
-import { DEAL_STAGES, probabilityOf, rotOf, weightedValue, formatDayMonth, formatMoney, parseDay, dealStageLabel } from '@lemlist/shared';
+import { probabilityOf, rotOf, weightedValue, formatDayMonth, formatMoney, parseDay } from '@lemlist/shared';
+import { usePipelines } from '../../hooks/usePipelines';
 import type { Deal, DealStage } from '@lemlist/shared';
 import { Avatar } from '../shared/Avatar';
 import { Checkbox } from '../ui/Checkbox';
@@ -66,13 +67,13 @@ function closeLabel(iso: string | null, stage: DealStage): { text: string; tone:
   return { text, tone: 'text-[var(--text-secondary)]' };
 }
 
-function sortValue(d: Deal, key: SortKey): string | number {
+function sortValue(d: Deal, key: SortKey, stageRank: (d: Deal) => number): string | number {
   switch (key) {
     case 'title': return (d.title || '').toLowerCase();
     case 'company': return (d.company || '').toLowerCase();
     case 'value': return Number(d.value) || 0;
     case 'weighted': return weightedValue(d);
-    case 'stage': return DEAL_STAGES.findIndex((s) => s.id === d.stage);
+    case 'stage': return stageRank(d);
     case 'lead': return (leadName(d) || '').toLowerCase();
     case 'age': return rotOf(d).days ?? -1;
     case 'close':
@@ -83,7 +84,9 @@ function sortValue(d: Deal, key: SortKey): string | number {
   }
 }
 
-export function sortDeals(deals: Deal[], key: SortKey, dir: SortDir): Deal[] {
+const PHASE_RANK: Record<DealStage, number> = { lead: 0, qualified: 1, proposal: 2, won: 100, lost: 101 };
+
+export function sortDeals(deals: Deal[], key: SortKey, dir: SortDir, stageRank: (d: Deal) => number = (d) => PHASE_RANK[d.stage] ?? 0): Deal[] {
   const factor = dir === 'asc' ? 1 : -1;
   return [...deals].sort((a, b) => {
     if (key === 'close') {
@@ -96,8 +99,8 @@ export function sortDeals(deals: Deal[], key: SortKey, dir: SortDir): Deal[] {
       if (aMissing !== bMissing) return aMissing ? 1 : -1;
       if (aMissing && bMissing) return (a.title || '').localeCompare(b.title || '');
     }
-    const av = sortValue(a, key);
-    const bv = sortValue(b, key);
+    const av = sortValue(a, key, stageRank);
+    const bv = sortValue(b, key, stageRank);
     if (av === bv) return (a.title || '').localeCompare(b.title || '');
     return (av > bv ? 1 : -1) * factor;
   });
@@ -167,11 +170,18 @@ export function DealTable({
   onOpen: (d: Deal) => void;
   onOpenCompany: (d: Deal) => void;
   onOpenLead: (d: Deal) => void;
-  onStageChange: (d: Deal, stage: DealStage) => void;
+  /** `target` is a named stage id, or 'won' / 'lost'. */
+  onStageChange: (d: Deal, target: string) => void;
   currency?: string;
 }) {
   const { data: health } = useDealHealth();
-  const rows = useMemo(() => sortDeals(deals, sortKey, sortDir), [deals, sortKey, sortDir]);
+  const pipes = usePipelines();
+  const stageRank = (d: Deal) => {
+    if (d.stage === 'won' || d.stage === 'lost') return PHASE_RANK[d.stage];
+    const st = pipes.stageOf(d);
+    return st ? st.position : PHASE_RANK[d.stage] ?? 0;
+  };
+  const rows = useMemo(() => sortDeals(deals, sortKey, sortDir, stageRank), [deals, sortKey, sortDir, pipes]);
   const allOn = rows.length > 0 && rows.every((d) => selected.has(d.id));
   /*
    * The header row is `sticky top-0`, which only means anything if the thing
@@ -234,7 +244,7 @@ export function DealTable({
                       </button>
                       {rot.rotting && (
                         <span
-                          title={`No movement for ${rot.days} days — ${dealStageLabel(d.stage)} deals are expected to move within ${rot.limit}`}
+                          title={`No movement for ${rot.days} days — ${pipes.stageLabel(d)} deals are expected to move within ${rot.limit}`}
                           className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-rose-500/10 px-1.5 py-0.5 text-micro font-semibold text-rose-600 dark:text-rose-400"
                         >
                           <Clock className="h-2.5 w-2.5" /> Stalled
@@ -280,14 +290,16 @@ export function DealTable({
                     <div className="relative inline-flex items-center gap-1.5">
                       <span className={cn('h-1.5 w-1.5 flex-shrink-0 rounded-full', STAGE_DOT[d.stage])} />
                       <select
-                        value={d.stage}
-                        onChange={(e) => onStageChange(d, e.target.value as DealStage)}
+                        value={d.stage === 'won' || d.stage === 'lost' ? d.stage : pipes.stageOf(d)?.id || d.stage}
+                        onChange={(e) => onStageChange(d, e.target.value)}
                         aria-label={`Stage for ${d.title}`}
                         className="cursor-pointer appearance-none bg-transparent pr-4 text-body font-medium text-[var(--text-primary)] outline-none focus:underline"
                       >
-                        {DEAL_STAGES.map((s) => (
-                          <option key={s.id} value={s.id}>{s.label}</option>
+                        {(pipes.pipelineOf(d)?.stages || []).map((s) => (
+                          <option key={s.id} value={s.id}>{s.name}</option>
                         ))}
+                        <option value="won">Won</option>
+                        <option value="lost">Lost</option>
                       </select>
                     </div>
                   </td>

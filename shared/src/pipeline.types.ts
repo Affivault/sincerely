@@ -24,6 +24,7 @@
    ═══════════════════════════════════════════════════════════════════════ */
 
 import type { Deal, DealStage } from './crm.types.js';
+import { stageSettingsFor } from './pipelines.types.js';
 
 /**
  * Default odds per stage.
@@ -55,16 +56,19 @@ export function isOpen(stage: DealStage): boolean {
  * otherwise. A closed deal is not a probability — it happened or it did
  * not — so those are pinned regardless of what is stored.
  */
-export function probabilityOf(deal: Pick<Deal, 'stage' | 'probability'>): number {
+export function probabilityOf(deal: Pick<Deal, 'stage' | 'probability'> & { stage_id?: string | null }): number {
   if (deal.stage === 'won') return 100;
   if (deal.stage === 'lost') return 0;
   const own = deal.probability;
   if (typeof own === 'number' && own >= 0 && own <= 100) return own;
+  // A named stage with its own odds (migration 105) beats the phase default.
+  const named = stageSettingsFor(deal.stage_id)?.probability;
+  if (typeof named === 'number' && named >= 0 && named <= 100) return named;
   return STAGE_PROBABILITY[deal.stage] ?? 0;
 }
 
 /** Value once the odds are taken into account. */
-export function weightedValue(deal: Pick<Deal, 'stage' | 'probability' | 'value'>): number {
+export function weightedValue(deal: Pick<Deal, 'stage' | 'probability' | 'value'> & { stage_id?: string | null }): number {
   return ((Number(deal.value) || 0) * probabilityOf(deal)) / 100;
 }
 
@@ -115,10 +119,11 @@ export interface RotVerdict {
 }
 
 export function rotOf(
-  deal: Pick<Deal, 'stage' | 'stage_changed_at' | 'created_at'>,
+  deal: Pick<Deal, 'stage' | 'stage_changed_at' | 'created_at'> & { stage_id?: string | null },
   now = Date.now(),
 ): RotVerdict {
-  const limit = STAGE_ROT_DAYS[deal.stage];
+  const named = deal.stage === 'won' || deal.stage === 'lost' ? null : stageSettingsFor(deal.stage_id)?.rot_days;
+  const limit = typeof named === 'number' && named > 0 ? named : STAGE_ROT_DAYS[deal.stage];
   const days = daysInStage(deal, now);
   if (!Number.isFinite(limit) || days === null) {
     return { rotting: false, days, limit: Number.isFinite(limit) ? limit : null };

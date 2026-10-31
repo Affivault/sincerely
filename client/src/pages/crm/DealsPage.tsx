@@ -1,5 +1,11 @@
-import { useDealHealth, DealHealthDot } from '../../components/crm/DealHealth';
-import { useState, useMemo, useEffect, useId } from 'react';
+import { useDealHealth } from '../../components/crm/DealHealth';
+import { DealCard, dealCompanyId } from '../../components/crm/DealCard';
+import { ForecastBoard } from '../../components/crm/ForecastBoard';
+import { nextStepsByDeal, type NextStepInfo } from '../../components/crm/NextActivity';
+import { PipelineEditor } from '../../components/crm/PipelineEditor';
+import { usePipelines } from '../../hooks/usePipelines';
+import { usePopover } from '../../hooks/usePopover';
+import { useState, useMemo, useEffect, useId, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { crmApi } from '../../api/crm.api';
@@ -9,10 +15,8 @@ import { Modal } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
-import { Spinner } from '../../components/ui/Spinner';
 import { SkeletonList } from '../../components/ui/Skeleton';
 import { usePendingRemoval } from '../../components/ui/UndoBar';
-import { Avatar } from '../../components/shared/Avatar';
 import { SearchInput } from '../../components/shared/SearchInput';
 import { usePeek } from '../../components/peek/usePeek';
 import { PipelineHeader } from '../../components/crm/PipelineHeader';
@@ -27,12 +31,11 @@ import { cn } from '../../lib/utils';
 import toast from 'react-hot-toast';
 import { EmptyState } from '../../components/shared/EmptyState';
 import {
-  Handshake, ListTodo, Calendar as CalendarIcon, Plus, Trash2,
-  Phone, Users as UsersIcon, Building2,
-  CalendarClock, GripVertical, Clock, Download, BarChart3,
+  AlertTriangle, BarChart3, Check, ChevronDown, Clock, Download, Handshake,
+  Layers, Plus, Settings2, Star, Trash2, Trophy, XCircle,
 } from 'lucide-react';
 import {
-  DEAL_STAGES,
+  dealStageLabel,
   isOpen,
   rotOf,
   weightedValue,
@@ -42,9 +45,10 @@ import {
   DEFAULT_TERM_MONTHS,
   STAGE_PROBABILITY,
   type Deal, type DealStage, type CreateDealInput,
-  type CrmTask, type TaskPriority,
-  type CrmEvent, type EventType,
+  type CrmTask,
+  type CrmEvent,
   type ContactWithTags,
+  type Pipeline,
   PLACEHOLDER, formatDayMonth, formatMoney, parseDay } from '@lemlist/shared';
 // Shared, so every export guards against spreadsheet formulas the same way.
 import { csvCell } from '@lemlist/shared';
@@ -53,43 +57,6 @@ import { csvCell } from '@lemlist/shared';
 function fmtMoney(v: number, currency = 'USD'): string {
   return formatMoney(v, currency);
 }
-function dealAge(iso?: string | null): string {
-  if (!iso) return '—';
-  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
-  if (days <= 0) return 'Today';
-  if (days === 1) return '1 day';
-  if (days < 30) return `${days} days`;
-  const months = Math.round(days / 30);
-  return months === 1 ? '1 month' : `${months} months`;
-}
-/**
- * "Updated ..." in a form that reads as English.
- *
- * dealAge answers "how old" — "Today", "1 day", "3 months" — so pasting it
- * into `Updated ${...} ago` produced "Updated Today ago" for anything
- * touched in the last day, which is most of what a drawer is ever open on.
- */
-function updatedLabel(iso?: string | null): string {
-  if (!iso) return 'Recently updated';
-  const age = dealAge(iso);
-  if (age === 'Today') return 'Updated today';
-  if (age === '—') return 'Recently updated';
-  return `Updated ${age} ago`;
-}
-
-function relDay(iso?: string | null): { label: string; tone: 'over' | 'today' | 'soon' | 'none'; diff: number | null } {
-  // A calendar day, not UTC midnight - see parseDay.
-  const d = parseDay(iso);
-  if (!d) return { label: 'No date', tone: 'none', diff: null };
-  const start = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
-  const diff = Math.round((start(d) - start(new Date())) / 86400000);
-  if (diff < 0) return { label: `${Math.abs(diff)}d overdue`, tone: 'over', diff };
-  if (diff === 0) return { label: 'Today', tone: 'today', diff };
-  if (diff === 1) return { label: 'Tomorrow', tone: 'soon', diff };
-  if (diff < 7) return { label: `In ${diff}d`, tone: 'soon', diff };
-  return { label: formatDayMonth(d), tone: 'none', diff };
-}
-
 /** Best display name for the lead attached to a deal (live contact wins). */
 function leadName(d: Deal): string | null {
   if (d.contact) {
@@ -105,16 +72,12 @@ function leadEmail(d: Deal): string | null {
 function leadId(d: Deal): string | null {
   return d.contact_id || d.contact?.id || null;
 }
-/** The account this deal belongs to — its own link, or the lead's. */
-function dealCompanyId(d: Deal): string | null {
-  return d.company_id || d.contact?.company_id || null;
-}
 
 /** Export the given deals as a CSV file the browser downloads directly — no server round-trip. */
-function exportDealsCsv(deals: Deal[]) {
-  const header = ['Title', 'Company', 'Lead name', 'Lead email', 'Stage', 'Value', 'Expected close date', 'Notes'];
+function exportDealsCsv(deals: Deal[], stageLabel: (d: Deal) => string, pipelineName: (d: Deal) => string) {
+  const header = ['Title', 'Company', 'Contact name', 'Contact email', 'Pipeline', 'Stage', 'Value', 'Expected close date', 'Notes'];
   const rows = deals.map(d => [
-    d.title, d.company, leadName(d), leadEmail(d), DEAL_STAGES.find(s => s.id === d.stage)?.label || d.stage,
+    d.title, d.company, leadName(d), leadEmail(d), pipelineName(d), stageLabel(d),
     d.value || 0, d.expected_close_date ? toDateInput(d.expected_close_date) : '', d.notes,
   ].map(csvCell).join(','));
   const csv = [header.join(','), ...rows].join('\n');
@@ -134,18 +97,6 @@ function blankToNull(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-const STAGE_DOT: Record<DealStage, string> = {
-  lead: 'bg-slate-400', qualified: 'bg-[var(--indigo)]', proposal: 'bg-amber-500', won: 'bg-emerald-500', lost: 'bg-rose-500',
-};
-const PRIORITY_META: Record<TaskPriority, { label: string; cls: string }> = {
-  high: { label: 'High', cls: 'text-rose-600 dark:text-rose-400' },
-  normal: { label: 'Normal', cls: 'text-[var(--text-tertiary)]' },
-  low: { label: 'Low', cls: 'text-slate-400' },
-};
-const EVENT_META: Record<EventType, { label: string; icon: typeof Phone; dot: string; chip: string }> = {
-  call: { label: 'Call', icon: Phone, dot: 'bg-[var(--indigo)]', chip: 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)]' },
-  meeting: { label: 'Meeting', icon: UsersIcon, dot: 'bg-emerald-500', chip: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' },
-};
 
 /* ─── Lead picker ─────────────────────────────────── */
 /* ─── Deal modal ──────────────────────────────────── */
@@ -156,6 +107,9 @@ export function DealModal({ deal, onClose, onDeleted }: { deal: Partial<Deal> | 
   const [form, setForm] = useState<CreateDealInput & { stage: DealStage }>({
     title: deal?.title || '',
     company: deal?.company || '',
+    // The account record, when the deal starts from one. Typing a different
+    // name below unlinks it; the server then links the contact's company.
+    company_id: deal?.company_id || deal?.contact?.company_id || null,
     contact_name: deal?.contact_name || (deal?.contact ? [deal.contact.first_name, deal.contact.last_name].filter(Boolean).join(' ') : '') || '',
     contact_email: deal?.contact_email || deal?.contact?.email || null,
     contact_id: deal?.contact_id || deal?.contact?.id || null,
@@ -175,14 +129,37 @@ export function DealModal({ deal, onClose, onDeleted }: { deal: Partial<Deal> | 
   } as any);
   const set = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
 
+  /* Where it sits: a pipeline, then a named stage in it (or won / lost).
+     Null until somebody picks, so the defaults follow the pipelines as they
+     load rather than freezing whatever was known on the first render. */
+  const pipes = usePipelines();
+  const [pipelineId, setPipelineId] = useState<string | null>(deal?.pipeline_id || null);
+  const [stageChoice, setStageChoice] = useState<string | null>(
+    deal?.stage === 'won' || deal?.stage === 'lost' ? deal.stage : deal?.stage_id || null,
+  );
+  const activePipeline = (pipelineId && pipes.pipelines.find((p) => p.id === pipelineId))
+    || pipes.pipelineOf({ pipeline_id: deal?.pipeline_id ?? null });
+  const choice = stageChoice
+    ?? activePipeline?.stages.find((s) => s.phase === form.stage)?.id
+    ?? activePipeline?.stages[0]?.id
+    ?? form.stage;
+  const chosenStage = activePipeline?.stages.find((s) => s.id === choice) || null;
+  const effectiveStage: DealStage = choice === 'won' || choice === 'lost' ? choice : chosenStage?.phase || form.stage;
+  const stageDefault = chosenStage?.probability ?? STAGE_PROBABILITY[effectiveStage];
+
   const save = useMutation({
     mutationFn: () => {
       const payload = {
         ...form,
+        stage: effectiveStage,
+        ...(pipes.ready && chosenStage ? { stage_id: chosenStage.id, pipeline_id: chosenStage.pipeline_id } : {}),
         value: Number(form.value) || 0,
         expected_close_date: form.expected_close_date || null,
         contact_email: form.contact_email || null,
         contact_id: form.contact_id || null,
+        // Left out rather than null when unlinked, so the server can link the
+        // contact's own company instead.
+        company_id: (form as any).company_id || undefined,
         contact_name: form.contact_name?.trim() || null,
         // '' is a cleared field and means "no opinion, use the stage". 0 is a
         // real answer that means the deal is dead, so the two must not collapse.
@@ -242,6 +219,7 @@ export function DealModal({ deal, onClose, onDeleted }: { deal: Partial<Deal> | 
       contact_email: c.email,
       contact_name: full || c.email,
       company: f.company || c.company || '',
+      company_id: (f as any).company_id || (c as any).company_id || null,
     }));
   };
 
@@ -278,11 +256,42 @@ export function DealModal({ deal, onClose, onDeleted }: { deal: Partial<Deal> | 
           onLink={linkContact}
           onUnlink={() => setForm(f => ({ ...f, contact_id: null, contact_email: null, contact_name: '' }))}
         />
-        <Input label="Company" value={form.company || ''} onChange={e => set('company', e.target.value)} placeholder={PLACEHOLDER.company} />
+        <Input
+          label="Company"
+          value={form.company || ''}
+          onChange={e => setForm(f => ({ ...f, company: e.target.value, company_id: e.target.value === (deal?.company || '') ? (deal?.company_id ?? null) : null }))}
+          placeholder={PLACEHOLDER.company}
+          hint={form.company_id ? 'Linked to the company record' : undefined}
+        />
         <div className="grid grid-cols-2 gap-4">
-          <Select label="Stage" options={DEAL_STAGES.map(s => ({ value: s.id, label: s.label }))} value={form.stage} onChange={e => set('stage', e.target.value)} />
+          <Select
+            label="Stage"
+            options={[
+              ...(activePipeline?.stages || []).map((st) => ({ value: st.id, label: st.name })),
+              { value: 'won', label: 'Won' },
+              { value: 'lost', label: 'Lost' },
+            ]}
+            value={choice}
+            onChange={e => setStageChoice(e.target.value)}
+          />
           <Input label="Close date" type="date" value={form.expected_close_date || ''} onChange={e => set('expected_close_date', e.target.value)} />
         </div>
+        {pipes.pipelines.length > 1 && (
+          <Select
+            label="Pipeline"
+            options={pipes.pipelines.map((p) => ({ value: p.id, label: p.name }))}
+            value={activePipeline?.id || ''}
+            onChange={(e) => {
+              const next = pipes.pipelines.find((p) => p.id === e.target.value);
+              setPipelineId(e.target.value);
+              // A closed deal stays closed; an open one starts the new pipeline
+              // at the stage that matches how far along it already is.
+              if (next && choice !== 'won' && choice !== 'lost') {
+                setStageChoice((next.stages.find((st) => st.phase === effectiveStage) || next.stages[0])?.id || null);
+              }
+            }}
+          />
+        )}
 
         {!shaped && (
           <Input
@@ -302,10 +311,10 @@ export function DealModal({ deal, onClose, onDeleted }: { deal: Partial<Deal> | 
               max="100"
               value={(form as any).probability ?? ''}
               onChange={e => set('probability', e.target.value)}
-              placeholder={String(STAGE_PROBABILITY[form.stage])}
+              placeholder={String(stageDefault)}
             />
             <p className="mt-1 text-caption text-[var(--text-tertiary)]">
-              Leave blank for the stage default ({STAGE_PROBABILITY[form.stage]}%).
+              Leave blank for the stage default ({stageDefault}%).
             </p>
           </div>
           <div className="col-span-2 flex items-end pb-[26px]">
@@ -315,7 +324,7 @@ export function DealModal({ deal, onClose, onDeleted }: { deal: Partial<Deal> | 
                 {fmtMoney(
                   (effectiveValue *
                     ((form as any).probability === '' || (form as any).probability == null
-                      ? STAGE_PROBABILITY[form.stage]
+                      ? stageDefault
                       : Number((form as any).probability) || 0)) / 100,
                 )}
               </span>{' '}
@@ -421,277 +430,347 @@ export function DealModal({ deal, onClose, onDeleted }: { deal: Partial<Deal> | 
 }
 
 /* ─── Pipeline (deals kanban) ─────────────────────── */
-function PipelineBoard({ deals, tasks, events, onEdit, onStageChange, onAddToStage, dragDisabled }: { deals: Deal[]; tasks: CrmTask[]; events: CrmEvent[]; onEdit: (d: Deal) => void; onStageChange: (d: Deal, stage: DealStage) => void; onAddToStage: (stage: DealStage) => void; dragDisabled?: boolean }) {
+
+/** A column on the board: a named stage of the pipeline, or how deals end. */
+interface BoardColumn {
+  id: string;
+  name: string;
+  kind: 'stage' | 'won' | 'lost';
+  phase: DealStage;
+  probability: number;
+}
+
+function PipelineBoard({
+  columns, deals, columnOf, next, onOpen, onOutcome, onDelete, onAddToColumn, dragDisabled,
+}: {
+  columns: BoardColumn[];
+  deals: Deal[];
+  columnOf: (d: Deal) => string;
+  next: Map<string, NextStepInfo>;
+  onOpen: (d: Deal) => void;
+  onOutcome: (d: Deal, stage: 'won' | 'lost') => void;
+  onDelete: (d: Deal) => void;
+  onAddToColumn: (col: BoardColumn) => void;
+  dragDisabled?: boolean;
+}) {
   const { data: health } = useDealHealth();
-  const { openPeek } = usePeek();
-  const navigate = useNavigate();
-  // Peek the account when the deal is linked to one; otherwise show the
-  // accounts list filtered to the name we do have.
-  const onOpenCompany = (d: Deal) => {
-    const id = dealCompanyId(d);
-    if (id) openPeek('company', id);
-    else if (d.company) navigate(`/companies?q=${encodeURIComponent(d.company)}`);
-  };
   const qc = useQueryClient();
   const [dragId, setDragId] = useState<string | null>(null);
-  const [over, setOver] = useState<{ stage: DealStage; index: number } | null>(null);
+  const [over, setOver] = useState<{ col: string; index: number } | null>(null);
+  const [zone, setZone] = useState<'won' | 'lost' | 'delete' | null>(null);
   // The board owns the rest of the screen; each column scrolls inside it.
   const { ref: boardRef, height } = useFillViewport<HTMLDivElement>({ min: 320 });
 
-  // Reorder within a column (or move across stages) at a given index — persists
-  // fresh sequential positions for the affected column, optimistically.
-  const commit = (stage: DealStage, index: number) => {
+  const openWeighted = deals.filter((d) => isOpen(d.stage)).reduce((s, d) => s + weightedValue(d), 0);
+
+  const endDrag = () => { setDragId(null); setOver(null); setZone(null); };
+
+  // Reorder within a column, or move to another stage at a given index. Fresh
+  // sequential positions for the affected column are saved optimistically.
+  const commit = (colId: string, index: number) => {
     const id = dragId;
     if (!id) return;
+    const col = columns.find((c) => c.id === colId);
     const all = qc.getQueryData<Deal[]>(['crm', 'deals']) || deals;
-    const moving = all.find(d => d.id === id);
-    if (!moving) return;
+    const moving = all.find((d) => d.id === id);
+    if (!col || !moving) return;
 
-    /*
-     * A drag that ends the deal goes through the page's stage handler, which
-     * asks why first. Reordering inside won or lost is meaningless anyway —
-     * those columns are a record, not a queue — so nothing is lost by not
-     * doing the optimistic position work here.
-     */
-    if (stage !== moving.stage && (stage === 'won' || stage === 'lost')) {
-      onStageChange(moving, stage);
+    // Ending a deal asks why first. Won and lost are a record, not a queue,
+    // so there is no order to keep inside them.
+    if (col.kind !== 'stage') {
+      if (moving.stage !== col.kind) onOutcome(moving, col.kind);
       return;
     }
-    // `index` was measured against the on-screen column, which is the
-    // *filtered* `deals` prop (active DealFilters can hide same-stage cards)
-    // — not `all`, the full unfiltered cache targetList is built from. Applying
-    // a filtered-list index straight to the full list silently misplaces the
-    // card whenever anything in this stage is hidden. Translate it instead:
-    // walk forward from `index` in the visible column to find the next
-    // visible card that isn't the one being dragged, then insert before that
-    // same card's position in the full list.
-    const visibleStageItems = deals.filter(d => d.stage === stage);
-    const targetList = all.filter(d => d.stage === stage && d.id !== id);
+
+    /* `index` was measured against the on-screen column, which is filtered,
+       while positions are saved against the whole column. Find the next
+       visible card below the drop point and insert before that same card in
+       the full list, so a filtered board still reorders correctly. */
+    const visible = deals.filter((d) => columnOf(d) === colId);
+    const target = all.filter((d) => d.id !== id && isOpen(d.stage) && columnOf(d) === colId);
     let anchorId: string | undefined;
-    for (let i = index; i < visibleStageItems.length; i++) {
-      if (visibleStageItems[i].id !== id) { anchorId = visibleStageItems[i].id; break; }
+    for (let i = index; i < visible.length; i++) {
+      if (visible[i].id !== id) { anchorId = visible[i].id; break; }
     }
-    const anchorPos = anchorId ? targetList.findIndex(d => d.id === anchorId) : -1;
-    const insertAt = anchorPos !== -1 ? anchorPos : targetList.length;
-    const newOrder = [...targetList.slice(0, insertAt), moving, ...targetList.slice(insertAt)];
-    const rebuilt = newOrder.map((d, i) => ({ ...d, stage, position: i }));
-    const changed = rebuilt.filter((d, i) => d.id === id || newOrder[i].position !== i || newOrder[i].stage !== stage);
-    qc.setQueryData<Deal[]>(['crm', 'deals'], (old) => {
-      const others = (old || []).filter(d => d.stage !== stage && d.id !== id);
-      return [...others, ...rebuilt];
-    });
-    // allSettled, not all: one failing update shouldn't make every other card
-    // in the batch report a generic failure when it actually saved fine.
-    Promise.allSettled(changed.map(d => crmApi.updateDeal(d.id, { stage, position: d.position })))
+    const anchorPos = anchorId ? target.findIndex((d) => d.id === anchorId) : -1;
+    const insertAt = anchorPos !== -1 ? anchorPos : target.length;
+    const order = [...target.slice(0, insertAt), moving, ...target.slice(insertAt)];
+    const crossing = columnOf(moving) !== colId || !isOpen(moving.stage);
+    const rebuilt = order.map((d, i) => (d.id === id
+      ? { ...d, stage: col.phase, stage_id: col.id, position: i }
+      : { ...d, position: i }));
+    const changed = rebuilt.filter((d, i) => d.id === id || order[i].position !== i);
+    const changedIds = new Set(changed.map((d) => d.id));
+
+    qc.setQueryData<Deal[]>(['crm', 'deals'], (old) => (old || []).map((d) => (changedIds.has(d.id) ? rebuilt.find((r) => r.id === d.id)! : d)));
+    // allSettled: one failing card must not report the whole batch as failed.
+    Promise.allSettled(changed.map((d) => crmApi.updateDeal(d.id, d.id === id
+      ? { stage: col.phase, stage_id: col.id, position: d.position }
+      : { position: d.position })))
       .then((results) => {
-        const failedCount = results.filter(r => r.status === 'rejected').length;
-        if (failedCount > 0) {
-          toast.error(failedCount === changed.length
-            ? 'Failed to reorder'
-            : `${failedCount} of ${changed.length} card${changed.length === 1 ? '' : 's'} failed to save`);
+        const failed = results.filter((r) => r.status === 'rejected').length;
+        if (failed > 0) {
+          toast.error(failed === changed.length ? 'Could not move that deal' : `${failed} of ${changed.length} cards failed to save`);
+        } else if (crossing) {
+          toast.success(`Moved to ${col.name}`);
         }
         qc.invalidateQueries({ queryKey: ['crm'] });
       });
   };
 
-  const linkCounts = (dealId: string) => ({
-    tasks: tasks.filter(t => t.deal_id === dealId && !t.is_done).length,
-    events: events.filter(e => e.deal_id === dealId && new Date(e.starts_at) >= new Date()).length,
-  });
-
-  /*
-   * Columns follow what is actually on the board.
-   *
-   * Won and lost only ever grow, and a board that always shows them spends a
-   * third of its width on history — while the default filter is open deals,
-   * which would render those two columns permanently empty. So they appear
-   * when they hold something and stay out of the way when they do not.
-   */
-  const columns = DEAL_STAGES.filter(
-    (s) => isOpen(s.id) || deals.some((d) => d.stage === s.id),
-  );
+  const dropOnZone = (z: 'won' | 'lost' | 'delete') => {
+    const deal = deals.find((d) => d.id === dragId);
+    endDrag();
+    if (!deal) return;
+    if (z === 'delete') onDelete(deal);
+    else if (deal.stage !== z) onOutcome(deal, z);
+  };
 
   return (
-    <div
-      ref={boardRef}
-      style={height ? { height } : undefined}
-      onDragOver={(e) => autoScrollX(boardRef.current, e.clientX)}
-      className="flex gap-3 overflow-x-auto pb-2"
-    >
-      {columns.map(stage => {
-        const items = deals.filter(d => d.stage === stage.id);
-        const total = items.reduce((s, d) => s + (d.value || 0), 0);
-        const weighted = items.reduce((s, d) => s + weightedValue(d), 0);
-        const closedStage = stage.id === 'won' || stage.id === 'lost';
-        const dropHere = over?.stage === stage.id;
-        return (
-          <div
-            key={stage.id}
-            onDragOver={(e) => { e.preventDefault(); setOver({ stage: stage.id, index: items.length }); }}
-            onDrop={(e) => { e.preventDefault(); if (dragId && over) commit(over.stage, over.index); setDragId(null); setOver(null); }}
-            className={cn(
-              'flex-shrink-0 w-[276px] rounded-xl border bg-[var(--bg-muted)]/40 flex flex-col h-full min-h-0 transition-colors',
-              dropHere ? 'border-[var(--indigo)] bg-[var(--indigo-subtle)]/40' : 'border-[var(--border-subtle)]'
-            )}
-          >
-            {/* Outside the scroll area, so the stage, its count and its total
-                stay put however far down the column you are. */}
-            <div className="flex-shrink-0 px-3 pt-2.5 pb-2">
-              <div className="flex items-center gap-2">
-                <span className={cn('h-2 w-2 rounded-full', STAGE_DOT[stage.id])} />
-                <span className="text-body font-semibold text-[var(--text-primary)]">{stage.label}</span>
-                <span className="text-caption font-medium text-[var(--text-tertiary)] tabular">{items.length}</span>
-                <span className="flex-1" />
-                {!closedStage && (
-                  <button
-                    type="button"
-                    onClick={() => onAddToStage(stage.id)}
-                    title={`Add a deal straight into ${stage.label}`}
-                    aria-label={`Add a deal to ${stage.label}`}
-                    className="icon-btn h-6 w-6 -mr-1 text-[var(--text-tertiary)] hover:text-[var(--indigo-text)]"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                  </button>
-                )}
-              </div>
-              <div className="mt-1 flex items-baseline gap-1.5">
-                <span className="text-body font-semibold text-[var(--text-primary)] tabular">{fmtMoney(total)}</span>
-                {/* The number the forecast actually uses, next to the one
-                    everybody quotes — a column total nobody discounts is how
-                    a pipeline ends up promising twice what it delivers. */}
-                {!closedStage && weighted !== total && (
-                  <span className="text-micro text-[var(--text-tertiary)] tabular" title="Weighted by each deal's odds">
-                    {fmtMoney(weighted)} wtd
-                  </span>
-                )}
-              </div>
-            </div>
-            <div
-              onDragOver={(e) => autoScrollY(e.currentTarget, e.clientY)}
-              className="flex-1 min-h-0 overflow-y-auto px-2 pb-2"
+    <>
+      <div
+        ref={boardRef}
+        style={height ? { height } : undefined}
+        onDragOver={(e) => autoScrollX(boardRef.current, e.clientX)}
+        className="flex gap-3 overflow-x-auto pb-2"
+      >
+        {columns.map((col, colIndex) => {
+          const items = deals.filter((d) => columnOf(d) === col.id);
+          const total = items.reduce((s, d) => s + (Number(d.value) || 0), 0);
+          const weighted = items.reduce((s, d) => s + weightedValue(d), 0);
+          const share = col.kind === 'stage' && openWeighted > 0 ? Math.round((weighted / openWeighted) * 100) : 0;
+          const dropHere = over?.col === col.id;
+          const stalled = col.kind === 'stage' ? items.filter((d) => rotOf(d).rotting).length : 0;
+          return (
+            <section
+              key={col.id}
+              aria-label={col.name}
+              onDragOver={(e) => { e.preventDefault(); if (dragId) setOver({ col: col.id, index: items.length }); }}
+              onDrop={(e) => { e.preventDefault(); if (dragId && over) commit(over.col, over.index); endDrag(); }}
+              className={cn(
+                'flex-shrink-0 w-72 rounded-2xl border flex flex-col h-full min-h-0 transition-colors',
+                dropHere
+                  ? 'border-[var(--indigo)] bg-[var(--indigo-subtle)]'
+                  : col.kind === 'won'
+                    ? 'border-emerald-500/25 bg-emerald-500/5'
+                    : col.kind === 'lost'
+                      ? 'border-rose-500/25 bg-rose-500/5'
+                      : 'border-[var(--border-subtle)] bg-[var(--bg-muted)]/40',
+              )}
             >
-              {items.map((d, idx) => {
-                const lc = linkCounts(d.id);
-                const rot = rotOf(d);
-                const lead = leadName(d);
-                const closeInfo = d.expected_close_date ? relDay(d.expected_close_date) : null;
-                return (
+              {/* Outside the scroll area, so the stage, its count and its
+                  total stay put however far down the column you are. */}
+              <header className="flex-shrink-0 px-3 pt-3 pb-2">
+                <div className="flex items-center gap-2">
+                  {col.kind === 'stage' ? (
+                    <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-[var(--indigo-subtle)] text-micro font-semibold tabular-nums text-[var(--indigo-text)]">{colIndex + 1}</span>
+                  ) : col.kind === 'won' ? (
+                    <Trophy className="h-4 w-4 flex-shrink-0 text-emerald-500" />
+                  ) : (
+                    <XCircle className="h-4 w-4 flex-shrink-0 text-rose-500" />
+                  )}
+                  <h3 className="min-w-0 truncate text-strong font-semibold text-[var(--text-primary)]">{col.name}</h3>
+                  <span className="flex-shrink-0 rounded-full bg-[var(--bg-surface)] px-1.5 text-micro font-semibold tabular-nums text-[var(--text-secondary)] shadow-[var(--shadow-sm)]">{items.length}</span>
+                  <span className="flex-1" />
+                  {col.kind === 'stage' && (
+                    <>
+                      <span className="text-micro tabular-nums text-[var(--text-tertiary)]" title="Odds a deal in this stage closes">{col.probability}%</span>
+                      <button
+                        type="button"
+                        onClick={() => onAddToColumn(col)}
+                        title={`Add a deal straight into ${col.name}`}
+                        aria-label={`Add a deal to ${col.name}`}
+                        className="icon-btn h-6 w-6 -mr-1 text-[var(--text-tertiary)] hover:text-[var(--indigo-text)]"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                      </button>
+                    </>
+                  )}
+                </div>
+                <div className="mt-1.5 flex items-baseline gap-1.5">
+                  <span className="text-strong font-semibold tabular-nums text-[var(--text-primary)]">{fmtMoney(total)}</span>
+                  {/* The number the forecast uses, next to the one everybody
+                      quotes: a column total nobody discounts is how a
+                      pipeline ends up promising twice what it delivers. */}
+                  {col.kind === 'stage' && weighted !== total && (
+                    <span className="text-micro tabular-nums text-[var(--text-tertiary)]" title="Weighted by each deal's odds">{fmtMoney(weighted)} weighted</span>
+                  )}
+                  {stalled > 0 && (
+                    <span className="ml-auto inline-flex items-center gap-0.5 text-micro font-semibold tabular-nums text-rose-600 dark:text-rose-400" title="Deals that have not moved for longer than this stage allows">
+                      <Clock className="h-2.5 w-2.5" />{stalled} stalled
+                    </span>
+                  )}
+                </div>
+                {col.kind === 'stage' && (
+                  <div className="mt-2 h-1 overflow-hidden rounded-full bg-[var(--border-subtle)]" title={`${share}% of the weighted pipeline`}>
+                    <div className="h-full rounded-full bg-[var(--indigo)] transition-all" style={{ width: `${share}%` }} />
+                  </div>
+                )}
+              </header>
+              <div
+                onDragOver={(e) => autoScrollY(e.currentTarget, e.clientY)}
+                className="flex-1 min-h-0 overflow-y-auto px-2 pb-2"
+              >
+                {items.map((d, idx) => (
                   <div key={d.id}>
                     {dropHere && over!.index === idx && dragId !== d.id && (
-                      <div className="h-0.5 my-1 rounded-full bg-[var(--indigo)]" />
+                      <div className="my-1 h-0.5 rounded-full bg-[var(--indigo)]" />
                     )}
-                    {/* A div, not a button: the company and lead inside are
-                        themselves clickable, and a button inside a button is
-                        invalid markup that browsers resolve unpredictably.
-                        The deal title is the focusable "open" button, so the
-                        card itself stays out of the tab order and the
-                        interactive children are never nested in a button. */}
-                    <div
+                    <DealCard
+                      deal={d}
+                      next={next.get(d.id)}
+                      health={health?.[d.id]}
                       draggable={!dragDisabled}
+                      dragging={dragId === d.id}
                       onDragStart={() => { if (!dragDisabled) setDragId(d.id); }}
-                      onDragEnd={() => { setDragId(null); setOver(null); }}
-                      onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); const after = e.clientY > r.top + r.height / 2; setOver({ stage: stage.id, index: after ? idx + 1 : idx }); }}
-                      onClick={() => onEdit(d)}
-                      className={cn(
-                        'group w-full text-left rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-2.5 my-1 shadow-[var(--shadow-sm)] hover:border-[var(--border-default)] hover:shadow-[var(--shadow-md)] transition-all',
-                        dragDisabled ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing',
-                        dragId === d.id && 'opacity-50'
-                      )}
-                    >
-                      <div className="flex items-start gap-1.5">
-                        <GripVertical aria-hidden="true" className="h-3.5 w-3.5 text-[var(--text-tertiary)] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-0.5" />
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); onEdit(d); }}
-                          className="min-w-0 rounded text-left text-body font-medium text-[var(--text-primary)] leading-snug line-clamp-2"
-                        >
-                          {d.title}
-                        </button>
-                        {/* Movement is the only real signal of health, and a
-                            static card is the one place it never shows. */}
-                        {rot.rotting && (
-                          <span
-                            title={`No movement for ${rot.days} days — ${stage.label.toLowerCase()} deals are expected to move within ${rot.limit}`}
-                            className="ml-auto inline-flex flex-shrink-0 items-center gap-0.5 rounded-full bg-rose-500/10 px-1.5 py-0.5 text-micro font-semibold tabular-nums text-rose-600 dark:text-rose-400"
-                          >
-                            <Clock className="h-2.5 w-2.5" />{rot.days}d
-                          </span>
-                        )}
-                      </div>
-                      <div className="mt-2 flex items-center gap-2 flex-wrap">
-                        <DealHealthDot health={health?.[d.id]} />
-                        <span className="text-body font-semibold text-[var(--text-primary)] tabular">{fmtMoney(d.value, d.currency)}</span>
-                        {d.company && (
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); onOpenCompany(d); }}
-                            title={`Open ${d.company}`}
-                            className="inline-flex min-h-6 items-center gap-1 text-micro text-[var(--text-tertiary)] truncate max-w-[110px] rounded transition-colors hover:text-[var(--indigo-text)] hover:underline"
-                          >
-                            <Building2 className="h-3 w-3 flex-shrink-0" />{d.company}
-                          </button>
-                        )}
-                      </div>
-                      {(lead || closeInfo || lc.tasks > 0 || lc.events > 0) && (
-                        <div className="mt-1.5 flex items-center gap-2 text-micro text-[var(--text-tertiary)]">
-                          {lead && (leadId(d)
-                            ? (
-                              <button
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); openPeek('contact', leadId(d)!); }}
-                                title={`Open ${leadEmail(d) || lead}`}
-                                className="inline-flex min-h-6 items-center gap-1 min-w-0 flex-shrink rounded transition-colors hover:text-[var(--indigo-text)]"
-                              >
-                                <Avatar name={lead} email={leadEmail(d)} size="xs" />
-                                <span className="truncate max-w-[92px] hover:underline">{lead}</span>
-                              </button>
-                            )
-                            : (
-                              <span className="inline-flex items-center gap-1 min-w-0 flex-shrink" title={leadEmail(d) || lead}>
-                                <Avatar name={lead} email={leadEmail(d)} size="xs" />
-                                <span className="truncate max-w-[92px]">{lead}</span>
-                              </span>
-                            )
-                          )}
-                          <span className="flex-1" />
-                          {closeInfo && (
-                            <span className={cn('inline-flex items-center gap-1 flex-shrink-0', closeInfo.tone === 'over' && d.stage !== 'won' && d.stage !== 'lost' && 'text-rose-600 dark:text-rose-400 font-medium')}>
-                              <CalendarClock className="h-3 w-3" /> {closeInfo.label}
-                            </span>
-                          )}
-                          {lc.tasks > 0 && <span className="inline-flex items-center gap-1 flex-shrink-0"><ListTodo className="h-3 w-3" /> {lc.tasks}</span>}
-                          {lc.events > 0 && <span className="inline-flex items-center gap-1 flex-shrink-0"><CalendarIcon className="h-3 w-3" /> {lc.events}</span>}
-                        </div>
-                      )}
-                    </div>
+                      onDragEnd={endDrag}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (!dragId) return;
+                        const r = e.currentTarget.getBoundingClientRect();
+                        const after = e.clientY > r.top + r.height / 2;
+                        setOver({ col: col.id, index: after ? idx + 1 : idx });
+                      }}
+                      onOpen={onOpen}
+                    />
                   </div>
-                );
-              })}
-              {dropHere && over!.index >= items.length && (
-                <div className="h-0.5 my-1 rounded-full bg-[var(--indigo)]" />
-              )}
-              {items.length === 0 && !dropHere && (
-                closedStage ? (
-                  <p className="py-4 text-center text-caption text-[var(--text-tertiary)]">Nothing here yet</p>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => onAddToStage(stage.id)}
-                    className="w-full rounded-lg border border-dashed border-[var(--border-default)] py-4 text-caption text-[var(--text-tertiary)] transition-colors hover:border-[var(--indigo)] hover:text-[var(--indigo-text)]"
-                  >
-                    Drop a deal here, or add one
-                  </button>
-                )
-              )}
-            </div>
+                ))}
+                {dropHere && over!.index >= items.length && (
+                  <div className="my-1 h-0.5 rounded-full bg-[var(--indigo)]" />
+                )}
+                {items.length === 0 && !dropHere && (
+                  col.kind === 'stage' ? (
+                    <button
+                      type="button"
+                      onClick={() => onAddToColumn(col)}
+                      className="mt-1 w-full rounded-xl border border-dashed border-[var(--border-default)] py-5 text-caption text-[var(--text-tertiary)] transition-colors hover:border-[var(--indigo)] hover:text-[var(--indigo-text)]"
+                    >
+                      Drop a deal here, or add one
+                    </button>
+                  ) : (
+                    <p className="py-4 text-center text-caption text-[var(--text-tertiary)]">Nothing here yet</p>
+                  )
+                )}
+              </div>
+            </section>
+          );
+        })}
+      </div>
+
+      {/* While a card is in the air: drop it on how it ended. Asked why
+          before it is saved, and a delete waits behind the undo bar. */}
+      {dragId && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-6 z-40 flex justify-center px-4">
+          <div className="pointer-events-auto flex gap-2 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-2 shadow-[var(--shadow-xl)]">
+            {([
+              ['lost', 'Lost', XCircle, 'border-rose-500/40 text-rose-600 dark:text-rose-400', 'bg-rose-500 text-white border-rose-500'],
+              ['won', 'Won', Trophy, 'border-emerald-500/40 text-emerald-600 dark:text-emerald-400', 'bg-emerald-500 text-white border-emerald-500'],
+              ['delete', 'Delete', Trash2, 'border-[var(--border-default)] text-[var(--text-secondary)]', 'bg-[var(--text-primary)] text-[var(--bg-surface)] border-[var(--text-primary)]'],
+            ] as const).map(([id, label, Icon, idle, hot]) => (
+              <div
+                key={id}
+                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setZone(id); setOver(null); }}
+                onDragLeave={() => setZone((z) => (z === id ? null : z))}
+                onDrop={(e) => { e.preventDefault(); e.stopPropagation(); dropOnZone(id); }}
+                className={cn(
+                  'flex h-14 w-32 items-center justify-center gap-2 rounded-xl border-2 border-dashed text-strong font-semibold transition-all sm:w-40',
+                  zone === id ? cn(hot, 'scale-105 border-solid') : idle,
+                )}
+              >
+                <Icon className="h-4 w-4" /> {label}
+              </div>
+            ))}
           </div>
-        );
-      })}
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ─── Pipeline switcher ───────────────────────────── */
+function PipelineSwitcher({
+  pipelines, active, counts, ready, onPick, onEdit, onNew,
+}: {
+  pipelines: Pipeline[];
+  active: Pipeline | null;
+  counts: Record<string, { n: number; value: number }>;
+  ready: boolean;
+  onPick: (id: string) => void;
+  onEdit: () => void;
+  onNew: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const { triggerProps, panelProps } = usePopover(open, () => setOpen(false));
+  const wrap = useRef<HTMLDivElement>(null);
+  // A click anywhere else puts it away.
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => { if (!wrap.current?.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener('mousedown', away);
+    return () => document.removeEventListener('mousedown', away);
+  }, [open]);
+  return (
+    <div ref={wrap} className="relative">
+      <button
+        type="button"
+        {...triggerProps}
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex h-8 items-center gap-2 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 text-strong font-semibold text-[var(--text-primary)] shadow-[var(--shadow-sm)] transition-colors hover:border-[var(--text-tertiary)]"
+      >
+        <Layers className="h-3.5 w-3.5 text-[var(--indigo-text)]" />
+        <span className="max-w-[200px] truncate">{active?.name || 'Pipeline'}</span>
+        <ChevronDown className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
+      </button>
+      {open && (
+        <div {...panelProps} className="absolute left-0 top-full z-30 mt-1.5 w-72 rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-1.5 shadow-[var(--shadow-lg)]">
+          <p className="px-2 pb-1 pt-0.5 text-micro font-semibold uppercase tracking-wide text-[var(--text-tertiary)]">Pipelines</p>
+          {pipelines.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => { onPick(p.id); setOpen(false); }}
+              className={cn(
+                'flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-[var(--bg-hover)]',
+                p.id === active?.id && 'bg-[var(--indigo-subtle)]',
+              )}
+            >
+              <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center">
+                {p.id === active?.id && <Check className="h-3.5 w-3.5 text-[var(--indigo-text)]" />}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-1.5 text-body font-medium text-[var(--text-primary)]">
+                  <span className="truncate">{p.name}</span>
+                  {p.is_default && pipelines.length > 1 && <Star className="h-3 w-3 flex-shrink-0 fill-current text-amber-500" aria-label="Default" />}
+                </span>
+                <span className="block text-caption text-[var(--text-tertiary)]">
+                  {p.stages.length} stages · {counts[p.id]?.n || 0} open · {fmtMoney(counts[p.id]?.value || 0)}
+                </span>
+              </span>
+            </button>
+          ))}
+          <div className="my-1 h-px bg-[var(--border-subtle)]" />
+          {ready ? (
+            <>
+              <button type="button" onClick={() => { setOpen(false); onEdit(); }} className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-body font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]">
+                <Settings2 className="h-3.5 w-3.5" /> Edit stages of {active?.name}
+              </button>
+              <button type="button" onClick={() => { setOpen(false); onNew(); }} className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-body font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]">
+                <Plus className="h-3.5 w-3.5" /> New pipeline
+              </button>
+            </>
+          ) : (
+            <p className="px-2 py-1.5 text-caption text-[var(--text-tertiary)]">
+              Your own pipelines and stage names switch on after the latest database update is applied.
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
-/* ─── Tasks panel ─────────────────────────────────── */
+/* ─── Page ────────────────────────────────────────── */
 export function DealsPage() {
   const [dealModal, setDealModal] = useState<Partial<Deal> | null | undefined>(undefined);
   /* ?new=1 opens the new-deal form: "New deal" from Create or Cmd+K lands
@@ -706,8 +785,8 @@ export function DealsPage() {
   const [eventModal, setEventModal] = useState<Partial<CrmEvent> | null | undefined>(undefined);
   const [query, setQuery] = useState('');
 
-  /* The view survives a reload: somebody who works in the table does not
-     want to be put back on a board every morning. */
+  /* The view and the pipeline survive a reload: somebody who works in the
+     table does not want to be put back on a board every morning. */
   const [view, setView] = useState<DealView>(() => {
     try { return (localStorage.getItem('deals.view') as DealView) || 'board'; } catch { return 'board'; }
   });
@@ -715,6 +794,14 @@ export function DealsPage() {
     setView(v);
     try { localStorage.setItem('deals.view', v); } catch { /* private window; not worth failing over */ }
   };
+  const [pipelineId, setPipelineId] = useState<string | null>(() => {
+    try { return localStorage.getItem('deals.pipeline'); } catch { return null; }
+  });
+  const pickPipeline = (id: string) => {
+    setPipelineId(id);
+    try { localStorage.setItem('deals.pipeline', id); } catch { /* as above */ }
+  };
+  const [editor, setEditor] = useState<'edit' | 'new' | null>(null);
 
   const [filters, setFilters] = useState<DealFilterState>(EMPTY_FILTERS);
   const [sortKey, setSortKey] = useState<SortKey>('value');
@@ -726,6 +813,8 @@ export function DealsPage() {
   const qc = useQueryClient();
   const { openPeek } = usePeek();
   const navigate = useNavigate();
+  const pipes = usePipelines();
+  const { data: health } = useDealHealth();
 
   const dealsQ = useQuery({ queryKey: ['crm', 'deals'], queryFn: () => crmApi.listDeals() });
   const tasksQ = useQuery({ queryKey: ['crm', 'tasks'], queryFn: () => crmApi.listTasks() });
@@ -736,13 +825,58 @@ export function DealsPage() {
     () => (dealsQ.data || []).filter((d) => !gone.hidden(d.id)),
     [dealsQ.data, gone],
   );
-  const tasks = tasksQ.data || [];
-  const events = eventsQ.data || [];
+  const next = useMemo(() => nextStepsByDeal(tasksQ.data || [], eventsQ.data || []), [tasksQ.data, eventsQ.data]);
+
+  const active = (pipelineId && pipes.pipelines.find((p) => p.id === pipelineId)) || pipes.defaultPipeline;
+  const inPipeline = useMemo(
+    () => deals.filter((d) => pipes.pipelineOf(d)?.id === active?.id),
+    [deals, pipes, active],
+  );
+
+  /** Which board column a deal sits in: its named stage, or how it ended. */
+  const columnOf = (d: Deal): string =>
+    d.stage === 'won' || d.stage === 'lost' ? d.stage : pipes.stageOf(d)?.id || d.stage;
+
+  const columns: BoardColumn[] = useMemo(() => {
+    const stageCols: BoardColumn[] = (active?.stages || []).map((s) => ({
+      id: s.id, name: s.name, kind: 'stage', phase: s.phase,
+      probability: s.probability ?? STAGE_PROBABILITY[s.phase],
+    }));
+    return [
+      ...stageCols,
+      { id: 'won', name: 'Won', kind: 'won', phase: 'won', probability: 100 },
+      { id: 'lost', name: 'Lost', kind: 'lost', phase: 'lost', probability: 0 },
+    ];
+  }, [active]);
 
   const visibleDeals = useMemo(
-    () => applyDealFilters(deals, filters, query),
-    [deals, filters, query],
+    () => applyDealFilters(inPipeline, filters, query, columnOf),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [inPipeline, filters, query, pipes],
   );
+  /* Columns follow what is on the board. Won and lost only ever grow, and a
+     board that always showed them would spend its width on history while
+     the default filter is open deals. */
+  const boardColumns = columns.filter((c) => c.kind === 'stage' || visibleDeals.some((d) => d.stage === c.kind));
+
+  const pipelineCounts = useMemo(() => {
+    const out: Record<string, { n: number; value: number }> = {};
+    for (const d of deals) {
+      if (!isOpen(d.stage)) continue;
+      const id = pipes.pipelineOf(d)?.id;
+      if (!id) continue;
+      out[id] = out[id] || { n: 0, value: 0 };
+      out[id].n += 1;
+      out[id].value += Number(d.value) || 0;
+    }
+    return out;
+  }, [deals, pipes]);
+
+  const stageDealCounts = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const d of inPipeline) if (d.stage_id) out[d.stage_id] = (out[d.stage_id] || 0) + 1;
+    return out;
+  }, [inPipeline]);
 
   // Selection is keyed by id, and ids leave the page when a filter changes.
   // Left alone, a bulk action would apply to deals nobody can see.
@@ -750,38 +884,46 @@ export function DealsPage() {
     setSelected((prev) => {
       if (prev.size === 0) return prev;
       const alive = new Set(visibleDeals.map((d) => d.id));
-      const next = new Set([...prev].filter((id) => alive.has(id)));
-      return next.size === prev.size ? prev : next;
+      const kept = new Set([...prev].filter((id) => alive.has(id)));
+      return kept.size === prev.size ? prev : kept;
     });
   }, [visibleDeals]);
 
-  const loading = dealsQ.isLoading || tasksQ.isLoading || eventsQ.isLoading;
+  const loading = dealsQ.isLoading || tasksQ.isLoading || eventsQ.isLoading || pipes.loading;
 
   const refresh = () => qc.invalidateQueries({ queryKey: ['crm'] });
 
+  /** What one deal's move to `target` (a stage id, 'won' or 'lost') writes. */
+  const movePayload = (target: string, reason?: string | null) => {
+    if (target === 'won' || target === 'lost') {
+      return { stage: target as DealStage, ...(reason !== undefined ? { outcome_reason: reason } : {}) };
+    }
+    const st = pipes.stageById.get(target);
+    return { stage: (st?.phase || target) as DealStage, stage_id: target };
+  };
+  const targetName = (target: string) =>
+    target === 'won' ? 'Won' : target === 'lost' ? 'Lost' : pipes.stageById.get(target)?.name || dealStageLabel(target);
+
   /**
-   * Move a deal to a stage, asking why when the move ends it.
+   * Move a deal, asking why when the move ends it.
    *
-   * Every stage change on the page funnels through here — the board's drag,
-   * the table's dropdown, the drawer — so the reason is asked once and in
-   * one place rather than at whichever entry point somebody remembered.
+   * Every stage change on the page funnels through here - the board's drop
+   * zones, the table's dropdown - so the reason is asked once and in one
+   * place rather than at whichever entry point somebody remembered.
    */
-  const moveStage = async (deal: Deal, stage: DealStage, reason?: string | null) => {
-    if (deal.stage === stage) return;
-    if ((stage === 'won' || stage === 'lost') && reason === undefined) {
-      setOutcome({ deal, stage });
+  const moveStage = async (deal: Deal, target: string, reason?: string | null) => {
+    if (target === columnOf(deal)) return;
+    if ((target === 'won' || target === 'lost') && reason === undefined) {
+      setOutcome({ deal, stage: target });
       return;
     }
     try {
-      await crmApi.updateDeal(deal.id, {
-        stage,
-        ...(reason !== undefined ? { outcome_reason: reason } : {}),
-      } as any);
+      await crmApi.updateDeal(deal.id, movePayload(target, reason));
       refresh();
       toast.success(
-        stage === 'won' ? `“${deal.title}” marked won`
-          : stage === 'lost' ? `“${deal.title}” marked lost`
-            : `Moved to ${DEAL_STAGES.find((s) => s.id === stage)?.label}`,
+        target === 'won' ? `“${deal.title}” marked won`
+          : target === 'lost' ? `“${deal.title}” marked lost`
+            : `Moved to ${targetName(target)}`,
       );
     } catch (e: any) {
       toast.error(e?.response?.data?.error || 'Could not move that deal');
@@ -790,26 +932,22 @@ export function DealsPage() {
   };
 
   // Same gate as moveStage: a bulk move into won/lost asks for the reason
-  // once for the whole batch, rather than silently leaving it blank the way
-  // a bare updateDeal(stage) call would.
-  const bulkStage = async (stage: DealStage, idsOverride?: string[], reason?: string | null) => {
+  // once for the whole batch.
+  const bulkStage = async (target: string, idsOverride?: string[], reason?: string | null) => {
     const ids = idsOverride ?? [...selected];
     if (ids.length === 0) return;
-    if ((stage === 'won' || stage === 'lost') && reason === undefined) {
-      setBulkOutcome({ ids, stage });
+    if ((target === 'won' || target === 'lost') && reason === undefined) {
+      setBulkOutcome({ ids, stage: target });
       return;
     }
     // allSettled, not all: one failing update shouldn't report the whole
     // batch as failed and strand the selection on deals that already moved.
-    const results = await Promise.allSettled(ids.map((id) => crmApi.updateDeal(id, {
-      stage,
-      ...(reason !== undefined ? { outcome_reason: reason } : {}),
-    } as any)));
+    const results = await Promise.allSettled(ids.map((id) => crmApi.updateDeal(id, movePayload(target, reason))));
     const failedCount = results.filter((r) => r.status === 'rejected').length;
     setSelected(new Set());
     refresh();
     if (failedCount === 0) {
-      toast.success(`${ids.length} deal${ids.length === 1 ? '' : 's'} moved`);
+      toast.success(`${ids.length} deal${ids.length === 1 ? '' : 's'} moved to ${targetName(target)}`);
     } else if (failedCount === ids.length) {
       toast.error('Could not move those deals');
     } else {
@@ -836,6 +974,16 @@ export function DealsPage() {
     });
   };
 
+  // Dropped on Delete while dragging: gone at once, back with one click.
+  const deleteOne = (d: Deal) => {
+    gone.remove(d.id, `Deleted "${d.title}"`, async () => {
+      await crmApi.deleteDeal(d.id);
+      refresh();
+      qc.invalidateQueries({ queryKey: ['contact-crm'] });
+      qc.invalidateQueries({ queryKey: ['contacts'] });
+    });
+  };
+
   const openCompany = (d: Deal) => {
     const id = dealCompanyId(d);
     if (id) openPeek('company', id);
@@ -850,10 +998,20 @@ export function DealsPage() {
     if (key === sortKey) { setSortDir(sortDir === 'asc' ? 'desc' : 'asc'); return; }
     setSortKey(key);
     // Money and dates are almost always wanted biggest-or-soonest first;
-    // names are wanted alphabetically. Guessing right saves a second click
-    // on nearly every sort.
+    // names are wanted alphabetically.
     setSortDir(key === 'title' || key === 'company' || key === 'lead' ? 'asc' : 'desc');
   };
+
+  const openDeals = inPipeline.filter((d) => isOpen(d.stage));
+  const noNextStep = openDeals.filter((d) => !next.has(d.id)).length;
+  const lateNextStep = openDeals.filter((d) => (next.get(d.id)?.dayDiff ?? 0) < 0).length;
+
+  // The forecast reads banked revenue too, so "open" there also shows won.
+  const forecastDeals = useMemo(
+    () => applyDealFilters(inPipeline, { ...filters, focus: filters.focus === 'open' ? 'all' : filters.focus }, query, columnOf),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [inPipeline, filters, query, pipes],
+  );
 
   return (
     <div>
@@ -864,37 +1022,71 @@ export function DealsPage() {
         actions={
           // Wraps on a phone: the search takes its own line and the buttons sit under it.
           <>
-            <SearchInput value={query} onChange={setQuery} placeholder="Search deals, companies, leads…" className="w-full sm:w-72" />
+            <SearchInput value={query} onChange={setQuery} placeholder="Search deals, companies, contacts…" className="w-full sm:w-72" />
             {deals.length > 0 && (
               <Button variant="secondary" onClick={() => navigate('/deals/insights')} title="Where deals die, why, and which sources are worth working">
                 <BarChart3 className="h-4 w-4" /> Win / loss
               </Button>
             )}
             {deals.length > 0 && (
-              <Button variant="secondary" onClick={() => exportDealsCsv(visibleDeals)} title="Export the deals shown below as a CSV file">
+              <Button variant="secondary" onClick={() => exportDealsCsv(visibleDeals, pipes.stageLabel, (d) => pipes.pipelineOf(d)?.name || '')} title="Export the deals shown below as a CSV file">
                 <Download className="h-4 w-4" /> Export CSV
               </Button>
             )}
-            <Button variant="primary" onClick={() => setDealModal(null)}><Plus className="h-4 w-4" /> New deal</Button>
+            <Button variant="primary" onClick={() => setDealModal(active && pipes.ready ? { pipeline_id: active.id, stage_id: active.stages[0]?.id, stage: active.stages[0]?.phase } : null)}><Plus className="h-4 w-4" /> New deal</Button>
           </>
         }
       />
 
-      {deals.length > 0 && (
+      {/* Which pipeline, and the two things that most often go wrong in it. */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <PipelineSwitcher
+          pipelines={pipes.pipelines}
+          active={active}
+          counts={pipelineCounts}
+          ready={pipes.ready}
+          onPick={pickPipeline}
+          onEdit={() => setEditor('edit')}
+          onNew={() => setEditor('new')}
+        />
+        {pipes.ready && (
+          <Button variant="secondary" onClick={() => setEditor('edit')} title="Rename, add, reorder or remove stages">
+            <Settings2 className="h-4 w-4" /> <span className="hidden sm:inline">Edit stages</span>
+          </Button>
+        )}
+        <span className="flex-1" />
+        {openDeals.length > 0 && (noNextStep > 0 || lateNextStep > 0) && (
+          <div className="flex flex-wrap items-center gap-1.5 text-caption">
+            {lateNextStep > 0 && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/10 px-2 py-1 font-semibold text-rose-600 dark:text-rose-400">
+                <Clock className="h-3 w-3" /> {lateNextStep} late next step{lateNextStep === 1 ? '' : 's'}
+              </span>
+            )}
+            {noNextStep > 0 && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-1 font-semibold text-amber-700 dark:text-amber-400" title="Open deals with no task or meeting planned. Use Plan on the card.">
+                <AlertTriangle className="h-3 w-3" /> {noNextStep} with no next step
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {inPipeline.length > 0 && (
         <PipelineHeader
-          deals={deals}
+          deals={inPipeline}
           onShowRotting={() => setFilters({ ...EMPTY_FILTERS, focus: 'stalled' })}
           onShowOverdue={() => setFilters({ ...EMPTY_FILTERS, focus: 'overdue' })}
         />
       )}
 
-      {deals.length > 0 && (
+      {inPipeline.length > 0 && (
         <DealFilters
-          deals={deals}
+          deals={inPipeline}
           filters={filters}
           onChange={setFilters}
           view={view}
           onView={setViewPersisted}
+          stageOptions={columns.map((c) => ({ id: c.id, label: c.name }))}
         />
       )}
 
@@ -907,14 +1099,14 @@ export function DealsPage() {
           </span>
           <span className="h-4 w-px bg-[var(--border-default)]" />
           <span className="text-caption text-[var(--text-secondary)]">Move to</span>
-          {DEAL_STAGES.map((s) => (
+          {columns.map((c) => (
             <button
-              key={s.id}
+              key={c.id}
               type="button"
-              onClick={() => bulkStage(s.id)}
+              onClick={() => bulkStage(c.id)}
               className="rounded-lg bg-[var(--bg-surface)] px-2 py-1 text-caption font-medium text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
             >
-              {s.label}
+              {c.name}
             </button>
           ))}
           <span className="flex-1" />
@@ -939,22 +1131,24 @@ export function DealsPage() {
       {loading ? (
         <SkeletonList rows={6} />
       ) : deals.length === 0 ? (
-        <EmptyBoard icon={Handshake} title="No deals yet" body="Add your first deal to start tracking your pipeline." action="New deal" onAction={() => setDealModal(null)} />
-      ) : visibleDeals.length === 0 ? (
+        <EmptyBoard icon={Handshake} title="No deals yet" body="Add your first deal to start tracking your pipeline. Deals link to your contacts and companies, so everything about an account sits in one place." action="New deal" onAction={() => setDealModal(null)} />
+      ) : inPipeline.length === 0 ? (
+        <EmptyBoard icon={Layers} title={`Nothing in ${active?.name || 'this pipeline'} yet`} body="Add a deal here, or move one across from another pipeline on its edit form." action="New deal" onAction={() => setDealModal(active && pipes.ready ? { pipeline_id: active.id, stage_id: active.stages[0]?.id, stage: active.stages[0]?.phase } : null)} />
+      ) : visibleDeals.length === 0 && view !== 'forecast' ? (
         <div className="panel py-4">
           <p className="text-center text-strong font-medium text-[var(--text-primary)]">
             {query ? `No deals match “${query}”` : 'Nothing here'}
           </p>
           <p className="mt-1 text-center text-body text-[var(--text-tertiary)]">
             {filters.focus === 'stalled'
-              ? 'Nothing has gone quiet — every open deal has moved recently.'
+              ? 'Nothing has gone quiet. Every open deal has moved recently.'
               : filters.focus === 'overdue'
                 ? 'Nothing is past its close date.'
                 : 'Try a different filter, or clear the search.'}
           </p>
           <button
             onClick={() => { setQuery(''); setFilters(EMPTY_FILTERS); }}
-            className="mt-2 text-body text-[var(--indigo-text)] hover:underline"
+            className="mt-2 block w-full text-center text-body text-[var(--indigo-text)] hover:underline"
           >
             Reset filters
           </button>
@@ -967,32 +1161,38 @@ export function DealsPage() {
           onSort={onSort}
           selected={selected}
           onToggle={(id) => setSelected((prev) => {
-            const next = new Set(prev);
-            if (next.has(id)) next.delete(id); else next.add(id);
-            return next;
+            const nextSel = new Set(prev);
+            if (nextSel.has(id)) nextSel.delete(id); else nextSel.add(id);
+            return nextSel;
           })}
           onToggleAll={() => setSelected((prev) =>
             prev.size === visibleDeals.length ? new Set() : new Set(visibleDeals.map((d) => d.id)))}
           onOpen={(d) => navigate(`/deals/${d.id}`)}
           onOpenCompany={openCompany}
           onOpenLead={openLead}
-          onStageChange={(d, stage) => moveStage(d, stage)}
+          onStageChange={(d, target) => moveStage(d, target)}
+        />
+      ) : view === 'forecast' ? (
+        <ForecastBoard
+          deals={forecastDeals}
+          next={next}
+          health={health}
+          onOpen={(d) => navigate(`/deals/${d.id}`)}
+          stageName={pipes.stageLabel}
+          dragDisabled={query.trim().length > 0}
         />
       ) : (
         <PipelineBoard
+          columns={boardColumns}
           deals={visibleDeals}
-          tasks={tasks}
-          events={events}
-          onEdit={(d) => navigate(`/deals/${d.id}`)}
-          onStageChange={moveStage}
-          onAddToStage={(stage) => setDealModal({ stage })}
-          // Filters that hide same-stage cards used to make dragging unsafe,
-          // because the drop index was measured against the visible column and
-          // then applied to the full list. commit() translates that index now,
-          // so a filtered board reorders correctly rather than being frozen —
-          // filtering to "Stalled" and reprioritising is the point of the view,
-          // not something to switch off. Search is still excluded: it is the
-          // one filter people leave half-typed.
+          columnOf={columnOf}
+          next={next}
+          onOpen={(d) => navigate(`/deals/${d.id}`)}
+          onOutcome={(d, stage) => moveStage(d, stage)}
+          onDelete={deleteOne}
+          onAddToColumn={(col) => setDealModal(pipes.ready ? { stage: col.phase, stage_id: col.id, pipeline_id: active?.id } : { stage: col.phase })}
+          // Search is the one filter people leave half-typed, so dragging
+          // waits until it is cleared. Every other filter reorders safely.
           dragDisabled={query.trim().length > 0}
         />
       )}
@@ -1023,6 +1223,15 @@ export function DealsPage() {
         />
       )}
 
+      {editor && (
+        <PipelineEditor
+          pipeline={editor === 'edit' ? active : null}
+          pipelines={pipes.pipelines}
+          dealCounts={stageDealCounts}
+          onClose={() => setEditor(null)}
+          onSaved={pickPipeline}
+        />
+      )}
       {dealModal !== undefined && <DealModal deal={dealModal} onClose={() => setDealModal(undefined)} />}
       {taskModal !== undefined && <ActivityModal task={taskModal} onClose={() => setTaskModal(undefined)} />}
       {eventModal !== undefined && <MeetingModal event={eventModal} onClose={() => setEventModal(undefined)} />}
@@ -1032,7 +1241,6 @@ export function DealsPage() {
 
 function EmptyBoard({ icon: Icon, title, body, action, onAction }: { icon: typeof Handshake; title: string; body: string; action: string; onAction: () => void }) {
   return (
-    /* This was EmptyState, reimplemented locally with its own spacing. */
     <EmptyState icon={Icon} title={title} description={body} actionLabel={action} onAction={onAction} />
   );
 }

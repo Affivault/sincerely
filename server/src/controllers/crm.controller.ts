@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import { healthForDeals } from '../services/deal-health.service.js';
 import { AuthRequest } from '../middleware/auth.middleware.js';
 import { crmService } from '../services/crm.service.js';
+import { pipelinesService } from '../services/pipelines.service.js';
 import { organiserBookingService } from '../services/booking.service.js';
 import { noShowService } from '../services/no-show.service.js';
 import { AppError } from '../middleware/error.middleware.js';
@@ -20,6 +21,24 @@ function assertEventTimezone(body: any) {
 import { parseDayWindow } from '../utils/day-window.js';
 
 export const crmController = {
+  // Pipelines and their stages (migration 105)
+  async listPipelines(req: AuthRequest, res: Response, next: NextFunction) {
+    try { res.json(await pipelinesService.list(req.userId!)); } catch (err) { next(err); }
+  },
+  async createPipeline(req: AuthRequest, res: Response, next: NextFunction) {
+    try { res.status(201).json(await pipelinesService.create(req.userId!, req.body)); } catch (err) { next(err); }
+  },
+  async updatePipeline(req: AuthRequest, res: Response, next: NextFunction) {
+    try { res.json(await pipelinesService.update(req.userId!, req.params.id, req.body)); } catch (err) { next(err); }
+  },
+  async deletePipeline(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const moveTo = typeof req.query.move_to === 'string' ? req.query.move_to : null;
+      await pipelinesService.remove(req.userId!, req.params.id, moveTo);
+      res.status(204).send();
+    } catch (err) { next(err); }
+  },
+
   // Deals
   async listDeals(req: AuthRequest, res: Response, next: NextFunction) {
     try {

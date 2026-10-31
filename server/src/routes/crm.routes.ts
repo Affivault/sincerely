@@ -3,6 +3,12 @@ import { crmController } from '../controllers/crm.controller.js';
 
 export const crmRoutes = Router();
 
+// Pipelines and their stages
+crmRoutes.get('/pipelines', crmController.listPipelines);
+crmRoutes.post('/pipelines', crmController.createPipeline);
+crmRoutes.put('/pipelines/:id', crmController.updatePipeline);
+crmRoutes.delete('/pipelines/:id', crmController.deletePipeline);
+
 // Deals
 crmRoutes.get('/deals', crmController.listDeals);
 // Before /deals/:id so 'health' is not read as an id.

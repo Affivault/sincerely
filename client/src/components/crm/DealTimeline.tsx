@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { usePipelines } from '../../hooks/usePipelines';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { DEAL_STAGES, formatDate, formatTime } from '@lemlist/shared';
 import type {
@@ -211,6 +212,10 @@ export function DealTimeline({
     onSuccess: () => { invalidate(); },
   });
 
+  const pipes = usePipelines();
+  // A named stage where the move recorded one; won, lost and older moves by phase.
+  const named = (stageId: string | null | undefined, phase: string | null) =>
+    (phase !== 'won' && phase !== 'lost' && stageId && pipes.stageById.get(stageId)?.name) || stageLabel(phase);
   const entries = useMemo<Entry[]>(() => {
     const out: Entry[] = [];
 
@@ -277,8 +282,8 @@ export function DealTimeline({
         id: `stage-${h.id}`, at: new Date(h.changed_at), tab: 'changes',
         icon: GitCommitHorizontal, tone: 'bg-[var(--bg-elevated)] text-[var(--text-secondary)]',
         title: h.from_stage
-          ? `Moved from ${stageLabel(h.from_stage)} to ${stageLabel(h.to_stage)}`
-          : `Started in ${stageLabel(h.to_stage)}`,
+          ? `Moved from ${named(h.from_stage_id, h.from_stage)} to ${named(h.to_stage_id, h.to_stage)}`
+          : `Started in ${named(h.to_stage_id, h.to_stage)}`,
         meta: h.reason,
       });
     }
@@ -293,7 +298,7 @@ export function DealTimeline({
        */
       .filter((e) => !gone.hidden(e.id.replace(/^(note|task|event)-/, '')))
       .sort((a, b) => b.at.getTime() - a.at.getTime());
-  }, [notes, tasks, events, emails, history, gone]);
+  }, [notes, tasks, events, emails, history, gone, pipes]);
 
   const shown = tab === 'all' ? entries : entries.filter((e) => e.tab === tab);
   const counts = useMemo(() => {

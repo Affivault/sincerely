@@ -32,6 +32,9 @@ export interface Deal {
   value: number;
   currency: string;
   stage: DealStage;
+  /** The pipeline this deal is in, and its named stage there (migration 105). */
+  pipeline_id?: string | null;
+  stage_id?: string | null;
   expected_close_date: string | null;
   notes: string | null;
   position: number;
@@ -136,6 +139,9 @@ export interface DealStageEvent {
   /** Null on the opening row: the deal did not come from anywhere. */
   from_stage: DealStage | null;
   to_stage: DealStage;
+  /** The named stages either side of the move, once migration 105 has run. */
+  from_stage_id?: string | null;
+  to_stage_id?: string | null;
   /** The won/lost reason as it stood at the moment of the move. */
   reason: string | null;
   changed_at: string;
@@ -159,6 +165,8 @@ export interface CreateDealInput {
   value?: number;
   currency?: string;
   stage?: DealStage;
+  pipeline_id?: string | null;
+  stage_id?: string | null;
   expected_close_date?: string | null;
   notes?: string | null;
   probability?: number | null;

@@ -1,7 +1,7 @@
-import { DEAL_STAGES, isOpen, rotOf, parseDay } from '@lemlist/shared';
-import type { Deal, DealStage } from '@lemlist/shared';
+import { isOpen, rotOf, parseDay } from '@lemlist/shared';
+import type { Deal } from '@lemlist/shared';
 import { cn } from '../../lib/utils';
-import { KanbanSquare, Rows3, X } from 'lucide-react';
+import { CalendarRange, KanbanSquare, Rows3, X } from 'lucide-react';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Narrowing the pipeline down to the deals you meant.
@@ -12,14 +12,15 @@ import { KanbanSquare, Rows3, X } from 'lucide-react';
    big enough to care about.
    ═══════════════════════════════════════════════════════════════════════ */
 
-export type DealView = 'board' | 'table';
+export type DealView = 'board' | 'table' | 'forecast';
 
 /** A named slice of the pipeline. `all` is not a filter, it is the absence of one. */
 export type DealFocus = 'all' | 'open' | 'stalled' | 'overdue' | 'closing' | 'won' | 'lost';
 
 export interface DealFilterState {
   focus: DealFocus;
-  stages: DealStage[];
+  /** Stage ids (a named stage, or 'won' / 'lost'). */
+  stages: string[];
   /** Minimum deal value. 0 means no floor. */
   minValue: number;
 }
@@ -50,7 +51,12 @@ function today(): number {
  * produced by the same code — a chip that says 7 above a list of 5 is the
  * fastest way to lose someone's trust in the whole page.
  */
-export function applyDealFilters(deals: Deal[], f: DealFilterState, query: string): Deal[] {
+export function applyDealFilters(
+  deals: Deal[],
+  f: DealFilterState,
+  query: string,
+  stageOf: (d: Deal) => string = (d) => d.stage,
+): Deal[] {
   const q = query.trim().toLowerCase();
   const floor = today();
   const horizon = floor + 30 * 86_400_000;
@@ -71,7 +77,7 @@ export function applyDealFilters(deals: Deal[], f: DealFilterState, query: strin
       if (f.focus === 'closing' && (close < floor || close > horizon)) return false;
     }
 
-    if (f.stages.length > 0 && !f.stages.includes(d.stage)) return false;
+    if (f.stages.length > 0 && !f.stages.includes(stageOf(d))) return false;
     if (f.minValue > 0 && (Number(d.value) || 0) < f.minValue) return false;
 
     if (q) {
@@ -97,17 +103,20 @@ export function DealFilters({
   onChange,
   view,
   onView,
+  stageOptions,
 }: {
   deals: Deal[];
   filters: DealFilterState;
   onChange: (f: DealFilterState) => void;
   view: DealView;
   onView: (v: DealView) => void;
+  /** The stages of the pipeline on screen, offered as table filters. */
+  stageOptions: { id: string; label: string }[];
 }) {
   const focuses: DealFocus[] = ['open', 'stalled', 'overdue', 'closing', 'won', 'lost', 'all'];
   const narrowed = filters.stages.length > 0 || filters.minValue > 0;
 
-  const toggleStage = (stage: DealStage) => {
+  const toggleStage = (stage: string) => {
     const on = filters.stages.includes(stage);
     onChange({
       ...filters,
@@ -149,8 +158,8 @@ export function DealFilters({
       {/* Stage narrowing, offered only where it adds something. Inside the
           board the columns already are the stages. */}
       {view === 'table' && (
-        <div className="inline-flex items-center gap-1">
-          {DEAL_STAGES.map((s) => {
+        <div className="inline-flex max-w-full items-center gap-1 overflow-x-auto scrollbar-none">
+          {stageOptions.map((s) => {
             const on = filters.stages.includes(s.id);
             return (
               <button
@@ -158,7 +167,7 @@ export function DealFilters({
                 type="button"
                 onClick={() => toggleStage(s.id)}
                 className={cn(
-                  'rounded-lg px-2 py-1 text-caption font-medium transition-colors',
+                  'flex-shrink-0 rounded-lg px-2 py-1 text-caption font-medium transition-colors',
                   on
                     ? 'bg-[var(--indigo)] text-white'
                     : 'text-[var(--text-tertiary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]',
@@ -184,7 +193,7 @@ export function DealFilters({
       <span className="flex-1" />
 
       <div className="inline-flex items-center gap-0.5 rounded-lg bg-[var(--bg-elevated)] p-0.5">
-        {([['board', KanbanSquare, 'Board'], ['table', Rows3, 'Table']] as const).map(([id, Icon, label]) => (
+        {([['board', KanbanSquare, 'Board'], ['table', Rows3, 'Table'], ['forecast', CalendarRange, 'Forecast']] as const).map(([id, Icon, label]) => (
           <button
             key={id}
             type="button"

@@ -12,6 +12,7 @@ import { crmApi } from '../../api/crm.api';
 import { ActivityModal, MeetingModal, toDateInput } from '../../components/crm/CrmPrimitives';
 import { DealModal } from './DealsPage';
 import { DealStageBar } from '../../components/crm/DealStageBar';
+import { usePipelines } from '../../hooks/usePipelines';
 import { DealSource } from '../../components/crm/DealSource';
 import { DealPeople } from '../../components/crm/DealPeople';
 import { DealTimeline, type DealRecipient } from '../../components/crm/DealTimeline';
@@ -111,18 +112,25 @@ export function DealDetailPage() {
   });
 
   const { data: healthMap } = useDealHealth();
+  const pipes = usePipelines();
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ['crm'] });
 
   const move = useMutation({
-    mutationFn: ({ stage, reason }: { stage: DealStage; reason?: string | null }) =>
-      crmApi.updateDeal(id!, { stage, ...(reason !== undefined ? { outcome_reason: reason } : {}) } as any),
+    mutationFn: ({ stage, reason }: { stage: string; reason?: string | null }) => {
+      if (stage === 'won' || stage === 'lost') {
+        return crmApi.updateDeal(id!, { stage, ...(reason !== undefined ? { outcome_reason: reason } : {}) } as any);
+      }
+      // A named stage: its phase rides along so a reopened deal reopens.
+      const st = pipes.stageById.get(stage);
+      return crmApi.updateDeal(id!, { stage: (st?.phase || stage) as DealStage, stage_id: stage });
+    },
     onSuccess: (_r, v) => {
       invalidate();
       toast.success(
         v.stage === 'won' ? 'Marked won'
           : v.stage === 'lost' ? 'Marked lost'
-            : `Moved to ${DEAL_STAGES.find((s) => s.id === v.stage)?.label}`,
+            : `Moved to ${pipes.stageById.get(v.stage)?.name || v.stage}`,
       );
     },
     onError: (e: any) => toast.error(e?.response?.data?.error || 'Could not move that deal'),
@@ -169,7 +177,9 @@ export function DealDetailPage() {
   }
 
   const { deal, participants, tasks, events, notes, history, emails } = data;
-  const stageMeta = DEAL_STAGES.find((s) => s.id === deal.stage);
+  const stageMeta = { label: pipes.stageLabel(deal) };
+  const pipeline = pipes.pipelineOf(deal);
+  const currentStage = pipes.stageOf(deal);
   const rot = rotOf(deal);
   const step = nextStep(deal, tasks, events);
   const close = whenLabel(deal.expected_close_date);
@@ -198,8 +208,8 @@ export function DealDetailPage() {
     pushRecipient(p.contact?.email, [p.contact?.first_name, p.contact?.last_name].filter(Boolean).join(' '));
   }
 
-  const onStage = (stage: DealStage) => {
-    if (stage === deal.stage) return;
+  const onStage = (stage: string) => {
+    if (stage === deal.stage || (isOpen(deal.stage) && stage === currentStage?.id)) return;
     // Ending a deal asks why. It is the one stage change whose reason is
     // worth more later than the change itself, and the only moment anybody
     // remembers it.
@@ -294,7 +304,7 @@ export function DealDetailPage() {
       </div>
 
       <div className="mb-3">
-        <DealStageBar deal={deal} history={history} onStage={onStage} busy={move.isPending} />
+        <DealStageBar deal={deal} history={history} stages={pipeline?.stages || []} currentStageId={currentStage?.id || null} onStage={onStage} busy={move.isPending} />
       </div>
 
       {/* The next step. Activity-based selling in one line: a live deal with

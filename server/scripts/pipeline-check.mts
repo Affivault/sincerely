@@ -52,6 +52,7 @@ import {
   outreachFunnel,
   valuePerReply,
   isStrongAttribution,
+  registerStageSettings,
 } from '@lemlist/shared';
 import type { Deal, DealStage } from '@lemlist/shared';
 
@@ -721,6 +722,25 @@ console.log('\nthe funnel converts against the step before it');
      valuePerReply(0, 0) === null);
   is('weak evidence is named as weak',
      !isStrongAttribution('enrolment') && isStrongAttribution('reply') && isStrongAttribution('thread'));
+}
+
+
+console.log('\nnamed stages carry their own odds and stale limits (migration 105)');
+{
+  registerStageSettings([{ id: 'st-neg', probability: 80, rot_days: 5 }]);
+  is('a deal in a named stage uses that stage\'s odds',
+     probabilityOf(deal({ stage: 'proposal', stage_id: 'st-neg' } as any)) === 80);
+  is('its own probability still wins over the stage',
+     probabilityOf(deal({ stage: 'proposal', stage_id: 'st-neg', probability: 25 } as any)) === 25);
+  is('a closed deal ignores the stage it last sat in',
+     probabilityOf(deal({ stage: 'won', stage_id: 'st-neg' } as any)) === 100);
+  is('the stage\'s stale limit decides rot',
+     rotOf(deal({ stage: 'proposal', stage_id: 'st-neg', stage_changed_at: new Date(Date.now() - 7 * 86_400_000).toISOString() } as any)).limit === 5);
+  is('an unknown stage falls back to the phase default',
+     probabilityOf(deal({ stage: 'proposal', stage_id: 'nope' } as any)) === STAGE_PROBABILITY.proposal);
+  registerStageSettings([]);
+  is('and with nothing registered the phase defaults apply, as on the server',
+     probabilityOf(deal({ stage: 'proposal', stage_id: 'st-neg' } as any)) === STAGE_PROBABILITY.proposal);
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);
