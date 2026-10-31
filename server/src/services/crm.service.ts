@@ -7,6 +7,7 @@ import { skipAndResume } from './channel-tasks.service.js';
 import { linkedinAgentService, LINKEDIN_ATTENTION_MARKER } from './linkedin-agent.service.js';
 import { eventTimeProblem, hasEconomics, totalContractValue } from '@lemlist/shared';
 import { contactIdsOnDeal, promoteToContact, promoteToCustomer } from './lifecycle.service.js';
+import { pipelinesService } from './pipelines.service.js';
 
 const DEAL_STAGES = ['lead', 'qualified', 'proposal', 'won', 'lost'];
 const TASK_PRIORITIES = ['low', 'normal', 'high'];
@@ -29,7 +30,7 @@ function pick(body: any, keys: readonly string[]): Record<string, any> {
   return out;
 }
 
-const DEAL_KEYS = ['title', 'company', 'company_id', 'contact_name', 'contact_email', 'contact_id', 'value', 'currency', 'stage', 'expected_close_date', 'notes', 'position', 'probability', 'outcome_reason', 'label', 'source', 'source_campaign_id', 'source_step_id', 'attribution', 'attributed_at',
+const DEAL_KEYS = ['title', 'company', 'company_id', 'contact_name', 'contact_email', 'contact_id', 'value', 'currency', 'stage', 'pipeline_id', 'stage_id', 'expected_close_date', 'notes', 'position', 'probability', 'outcome_reason', 'label', 'source', 'source_campaign_id', 'source_step_id', 'attribution', 'attributed_at',
   'recurring_amount', 'recurring_period', 'one_off_amount', 'term_months'] as const;
 
 const DEAL_LABELS = ['hot', 'warm', 'cold'];
@@ -233,6 +234,71 @@ async function assertOwned(userId: string, table: string, id: string, label: str
 }
 
 /**
+ * Resolve a named pipeline stage (migration 105) into the columns it implies.
+ *
+ * The stage decides the pipeline, and for an open deal the phase that
+ * deals.stage holds, so trackStageChange sees a real phase move as one. The
+ * database trigger enforces the same rule; doing it here as well means the
+ * response and the stage clock are right on the first write.
+ *
+ * Before migration 105 the board's stages are the phases themselves, so a
+ * stage_id of 'lead', 'qualified' or 'proposal' is read as that phase.
+ */
+async function resolveNamedStage(userId: string, input: Record<string, any>) {
+  if (input.stage_id === '') input.stage_id = null;
+  if (input.pipeline_id === '') input.pipeline_id = null;
+
+  if (typeof input.stage_id === 'string' && ['lead', 'qualified', 'proposal'].includes(input.stage_id)) {
+    if (input.stage !== 'won' && input.stage !== 'lost') input.stage = input.stage_id;
+    delete input.stage_id;
+    delete input.pipeline_id;
+    return;
+  }
+  if (input.stage_id) {
+    const stage = await pipelinesService.ownedStage(userId, input.stage_id);
+    input.pipeline_id = stage.pipeline_id;
+    if (input.stage !== 'won' && input.stage !== 'lost') input.stage = stage.phase;
+    return;
+  }
+  if (input.pipeline_id) {
+    if (input.pipeline_id === 'default') { delete input.pipeline_id; return; }
+    await assertOwned(userId, 'pipelines', input.pipeline_id, 'Pipeline');
+  }
+}
+
+/**
+ * Keep a deal's account in step with its people.
+ *
+ * Linking a contact who works at a known company links the deal to that
+ * company too, so the deal shows on the company page without anybody
+ * picking it twice. Linking a company fills in its name for the board.
+ * Never overrides a company somebody chose in the same request.
+ */
+async function syncDealAccount(userId: string, input: Record<string, any>) {
+  if (input.contact_id && input.company_id === undefined) {
+    const { data: c } = await supabaseAdmin
+      .from('contacts')
+      .select('company_id, company')
+      .eq('id', input.contact_id)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if ((c as any)?.company_id) {
+      input.company_id = (c as any).company_id;
+    }
+    if (!input.company && (c as any)?.company) input.company = (c as any).company;
+  }
+  if (input.company_id && !input.company) {
+    const { data: co } = await supabaseAdmin
+      .from('companies')
+      .select('name')
+      .eq('id', input.company_id)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if ((co as any)?.name) input.company = (co as any).name;
+  }
+}
+
+/**
  * Keep deals in sync with the contacts base: when a deal carries an email but
  * no linked lead, attach the matching contact (and backfill name/company).
  */
@@ -417,6 +483,7 @@ export const crmService = {
     // A new deal is entering its first stage right now, whether or not the
     // caller named one — without this its clock never starts and it can never
     // be reported as stalled.
+    await resolveNamedStage(userId, input);
     input.stage = input.stage || 'lead';
     trackStageChange(input, null);
     // Nothing exists yet, so the row-as-it-will-be is just the input.
@@ -424,6 +491,7 @@ export const crmService = {
     if (input.contact_id) await assertOwned(userId, 'contacts', input.contact_id, 'Contact');
     if (input.company_id) await assertOwned(userId, 'companies', input.company_id, 'Company');
     await autoLinkContact(userId, input);
+    await syncDealAccount(userId, input);
 
     // Credit the outreach that produced this, if any did. `source_campaign_id`
     // on the body is the unibox saying "this came out of that thread" - but a
@@ -467,6 +535,7 @@ export const crmService = {
     const input = pick(body, DEAL_KEYS as any);
     stripClaimedAttribution(input);
     sanitizeDealInput(input);
+    await resolveNamedStage(userId, input);
 
     /*
      * Correcting the credit by hand.
@@ -538,6 +607,7 @@ export const crmService = {
     if (input.contact_email !== undefined && input.contact_id === undefined) {
       await autoLinkContact(userId, input);
     }
+    await syncDealAccount(userId, input);
     const { data, error } = await supabaseAdmin
       .from('deals')
       .update(input)

@@ -1,4 +1,6 @@
 import { StagePill, OutreachPill, ListChips } from '../../components/contacts/PersonBadges';
+import { usePipelines } from '../../hooks/usePipelines';
+import { DealModal } from '../crm/DealsPage';
 import { BuyingCommitteeStrip } from '../../components/crm/BuyingCommittee';
 import { useMemo, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
@@ -106,6 +108,8 @@ export function CompanyDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const pipes = usePipelines();
+  const [newDeal, setNewDeal] = useState(false);
   const { openPeek } = usePeek();
   const [tab, setTab] = useState<'history' | 'people' | 'deals'>('history');
   const [writingTo, setWritingTo] = useState<string | null>(null);
@@ -488,7 +492,7 @@ export function CompanyDetailPage() {
                 <p className="text-caption text-[var(--text-tertiary)] mt-0.5 max-w-sm">
                   Deals created from a conversation with anyone here will show up in this list.
                 </p>
-                <Link to="/deals" className="btn-secondary mt-3"><Plus className="h-3.5 w-3.5" /> Open pipeline</Link>
+                <button type="button" onClick={() => setNewDeal(true)} className="btn-secondary mt-3"><Plus className="h-3.5 w-3.5" /> New deal</button>
               </div>
             ) : (
               <div className="divide-y divide-[var(--border-subtle)]">
@@ -506,7 +510,7 @@ export function CompanyDetailPage() {
                         {d.title}
                       </span>
                       <span className="block text-caption text-[var(--text-tertiary)]">
-                        {DEAL_STAGES.find((s) => s.id === d.stage)?.label || d.stage}
+                        {pipes.stageLabel(d)}
                       </span>
                     </span>
                     <span className="text-body font-semibold tabular text-[var(--text-primary)] flex-shrink-0">
@@ -514,11 +518,21 @@ export function CompanyDetailPage() {
                     </span>
                   </button>
                 ))}
+                <button
+                  type="button"
+                  onClick={() => setNewDeal(true)}
+                  className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-body font-medium text-[var(--indigo-text)] transition-colors hover:bg-[var(--bg-hover)]"
+                >
+                  <Plus className="h-3.5 w-3.5" /> New deal with {company.name}
+                </button>
               </div>
             )
           )}
         </div>
       </div>
+      {newDeal && (
+        <DealModal deal={{ company: company.name, company_id: company.id }} onClose={() => setNewDeal(false)} />
+      )}
     </div>
   );
 }

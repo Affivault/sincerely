@@ -1,4 +1,5 @@
 import { StagePill, OutreachPill } from '../../components/contacts/PersonBadges';
+import { usePipelines } from '../../hooks/usePipelines';
 import { useEffect, useState } from 'react';
 import { usePopover } from '../../hooks/usePopover';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
@@ -60,6 +61,7 @@ export function ContactDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const pipes = usePipelines();
   const [showAddToListDropdown, setShowAddToListDropdown] = useState(false);
   const addToList = usePopover(showAddToListDropdown, () => setShowAddToListDropdown(false));
   const [showMoveModal, setShowMoveModal] = useState(false);
@@ -731,7 +733,7 @@ export function ContactDetailPage() {
             ) : (
               <div className="space-y-1">
                 {contactDeals.map((d) => {
-                  const stage = DEAL_STAGES.find((s) => s.id === d.stage);
+                  const stage = { label: pipes.stageLabel(d) };
                   const dot = d.stage === 'won' ? 'bg-emerald-500' : d.stage === 'lost' ? 'bg-rose-500' : d.stage === 'proposal' ? 'bg-amber-500' : d.stage === 'qualified' ? 'bg-[var(--indigo)]' : 'bg-slate-400';
                   return (
                     <Link

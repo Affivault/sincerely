@@ -12,7 +12,8 @@ import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { CalendarPlus, Clock, Handshake, Megaphone, PauseCircle, PlayCircle } from 'lucide-react';
-import { engagementWindow, formatHour, dealStageLabel } from '@lemlist/shared';
+import { engagementWindow, formatHour } from '@lemlist/shared';
+import { usePipelines } from '../../hooks/usePipelines';
 import { analyticsApi } from '../../api/analytics.api';
 import { contactsApi } from '../../api/contacts.api';
 import { crmApi } from '../../api/crm.api';
@@ -23,6 +24,7 @@ import { DealHealthDot, useDealHealth } from '../crm/DealHealth';
 
 export function StandingStrip({ contactId, email, name }: { contactId: string; email: string; name: string }) {
   const qc = useQueryClient();
+  const pipes = usePipelines();
   const { data: memberships = [] } = useQuery({
     queryKey: ['contact-campaigns', contactId],
     queryFn: () => contactsApi.getCampaigns(contactId),
@@ -87,7 +89,7 @@ export function StandingStrip({ contactId, email, name }: { contactId: string; e
           <Handshake className="h-3.5 w-3.5 flex-shrink-0 text-[var(--text-tertiary)]" />
           <DealHealthDot health={health?.[d.id]} />
           <span className="truncate text-[var(--text-secondary)]">{d.title}</span>
-          <span className="ml-auto flex-shrink-0 text-caption text-[var(--text-tertiary)]">{dealStageLabel(d.stage)}</span>
+          <span className="ml-auto flex-shrink-0 text-caption text-[var(--text-tertiary)]">{pipes.stageLabel(d)}</span>
         </Link>
       )) : (
         <p className="flex items-center gap-2 text-caption text-[var(--text-tertiary)]"><Handshake className="h-3.5 w-3.5" /> No open deal</p>

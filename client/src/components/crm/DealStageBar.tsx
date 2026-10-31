@@ -1,5 +1,5 @@
-import { DEAL_STAGES, OPEN_STAGES, daysByStage } from '@lemlist/shared';
-import type { Deal, DealStage, DealStageEvent } from '@lemlist/shared';
+import { daysByStage } from '@lemlist/shared';
+import type { Deal, DealStageEvent, PipelineStage } from '@lemlist/shared';
 import { cn } from '../../lib/utils';
 import { Check, Trophy, XCircle } from 'lucide-react';
 
@@ -24,28 +24,47 @@ function spellDays(days: number | undefined): string {
 }
 
 export function DealStageBar({
-  deal, history, onStage, busy,
+  deal, history, stages, currentStageId, onStage, busy,
 }: {
   deal: Deal;
   history: DealStageEvent[];
-  onStage: (stage: DealStage) => void;
+  /** The open stages of the deal's pipeline, in order. */
+  stages: PipelineStage[];
+  /** The stage it sits in (or last sat in, once closed). */
+  currentStageId: string | null;
+  /** A stage id, or 'won' / 'lost'. */
+  onStage: (target: string) => void;
   busy?: boolean;
 }) {
-  const spent = daysByStage(history);
+  // Time is counted per named stage where the history knows it, and per
+  // phase for moves recorded before stages had names.
+  const byId = daysByStage(history.map((e) => ({
+    ...e,
+    from_stage: e.from_stage_id || e.from_stage,
+    to_stage: e.to_stage_id || e.to_stage,
+  }))) as Record<string, number | undefined>;
+  const spentIn = (s: PipelineStage): number | undefined => {
+    const own = byId[s.id];
+    const firstOfPhase = stages.find((x) => x.phase === s.phase)?.id === s.id;
+    const legacy = firstOfPhase ? byId[s.phase] : undefined;
+    if (own === undefined && legacy === undefined) return undefined;
+    return (own ?? 0) + (legacy ?? 0);
+  };
   const closed = deal.stage === 'won' || deal.stage === 'lost';
-  const currentIndex = OPEN_STAGES.indexOf(deal.stage);
+  const currentIndex = stages.findIndex((s) => s.id === currentStageId);
 
   return (
     <div className="flex flex-col gap-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-2.5 sm:flex-row sm:items-center">
       <div className="flex min-w-0 flex-1 items-stretch gap-1">
-        {OPEN_STAGES.map((id, i) => {
-          const meta = DEAL_STAGES.find((s) => s.id === id);
-          const active = deal.stage === id;
+        {stages.map((st, i) => {
+          const id = st.id;
+          const meta = { label: st.name };
+          const active = !closed && currentStageId === id;
           // On a closed deal every open stage is history, so none of them is
           // "still to come" — shading them all as done reads as the path it
           // actually took rather than a journey it abandoned.
-          const done = closed || (currentIndex > -1 && i < currentIndex);
-          const days = spent[id];
+          const done = (closed && i <= currentIndex) || (currentIndex > -1 && i < currentIndex);
+          const days = spentIn(st);
           return (
             <button
               key={id}

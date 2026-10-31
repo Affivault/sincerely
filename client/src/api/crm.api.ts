@@ -5,9 +5,23 @@ import type {
   CrmEvent, CreateEventInput, UpdateEventInput,
   CrmNote, CreateNoteInput, UpdateNoteInput,
   ContactCrmSummary, DealHealth, NoShowOutcome, NoShowPreview,
+  Pipeline, PipelineStage, PipelinesResponse,
 } from '@lemlist/shared';
 
+/** A stage as the pipeline editor sends it: no id means a new stage. */
+export type StageDraft = Pick<PipelineStage, 'name' | 'phase' | 'probability' | 'rot_days'> & { id?: string };
+
 export const crmApi = {
+  // Pipelines and their stages
+  listPipelines: async () => (await apiClient.get<PipelinesResponse>('/crm/pipelines')).data,
+  createPipeline: async (input: { name: string; stages?: StageDraft[] }) =>
+    (await apiClient.post<Pipeline>('/crm/pipelines', input)).data,
+  updatePipeline: async (id: string, input: { name?: string; is_default?: boolean; stages?: StageDraft[]; moves?: Record<string, string> }) =>
+    (await apiClient.put<Pipeline>(`/crm/pipelines/${id}`, input)).data,
+  deletePipeline: async (id: string, moveTo?: string) => {
+    await apiClient.delete(`/crm/pipelines/${id}`, { params: moveTo ? { move_to: moveTo } : undefined });
+  },
+
   // Deals
   listDeals: async (params?: { contact_id?: string; contact_email?: string }) =>
     (await apiClient.get<Deal[]>('/crm/deals', { params })).data,

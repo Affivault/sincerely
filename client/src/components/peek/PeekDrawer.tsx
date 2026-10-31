@@ -21,7 +21,8 @@ import {
   Handshake, ArrowRight, Users, MapPin, Factory, Copy, Check,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { DEAL_STAGES, type DealStage, formatLongDate, formatMoney, dealStageLabel } from '@lemlist/shared';
+import { type DealStage, formatLongDate, formatMoney } from '@lemlist/shared';
+import { usePipelines } from '../../hooks/usePipelines';
 import { OutcomeDialog } from '../crm/OutcomeDialog';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { StandingStrip } from './StandingStrip';
@@ -287,8 +288,13 @@ function DealPeek({ id, onClose }: { id: string; onClose: () => void }) {
   // dropdown — see DealsPage's moveStage for why this funnel exists.
   const [outcomeStage, setOutcomeStage] = useState<Extract<DealStage, 'won' | 'lost'> | null>(null);
 
+  const pipes = usePipelines();
   const setStage = useMutation({
-    mutationFn: (stage: DealStage) => crmApi.updateDeal(id, { stage }),
+    // A named stage id: its phase rides along so a closed deal reopens.
+    mutationFn: (stageId: string) => {
+      const st = pipes.stageById.get(stageId);
+      return crmApi.updateDeal(id, { stage: (st?.phase || stageId) as DealStage, stage_id: stageId });
+    },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['crm'] }); toast.success('Stage updated'); },
     onError: () => toast.error('Could not update the stage'),
   });
@@ -303,9 +309,10 @@ function DealPeek({ id, onClose }: { id: string; onClose: () => void }) {
     onError: () => toast.error('Could not update the stage'),
   });
 
-  const changeStage = (stage: DealStage) => {
+  const changeStage = (stage: string) => {
     if (!deal || stage === deal.stage) return;
     if (stage === 'won' || stage === 'lost') { setOutcomeStage(stage); return; }
+    if (deal.stage !== 'won' && deal.stage !== 'lost' && pipes.stageOf(deal)?.id === stage) return;
     setStage.mutate(stage);
   };
 
@@ -390,14 +397,18 @@ function DealPeek({ id, onClose }: { id: string; onClose: () => void }) {
       <div className="px-4 py-3 border-b border-[var(--border-subtle)]">
         <p className="text-caption font-semibold text-[var(--text-tertiary)] mb-2">Stage</p>
         <div className="flex flex-wrap gap-1.5">
-          {DEAL_STAGES.map((s) => (
+          {[
+            ...(pipes.pipelineOf(deal)?.stages || []).map((st) => ({ id: st.id, label: st.name })),
+            { id: 'won', label: 'Won' },
+            { id: 'lost', label: 'Lost' },
+          ].map((s) => (
             <button
               key={s.id}
               onClick={() => changeStage(s.id)}
               disabled={setStage.isPending || outcomeMutation.isPending}
               className={cn(
                 'h-7 px-2.5 rounded-lg border text-body font-medium transition-colors disabled:opacity-60',
-                s.id === deal.stage
+                s.id === (deal.stage === 'won' || deal.stage === 'lost' ? deal.stage : pipes.stageOf(deal)?.id)
                   ? 'border-[var(--indigo)] bg-[var(--indigo-subtle)] text-[var(--indigo-text)]'
                   : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)]',
               )}
@@ -466,6 +477,7 @@ function PeekLink({ contactId, label }: { contactId: string; label: string }) {
 
 
 function CompanyPeek({ id, onClose }: { id: string; onClose: () => void }) {
+  const pipes = usePipelines();
   const { openPeek } = usePeek();
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({
@@ -622,7 +634,7 @@ function CompanyPeek({ id, onClose }: { id: string; onClose: () => void }) {
               >
                 <span className="flex-1 min-w-0">
                   <span className="block text-body font-medium text-[var(--text-primary)] truncate">{d.title}</span>
-                  <span className="block text-caption text-[var(--text-tertiary)]">{dealStageLabel(d.stage)}</span>
+                  <span className="block text-caption text-[var(--text-tertiary)]">{pipes.stageLabel(d)}</span>
                 </span>
                 <span className="text-body font-semibold tabular text-[var(--text-primary)] flex-shrink-0">
                   {formatMoney(d.value, d.currency)}
