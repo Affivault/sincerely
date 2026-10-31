@@ -70,10 +70,11 @@ export const contactsApi = {
     return data;
   },
 
-  verificationBreakdown: async (listId?: string) => {
+  /** Counts for the status pills, within a list and/or one page's people. */
+  verificationBreakdown: async (listId?: string, lifecycle?: ContactsListParams['lifecycle']) => {
     const { data } = await apiClient.get<{
       total: number; valid: number; risky: number; invalid: number; not_found: number; unverified: number; with_linkedin: number;
-    }>('/contacts/verification-breakdown', { params: listId ? { list_id: listId } : undefined });
+    }>('/contacts/verification-breakdown', { params: { ...(listId ? { list_id: listId } : {}), ...(lifecycle ? { lifecycle } : {}) } });
     return data;
   },
 
@@ -136,8 +137,8 @@ export const contactsApi = {
     return data;
   },
 
-  export: async (contactIds?: string[], format: 'csv' | 'json' = 'csv', listId?: string, segmentId?: string) => {
-    const { data } = await apiClient.post('/contacts/export', { contact_ids: contactIds, format, list_id: listId, segment_id: segmentId }, {
+  export: async (contactIds?: string[], format: 'csv' | 'json' = 'csv', listId?: string, segmentId?: string, lifecycle?: ContactsListParams['lifecycle']) => {
+    const { data } = await apiClient.post('/contacts/export', { contact_ids: contactIds, format, list_id: listId, segment_id: segmentId, lifecycle }, {
       responseType: format === 'csv' ? 'blob' : 'json',
     });
     return data;

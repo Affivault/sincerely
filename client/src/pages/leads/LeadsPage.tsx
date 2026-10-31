@@ -251,8 +251,8 @@ export function LeadsPage() {
     <div>
       <PageHeader
         icon={Inbox}
-        title="Leads inbox"
-        description="People worth a look, held out of the pipeline until you decide they are real."
+        title="Qualify queue"
+        description="Contacts worth a look, held out of the deal pipeline until you decide they are real. Not your outbound leads - those are on the Leads page."
         actions={
           <>
             <SearchInput value={query} onChange={setQuery} placeholder="Search leads…" className="hidden w-56 sm:block" />

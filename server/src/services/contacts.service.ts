@@ -1,4 +1,7 @@
-import { REPLY_CHECK_CONTACT_DOMAIN, normalizeLinkedinUrl } from '@lemlist/shared';
+import {
+  REPLY_CHECK_CONTACT_DOMAIN, normalizeLinkedinUrl, summariseOutreach, summariseDeals,
+  OUTREACH_LIVE_STATUSES, OUTREACH_ENDED_STATUSES,
+} from '@lemlist/shared';
 import { enrichmentService } from './enrichment.service.js';
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
@@ -59,8 +62,82 @@ interface ListParams {
    * lifecycle can also be named directly.
    */
   lifecycle?: string;
+  /** Leads page: none | in_sequence | finished | replied (shared/lifecycle). */
+  outreach?: string;
+  /** Per-row extras for one page: 'outreach' (Leads) or 'deals' (Contacts). */
+  include?: string;
   sort_by?: string;
   sort_order?: string;
+}
+
+/**
+ * The population filter shared by the list, its counts and its export, so
+ * the number on a pill, the rows under it and the CSV can never disagree.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function applyLifecycle<Q>(query: Q, lifecycle?: string): Q {
+  const q = query as any;
+  if (lifecycle === 'engaged') return q.in('lifecycle', ['contact', 'customer']);
+  if (lifecycle === 'prospect' || lifecycle === 'contact' || lifecycle === 'customer') return q.eq('lifecycle', lifecycle);
+  return query;
+}
+
+/**
+ * Campaign state for a page of leads, one query for the page.
+ *
+ * Never throws: the column is a convenience, and a missing one is the state
+ * the page was in before it existed.
+ */
+async function outreachFor(userId: string, contactIds: string[]): Promise<Map<string, ReturnType<typeof summariseOutreach>>> {
+  const out = new Map<string, ReturnType<typeof summariseOutreach>>();
+  if (contactIds.length === 0) return out;
+  try {
+    const rows = await selectInChunks(contactIds, (slice) =>
+      supabaseAdmin
+        .from('campaign_contacts')
+        .select('contact_id, status, current_step_order, updated_at, campaign_id, campaigns!inner(name, user_id)')
+        .eq('campaigns.user_id', userId)
+        .in('contact_id', slice));
+    const byContact = new Map<string, any[]>();
+    for (const r of rows as any[]) {
+      const list = byContact.get(r.contact_id) || [];
+      list.push({ ...r, campaign_name: r.campaigns?.name ?? null });
+      byContact.set(r.contact_id, list);
+    }
+    for (const id of contactIds) out.set(id, summariseOutreach(byContact.get(id)));
+  } catch (e: any) {
+    console.warn('[Contacts] outreach lookup failed:', e?.message || e);
+  }
+  return out;
+}
+
+/** Open and won deals for a page of contacts, directly or as a participant. */
+async function dealsFor(userId: string, contactIds: string[]): Promise<Map<string, ReturnType<typeof summariseDeals>>> {
+  const out = new Map<string, ReturnType<typeof summariseDeals>>();
+  if (contactIds.length === 0) return out;
+  try {
+    const [direct, viaParticipants] = await Promise.all([
+      selectInChunks(contactIds, (slice) =>
+        supabaseAdmin.from('deals').select('id, contact_id, stage, value, currency').eq('user_id', userId).in('contact_id', slice)),
+      selectInChunks(contactIds, (slice) =>
+        supabaseAdmin.from('deal_participants').select('contact_id, deals!inner(id, stage, value, currency, user_id)').eq('deals.user_id', userId).in('contact_id', slice))
+        .catch(() => [] as any[]),
+    ]);
+    // One deal counted once per person, however it is linked.
+    const byContact = new Map<string, Map<string, any>>();
+    const add = (contactId: string, deal: any) => {
+      if (!contactId || !deal?.id) return;
+      const m = byContact.get(contactId) || new Map<string, any>();
+      m.set(deal.id, deal);
+      byContact.set(contactId, m);
+    };
+    for (const d of direct as any[]) add(d.contact_id, d);
+    for (const p of viaParticipants as any[]) add(p.contact_id, p.deals);
+    for (const id of contactIds) out.set(id, summariseDeals([...(byContact.get(id)?.values() || [])]));
+  } catch (e: any) {
+    console.warn('[Contacts] deal lookup failed:', e?.message || e);
+  }
+  return out;
 }
 
 /**
@@ -140,10 +217,18 @@ export const contactsService = {
       : params.tag_ids ? [String(params.tag_ids)] : [];
     const listScoped = !!params.list_id && !isUnlisted(params.list_id);
 
+    /*
+     * The Leads page's outbound filter, as joins like the list and tag ones.
+     * "Not contacted" is an anti-join: a left embed filtered to null.
+     */
+    const outreach = ['none', 'in_sequence', 'finished', 'replied'].includes(params.outreach || '') ? params.outreach! : null;
+
     const select = [
       '*, contact_tags(tag_id, tags(*)), list_contacts(contact_lists(id, name))',
       listScoped ? 'in_list:list_contacts!inner(list_id)' : null,
       tagIds.length > 0 ? 'has_tag:contact_tags!inner(tag_id)' : null,
+      outreach === 'none' ? 'no_cc:campaign_contacts!left(id)' : null,
+      outreach && outreach !== 'none' ? 'has_cc:campaign_contacts!inner(status)' : null,
     ].filter(Boolean).join(', ');
 
     let query = supabaseAdmin
@@ -164,6 +249,18 @@ export const contactsService = {
 
     if (tagIds.length > 0) {
       query = query.in('has_tag.tag_id', tagIds);
+    }
+
+    if (outreach === 'none') {
+      query = query.is('no_cc', null);
+    } else if (outreach === 'in_sequence') {
+      query = query.in('has_cc.status', [...OUTREACH_LIVE_STATUSES]);
+    } else if (outreach === 'replied') {
+      query = query.eq('has_cc.status', 'replied');
+    } else if (outreach === 'finished') {
+      // Approximate by design: ended in at least one campaign. A lead who
+      // ended one and is live in another shows under both filters.
+      query = query.in('has_cc.status', [...OUTREACH_ENDED_STATUSES]);
     }
 
     if (params.search) {
@@ -197,11 +294,7 @@ export const contactsService = {
      * audiences pass no filter at all, because reaching strangers is their
      * job — which is also why the default here is to include everybody.
      */
-    if (params.lifecycle === 'engaged') {
-      query = query.in('lifecycle', ['contact', 'customer']);
-    } else if (params.lifecycle && params.lifecycle !== 'all') {
-      query = query.eq('lifecycle', params.lifecycle);
-    }
+    query = applyLifecycle(query, params.lifecycle);
 
     // Exact-company filter (chosen from the distinct-companies picker)
     if (params.company) {
@@ -265,10 +358,22 @@ export const contactsService = {
         const fallback = await contactsService.list(userId, { ...params, sort_by: 'created_at' });
         return { ...fallback, sort_unavailable: 'Sorting by engagement needs database migration 096_duplicates_views_engagement_noshow.sql.' };
       }
+      // An outreach filter the database cannot run: show the leads unfiltered
+      // and say so, rather than show nothing.
+      if (outreach) {
+        console.warn('[Contacts] outreach filter failed:', error.message);
+        const fallback = await contactsService.list(userId, { ...params, outreach: undefined });
+        return { ...fallback, sort_unavailable: 'That outreach filter could not be applied, so every lead is shown.' };
+      }
       throw new AppError(error.message, 500);
     }
 
-    const suppressed = await suppressedEmails(userId, (data || []).map((c: any) => c.email));
+    const ids = (data || []).map((c: any) => c.id as string);
+    const [suppressed, outreachById, dealsById] = await Promise.all([
+      suppressedEmails(userId, (data || []).map((c: any) => c.email)),
+      params.include === 'outreach' ? outreachFor(userId, ids) : Promise.resolve(null),
+      params.include === 'deals' ? dealsFor(userId, ids) : Promise.resolve(null),
+    ]);
     const contacts = (data || []).map((c: any) => ({
       ...c,
       is_suppressed: suppressed.has(String(c.email || '').toLowerCase()),
@@ -278,6 +383,10 @@ export const contactsService = {
       list_contacts: undefined,
       in_list: undefined,
       has_tag: undefined,
+      no_cc: undefined,
+      has_cc: undefined,
+      ...(outreachById ? { outreach: outreachById.get(c.id) ?? null } : {}),
+      ...(dealsById ? { deals: dealsById.get(c.id) ?? null } : {}),
       // The 360 profile is read on the contact's own page; a hundred of
       // them would only slow the list down.
       enrichment: undefined,
@@ -448,16 +557,20 @@ export const contactsService = {
      * (migration 055's "deliberately added"). Left at the column default of
      * 'prospect', they never appeared on the contacts page they were just
      * added from, which shows contacts and customers.
+     *
+     * Except from the Leads page, which asks for a lead: filed as a contact,
+     * the person you just added would vanish from the page you added them on.
      */
+    const asLead = input?.lifecycle === 'prospect';
     const { data, error } = await supabaseAdmin
       .from('contacts')
       .insert({
         ...contactData,
         user_id: userId,
         source: 'manual',
-        lifecycle: 'contact',
-        engaged_at: new Date().toISOString(),
-        promoted_by: 'manual',
+        ...(asLead
+          ? { lifecycle: 'prospect' }
+          : { lifecycle: 'contact', engaged_at: new Date().toISOString(), promoted_by: 'manual' }),
       })
       .select()
       .single();
@@ -945,7 +1058,7 @@ export const contactsService = {
     return { deleted: validIds.length };
   },
 
-  async export(userId: string, contactIds?: string[], format: 'csv' | 'json' = 'csv', listId?: string, segmentId?: string) {
+  async export(userId: string, contactIds?: string[], format: 'csv' | 'json' = 'csv', listId?: string, segmentId?: string, lifecycle?: string) {
     const COLUMNS = 'email, first_name, last_name, company, job_title, phone, linkedin_url, website, location, source, is_unsubscribed, is_bounced, dcs_score, custom_fields, created_at';
 
     /*
@@ -978,6 +1091,8 @@ export const contactsService = {
             .eq('user_id', userId);
           if (listScoped) q = q.eq('in_list.list_id', listId!);
           if (isUnlisted(listId)) q = q.eq('list_count', 0);
+          // Exporting from Leads gives leads, from Contacts gives contacts.
+          q = applyLifecycle(q, lifecycle);
           return q.order('created_at', { ascending: true }).order('id').range(from, to);
         });
         if (listScoped) data = data.map(({ in_list, ...rest }: any) => rest);
@@ -1009,7 +1124,7 @@ export const contactsService = {
 
   // Verification-status breakdown for the summary pills. Scoped to a list when
   // given. Buckets mirror the client's derived states so the counts line up.
-  async verificationBreakdown(userId: string, listId?: string) {
+  async verificationBreakdown(userId: string, listId?: string, lifecycle?: string) {
     const empty = { total: 0, valid: 0, risky: 0, invalid: 0, not_found: 0, unverified: 0, with_linkedin: 0 };
     const listScoped = !!listId && !isUnlisted(listId);
     const COLUMNS = 'dcs_verified_at, dcs_score, dcs_syntax_ok, dcs_domain_ok, is_bounced, linkedin_url';
@@ -1025,6 +1140,7 @@ export const contactsService = {
           .eq('user_id', userId);
         if (listScoped) q = q.eq('in_list.list_id', listId!);
         if (isUnlisted(listId)) q = q.eq('list_count', 0);
+        q = applyLifecycle(q, lifecycle);
         return q.order('id').range(from, to);
       });
     } catch (err: any) {

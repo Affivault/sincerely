@@ -148,8 +148,8 @@ export const contactsController = {
 
   async export(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const { contact_ids, format, list_id, segment_id } = req.body;
-      const result = await contactsService.export(req.userId!, contact_ids, format, list_id, segment_id);
+      const { contact_ids, format, list_id, segment_id, lifecycle } = req.body;
+      const result = await contactsService.export(req.userId!, contact_ids, format, list_id, segment_id, typeof lifecycle === 'string' ? lifecycle : undefined);
 
       if (result.format === 'csv') {
         res.setHeader('Content-Type', 'text/csv');
@@ -171,7 +171,8 @@ export const contactsController = {
   async verificationBreakdown(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const listId = typeof req.query.list_id === 'string' ? req.query.list_id : undefined;
-      const breakdown = await contactsService.verificationBreakdown(req.userId!, listId);
+      const lifecycle = typeof req.query.lifecycle === 'string' ? req.query.lifecycle : undefined;
+      const breakdown = await contactsService.verificationBreakdown(req.userId!, listId, lifecycle);
       res.json(breakdown);
     } catch (err) { next(err); }
   },

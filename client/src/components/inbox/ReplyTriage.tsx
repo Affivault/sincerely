@@ -174,7 +174,7 @@ export function ReplyTriage({ messageId, contactId, decision, leadId }: {
               to="/leads/inbox"
               className="inline-flex items-center gap-1 text-caption font-semibold text-[var(--indigo-text)] hover:underline"
             >
-              Open in Leads <ArrowRight className="h-3 w-3" />
+              Open in Qualify queue <ArrowRight className="h-3 w-3" />
             </Link>
           )}
         </div>

@@ -52,7 +52,7 @@ console.log('\nan inbox with four tabs');
   is('rows lead with what they said', /const showSubject = !said \|\| \(!threadOnly && !isOutbound\) \|\| isMail\(msg\);/.test(inbox));
   is('Reply and Done on the row', /data-row-actions/.test(inbox) && /title="Reply \(r\)"/.test(inbox));
   const sections = cli('lib/sections.ts');
-  is('Reply queue and Leads inbox are out of the bar but still searchable', /label: 'Reply queue'.*hidden: true/.test(sections) && /label: 'Leads inbox'.*hidden: true/.test(sections) && /filter\(\(tab\) => !tab\.hidden/.test(cli('components/layout/SectionBar.tsx')));
+  is('Reply queue and Qualify queue (once Leads inbox) are out of the bar but still searchable', /label: 'Reply queue'.*hidden: true/.test(sections) && /label: 'Qualify queue'.*hidden: true/.test(sections) && /filter\(\(tab\) => !tab\.hidden/.test(cli('components/layout/SectionBar.tsx')));
 }
 
 console.log('\nwrite first, set up later');

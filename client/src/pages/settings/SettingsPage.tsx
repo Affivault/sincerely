@@ -811,10 +811,10 @@ export function SettingsPage() {
                     bounces and unsubscribe requests never count; that is
                     enforced on the server, not offered as a choice. */}
                 <div className="pt-2">
-                  <span className="block text-strong font-medium text-[var(--text-secondary)] mb-1.5">Prospects and contacts</span>
+                  <span className="block text-strong font-medium text-[var(--text-secondary)] mb-1.5">Leads and contacts</span>
                   <ToggleSetting
-                    label="Move prospects to Contacts automatically"
-                    description="When a prospect engages, move them to Contacts for you. Turn off to move people only by hand, from the Contacts list or a contact's page."
+                    label="Move leads to Contacts automatically"
+                    description="When a lead engages, move them from Leads to Contacts for you. Turn off to move people only by hand, with Convert to contact on the Leads page or a person's page."
                     checked={autoPromote}
                     onChange={(v) => { setAutoPromote(v); markChanged(); }}
                   />
@@ -849,7 +849,7 @@ export function SettingsPage() {
                         </div>
                         {promoteOnReply === 'positive' && (
                           <p className="mt-2 text-body text-[var(--text-tertiary)] leading-snug">
-                            Interested means the reply reads as a yes or asks to meet. Questions, objections and "not now" stay in Prospects.
+                            Interested means the reply reads as a yes or asks to meet. Questions, objections and "not now" stay in Leads.
                           </p>
                         )}
                       </div>
@@ -868,7 +868,7 @@ export function SettingsPage() {
                     </div>
                   )}
                   <p className="mt-2 text-body text-[var(--text-tertiary)] leading-snug">
-                    People you move back to Prospects by hand stay there until you move them again.
+                    People you move back to Leads by hand stay there until you move them again.
                   </p>
                 </div>
               </div>

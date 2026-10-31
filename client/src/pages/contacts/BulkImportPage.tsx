@@ -1,6 +1,6 @@
 import { PageHeader } from '../../components/shared/PageHeader';
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Papa from 'papaparse';
 import { contactsApi, listsApi, type BulkImportResult } from '../../api/contacts.api';
@@ -51,6 +51,9 @@ function bytes(n: number): string {
 
 export function BulkImportPage() {
   const navigate = useNavigate();
+  /* Which page sent you: ?as=lead from Leads, ?as=contact from Contacts. */
+  const [searchParams] = useSearchParams();
+  const arrivedAs: 'prospect' | 'contact' = searchParams.get('as') === 'contact' ? 'contact' : 'prospect';
   const queryClient = useQueryClient();
   const [step, setStep] = useState<Step>('upload');
   const [file, setFile] = useState<File | null>(null);
@@ -68,12 +71,16 @@ export function BulkImportPage() {
   const [newListName, setNewListName] = useState('');
   /* A lead list is campaign audience; a contact list is people you already
      know, and importing into one files them as contacts, not prospects. */
-  const [newListKind, setNewListKind] = useState<'lead' | 'contact'>('lead');
+  // Follows "Import as": leads go into lead lists, contacts into contact lists.
   // Where these people land. Prospects (the default) stay off the Contacts
   // tab until they reply; Contacts are people you already know. A contact
   // list files them as contacts whatever this says.
-  const [importAs, setImportAs] = useState<'prospect' | 'contact'>('prospect');
-  const [filedAs, setFiledAs] = useState<'prospect' | 'contact'>('prospect');
+  const [importAs, setImportAsState] = useState<'prospect' | 'contact'>(arrivedAs);
+  const newListKind: 'lead' | 'contact' = importAs === 'contact' ? 'contact' : 'lead';
+  // A list of the other kind cannot be the target any more.
+  const setImportAs = (v: 'prospect' | 'contact') => { setImportAsState(v); setTargetListId(''); };
+  const [filedAs, setFiledAs] = useState<'prospect' | 'contact'>(arrivedAs);
+  const pageWord = importAs === 'contact' ? 'contacts' : 'leads';
   /** Set once the import creates the list, so the summary can name it. */
   const [createdListName, setCreatedListName] = useState<string | null>(null);
   const [progress, setProgress] = useState<ImportProgress>({
@@ -104,6 +111,10 @@ export function BulkImportPage() {
     // list is as legitimate as importing a cold list into a lead list.
     queryFn: () => listsApi.list(),
   });
+  const kindLists = useMemo(
+    () => ((lists || []) as any[]).filter((l) => (l.kind === 'contact' ? 'contact' : 'lead') === newListKind),
+    [lists, newListKind],
+  );
 
   // Parse CSV file the moment a file is selected
   const handleFile = useCallback((f: File) => {
@@ -349,7 +360,7 @@ export function BulkImportPage() {
     setTargetListId('');
     setListMode('none');
     setNewListName('');
-    setNewListKind('lead');
+
     setCreatedListName(null);
     setCompletedResult(null);
     setProgress({ total: 0, processed: 0, imported: 0, errors: 0, errorDetails: [], currentBatch: 0, totalBatches: 0 });
@@ -386,13 +397,16 @@ export function BulkImportPage() {
       <PageHeader
         icon={Upload}
         // No way back mid-import: leaving would orphan the batches in flight.
-        breadcrumbs={step === 'importing' ? undefined : [{ label: 'Contacts', href: '/contacts' }, { label: 'Import' }]}
-        title="Import contacts"
+        breadcrumbs={step === 'importing' ? undefined : [
+          importAs === 'contact' ? { label: 'Contacts', href: '/contacts' } : { label: 'Leads', href: '/leads' },
+          { label: 'Import' },
+        ]}
+        title={importAs === 'contact' ? 'Import contacts' : 'Import leads'}
         description={
-          step === 'upload' ? 'Upload a CSV of your leads - columns are detected automatically.'
+          step === 'upload' ? `Upload a CSV of your ${pageWord} - columns are detected automatically.`
             : step === 'map'
               ? (showMapping ? 'Tell us which column is which, then start the import.' : 'Everything is matched up. Check the numbers and start the import.')
-              : step === 'importing' ? 'Your contacts are being added in batches.'
+              : step === 'importing' ? `Your ${pageWord} are being added in batches.`
                 : 'All done. Here is what happened.'
         }
         contentClassName="max-w-4xl"
@@ -669,7 +683,11 @@ export function BulkImportPage() {
               </span>
               <div className="flex-1 min-w-0">
                 <p className="text-body font-semibold text-[var(--text-primary)]">Add to a list <span className="font-normal text-[var(--text-tertiary)]">(optional)</span></p>
-                <p className="text-caption text-[var(--text-tertiary)] mb-2.5">Imported contacts always land in All Contacts. A list groups this batch so you can target it in a campaign.</p>
+                <p className="text-caption text-[var(--text-tertiary)] mb-2.5">
+                  {importAs === 'contact'
+                    ? 'Everyone lands in All contacts. A contact list groups this batch in your CRM.'
+                    : 'Everyone lands in All leads. A lead list groups this batch so a campaign can send to it.'}
+                </p>
 
                 {/* Three-way choice — creating the list here saves a detour to
                     the lists page and back before every import. */}
@@ -701,7 +719,7 @@ export function BulkImportPage() {
                 </div>
 
                 {listMode === 'existing' && (
-                  (lists || []).length === 0 ? (
+                  kindLists.length === 0 ? (
                     <p className="text-body text-[var(--text-tertiary)]">
                       You don't have any lists yet — switch to <span className="font-medium text-[var(--text-primary)]">New list</span> to create one as part of this import.
                     </p>
@@ -711,9 +729,9 @@ export function BulkImportPage() {
                       onChange={(e) => setTargetListId(e.target.value)}
                       className="w-full h-9 px-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-strong text-[var(--text-primary)] outline-none focus:border-[var(--indigo)] focus:ring-2 focus:ring-[var(--indigo)]/15 transition-all"
                     >
-                      <option value="">Choose a list…</option>
-                      {(lists || []).map((l) => (
-                        <option key={l.id} value={l.id}>{l.name} ({l.contact_count} contacts)</option>
+                      <option value="">{importAs === 'contact' ? 'Choose a contact list…' : 'Choose a lead list…'}</option>
+                      {kindLists.map((l) => (
+                        <option key={l.id} value={l.id}>{l.name} ({l.contact_count} {l.contact_count === 1 ? 'person' : 'people'})</option>
                       ))}
                     </select>
                   )
@@ -723,8 +741,8 @@ export function BulkImportPage() {
                   <p className="text-caption font-medium text-[var(--text-secondary)] mb-1.5">Import as</p>
                   <div role="radiogroup" aria-label="Import as" className="flex items-center gap-1">
                     {([
-                      { id: 'prospect', label: 'Prospects', hint: 'Cold leads. They move to Contacts by themselves when they reply.' },
-                      { id: 'contact', label: 'Contacts', hint: 'People you already know. They show on the Contacts tab straight away.' },
+                      { id: 'prospect', label: 'Leads', hint: 'People to prospect. They go on the Leads page and move to Contacts by themselves when they reply.' },
+                      { id: 'contact', label: 'Contacts', hint: 'People you already know. They go on the Contacts page straight away.' },
                     ] as const).map((k) => (
                       <button
                         key={k.id}
@@ -746,36 +764,13 @@ export function BulkImportPage() {
                   </div>
                   <p className="text-caption text-[var(--text-tertiary)] mt-1">
                     {importAs === 'prospect'
-                      ? 'They go to the Prospects tab and move to Contacts when they reply. You can move anyone by hand later.'
-                      : 'They go to the Contacts tab. You can move anyone back to Prospects later.'}
+                      ? 'They go on the Leads page, into a lead list if you pick one, and move to Contacts when they reply.'
+                      : 'They go on the Contacts page, into a contact list if you pick one. Cold campaigns never send to contact lists.'}
                   </p>
                 </div>
 
                 {listMode === 'new' && (
                   <div>
-                    <div role="radiogroup" aria-label="Kind of list" className="flex items-center gap-1 mb-2">
-                      {([
-                        { id: 'lead', label: 'Lead list', hint: 'People to reach with campaigns' },
-                        { id: 'contact', label: 'Contact list', hint: 'People you already know - filed as contacts' },
-                      ] as const).map((k) => (
-                        <button
-                          key={k.id}
-                          type="button"
-                          role="radio"
-                          aria-checked={newListKind === k.id}
-                          title={k.hint}
-                          onClick={() => setNewListKind(k.id)}
-                          className={cn(
-                            'inline-flex items-center h-7 px-2.5 rounded-md text-body font-medium transition-colors',
-                            newListKind === k.id
-                              ? 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)]'
-                              : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]',
-                          )}
-                        >
-                          {k.label}
-                        </button>
-                      ))}
-                    </div>
                     <input aria-label="New list name"
                       value={newListName}
                       onChange={(e) => setNewListName(e.target.value)}
@@ -1034,8 +1029,8 @@ export function BulkImportPage() {
           {!completedResult.cancelled && completedResult.imported > 0 && (
             <p className="text-body text-[var(--text-secondary)]">
               {filedAs === 'contact'
-                ? 'Filed as contacts - they are on the Contacts tab.'
-                : 'Filed as prospects - they are on the Prospects tab, and move to Contacts when they reply.'}
+                ? 'Filed as contacts - they are on the Contacts page.'
+                : 'Filed as leads - they are on the Leads page, and move to Contacts when they reply.'}
             </p>
           )}
 
@@ -1097,7 +1092,7 @@ export function BulkImportPage() {
             <div className="flex items-center gap-2">
               {/* The next thing almost everyone does with a fresh list, one
                   click away instead of three pages. */}
-              {targetListId && completedResult.imported > 0 && (
+              {targetListId && completedResult.imported > 0 && filedAs === 'prospect' && (
                 <button
                   onClick={() => navigate(`/campaigns/new?list=${targetListId}`)}
                   className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-body font-medium text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all"
@@ -1109,10 +1104,13 @@ export function BulkImportPage() {
                 </button>
               )}
               <button
-                onClick={() => navigate(targetListId ? `/contacts?list=${targetListId}` : '/contacts')}
+                onClick={() => {
+                  const base = filedAs === 'contact' ? '/contacts' : '/leads';
+                  navigate(targetListId ? `${base}?list=${targetListId}` : base);
+                }}
                 className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold hover:bg-[var(--indigo-hover)] transition-all shadow-[var(--glow-indigo)]"
               >
-                View contacts
+                {filedAs === 'contact' ? 'View contacts' : 'View leads'}
                 <ArrowRight className="h-3.5 w-3.5" />
               </button>
             </div>

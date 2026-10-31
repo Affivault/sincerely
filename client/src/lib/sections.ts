@@ -77,7 +77,7 @@ export const SECTIONS: Section[] = [
       // Both now live inside the Unibox (Needs reply, Hot leads) and the
       // Today list on Home; the pages remain for search and old links.
       { label: 'Reply queue', href: '/replies', icon: MessageSquare, keywords: 'waiting owed overdue assigned sla', hidden: true },
-      { label: 'Leads inbox', href: '/leads/inbox', icon: Sparkles, keywords: 'new leads interested triaged', hidden: true },
+      { label: 'Qualify queue', href: '/leads/inbox', icon: Sparkles, keywords: 'leads inbox interested triaged qualify opportunities', hidden: true },
     ],
   },
   {

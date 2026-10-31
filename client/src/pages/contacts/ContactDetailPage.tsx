@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { usePopover } from '../../hooks/usePopover';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { contactsApi, listsApi } from '../../api/contacts.api';
 import { analyticsApi } from '../../api/analytics.api';
@@ -18,7 +18,7 @@ import { ContactDuplicatesSection } from '../../components/contacts/Duplicates';
 import { Profile360 } from '../../components/contacts/Profile360';
 import { verificationApi } from '../../api/verification.api';
 import {
-  DEAL_STAGES, isColdEmailable, LIFECYCLE_LABEL, PROMOTION_LABEL,
+  DEAL_STAGES, isColdEmailable, LIFECYCLE_LABEL, PROMOTION_LABEL, peoplePageHref,
   type Deal, type CrmEvent, type Lifecycle, type PromotionTrigger, formatDate } from '@lemlist/shared';
 import { PageSkeleton } from '../../components/ui/Skeleton';
 import { InlineEdit } from '../../components/ui/InlineEdit';
@@ -67,6 +67,10 @@ export function ContactDetailPage() {
   const [dealModal, setDealModal] = useState<Partial<Deal> | null | undefined>(undefined);
   const [eventModal, setEventModal] = useState<Partial<CrmEvent> | null | undefined>(undefined);
   const [showCampaignModal, setShowCampaignModal] = useState(false);
+  // ?deal=new (the New deal button on a Contacts row) opens the deal form
+  // once the person has loaded, then leaves the address clean.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const wantsNewDeal = searchParams.get('deal') === 'new';
 
   const { data: contact, isLoading, isError, refetch } = useQuery({
     queryKey: ['contacts', id],
@@ -140,12 +144,12 @@ export function ContactDetailPage() {
   });
   const openLead = (contactLeads || []).find((l) => l.status === 'open') || null;
 
-  // Prospects <-> Contacts by hand (above every early return: it is a hook).
+  // Leads <-> Contacts by hand (above every early return: it is a hook).
   const moveStage = useMutation({
-    mutationFn: (to: 'prospect' | 'contact') => contactsApi.setLifecycle([id!], to),
+    mutationFn: (to: 'prospect' | 'contact' | 'customer') => contactsApi.setLifecycle([id!], to),
     onSuccess: (_r, to) => {
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
-      toast.success(to === 'contact' ? 'Moved to Contacts' : 'Moved to Prospects');
+      toast.success(to === 'customer' ? 'Marked as a customer' : to === 'contact' ? 'Converted to a contact - now on the Contacts page' : 'Moved back to Leads');
     },
     onError: (err: any) => toast.error(err?.response?.data?.error || 'Could not move them'),
   });
@@ -153,7 +157,7 @@ export function ContactDetailPage() {
     mutationFn: () => leadsApi.create({ contact_id: id!, source: 'Manual' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
-      toast.success('Held as a lead');
+      toast.success('Held in the Qualify queue');
     },
     onError: (e: any) => toast.error(e?.response?.data?.error || 'Could not create that lead'),
   });
@@ -257,6 +261,13 @@ export function ContactDetailPage() {
     onError: () => toast.error('Failed to add to suppression list'),
   });
 
+  useEffect(() => {
+    if (!wantsNewDeal || !contact) return;
+    const name = [contact.first_name, contact.last_name].filter(Boolean).join(' ');
+    setDealModal({ contact_name: name || contact.email, contact_email: contact.email, contact_id: contact.id, company: contact.company || null });
+    setSearchParams((prev) => { const next = new URLSearchParams(prev); next.delete('deal'); return next; }, { replace: true });
+  }, [wantsNewDeal, contact, setSearchParams]);
+
   if (!id) {
     return <div className="text-center py-12 text-[var(--text-secondary)]">Invalid contact URL.</div>;
   }
@@ -307,12 +318,13 @@ export function ContactDetailPage() {
   return (
     <div className="space-y-5">
       {/* Back link */}
+      {/* Back to the page this person lives on: a lead's is Leads. */}
       <button
-        onClick={() => navigate('/contacts')}
+        onClick={() => navigate(peoplePageHref(stage))}
         className="flex items-center gap-1.5 text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors group"
       >
         <ArrowLeft className="h-3.5 w-3.5 group-hover:-translate-x-0.5 transition-transform" />
-        Contacts
+        {stage === 'prospect' ? 'Leads' : 'Contacts'}
       </button>
 
       {/* Header */}
@@ -473,19 +485,31 @@ export function ContactDetailPage() {
               </span>
               {/* The person's call, either way: automatic promotion only
                   ever moves forward. */}
-              <button
-                type="button"
-                onClick={() => moveStage.mutate(stage === 'prospect' ? 'contact' : 'prospect')}
-                disabled={moveStage.isPending}
-                className="ml-auto inline-flex min-h-6 items-center text-caption font-medium text-[var(--indigo-text)] hover:underline disabled:opacity-50"
-              >
-                {stage === 'prospect' ? 'Move to Contacts' : 'Move to Prospects'}
-              </button>
+              <span className="ml-auto inline-flex items-center gap-2">
+                {stage === 'contact' && (
+                  <button
+                    type="button"
+                    onClick={() => moveStage.mutate('customer')}
+                    disabled={moveStage.isPending}
+                    className="inline-flex min-h-6 items-center text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:underline disabled:opacity-50"
+                  >
+                    Mark as customer
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => moveStage.mutate(stage === 'prospect' ? 'contact' : 'prospect')}
+                  disabled={moveStage.isPending}
+                  className="inline-flex min-h-6 items-center text-caption font-medium text-[var(--indigo-text)] hover:underline disabled:opacity-50"
+                >
+                  {stage === 'prospect' ? 'Convert to contact' : 'Move back to leads'}
+                </button>
+              </span>
             </div>
             {/* Why they are where they are, so a move is never a mystery. */}
             {stage === 'prospect' && (contact as any).promoted_by === 'manual' ? (
               <p className="mb-2 text-caption text-[var(--text-tertiary)] leading-snug">
-                Moved here by hand, so replies and meetings will not move them to Contacts on their own.
+                Moved back to Leads by hand, so replies and meetings will not move them to Contacts on their own.
               </p>
             ) : stage !== 'prospect' && (contact as any).promoted_by && PROMOTION_LABEL[(contact as any).promoted_by as PromotionTrigger] ? (
               <p className="mb-2 text-caption text-[var(--text-tertiary)] leading-snug">
@@ -679,10 +703,10 @@ export function ContactDetailPage() {
                 <button
                   onClick={() => makeLead.mutate()}
                   disabled={makeLead.isPending || !!openLead}
-                  title={openLead ? 'Already has an open lead' : 'Hold this person as a lead, out of the pipeline, until they are qualified'}
+                  title={openLead ? 'Already waiting in the Qualify queue' : 'Hold this person in the Qualify queue, out of the pipeline, until they are qualified'}
                   className="inline-flex items-center gap-1 h-6 px-2 text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-hover)] rounded-md transition-colors disabled:opacity-50"
                 >
-                  <Sparkles className="h-3 w-3" /> New lead
+                  <Sparkles className="h-3 w-3" /> Hold to qualify
                 </button>
                 <button
                   onClick={() => setDealModal({ contact_name: fullName || contact.email, contact_email: contact.email, contact_id: contact.id, company: contact.company || null })}
@@ -702,7 +726,7 @@ export function ContactDetailPage() {
               >
                 <Sparkles className="h-3 w-3 flex-shrink-0 text-[var(--indigo-text)]" />
                 <span className="min-w-0 flex-1 truncate text-caption font-medium text-[var(--text-primary)]">
-                  Open lead: {openLead.title}
+                  To qualify: {openLead.title}
                 </span>
                 <span className="flex-shrink-0 text-micro text-[var(--text-tertiary)]">Qualify →</span>
               </Link>
