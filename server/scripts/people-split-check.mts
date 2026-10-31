@@ -43,6 +43,27 @@ console.log('\noutreach, read from campaigns');
     { status: 'active', campaign_id: 'b' }, { status: 'replied', campaign_id: 'c' },
   ]).state === 'replied');
   is('only ended ones is "sequence ended"', sh.summariseOutreach([{ status: 'bounced', campaign_id: 'a' }]).state === 'finished');
+  is('a draft campaign is "queued", not in sequence', sh.summariseOutreach([{ status: 'pending', campaign_id: 'a', campaign_status: 'draft' }]).state === 'queued');
+  is('a cancelled campaign ends the sequence', sh.summariseOutreach([{ status: 'active', campaign_id: 'a', campaign_status: 'cancelled' }]).state === 'finished');
+  is('a paused campaign still counts as in sequence', sh.summariseOutreach([{ status: 'active', campaign_id: 'a', campaign_status: 'paused' }]).state === 'in_sequence');
+  is('live beats queued', sh.summariseOutreach([
+    { status: 'pending', campaign_id: 'a', campaign_status: 'draft', updated_at: '2026-02-01' },
+    { status: 'active', campaign_id: 'b', campaign_status: 'running', updated_at: '2026-01-01' },
+  ]).state === 'in_sequence');
+
+  // The SQL that the filter runs must say the same as the column.
+  const sql = readFileSync(join(here, '../../supabase/migrations/104_outreach_state.sql'), 'utf8');
+  is('the filter runs on outreach_state() in the database', /\.eq\('outreach_state', outreach\)/.test(src('services/contacts.service.ts')));
+  is('SQL and app agree on every state', sh.LEAD_OUTREACH_STATES.every((st: string) => sql.includes(`'${st}'`)));
+  is('SQL and app agree on live statuses', /cc\.status IN \('pending', 'active', 'paused'\)/.test(sql) && /k\.status IN \('scheduled', 'running', 'paused'\)/.test(sql)
+    && sh.OUTREACH_LIVE_STATUSES.join() === 'pending,active,paused' && sh.OUTREACH_LIVE_CAMPAIGN_STATUSES.join() === 'scheduled,running,paused');
+}
+
+console.log('\nfiling');
+{
+  const lists = src('services/lists.service.ts');
+  is('filing someone in a contact list makes them a contact', /list\?\.kind === 'contact' && filed\.length > 0/.test(lists) && /promoteToContact\(userId, slice, 'manual'\)/.test(lists));
+  is('a list made on a page is that page\'s kind', /listsApi\.create\(\{ \.\.\.input, kind: listKind \}\)/.test(client('pages/contacts/ContactsListPage.tsx')));
 }
 
 console.log('\ndeals, for contacts');

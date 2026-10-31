@@ -148,15 +148,22 @@ export function peoplePageHref(lifecycle: Lifecycle | null | undefined): '/leads
  * The Leads page's own filter: has anybody started on this person yet.
  *
  * none        - in no campaign at all: sourced, not yet worked
- * in_sequence - waiting for or receiving a step somewhere
+ * queued      - only in campaigns that have not launched yet (drafts)
+ * in_sequence - waiting for or receiving a step in a live campaign
  * finished    - every sequence they were in has ended without a reply
  * replied     - answered a campaign (usually promoted to Contacts already;
  *               shown for the ones parked here by hand or with promotion off)
+ *
+ * The same rules live in SQL as outreach_state(contacts) (migration 104),
+ * which is what the filter runs on. Change both together.
  */
-export type LeadOutreach = 'none' | 'in_sequence' | 'finished' | 'replied';
+export type LeadOutreach = 'none' | 'queued' | 'in_sequence' | 'finished' | 'replied';
+
+export const LEAD_OUTREACH_STATES: LeadOutreach[] = ['none', 'queued', 'in_sequence', 'finished', 'replied'];
 
 export const LEAD_OUTREACH_LABEL: Record<LeadOutreach, string> = {
   none: 'Not contacted',
+  queued: 'Queued',
   in_sequence: 'In sequence',
   finished: 'Sequence ended',
   replied: 'Replied',
@@ -164,15 +171,16 @@ export const LEAD_OUTREACH_LABEL: Record<LeadOutreach, string> = {
 
 export const LEAD_OUTREACH_HINT: Record<LeadOutreach, string> = {
   none: 'In no campaign yet. Ready to be put into one.',
-  in_sequence: 'A campaign is sending to them, or about to.',
+  queued: 'In a campaign that has not launched yet. Nothing has been sent.',
+  in_sequence: 'A live campaign is sending to them, or about to.',
   finished: 'Their sequence ran out without a reply.',
   replied: 'They answered a campaign.',
 };
 
-/** campaign_contacts.status values that mean a sequence is still working. */
+/** campaign_contacts.status values that mean a sequence is still working... */
 export const OUTREACH_LIVE_STATUSES = ['pending', 'active', 'paused'] as const;
-/** ...that mean it ended without a human answer. */
-export const OUTREACH_ENDED_STATUSES = ['completed', 'auto_reply', 'bounced', 'unsubscribed', 'suppressed', 'error'] as const;
+/** ...provided the campaign itself is one of these. Draft is Queued. */
+export const OUTREACH_LIVE_CAMPAIGN_STATUSES = ['scheduled', 'running', 'paused'] as const;
 
 export interface OutreachEnrolment {
   status: string;
@@ -180,6 +188,8 @@ export interface OutreachEnrolment {
   updated_at?: string | null;
   campaign_id?: string | null;
   campaign_name?: string | null;
+  /** The campaign's own status: a cancelled campaign ends every sequence in it. */
+  campaign_status?: string | null;
 }
 
 export interface OutreachSummary {
@@ -205,10 +215,14 @@ export function summariseOutreach(rows: OutreachEnrolment[] | null | undefined):
     new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime();
   const sorted = [...list].sort(newest);
   const pick = (pred: (r: OutreachEnrolment) => boolean) => sorted.find(pred);
+  const enrolledLive = (r: OutreachEnrolment) => (OUTREACH_LIVE_STATUSES as readonly string[]).includes(r.status);
   const replied = pick((r) => r.status === 'replied');
-  const live = pick((r) => (OUTREACH_LIVE_STATUSES as readonly string[]).includes(r.status));
-  const chosen = replied || live || sorted[0];
-  const state: LeadOutreach = replied ? 'replied' : live ? 'in_sequence' : 'finished';
+  const live = pick((r) => enrolledLive(r)
+    // No campaign status known (an older caller): trust the enrolment.
+    && (r.campaign_status == null || (OUTREACH_LIVE_CAMPAIGN_STATUSES as readonly string[]).includes(r.campaign_status)));
+  const queued = pick((r) => enrolledLive(r) && r.campaign_status === 'draft');
+  const chosen = replied || live || queued || sorted[0];
+  const state: LeadOutreach = replied ? 'replied' : live ? 'in_sequence' : queued ? 'queued' : 'finished';
   return {
     state,
     campaign_id: chosen.campaign_id ?? null,
