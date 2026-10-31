@@ -200,6 +200,8 @@ export interface ContactList {
   folder_id?: string | null;
   is_default: boolean;
   contact_count?: number;
+  /** Lead lists: campaigns scheduled, running or paused on this list. */
+  live_campaigns?: number;
   created_at: string;
   updated_at: string;
 }

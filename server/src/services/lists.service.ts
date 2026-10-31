@@ -67,9 +67,34 @@ export const listsService = {
       }
     }
 
+    /*
+     * Which lead lists campaigns are sending to right now, so the lists
+     * sidebar can say so. A list feeding a live campaign is a different
+     * thing to tidy than one nobody uses. Never fails the list itself.
+     */
+    const liveMap: Record<string, number> = {};
+    const leadIds = (lists || []).filter((l: any) => l.kind !== 'contact').map((l: any) => l.id);
+    if (leadIds.length > 0) {
+      try {
+        for (const slice of chunk(leadIds)) {
+          const { data: live, error: liveErr } = await supabaseAdmin
+            .from('campaigns')
+            .select('list_id')
+            .eq('user_id', userId)
+            .in('status', ['scheduled', 'running', 'paused'])
+            .in('list_id', slice);
+          if (liveErr) throw liveErr;
+          for (const c of live || []) liveMap[(c as any).list_id] = (liveMap[(c as any).list_id] || 0) + 1;
+        }
+      } catch (e: any) {
+        console.warn('[Lists] live campaign count failed:', e?.message || e);
+      }
+    }
+
     return (lists || []).map((list: any) => ({
       ...list,
       contact_count: countMap[list.id] || 0,
+      live_campaigns: liveMap[list.id] || 0,
     }));
   },
 
