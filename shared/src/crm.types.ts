@@ -439,6 +439,10 @@ export interface Company {
   updated_at: string;
   /** Rollups, present on list/detail responses. */
   contact_count?: number;
+  /** Of contact_count: people still in outbound (lifecycle 'prospect'). */
+  lead_count?: number;
+  /** Of contact_count: CRM contacts and customers. */
+  crm_count?: number;
   deal_count?: number;
   open_value?: number;
 }
@@ -483,6 +487,10 @@ export interface CompanySummary {
   contacts: Array<{
     id: string; email: string; first_name: string | null; last_name: string | null;
     job_title: string | null; dcs_score: number | null;
+    /** Lead ('prospect') or in the CRM. */
+    lifecycle?: 'prospect' | 'contact' | 'customer';
+    outreach?: import('./lifecycle.types.js').OutreachSummary | null;
+    lists?: Array<{ id: string; name: string; kind: 'lead' | 'contact'; color: string | null }>;
   }>;
   deals: Deal[];
 }

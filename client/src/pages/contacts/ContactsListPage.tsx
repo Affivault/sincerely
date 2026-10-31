@@ -143,11 +143,12 @@ import { Refreshing } from '../../components/ui/Refreshing';
 import { Notice } from '../../components/ui/Notice';
 import { EngagementCell } from '../../components/contacts/Engagement';
 import { DuplicatesBanner } from '../../components/contacts/Duplicates';
+import { ListsRail, LIST_COLORS } from '../../components/contacts/ListsRail';
 import { SavedViewsBar } from '../../components/contacts/SavedViews';
 import { BulkEditModal } from '../../components/contacts/BulkEditModal';
 import type { SavedViewConfig } from '@lemlist/shared';
 
-const FOLDER_COLORS = ['#3F8763', '#3B4AA3', '#B88124', '#A3507A', '#3D7F89', '#6E4E8E', '#BE4A3B', '#84CC16'];
+const FOLDER_COLORS = LIST_COLORS;
 
 const emptyContact: CreateContactInput = {
   email: '',
@@ -782,7 +783,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
   const [columnMapping, setColumnMapping] = useState<Record<string, string>>({});
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
   const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set());
-  const [listForm, setListForm] = useState({ name: '', description: '' });
+  const [listForm, setListForm] = useState<{ name: string; description: string; color: string; folder_id: string | null }>({ name: '', description: '', color: LIST_COLORS[0], folder_id: null });
   const [editingList, setEditingList] = useState<ContactList | null>(null);
   const [sortBy, setSortBy] = useState<ContactSortKey>('created_at');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
@@ -948,18 +949,10 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
 
   const [folderModalOpen, setFolderModalOpen] = useState(false);
   const [editingFolder, setEditingFolder] = useState<ListFolder | null>(null);
-  const [listContextMenu, setListContextMenu] = useState<{ listId: string; x: number; y: number } | null>(null);
-  const listMenu = usePopover(!!listContextMenu, () => setListContextMenu(null));
-  const [renamingListId, setRenamingListId] = useState<string | null>(null);
-  const [renameValue, setRenameValue] = useState('');
   /** Inline rename straight from the page title, where people look first. */
   const [titleRenaming, setTitleRenaming] = useState(false);
   const [titleRenameValue, setTitleRenameValue] = useState('');
 
-  const folderMoveMut = useMutation({
-    mutationFn: ({ listId, folderId }: { listId: string; folderId: string | null }) => listFoldersApi.moveList(listId, folderId),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['lists'] }); queryClient.invalidateQueries({ queryKey: ['list-folders'] }); toast.success('Moved'); setListContextMenu(null); },
-  });
   const trashListMut = useMutation({
     mutationFn: (listId: string) => listFoldersApi.trashList(listId),
     onSuccess: () => {
@@ -968,42 +961,15 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
       // Its members are unlisted again, so both the table and the
       // "Not in Lists" count are now stale.
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
-      setListContextMenu(null);
     },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to trash list'),
   });
   const renameListMut = useMutation({
     mutationFn: ({ id, name }: { id: string; name: string }) => listsApi.update(id, { name } as any),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['lists'] }); toast.success('Renamed'); setRenamingListId(null); setTitleRenaming(false); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['lists'] }); toast.success('Renamed'); setTitleRenaming(false); },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to rename'),
   });
 
-  // Group lists by folder for sidebar rendering
-  const groupedLists = useMemo(() => {
-    const groups: { folder: ListFolder | null; lists: ContactList[] }[] = [];
-    const byFolder = new Map<string, ContactList[]>();
-    const uncategorised: ContactList[] = [];
-
-    for (const list of (lists || []) as any[]) {
-      if (list.is_trashed) continue;
-      if (list.folder_id) {
-        if (!byFolder.has(list.folder_id)) byFolder.set(list.folder_id, []);
-        byFolder.get(list.folder_id)!.push(list);
-      } else {
-        uncategorised.push(list);
-      }
-    }
-
-    // Folders first
-    for (const f of folders) {
-      groups.push({ folder: f, lists: byFolder.get(f.id) || [] });
-    }
-    // Then uncategorised
-    if (uncategorised.length > 0) {
-      groups.push({ folder: null, lists: uncategorised });
-    }
-    return groups;
-  }, [lists, folders]);
 
 
   /*
@@ -1137,7 +1103,6 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
      the bar's undo restores it - no dialog either way. */
   const gone = usePendingRemoval();
   const trashList = (listId: string) => {
-    setListContextMenu(null);
     const name = ((lists || []) as any[]).find((l) => l.id === listId)?.name || 'List';
     return runUndoable({
       run: () => trashListMut.mutateAsync(listId),
@@ -1245,7 +1210,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
   });
 
   const createListMutation = useMutation({
-    mutationFn: (input: { name: string; description?: string }) =>
+    mutationFn: (input: { name: string; description?: string; color?: string; folder_id?: string | null }) =>
       editingList
         ? listsApi.update(editingList.id, input)
         // A new list belongs to the rail it was created from. Without this
@@ -1254,6 +1219,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
         : listsApi.create({ ...input, kind: listKind }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['lists'] });
+      queryClient.invalidateQueries({ queryKey: ['list-folders'] });
       toast.success(editingList ? 'List updated' : 'List created');
       closeListModal();
     },
@@ -1297,7 +1263,20 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
   const closeListModal = () => {
     setShowListModal(false);
     setEditingList(null);
-    setListForm({ name: '', description: '' });
+    setListForm({ name: '', description: '', color: LIST_COLORS[0], folder_id: null });
+  };
+  /* A new list gets the next colour along, so a column of lists never
+     starts out as one grey block. */
+  const openNewList = () => {
+    const used = ((lists || []) as any[]).filter((l) => !l.is_trashed).length;
+    setEditingList(null);
+    setListForm({ name: '', description: '', color: LIST_COLORS[used % LIST_COLORS.length], folder_id: null });
+    setShowListModal(true);
+  };
+  const openEditList = (list: ContactList) => {
+    setEditingList(list);
+    setListForm({ name: list.name, description: list.description || '', color: list.color || LIST_COLORS[0], folder_id: list.folder_id || null });
+    setShowListModal(true);
   };
 
   const openEdit = (contact: ContactWithTags) => {
@@ -1622,20 +1601,6 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
     try { localStorage.setItem('contacts.colWidths', JSON.stringify(next)); } catch { /* storage unavailable */ }
   };
 
-  // Collapsible folders (persisted) + drag-and-drop of lists into folders
-  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(() => {
-    try { const s = localStorage.getItem('contacts.collapsedFolders'); return new Set(s ? JSON.parse(s) : []); }
-    catch { return new Set(); }
-  });
-  const toggleFolder = (key: string) => setCollapsedFolders((prev) => {
-    const next = new Set(prev);
-    if (next.has(key)) next.delete(key); else next.add(key);
-    try { localStorage.setItem('contacts.collapsedFolders', JSON.stringify([...next])); } catch { /* ignore */ }
-    return next;
-  });
-  const [draggingListId, setDraggingListId] = useState<string | null>(null);
-  const [dropFolderKey, setDropFolderKey] = useState<string | null>(null);
-
   // Collapsible lead-lists rail — lets the prospect table use the full width
   const [railCollapsed, setRailCollapsed] = useState<boolean>(() => {
     try { return localStorage.getItem('contacts.railCollapsed') === '1'; } catch { return false; }
@@ -1825,8 +1790,8 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
       />
 
       {/* Lead-lists rail + contacts table */}
-      <div className="flex gap-4 items-start" onClick={() => setListContextMenu(null)}>
-        {/* Lists rail — collapsible so the table can use the full width */}
+      <div className="flex gap-4 items-start">
+        {/* Lists rail - collapsible so the table can use the full width */}
         {railCollapsed ? (
           <aside aria-label="Lists" className="hidden md:block flex-shrink-0">
             <button aria-label="Show lists"
@@ -1838,287 +1803,24 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
             </button>
           </aside>
         ) : (
-        <aside aria-label="Lists" className="hidden md:block w-56 flex-shrink-0" /* not on a phone: beside the table it leaves the table no room */>
-          <div className="sticky top-[calc(var(--chrome-h,56px)+4px)] space-y-0.5">
-            <div className="flex items-center justify-between gap-1 px-1.5 pb-1.5 mb-0.5 border-b border-[var(--border-subtle)]">
-              <span className="text-micro font-semibold text-[var(--text-tertiary)]">
-                {listKind === 'lead' ? 'Lead lists' : 'Contact lists'}
-              </span>
-              <div className="flex items-center gap-0.5">
-                <button aria-label={`New ${listKind === 'lead' ? 'lead-list' : 'contact-list'} folder`} onClick={() => { setEditingFolder(null); setFolderModalOpen(true); }} className="icon-btn h-6 w-6" title={`New ${listKind === 'lead' ? 'lead-list' : 'contact-list'} folder`}>
-                  <FolderPlus className="h-3.5 w-3.5" />
-                </button>
-                <button aria-label={listKind === 'lead' ? 'New lead list' : 'New contact list'} onClick={() => setShowListModal(true)} className="icon-btn h-6 w-6" title={listKind === 'lead' ? 'New lead list' : 'New contact list'}>
-                  <Plus className="h-3.5 w-3.5" />
-                </button>
-                <button aria-label="Hide lists" onClick={toggleRail} title="Hide lists" className="icon-btn h-6 w-6">
-                  <PanelLeftClose className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </div>
-
-            <p className="px-1.5 pb-1 text-micro leading-snug text-[var(--text-tertiary)]">
-              {listKind === 'contact'
-                ? 'Cold campaigns can never send to these.'
-                : 'Campaigns send to these lists.'}
-            </p>
-          {/* All Contacts */}
-          <button
-            onClick={() => setSearchParams({})}
-            className={cn(
-              "w-full flex items-center gap-2.5 h-8 px-2.5 rounded-md text-strong font-medium transition-all",
-              !activeListId
-                ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
-                : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
-            )}
-          >
-            <Users className="h-3.5 w-3.5 flex-shrink-0" />
-            <span className="flex-1 text-left">{listKind === 'lead' ? 'All leads' : 'All contacts'}</span>
-            <span className={cn(
-              "text-micro font-semibold tabular px-1.5 rounded",
-              !activeListId ? "text-[var(--indigo-text)]" : "text-[var(--text-tertiary)]"
-            )}>
-              {(pageTotal ?? 0).toLocaleString()}
-            </span>
-          </button>
-
-
-          {/* Lists section */}
-          <div className="pt-1.5">
-            <span className="block px-2 mb-1 text-micro font-semibold text-[var(--text-tertiary)]">
-              Lists
-            </span>
-
-            <div className="space-y-0.5">
-              {groupedLists.map((group) => {
-                const isFolder = !!group.folder;
-                const folderKey = isFolder ? group.folder!.id : 'uncat';
-                const targetFolderId = isFolder ? group.folder!.id : null;
-                const collapsed = collapsedFolders.has(folderKey);
-                const isDrop = dropFolderKey === folderKey && !!draggingListId;
-                const showHeader = isFolder || (group.lists.length > 0 && groupedLists.length > 1);
-                return (
-                  <div key={folderKey}>
-                    {showHeader && (
-                      <div
-                        onClick={() => toggleFolder(folderKey)}
-                        onDragOver={(e) => { if (draggingListId) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDropFolderKey(folderKey); } }}
-                        onDragLeave={() => setDropFolderKey((k) => (k === folderKey ? null : k))}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          const id = e.dataTransfer.getData('text/plain') || draggingListId;
-                          if (id) folderMoveMut.mutate({ listId: id, folderId: targetFolderId });
-                          setDropFolderKey(null); setDraggingListId(null);
-                        }}
-                        className={cn(
-                          'group/folder flex items-center gap-1.5 px-1.5 h-7 rounded-md cursor-pointer select-none transition-colors',
-                          isDrop ? 'bg-[var(--indigo-subtle)] ring-1 ring-[var(--indigo)]/40' : 'hover:bg-[var(--bg-hover)]'
-                        )}
-                      >
-                        <ChevronRight className={cn('h-3 w-3 flex-shrink-0 text-[var(--text-tertiary)] transition-transform duration-150', !collapsed && 'rotate-90')} />
-                        <Folder className="h-3 w-3 flex-shrink-0" style={isFolder ? { color: group.folder!.color } : { color: 'var(--text-tertiary)' }} />
-                        <span className="flex-1 truncate text-micro font-semibold" style={isFolder ? { color: group.folder!.color } : { color: 'var(--text-tertiary)' }}>
-                          {isFolder ? group.folder!.name : 'Uncategorised'}
-                        </span>
-                        {isFolder && (
-                          <button aria-label="Edit folder"
-                            onClick={(e) => { e.stopPropagation(); setEditingFolder(group.folder!); setFolderModalOpen(true); }}
-                            className="p-0.5 rounded hover:bg-[var(--bg-active)] opacity-0 group-hover/folder:opacity-100 focus-visible:opacity-100 group-focus-within/folder:opacity-100 transition-opacity"
-                            title="Edit folder"
-                          >
-                            <Pencil className="h-2.5 w-2.5 text-[var(--text-tertiary)]" />
-                          </button>
-                        )}
-                        <span className="text-micro font-semibold tabular text-[var(--text-tertiary)]">{group.lists.length}</span>
-                      </div>
-                    )}
-
-                    {!collapsed && (
-                      <div className={cn('space-y-0.5 mt-0.5', showHeader && 'ml-[11px] pl-1.5 border-l border-[var(--border-subtle)]')}>
-                        {group.lists.map((list: any) => (
-                          <div
-                            key={list.id}
-                            className="relative group/list"
-                            draggable={renamingListId !== list.id}
-                            onDragStart={(e) => { e.dataTransfer.setData('text/plain', list.id); e.dataTransfer.effectAllowed = 'move'; setDraggingListId(list.id); }}
-                            onDragEnd={() => { setDraggingListId(null); setDropFolderKey(null); }}
-                          >
-                            {renamingListId === list.id ? (
-                              <form
-                                onSubmit={(e) => {
-                                  e.preventDefault();
-                                  if (renameValue.trim()) renameListMut.mutate({ id: list.id, name: renameValue.trim() });
-                                }}
-                                className="px-2 py-1"
-                              >
-                                <input
-                                  aria-label="List name"
-                                  value={renameValue}
-                                  onChange={(e) => setRenameValue(e.target.value)}
-                                  onBlur={() => setRenamingListId(null)}
-                                  onKeyDown={(e) => { if (e.key === 'Escape') setRenamingListId(null); }}
-                                  autoFocus
-                                  className="w-full px-2 py-1 text-body rounded border border-[var(--indigo)] bg-[var(--bg-elevated)] outline-none"
-                                />
-                              </form>
-                            ) : (
-                              <button
-                                onClick={() => setSearchParams({ list: list.id })}
-                                // Also what the context-menu key and Shift+F10 raise on a focused row: those
-                                // report no pointer position, so the menu hangs off the row instead.
-                                onContextMenu={(e: React.MouseEvent<HTMLButtonElement>) => {
-                                  e.preventDefault();
-                                  const r = e.currentTarget.getBoundingClientRect();
-                                  const fromKeyboard = e.clientX === 0 && e.clientY === 0;
-                                  listMenu.returnFocusTo.current = e.currentTarget;
-                                  setListContextMenu({ listId: list.id, x: fromKeyboard ? r.left + 16 : e.clientX, y: fromKeyboard ? r.bottom : e.clientY });
-                                }}
-                                className={cn(
-                                  'w-full flex items-center gap-2 h-8 px-2.5 rounded-md text-body font-medium transition-all cursor-grab active:cursor-grabbing',
-                                  draggingListId === list.id && 'opacity-50',
-                                  activeListId === list.id
-                                    ? 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)]'
-                                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
-                                )}
-                              >
-                                <FolderOpen className="h-3 w-3 flex-shrink-0" />
-                                <span className="flex-1 text-left truncate">{list.name}</span>
-                                {/* The count steps aside on hover to make room
-                                    for the rename pencil — renaming was only
-                                    reachable by right-click before, which
-                                    nobody discovers. */}
-                                <span className={cn(
-                                  'text-micro font-semibold tabular transition-opacity group-hover/list:opacity-0',
-                                  activeListId === list.id ? 'text-[var(--indigo-text)]' : 'text-[var(--text-tertiary)]'
-                                )}>
-                                  {list.contact_count || 0}
-                                </span>
-                              </button>
-                            )}
-                            {renamingListId !== list.id && (
-                              <button aria-label={`Rename "${list.name}"`}
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); setRenameValue(list.name); setRenamingListId(list.id); }}
-                                className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded opacity-0 group-hover/list:opacity-100 focus-visible:opacity-100 group-focus-within/list:opacity-100 hover:bg-[var(--bg-active)] transition-opacity"
-                                title={`Rename "${list.name}"`}
-                              >
-                                <Pencil className="h-2.5 w-2.5 text-[var(--text-tertiary)]" />
-                              </button>
-                            )}
-                          </div>
-                        ))}
-                        {isFolder && group.lists.length === 0 && (
-                          <p className="px-2 py-1 text-micro text-[var(--text-tertiary)] italic">
-                            {isDrop ? 'Drop to add here' : 'Empty folder'}
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-
-              {(!lists || lists.length === 0) && (
-                <p className="px-2 py-2 text-caption text-[var(--text-tertiary)] italic">
-                  No lists yet
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* Other section */}
-          <div className="pt-2">
-            <div className="px-2 mb-1">
-              <span className="text-micro font-semibold text-[var(--text-tertiary)]">
-                Other
-              </span>
-            </div>
-            {/* Not in Lists — automatic view, never editable */}
-            <button
-              onClick={() => setSearchParams({ list: UNLISTED_LIST_ID })}
-              title={`${noun === 'lead' ? 'Leads' : 'Contacts'} that don't belong to any list`}
-              className={cn(
-                'w-full flex items-center gap-2 h-8 px-2.5 rounded-md text-body font-medium transition-all',
-                isUnlistedView
-                  ? 'bg-[var(--bg-active)] text-[var(--text-primary)]'
-                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
-              )}
-            >
-              <FolderMinus className="h-3 w-3 flex-shrink-0" />
-              <span className="flex-1 text-left truncate">{UNLISTED_LIST_NAME}</span>
-              <span className={cn(
-                'text-micro font-semibold tabular',
-                isUnlistedView ? 'text-[var(--indigo-text)]' : 'text-[var(--text-tertiary)]'
-              )}>
-                {unlistedCount}
-              </span>
-            </button>
-            <Link
-              to="/suppression"
-              className="w-full flex items-center gap-2 h-8 px-2.5 rounded-md text-body font-medium text-[var(--text-secondary)] hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 transition-all"
-            >
-              <ShieldOff className="h-3 w-3 flex-shrink-0" />
-              <span className="flex-1 text-left">Do not email</span>
-            </Link>
-          </div>
-        </div>
-      </aside>
+          <aside aria-label="Lists" className="hidden md:block w-64 flex-shrink-0" /* not on a phone: beside the table it leaves the table no room */>
+            <ListsRail
+              kind={listKind}
+              lists={(lists || []) as ContactList[]}
+              folders={folders}
+              activeListId={activeListId}
+              total={pageTotal ?? undefined}
+              unlistedCount={unlistedCount}
+              onSelect={(id) => setSearchParams(id ? { list: id } : {})}
+              onCreateList={openNewList}
+              onEditList={openEditList}
+              onCreateFolder={() => { setEditingFolder(null); setFolderModalOpen(true); }}
+              onEditFolder={(fo) => { setEditingFolder(fo); setFolderModalOpen(true); }}
+              onTrash={(id) => { trashList(id); }}
+              onCollapse={toggleRail}
+            />
+          </aside>
         )}
-
-      {/* List right-click context menu — portaled + clamped to the viewport */}
-      {listContextMenu && createPortal(
-        <>
-          <div className="fixed inset-0 z-[60]" aria-hidden onClick={() => setListContextMenu(null)} />
-          <div
-            {...listMenu.panelProps}
-            role="group"
-            aria-label="List actions"
-            className="fixed z-[61] bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-lg shadow-xl py-1 min-w-[200px] max-h-[80vh] overflow-y-auto animate-fade-in"
-            style={{
-              top: Math.max(8, Math.min(listContextMenu.y, window.innerHeight - 240)),
-              left: Math.max(8, Math.min(listContextMenu.x, window.innerWidth - 224)),
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-          <button
-            onClick={() => {
-              const list = (lists || []).find((l: any) => l.id === listContextMenu.listId);
-              if (list) { setRenameValue(list.name); setRenamingListId(list.id); setListContextMenu(null); }
-            }}
-            className="w-full text-left px-3 py-2 text-strong text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] flex items-center gap-2"
-          >
-            <Pencil className="h-3.5 w-3.5" /> Rename
-          </button>
-
-          <div className="border-t border-[var(--border-subtle)] my-1" />
-          <div className="px-3 py-1.5 text-micro text-[var(--text-tertiary)]">Move to folder</div>
-          <button
-            onClick={() => folderMoveMut.mutate({ listId: listContextMenu.listId, folderId: null })}
-            className="w-full text-left px-3 py-2 text-strong text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] flex items-center gap-2"
-          >
-            <Folder className="h-3.5 w-3.5" /> Uncategorised
-          </button>
-          {folders.map((f) => (
-            <button
-              key={f.id}
-              onClick={() => folderMoveMut.mutate({ listId: listContextMenu.listId, folderId: f.id })}
-              className="w-full text-left px-3 py-2 text-strong text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] flex items-center gap-2"
-            >
-              <Folder className="h-3.5 w-3.5" style={{ color: f.color }} /> {f.name}
-            </button>
-          ))}
-
-          <div className="border-t border-[var(--border-subtle)] my-1" />
-          <button
-            onClick={() => trashList(listContextMenu.listId)}
-            className="w-full text-left px-3 py-2 text-strong text-red-600 dark:text-red-400 hover:bg-red-500/10 flex items-center gap-2"
-          >
-            <Trash2 className="h-3.5 w-3.5" /> Move to trash
-          </button>
-          </div>
-        </>,
-        document.body
-      )}
 
       {showBulkEdit && (
         <BulkEditModal
@@ -3135,8 +2837,8 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
         <Modal
           isOpen={showListModal}
           onClose={closeListModal}
-          title={editingList ? 'Edit list' : 'Create list'}
-          description={editingList ? 'Update this list’s details.' : 'Organise contacts into a list.'}
+          title={editingList ? 'Edit list' : listKind === 'lead' ? 'New lead list' : 'New contact list'}
+          description={editingList ? 'Name, colour and where it lives in the sidebar.' : listKind === 'lead' ? 'An audience you can point a campaign at.' : 'A group in your CRM. Campaigns can never send to it.'}
           size="sm"
           footer={
             <>
@@ -3147,15 +2849,78 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
             </>
           }
         >
-          <form id="list-form" onSubmit={(e) => { e.preventDefault(); createListMutation.mutate(listForm); }}>
-            <Input
-              label="List name"
-              required
-              autoFocus
-              value={listForm.name}
-              onChange={(e) => setListForm({ ...listForm, name: e.target.value })}
-              placeholder="e.g. Hot Leads, Enterprise, Q1 Prospects"
-            />
+          <form id="list-form" className="space-y-4" onSubmit={(e) => {
+            e.preventDefault();
+            createListMutation.mutate({
+              name: listForm.name.trim(),
+              description: listForm.description.trim() || undefined,
+              color: listForm.color,
+              folder_id: listForm.folder_id,
+            });
+          }}>
+            <div className="flex items-end gap-3">
+              <span
+                aria-hidden
+                className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg text-strong font-bold"
+                style={{ color: listForm.color, background: `color-mix(in srgb, ${listForm.color} 15%, transparent)` }}
+              >
+                {(listForm.name.trim()[0] || '#').toUpperCase()}
+              </span>
+              <div className="flex-1">
+                <Input
+                  label="Name"
+                  required
+                  autoFocus
+                  maxLength={80}
+                  value={listForm.name}
+                  onChange={(e) => setListForm({ ...listForm, name: e.target.value })}
+                  placeholder={listKind === 'lead' ? 'e.g. SaaS founders UK, Webinar sign-ups' : 'e.g. Key accounts, Partners, Renewals Q1'}
+                />
+              </div>
+            </div>
+            <div>
+              <span className="block text-caption font-medium text-[var(--text-secondary)] mb-1.5">Colour</span>
+              <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Colour">
+                {LIST_COLORS.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    role="radio"
+                    aria-checked={listForm.color === c}
+                    aria-label={`Colour ${c}`}
+                    onClick={() => setListForm({ ...listForm, color: c })}
+                    className={cn('flex h-7 w-7 items-center justify-center rounded-lg transition-transform hover:scale-110', listForm.color === c && 'ring-2 ring-offset-2 ring-offset-[var(--bg-surface)] ring-[var(--text-primary)]')}
+                    style={{ background: c }}
+                  >
+                    {listForm.color === c && <Check className="h-3.5 w-3.5 text-white" />}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {folders.length > 0 && (
+              <label className="block">
+                <span className="block text-caption font-medium text-[var(--text-secondary)] mb-1.5">Folder</span>
+                <select
+                  value={listForm.folder_id || ''}
+                  onChange={(e) => setListForm({ ...listForm, folder_id: e.target.value || null })}
+                  className="w-full h-9 px-2.5 text-body rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+                >
+                  <option value="">No folder</option>
+                  {folders.map((fo) => <option key={fo.id} value={fo.id}>{fo.name}</option>)}
+                </select>
+              </label>
+            )}
+            <label className="block">
+              <span className="block text-caption font-medium text-[var(--text-secondary)] mb-1.5">Note <span className="text-[var(--text-tertiary)] font-normal">(optional)</span></span>
+              <textarea
+                rows={2}
+                maxLength={280}
+                value={listForm.description}
+                onChange={(e) => setListForm({ ...listForm, description: e.target.value })}
+                placeholder="Who is in it and why. Shown when you hover the list."
+                className="w-full px-2.5 py-2 text-body rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)] resize-none"
+              />
+            </label>
           </form>
         </Modal>
       )}
@@ -3201,7 +2966,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
             ))}
           </div>
           <button
-            onClick={() => { setShowAddToListModal(false); setShowListModal(true); }}
+            onClick={() => { setShowAddToListModal(false); openNewList(); }}
             className="w-full flex items-center justify-center gap-2 mt-3 py-2.5 border border-dashed border-[var(--border-default)] rounded-xl text-strong font-medium text-[var(--text-secondary)] hover:text-[var(--indigo-text)] hover:border-[var(--indigo)] hover:bg-[var(--indigo-subtle)] transition-colors"
           >
             <Plus className="h-4 w-4" />

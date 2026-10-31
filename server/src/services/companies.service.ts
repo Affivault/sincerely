@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
+import { outreachFor } from './contacts.service.js';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Companies.
@@ -45,17 +46,26 @@ export const companiesService = {
   async list(userId: string, search?: string) {
     // Deals come back as rows rather than a count so the list can show open
     // value — the one number that makes an accounts table worth reading.
-    let q = supabaseAdmin
-      .from('companies')
-      .select('*, contacts(count), deals(value, stage)')
-      .eq('user_id', userId);
+    const build = (withLeads: boolean) => {
+      let q = supabaseAdmin
+        .from('companies')
+        // leads: the same embed, narrowed to lifecycle 'prospect', so the
+        // table can say how many people at an account are CRM contacts and
+        // how many are still outbound leads.
+        .select(withLeads ? '*, contacts(count), leads:contacts(count), deals(value, stage)' : '*, contacts(count), deals(value, stage)')
+        .eq('user_id', userId);
+      if (withLeads) q = q.eq('leads.lifecycle', 'prospect');
+      if (search && search.trim()) {
+        const safe = search.replace(/[%_,()\\]/g, '').trim();
+        if (safe) q = q.or(`name.ilike.%${safe}%,domain.ilike.%${safe}%,industry.ilike.%${safe}%`);
+      }
+      return q.order('name', { ascending: true }).limit(500);
+    };
 
-    if (search && search.trim()) {
-      const safe = search.replace(/[%_,()\\]/g, '').trim();
-      if (safe) q = q.or(`name.ilike.%${safe}%,domain.ilike.%${safe}%,industry.ilike.%${safe}%`);
-    }
-
-    const { data, error } = await q.order('name', { ascending: true }).limit(500);
+    // The split is a nicety: if this PostgREST cannot filter an aggregate
+    // embed, the table still loads with the plain head count.
+    let { data, error } = await build(true);
+    if (error) ({ data, error } = await build(false));
     if (error) { assertCompaniesTable(error); throw new AppError(error.message, 500); }
 
     return (data || []).map((c: any) => {
@@ -64,9 +74,15 @@ export const companiesService = {
       return {
         ...c,
         contact_count: c.contacts?.[0]?.count ?? 0,
+        // Absent (not zero) when the split could not be read.
+        ...(c.leads ? {
+          lead_count: c.leads?.[0]?.count ?? 0,
+          crm_count: Math.max(0, (c.contacts?.[0]?.count ?? 0) - (c.leads?.[0]?.count ?? 0)),
+        } : {}),
         deal_count: deals.length,
         open_value: open.reduce((s, d) => s + (Number(d.value) || 0), 0),
         contacts: undefined,
+        leads: undefined,
         deals: undefined,
       };
     });
@@ -91,7 +107,7 @@ export const companiesService = {
     const [{ data: contacts }, { data: deals }] = await Promise.all([
       supabaseAdmin
         .from('contacts')
-        .select('id, email, first_name, last_name, job_title, dcs_score')
+        .select('id, email, first_name, last_name, job_title, dcs_score, lifecycle, list_contacts(contact_lists(id, name, kind, color, is_trashed))')
         .eq('user_id', userId)
         .eq('company_id', id)
         .order('last_name', { ascending: true })
@@ -105,14 +121,25 @@ export const companiesService = {
     ]);
 
     const open = (deals || []).filter((d: any) => d.stage !== 'won' && d.stage !== 'lost');
+    const outreach = await outreachFor(userId, (contacts || []).map((c: any) => c.id));
+    const people = (contacts || []).map((c: any) => ({
+      ...c,
+      lifecycle: c.lifecycle || 'prospect',
+      outreach: outreach.get(c.id) ?? null,
+      lists: (c.list_contacts || []).map((lc: any) => lc.contact_lists).filter((l: any) => l && !l.is_trashed),
+      list_contacts: undefined,
+    }));
+    const leadCount = people.filter((c: any) => c.lifecycle === 'prospect').length;
     return {
       company: {
         ...company,
-        contact_count: (contacts || []).length,
+        contact_count: people.length,
+        lead_count: leadCount,
+        crm_count: people.length - leadCount,
         deal_count: (deals || []).length,
         open_value: open.reduce((s: number, d: any) => s + (Number(d.value) || 0), 0),
       },
-      contacts: contacts || [],
+      contacts: people,
       deals: deals || [],
     };
   },

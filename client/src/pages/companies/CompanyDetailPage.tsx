@@ -1,3 +1,4 @@
+import { StagePill, OutreachPill, ListChips } from '../../components/contacts/PersonBadges';
 import { BuyingCommitteeStrip } from '../../components/crm/BuyingCommittee';
 import { useMemo, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
@@ -266,7 +267,11 @@ export function CompanyDetailPage() {
       </div>
 
       <div className="fact-strip grid-cols-2 lg:grid-cols-4">
-        <Stat label="People" value={String(contacts.length)} sub={contacts.length === 1 ? 'contact' : 'contacts'} />
+        <Stat
+          label="People"
+          value={String(contacts.length)}
+          sub={`${company.crm_count ?? contacts.filter((c: any) => c.lifecycle && c.lifecycle !== 'prospect').length} in CRM · ${company.lead_count ?? contacts.filter((c: any) => (c.lifecycle || 'prospect') === 'prospect').length} leads`}
+        />
         <Stat label="Open pipeline" value={money(open.reduce((s: number, d: any) => s + (Number(d.value) || 0), 0))} sub={`${open.length} open`} />
         <Stat label="Won" value={money(won.reduce((s: number, d: any) => s + (Number(d.value) || 0), 0))} sub={`${won.length} closed`} />
         <Stat label="Activity" value={String(stream.length)} sub="emails, notes & meetings" />
@@ -411,7 +416,17 @@ export function CompanyDetailPage() {
             ) : (
               <div className="divide-y divide-[var(--border-subtle)]">
                 <BuyingCommitteeStrip contacts={contacts} messages={activity?.messages || []} />
-                {contacts.map((c: any) => {
+                {[
+                  { key: 'crm', label: 'Contacts', hint: 'In your CRM', people: contacts.filter((c: any) => c.lifecycle && c.lifecycle !== 'prospect') },
+                  { key: 'leads', label: 'Leads', hint: 'Still in outbound', people: contacts.filter((c: any) => (c.lifecycle || 'prospect') === 'prospect') },
+                ].filter((group) => group.people.length > 0).map((group) => (
+                  <div key={group.key} className="divide-y divide-[var(--border-subtle)]">
+                    <div className="flex items-center gap-2 px-4 pt-3 pb-1.5 bg-[var(--bg-muted)]/40">
+                      <span className="text-micro font-semibold uppercase tracking-wide text-[var(--text-tertiary)]">{group.label}</span>
+                      <span className="text-micro tabular-nums text-[var(--text-tertiary)]">{group.people.length}</span>
+                      <span className="text-micro text-[var(--text-tertiary)]">· {group.hint}</span>
+                    </div>
+                {group.people.map((c: any) => {
                   const name = [c.first_name, c.last_name].filter(Boolean).join(' ') || c.email;
                   return (
                     <div key={c.id} className="px-4 py-2.5">
@@ -425,6 +440,10 @@ export function CompanyDetailPage() {
                             {[c.job_title, c.email].filter(Boolean).join(' · ')}
                           </span>
                         </button>
+                        <span className="hidden sm:inline-flex flex-shrink-0 items-center gap-1.5">
+                          <StagePill lifecycle={c.lifecycle} />
+                          {c.lifecycle === 'prospect' && <OutreachPill outreach={c.outreach} />}
+                        </span>
                         <button
                           onClick={() => setWritingTo(writingTo === c.id ? null : c.id)}
                           className="flex-shrink-0 inline-flex items-center gap-1 h-6 px-2 rounded-md border border-[var(--border-subtle)] text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--indigo-text)] hover:border-[var(--indigo)]/40 transition-colors"
@@ -439,6 +458,14 @@ export function CompanyDetailPage() {
                           <ArrowUpRight className="h-3.5 w-3.5" />
                         </Link>
                       </div>
+                      {/* On a phone the pills drop under the name. */}
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5 pl-[34px] sm:hidden">
+                        <StagePill lifecycle={c.lifecycle} />
+                        {c.lifecycle === 'prospect' && <OutreachPill outreach={c.outreach} />}
+                      </div>
+                      {c.lists?.length > 0 && (
+                        <div className="mt-1 pl-[34px]"><ListChips lists={c.lists} /></div>
+                      )}
                       {writingTo === c.id && (
                         <div className="mt-2">
                           <QuickCompose to={c.email} toName={name} onSent={() => setWritingTo(null)} />
@@ -447,6 +474,8 @@ export function CompanyDetailPage() {
                     </div>
                   );
                 })}
+                  </div>
+                ))}
               </div>
             )
           ) : (

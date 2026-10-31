@@ -61,8 +61,21 @@ const blank = <span className="text-[var(--text-tertiary)]">—</span>;
 
 const ALL_COLUMNS: ColumnDef[] = [
   {
-    id: 'contact_count', label: 'People', icon: Users, sortKey: 'contact_count', align: 'right',
-    render: (c) => <span className="tabular">{c.contact_count ?? 0}</span>,
+    id: 'contact_count', label: 'People', icon: Users, sortKey: 'contact_count',
+    // Who at the account is in the CRM, and who is still an outbound lead.
+    render: (c) => {
+      const total = c.contact_count ?? 0;
+      if (total === 0) return blank;
+      if (c.lead_count == null) return <span className="tabular">{total}</span>;
+      const leads = c.lead_count;
+      const crm = c.crm_count ?? Math.max(0, total - leads);
+      return (
+        <span className="inline-flex items-center gap-1.5 tabular" title={`${crm} in your CRM, ${leads} still leads`}>
+          {crm > 0 && <span className="inline-flex items-center px-1.5 h-[20px] rounded-md text-micro font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-500/12">{crm} contact{crm === 1 ? '' : 's'}</span>}
+          {leads > 0 && <span className="inline-flex items-center px-1.5 h-[20px] rounded-md text-micro font-semibold text-teal-700 dark:text-teal-300 bg-teal-500/12">{leads} lead{leads === 1 ? '' : 's'}</span>}
+        </span>
+      );
+    },
   },
   {
     id: 'deal_count', label: 'Deals', icon: Handshake, sortKey: 'deal_count', align: 'right',
@@ -128,10 +141,10 @@ const DEFAULT_COLUMNS = ['contact_count', 'deal_count', 'open_value', 'industry'
 
 /** Export the given companies as a CSV file the browser downloads directly — no server round-trip. */
 function exportCompaniesCsv(companies: Company[]) {
-  const header = ['Name', 'Domain', 'Industry', 'Location', 'Headcount', 'People', 'Deals', 'Open value', 'LinkedIn'];
+  const header = ['Name', 'Domain', 'Industry', 'Location', 'Headcount', 'People', 'Contacts', 'Leads', 'Deals', 'Open value', 'LinkedIn'];
   const rows = (companies as any[]).map((c) => [
     c.name, c.domain, c.industry, c.location, c.size,
-    c.contact_count ?? 0, c.deal_count ?? 0, c.open_value ?? 0, c.linkedin_url,
+    c.contact_count ?? 0, c.crm_count ?? 0, c.lead_count ?? 0, c.deal_count ?? 0, c.open_value ?? 0, c.linkedin_url,
   ].map(csvCell).join(','));
   const csv = [header.join(','), ...rows].join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -215,7 +228,7 @@ export function CompaniesPage() {
     defaultOrder: DEFAULT_COLUMNS,
     widthOverrides: {
       [NAME_COL_ID]: NAME_COL_W,
-      open_value: 130, contact_count: 100, deal_count: 100, created_at: 130,
+      open_value: 130, contact_count: 190, deal_count: 100, created_at: 130,
     },
   });
 

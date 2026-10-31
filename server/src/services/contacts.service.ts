@@ -88,7 +88,7 @@ function applyLifecycle<Q>(query: Q, lifecycle?: string): Q {
  * Never throws: the column is a convenience, and a missing one is the state
  * the page was in before it existed.
  */
-async function outreachFor(userId: string, contactIds: string[]): Promise<Map<string, ReturnType<typeof summariseOutreach>>> {
+export async function outreachFor(userId: string, contactIds: string[]): Promise<Map<string, ReturnType<typeof summariseOutreach>>> {
   const out = new Map<string, ReturnType<typeof summariseOutreach>>();
   if (contactIds.length === 0) return out;
   try {
@@ -447,7 +447,7 @@ export const contactsService = {
   async get(userId: string, id: string) {
     const { data, error } = await supabaseAdmin
       .from('contacts')
-      .select('*, contact_tags(tag_id, tags(*))')
+      .select('*, contact_tags(tag_id, tags(*)), list_contacts(contact_lists(id, name, kind, color, is_trashed))')
       .eq('id', id)
       .eq('user_id', userId)
       // maybeSingle, not single: .single() turns "no such contact" into a
@@ -457,12 +457,20 @@ export const contactsService = {
     if (error) throw new AppError(error.message, 500);
     if (!data) throw new AppError('Contact not found', 404);
 
-    const suppressed = await suppressedEmails(userId, [data.email]);
+    const [suppressed, outreach] = await Promise.all([
+      suppressedEmails(userId, [data.email]),
+      outreachFor(userId, [data.id]),
+    ]);
     return {
       ...data,
       is_suppressed: suppressed.has(String(data.email || '').toLowerCase()),
       tags: (data.contact_tags || []).map((ct: any) => ct.tags).filter(Boolean),
+      // Where this person stands in outreach and which lists hold them, so
+      // the profile, the peek and the company page all say the same thing.
+      outreach: outreach.get(data.id) ?? null,
+      lists: (data.list_contacts || []).map((lc: any) => lc.contact_lists).filter((l: any) => l && !l.is_trashed),
       contact_tags: undefined,
+      list_contacts: undefined,
     };
   },
 

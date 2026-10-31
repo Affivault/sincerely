@@ -1,3 +1,4 @@
+import { StagePill, OutreachPill, ListChips } from '../contacts/PersonBadges';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
@@ -207,6 +208,15 @@ function ContactPeek({ id, onClose }: { id: string; onClose: () => void }) {
           <p className="text-body text-[var(--text-tertiary)] truncate">
             {[contact.job_title, contact.company].filter(Boolean).join(' · ') || contact.email}
           </p>
+          {/* Lead or contact, where they stand in outreach, and their lists:
+              the same three things the Leads and Contacts tables show. */}
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            <StagePill lifecycle={(contact as any).lifecycle} />
+            {((contact as any).lifecycle || 'prospect') === 'prospect' || (contact as any).outreach?.state !== 'none'
+              ? <OutreachPill outreach={(contact as any).outreach} />
+              : null}
+            <ListChips lists={(contact as any).lists} max={2} />
+          </div>
         </div>
         <Link
           to={`/contacts/${contact.id}`}

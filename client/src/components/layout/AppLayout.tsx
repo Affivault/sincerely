@@ -1,6 +1,7 @@
 import { useTrackLastSeen } from '../flow/AwayCard';
 import { useEffect, useRef, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { Sidebar } from './Sidebar';
 import { Header, HEADER_H } from './Header';
 import { ErrorBoundary } from '../ErrorBoundary';
@@ -70,7 +71,30 @@ function AppContent() {
   const location = useLocation();
   const navigate = useNavigate();
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
-  const here = locate(location.pathname);
+  const located = locate(location.pathname);
+  /* A person's own page lives at /contacts/:id whether they are a lead or a
+     contact, so the path alone lit up "Contacts" for a lead. The record is
+     already in the cache (the page loads it), so read its stage from there
+     and light up the tab of the page they actually belong to. */
+  const personId = /^\/contacts\/([0-9a-f-]{36})$/i.exec(location.pathname)?.[1];
+  const qc = useQueryClient();
+  const [personStage, setPersonStage] = useState<string | null>(null);
+  useEffect(() => {
+    if (!personId) { setPersonStage(null); return; }
+    const read = () => {
+      const p = qc.getQueryData<any>(['contacts', personId]);
+      setPersonStage(p ? (p.lifecycle || 'prospect') : null);
+    };
+    read();
+    return qc.getQueryCache().subscribe((e) => {
+      const key = e?.query?.queryKey;
+      if (Array.isArray(key) && key[0] === 'contacts' && key[1] === personId) read();
+    });
+  }, [qc, personId]);
+  const leadsTab = located.section?.tabs.find((t) => t.href === '/leads');
+  const here = personId && personStage === 'prospect' && leadsTab
+    ? { ...located, tab: leadsTab }
+    : located;
   const inSettings = isSettingsPath(location.pathname);
   // A place with one page needs no tabs - unless you are on a page that is
   // only reachable by search, where the bar is the way back.
