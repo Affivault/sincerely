@@ -3,7 +3,7 @@ import { AppError } from '../middleware/error.middleware.js';
 import { creditsService } from './credits.service.js';
 import { withUsage } from './provider-usage.service.js';
 import { listsService } from './lists.service.js';
-import { getActiveProvider, icypeasCompanyPagesToFetch, icypeasCompanySearch } from './prospect-providers.js';
+import { getActiveProvider, icypeasCompanyPagesToFetch, icypeasCompanyQuery, icypeasCompanySearch } from './prospect-providers.js';
 import { companyDirectoryService } from './company-directory.service.js';
 import { CREDIT_PRICES, normalizeLinkedinUrl, describeProspectSearch, rankProspects } from '@lemlist/shared';
 import { campaignContactsService } from './campaign-contacts.service.js';
@@ -122,6 +122,12 @@ export const prospectingService = {
    * of 25 costs CREDIT_PRICES.search, refunded when it fails or is empty.
    */
   async searchCompanies(userId: string, filters: CompanySearchFilters, page: number): Promise<CompanySearchResponse> {
+    // Checked before charging: an empty search used to spend, fail and refund,
+    // and an account with no credits left was told it was out of credits
+    // instead of being asked for a filter.
+    if (!Object.keys(icypeasCompanyQuery(filters || {})).length) {
+      throw new AppError('Add at least one filter to search companies.', 400);
+    }
     const pages = icypeasCompanyPagesToFetch(filters || {}, page);
     const charge = Math.round(pages * CREDIT_PRICES.search * 10) / 10;
     const spend = { amount: charge, action: 'search', provider: 'icypeas', ref: `companies page ${page}` };

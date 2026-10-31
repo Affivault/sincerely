@@ -88,7 +88,10 @@ export class ErrorBoundary extends Component<Props, State> {
               Something went wrong
             </h2>
             <p className="text-strong text-[var(--text-secondary)] mb-6">
-              {this.state.error?.message || 'An unexpected error occurred while rendering this page.'}
+              {/* The raw message ("Cannot read properties of undefined") means
+                  nothing to a customer; it is in the console for us. */}
+              This page hit a problem. Try again, or go back to where you were.
+              Nothing you saved is lost.
             </p>
             <div className="flex items-center justify-center gap-3">
               <button
