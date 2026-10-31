@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useState } from 'react';
 import type { RichTextEditorProps } from './RichTextEditor.types';
+import { withChunkReload } from '../../lib/chunkReload';
 
 export type { RichTextEditorProps, Template } from './RichTextEditor.types';
 
@@ -40,7 +41,7 @@ export type { RichTextEditorProps, Template } from './RichTextEditor.types';
    ═══════════════════════════════════════════════════════════════════════ */
 
 const load = () => import('./RichTextEditorImpl');
-const Impl = lazy(load);
+const Impl = lazy(withChunkReload(load));
 
 /** Whether the chunk has been asked for yet. Idempotent by design. */
 let warming: Promise<unknown> | null = null;

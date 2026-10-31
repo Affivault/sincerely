@@ -1,4 +1,5 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazyNamed } from '../../lib/chunkReload';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import Papa from 'papaparse';
@@ -19,8 +20,8 @@ import { contactsApi, listsApi } from '../../api/contacts.api';
 import { setupApi } from '../../api/setup.api';
 import { cn } from '../../lib/utils';
 
-const SmtpAccountModal = lazy(() =>
-  import('../smtp/SmtpAccountModal').then((m) => ({ default: m.SmtpAccountModal })));
+const SmtpAccountModal = lazyNamed(() =>
+  import('../smtp/SmtpAccountModal'), (m) => m.SmtpAccountModal);
 
 /* ═══════════════════════════════════════════════════════════════════════
    From first login to first reply, on one page.
