@@ -8,7 +8,7 @@ import { usePopover } from '../../hooks/usePopover';
 import { useAriaSort } from '../../components/table/TableParts';
 import { contactsApi, listsApi, tagsApi } from '../../api/contacts.api';
 import {
-  UNLISTED_LIST_ID, UNLISTED_LIST_NAME, LIFECYCLE_LABEL, LEAD_OUTREACH_LABEL, LEAD_OUTREACH_HINT,
+  UNLISTED_LIST_ID, UNLISTED_LIST_NAME, LIFECYCLE_LABEL, LEAD_OUTREACH_LABEL, LEAD_OUTREACH_HINT, LEAD_OUTREACH_STATES,
   deepCheckSkipped, formatDate, formatMoney, plural, websiteFromEmail, sourceLabel,
 } from '@lemlist/shared';
 import type { Lifecycle, ListKind, LeadOutreach, OutreachSummary, ContactDealSummary, ContactsListParams } from '@lemlist/shared';
@@ -656,6 +656,7 @@ function OutreachCell({ o }: { o?: OutreachSummary | null }) {
   if (!o) return <span className="text-body text-[var(--text-tertiary)]">—</span>;
   const tone: Record<LeadOutreach, string> = {
     none: 'text-[var(--text-tertiary)] bg-[var(--bg-elevated)]',
+    queued: 'text-slate-600 dark:text-slate-300 bg-slate-500/12',
     in_sequence: 'text-indigo-700 dark:text-indigo-300 bg-indigo-500/12',
     finished: 'text-amber-700 dark:text-amber-400 bg-amber-500/10',
     replied: 'text-emerald-700 dark:text-emerald-400 bg-emerald-500/12',
@@ -1799,7 +1800,8 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                 : `${totalContacts.toLocaleString()} ${totalContacts !== 1 ? 'people' : 'person'} you have a relationship with`
         }
         actions={
-          <div className="flex items-center gap-2">
+          // Wraps on a phone rather than pushing "Add lead" off the screen.
+          <div className="flex flex-wrap items-center gap-2">
             {listKind === 'lead' && (
               <button onClick={() => navigate('/prospector')} className="btn-secondary" title="Search for new leads to add">
                 <Radar className="h-3.5 w-3.5" />
@@ -2159,7 +2161,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                 {' '}Anyone who replies, books a meeting or goes on a deal becomes a contact.
               </span>
               {otherTotal != null && (
-                <Link to="/contacts" className="inline-flex flex-shrink-0 items-center gap-1 font-medium text-[var(--indigo-text)] hover:underline">
+                <Link to="/contacts" className="inline-flex w-full flex-shrink-0 items-center gap-1 pl-[22px] font-medium text-[var(--indigo-text)] hover:underline sm:w-auto sm:pl-0">
                   {otherTotal.toLocaleString()} contact{otherTotal === 1 ? '' : 's'} in your CRM <ArrowRight className="h-3 w-3" />
                 </Link>
               )}
@@ -2171,7 +2173,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                 <span className="font-semibold text-[var(--text-primary)]">Contacts</span> are your CRM: people you have a relationship with. Cold campaigns never send to contact lists.
               </span>
               {otherTotal != null && (
-                <Link to="/leads" className="inline-flex flex-shrink-0 items-center gap-1 font-medium text-[var(--indigo-text)] hover:underline">
+                <Link to="/leads" className="inline-flex w-full flex-shrink-0 items-center gap-1 pl-[22px] font-medium text-[var(--indigo-text)] hover:underline sm:w-auto sm:pl-0">
                   {otherTotal.toLocaleString()} lead{otherTotal === 1 ? '' : 's'} in outreach <ArrowRight className="h-3 w-3" />
                 </Link>
               )}
@@ -2190,7 +2192,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
             {(listKind === 'lead'
               ? ([
                   { id: '', label: 'All leads', hint: 'Every lead, wherever they are in outreach' },
-                  ...(['none', 'in_sequence', 'finished', 'replied'] as LeadOutreach[]).map((id) => ({ id, label: LEAD_OUTREACH_LABEL[id], hint: LEAD_OUTREACH_HINT[id] })),
+                  ...LEAD_OUTREACH_STATES.map((id) => ({ id, label: LEAD_OUTREACH_LABEL[id], hint: LEAD_OUTREACH_HINT[id] })),
                 ] as { id: string; label: string; hint: string; count?: number }[])
               : ([
                   { id: 'engaged', label: STAGE_FILTER_LABEL.engaged, hint: 'Contacts and customers', count: lifecycleCounts ? lifecycleCounts.contact + lifecycleCounts.customer : undefined },
@@ -2420,7 +2422,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
 
         {/* Bulk actions bar */}
         {someSelected && (
-          <div className="flex items-center gap-4 mb-5 px-4 py-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-default)] animate-fade-in">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-5 px-4 py-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-default)] animate-fade-in">
             <div className="flex items-center gap-2.5 flex-shrink-0">
               <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-[var(--indigo)] text-white text-caption font-bold">
                 {selectedContacts.size}
@@ -2429,7 +2431,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                 {noun}{selectedContacts.size !== 1 ? 's' : ''} selected
               </span>
             </div>
-            <div className="flex items-center gap-2 ml-auto">
+            <div className="flex flex-wrap items-center gap-2 ml-auto">
               {/*
                 Outbound actions only on Leads. Contacts are never put into a
                 cold campaign from here; the server would refuse a contact

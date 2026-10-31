@@ -328,7 +328,7 @@ export interface ContactsListParams {
    */
   lifecycle?: 'engaged' | 'all' | 'prospect' | 'contact' | 'customer';
   /** Leads page: where they are in the outbound cycle (shared/lifecycle). */
-  outreach?: 'none' | 'in_sequence' | 'finished' | 'replied';
+  outreach?: 'none' | 'queued' | 'in_sequence' | 'finished' | 'replied';
   /**
    * Extra per-row facts for one page: 'outreach' (campaign state, Leads)
    * or 'deals' (open and won deals, Contacts).

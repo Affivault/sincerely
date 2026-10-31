@@ -1,6 +1,6 @@
 import {
   REPLY_CHECK_CONTACT_DOMAIN, normalizeLinkedinUrl, summariseOutreach, summariseDeals,
-  OUTREACH_LIVE_STATUSES, OUTREACH_ENDED_STATUSES,
+  LEAD_OUTREACH_STATES,
 } from '@lemlist/shared';
 import { enrichmentService } from './enrichment.service.js';
 import { supabaseAdmin } from '../config/supabase.js';
@@ -95,13 +95,13 @@ async function outreachFor(userId: string, contactIds: string[]): Promise<Map<st
     const rows = await selectInChunks(contactIds, (slice) =>
       supabaseAdmin
         .from('campaign_contacts')
-        .select('contact_id, status, current_step_order, updated_at, campaign_id, campaigns!inner(name, user_id)')
+        .select('contact_id, status, current_step_order, updated_at, campaign_id, campaigns!inner(name, status, user_id)')
         .eq('campaigns.user_id', userId)
         .in('contact_id', slice));
     const byContact = new Map<string, any[]>();
     for (const r of rows as any[]) {
       const list = byContact.get(r.contact_id) || [];
-      list.push({ ...r, campaign_name: r.campaigns?.name ?? null });
+      list.push({ ...r, campaign_name: r.campaigns?.name ?? null, campaign_status: r.campaigns?.status ?? null });
       byContact.set(r.contact_id, list);
     }
     for (const id of contactIds) out.set(id, summariseOutreach(byContact.get(id)));
@@ -218,17 +218,17 @@ export const contactsService = {
     const listScoped = !!params.list_id && !isUnlisted(params.list_id);
 
     /*
-     * The Leads page's outbound filter, as joins like the list and tag ones.
-     * "Not contacted" is an anti-join: a left embed filtered to null.
+     * The Leads page's outbound filter. outreach_state(contacts) is a SQL
+     * function (migration 104) that PostgREST exposes as a column, so the
+     * filter is exact over every lead and uses the same rules as the
+     * Outreach column (shared/lifecycle summariseOutreach).
      */
-    const outreach = ['none', 'in_sequence', 'finished', 'replied'].includes(params.outreach || '') ? params.outreach! : null;
+    const outreach = (LEAD_OUTREACH_STATES as string[]).includes(params.outreach || '') ? params.outreach! : null;
 
     const select = [
       '*, contact_tags(tag_id, tags(*)), list_contacts(contact_lists(id, name))',
       listScoped ? 'in_list:list_contacts!inner(list_id)' : null,
       tagIds.length > 0 ? 'has_tag:contact_tags!inner(tag_id)' : null,
-      outreach === 'none' ? 'no_cc:campaign_contacts!left(id)' : null,
-      outreach && outreach !== 'none' ? 'has_cc:campaign_contacts!inner(status)' : null,
     ].filter(Boolean).join(', ');
 
     let query = supabaseAdmin
@@ -251,16 +251,8 @@ export const contactsService = {
       query = query.in('has_tag.tag_id', tagIds);
     }
 
-    if (outreach === 'none') {
-      query = query.is('no_cc', null);
-    } else if (outreach === 'in_sequence') {
-      query = query.in('has_cc.status', [...OUTREACH_LIVE_STATUSES]);
-    } else if (outreach === 'replied') {
-      query = query.eq('has_cc.status', 'replied');
-    } else if (outreach === 'finished') {
-      // Approximate by design: ended in at least one campaign. A lead who
-      // ended one and is live in another shows under both filters.
-      query = query.in('has_cc.status', [...OUTREACH_ENDED_STATUSES]);
+    if (outreach) {
+      query = query.eq('outreach_state', outreach);
     }
 
     if (params.search) {
@@ -363,7 +355,12 @@ export const contactsService = {
       if (outreach) {
         console.warn('[Contacts] outreach filter failed:', error.message);
         const fallback = await contactsService.list(userId, { ...params, outreach: undefined });
-        return { ...fallback, sort_unavailable: 'That outreach filter could not be applied, so every lead is shown.' };
+        return {
+          ...fallback,
+          sort_unavailable: /outreach_state/.test(error.message || '')
+            ? 'Filtering by outreach needs database migration 104_outreach_state.sql. Every lead is shown until it is run.'
+            : 'That outreach filter could not be applied, so every lead is shown.',
+        };
       }
       throw new AppError(error.message, 500);
     }
@@ -383,8 +380,6 @@ export const contactsService = {
       list_contacts: undefined,
       in_list: undefined,
       has_tag: undefined,
-      no_cc: undefined,
-      has_cc: undefined,
       ...(outreachById ? { outreach: outreachById.get(c.id) ?? null } : {}),
       ...(dealsById ? { deals: dealsById.get(c.id) ?? null } : {}),
       // The 360 profile is read on the contact's own page; a hundred of

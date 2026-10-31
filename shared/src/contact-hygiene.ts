@@ -199,7 +199,7 @@ export interface SavedViewConfig {
    */
   lifecycle?: 'engaged' | 'prospect' | 'all' | 'contact' | 'customer';
   /** Leads page only: where they are in the outbound cycle. */
-  outreach?: 'none' | 'in_sequence' | 'finished' | 'replied';
+  outreach?: 'none' | 'queued' | 'in_sequence' | 'finished' | 'replied';
   search?: string;
   status?: '' | 'valid' | 'risky' | 'invalid' | 'not_found' | 'unverified';
   company?: string | null;
@@ -219,7 +219,7 @@ export interface SavedView {
 }
 
 const VIEW_LIFECYCLES = new Set(['engaged', 'prospect', 'all', 'contact', 'customer']);
-const VIEW_OUTREACH = new Set(['none', 'in_sequence', 'finished', 'replied']);
+const VIEW_OUTREACH = new Set(['none', 'queued', 'in_sequence', 'finished', 'replied']);
 const VIEW_STATUSES = new Set(['', 'valid', 'risky', 'invalid', 'not_found', 'unverified']);
 export const VIEW_SORT_KEYS = ['first_name', 'email', 'company', 'dcs_score', 'created_at', 'engagement_score'] as const;
 

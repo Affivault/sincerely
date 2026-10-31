@@ -2,6 +2,7 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { writable } from '../utils/writable-fields.js';
 import { chunk } from '../utils/batch.js';
+import { promoteToContact } from './lifecycle.service.js';
 import { isColdEmailable } from '@lemlist/shared';
 import type { CreateContactListInput, UpdateContactListInput, BulkActionResult, ListKind } from '@lemlist/shared';
 
@@ -149,7 +150,15 @@ export const listsService = {
     if (!Array.isArray(contactIds) || contactIds.length === 0) return { success: 0, failed: 0 };
 
     // Verify list belongs to user
-    await this.get(userId, listId);
+    const list: any = await this.get(userId, listId);
+    /*
+     * Filing somebody in a contact list is saying you know them, so they
+     * become a contact and move to the Contacts page with the list. Left a
+     * lead, they would sit in a CRM list while showing only on Leads - the
+     * two pages disagreeing about one person. Only ever forwards: a
+     * customer stays a customer, and a lead list changes nobody.
+     */
+    const filed: string[] = [];
 
     /*
      * In slices, and a slice per write.
@@ -179,7 +188,11 @@ export const listsService = {
         .from('list_contacts')
         .upsert(rows, { onConflict: 'list_id,contact_id' });
       if (error) failed += rows.length;
-      else success += rows.length;
+      else { success += rows.length; filed.push(...rows.map((r) => r.contact_id)); }
+    }
+
+    if (list?.kind === 'contact' && filed.length > 0) {
+      for (const slice of chunk(filed)) await promoteToContact(userId, slice, 'manual');
     }
 
     return { success, failed };
