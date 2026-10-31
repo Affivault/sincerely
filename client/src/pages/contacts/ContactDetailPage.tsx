@@ -1,3 +1,4 @@
+import { StagePill, OutreachPill } from '../../components/contacts/PersonBadges';
 import { useEffect, useState } from 'react';
 import { usePopover } from '../../hooks/usePopover';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
@@ -468,21 +469,7 @@ export function ContactDetailPage() {
           <div className="record-section">
             <div className="flex items-center justify-between gap-2 mb-2.5">
               <h2 className="text-caption font-bold text-[var(--text-tertiary)]">Stage</h2>
-              <span
-                title={
-                  stage === 'customer' ? 'Won a deal.'
-                    : stage === 'contact' ? 'Replied, met, or added deliberately.'
-                    : 'Sourced but never engaged.'
-                }
-                className={cn(
-                  'inline-flex items-center px-1.5 h-[20px] rounded-md text-micro font-semibold',
-                  stage === 'customer' ? 'text-emerald-700 dark:text-emerald-400 bg-emerald-500/12'
-                    : stage === 'contact' ? 'text-indigo-700 dark:text-indigo-300 bg-indigo-500/12'
-                    : 'text-[var(--text-tertiary)] bg-[var(--bg-elevated)]',
-                )}
-              >
-                {LIFECYCLE_LABEL[stage]}
-              </span>
+              <StagePill lifecycle={stage} />
               {/* The person's call, either way: automatic promotion only
                   ever moves forward. */}
               <span className="ml-auto inline-flex items-center gap-2">
@@ -516,6 +503,14 @@ export function ContactDetailPage() {
                 Became a {stage}: {PROMOTION_LABEL[(contact as any).promoted_by as PromotionTrigger]}.
               </p>
             ) : null}
+            {/* Where they stand in outreach: the same states as the Leads
+                table, read from the same definition. */}
+            {(contact as any).outreach && (stage === 'prospect' || (contact as any).outreach.state !== 'none') && (
+              <div className="mb-2 flex min-w-0 items-center gap-2">
+                <span className="text-caption text-[var(--text-tertiary)] flex-shrink-0">Outreach</span>
+                <OutreachPill outreach={(contact as any).outreach} withCampaign />
+              </div>
+            )}
             <div className={cn(
               'flex items-start gap-2 rounded-md px-2.5 py-2 text-caption leading-snug',
               coldEmailable
