@@ -7,8 +7,11 @@ import { useDebounce } from '../../hooks/useDebounce';
 import { usePopover } from '../../hooks/usePopover';
 import { useAriaSort } from '../../components/table/TableParts';
 import { contactsApi, listsApi, tagsApi } from '../../api/contacts.api';
-import { UNLISTED_LIST_ID, UNLISTED_LIST_NAME, LIFECYCLE_LABEL, deepCheckSkipped, formatDate, plural, websiteFromEmail, sourceLabel } from '@lemlist/shared';
-import type { Lifecycle, ListKind } from '@lemlist/shared';
+import {
+  UNLISTED_LIST_ID, UNLISTED_LIST_NAME, LIFECYCLE_LABEL, LEAD_OUTREACH_LABEL, LEAD_OUTREACH_HINT,
+  deepCheckSkipped, formatDate, formatMoney, plural, websiteFromEmail, sourceLabel,
+} from '@lemlist/shared';
+import type { Lifecycle, ListKind, LeadOutreach, OutreachSummary, ContactDealSummary, ContactsListParams } from '@lemlist/shared';
 import { usePeek } from '../../components/peek/usePeek';
 import { useFillViewport } from '../../hooks/useFillViewport';
 import { useGridKeys } from '../../hooks/useGridKeys';
@@ -81,6 +84,11 @@ import {
   UserPlus,
   Flame,
   PenLine,
+  Contact2,
+  Handshake,
+  Send,
+  BadgeCheck,
+  Undo2,
 } from 'lucide-react';
 
 type ContactSortKey = 'first_name' | 'email' | 'company' | 'dcs_score' | 'created_at' | 'engagement_score';
@@ -351,7 +359,7 @@ const LIFECYCLE_STYLE: Record<Lifecycle, string> = {
 };
 
 const LIFECYCLE_TIP: Record<Lifecycle, string> = {
-  prospect: 'Sourced but never engaged. Campaigns are for these people.',
+  prospect: 'A lead: sourced but never engaged. Campaigns are for these people.',
   contact: 'Replied, met, or added deliberately.',
   customer: 'Won a deal. Kept out of cold campaigns by default.',
 };
@@ -548,7 +556,7 @@ function CompanyFilter({ value, options, onChange }: {
 /* Configurable table columns, mapped to our contact fields (the same set
    surfaced during CSV import). The Contact identity column is always shown;
    these are the optional middle columns the user can toggle + reorder-by-default. */
-type ColumnId = 'email' | 'status' | 'lifecycle' | 'engagement' | 'company' | 'location' | 'job_title' | 'phone' | 'website' | 'linkedin_url' | 'tags' | 'lists' | 'source' | 'added' | 'health';
+type ColumnId = 'email' | 'status' | 'lifecycle' | 'outreach' | 'deals' | 'engagement' | 'company' | 'location' | 'job_title' | 'phone' | 'website' | 'linkedin_url' | 'tags' | 'lists' | 'source' | 'added' | 'since' | 'health';
 interface ColumnDef {
   id: ColumnId;
   label: string;
@@ -568,7 +576,7 @@ const DEFAULT_COL_W = 160;
  * sentence - and a filler column sat empty at the end of the row.
  */
 const COL_DEFAULT_W: Record<string, number> = {
-  email: 240, status: 120, lifecycle: 120, engagement: 130, company: 180, location: 170, added: 120,
+  email: 240, status: 120, lifecycle: 120, outreach: 200, deals: 150, engagement: 130, company: 180, location: 170, added: 120, since: 130,
 };
 const MIN_COL_W = 88;
 const MAX_COL_W = 640;
@@ -617,15 +625,87 @@ const ALL_COLUMNS: ColumnDef[] = [
   // Where they came from, and which search or file exactly (import_source).
   { id: 'source',      label: 'Source',    icon: Radar,                              tdClass: 'max-w-[220px]', render: (c) => <SourceCell source={c.source} detail={c.import_source} /> },
   { id: 'added',       label: 'Added',     icon: Clock,       sortKey: 'created_at', render: (c) => <span className="text-caption text-[var(--text-tertiary)]" title={formatDate(c.created_at)}>{formatRelativeTime(c.created_at)}</span> },
+  // Leads: where they are in the outbound cycle, read from their campaigns.
+  { id: 'outreach',    label: 'Outreach',  icon: Send,                               tdClass: 'max-w-[240px]', render: (c) => <OutreachCell o={c.outreach} /> },
+  // Contacts: what is in the pipeline with them.
+  { id: 'deals',       label: 'Deals',     icon: Handshake,                          render: (c) => <DealsCell d={c.deals} /> },
+  // Contacts: when they stopped being a lead.
+  { id: 'since',       label: 'Contact since', icon: BadgeCheck,                     render: (c) => c.engaged_at
+    ? <span className="text-caption text-[var(--text-tertiary)]" title={formatDate(c.engaged_at)}>{formatRelativeTime(c.engaged_at)}</span>
+    : <span className="text-body text-[var(--text-tertiary)]">—</span> },
   { id: 'health',      label: 'Health',    icon: Activity,    sortKey: 'dcs_score',  render: (c) => <HealthCell c={c} /> },
 ];
-const DEFAULT_COLUMNS: ColumnId[] = ['email', 'status', 'lifecycle', 'engagement', 'company', 'location', 'tags', 'lists', 'source', 'added'];
+/*
+ * Each page has its own columns, because each page is for different work.
+ *
+ * Leads are about getting through to somebody: is the address good, are they
+ * in a sequence, where did they come from. Contacts are about the
+ * relationship: are they a customer, what deals are open, since when. A
+ * column that only means something on the other page is not offered here.
+ */
+const PAGE_COLUMNS: Record<ListKind, ColumnId[]> = {
+  lead: ['email', 'status', 'outreach', 'engagement', 'company', 'location', 'job_title', 'phone', 'website', 'linkedin_url', 'tags', 'lists', 'source', 'added', 'health'],
+  contact: ['email', 'lifecycle', 'deals', 'engagement', 'company', 'location', 'job_title', 'phone', 'website', 'linkedin_url', 'tags', 'lists', 'since', 'source', 'added', 'status', 'health'],
+};
+const DEFAULT_COLUMNS_FOR: Record<ListKind, ColumnId[]> = {
+  lead: ['email', 'status', 'outreach', 'engagement', 'company', 'location', 'source', 'lists', 'added'],
+  contact: ['email', 'lifecycle', 'deals', 'engagement', 'company', 'phone', 'tags', 'lists', 'since'],
+};
 
-/* Set the first time Stage is inserted into an older saved layout, so it is
-   offered once rather than reappearing every time somebody hides it. */
-const LIFECYCLE_COLUMN_SHOWN = 'contacts.columns.lifecycleIntroduced';
-/* The same, for Source: offered once beside Added. */
-const SOURCE_COLUMN_SHOWN = 'contacts.columns.sourceIntroduced';
+function OutreachCell({ o }: { o?: OutreachSummary | null }) {
+  if (!o) return <span className="text-body text-[var(--text-tertiary)]">—</span>;
+  const tone: Record<LeadOutreach, string> = {
+    none: 'text-[var(--text-tertiary)] bg-[var(--bg-elevated)]',
+    in_sequence: 'text-indigo-700 dark:text-indigo-300 bg-indigo-500/12',
+    finished: 'text-amber-700 dark:text-amber-400 bg-amber-500/10',
+    replied: 'text-emerald-700 dark:text-emerald-400 bg-emerald-500/12',
+  };
+  const detail = o.campaign_name
+    ? `${o.campaign_name}${o.step != null ? ` · step ${o.step + 1}` : ''}${o.campaigns > 1 ? ` · +${o.campaigns - 1} more` : ''}`
+    : null;
+  return (
+    <span className="flex min-w-0 items-center gap-2" title={LEAD_OUTREACH_HINT[o.state]}>
+      <span className={cn('inline-flex flex-shrink-0 items-center px-1.5 h-[20px] rounded-md text-micro font-semibold', tone[o.state])}>
+        {LEAD_OUTREACH_LABEL[o.state]}
+      </span>
+      {detail && o.campaign_id && (
+        <Link
+          to={`/campaigns/${o.campaign_id}`}
+          onClick={(e) => e.stopPropagation()}
+          className="truncate text-caption text-[var(--text-tertiary)] hover:text-[var(--indigo-text)] hover:underline"
+        >
+          {detail}
+        </Link>
+      )}
+    </span>
+  );
+}
+
+function DealsCell({ d }: { d?: ContactDealSummary | null }) {
+  if (!d || (d.open === 0 && d.won === 0)) return <span className="text-body text-[var(--text-tertiary)]">—</span>;
+  return (
+    <span className="flex min-w-0 items-center gap-1.5 text-body">
+      {d.open > 0 && (
+        <span className="truncate text-[var(--text-secondary)]" title="Open deals, and what they are worth together">
+          {d.open} open{d.currency && d.open_value > 0 ? ` · ${formatMoney(d.open_value, d.currency, { compact: true })}` : ''}
+        </span>
+      )}
+      {d.won > 0 && (
+        <span className="inline-flex flex-shrink-0 items-center px-1.5 h-[20px] rounded-md text-micro font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-500/12">
+          {d.won} won
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** The Contacts page's own filter: which side of the CRM. */
+type ContactStage = 'engaged' | 'contact' | 'customer';
+const STAGE_FILTER_LABEL: Record<ContactStage, string> = {
+  engaged: 'All contacts',
+  contact: 'Contacts',
+  customer: 'Customers',
+};
 
 function SourceCell({ source, detail }: { source: string | null; detail: string | null }) {
   // "Prospector: CMO · London" carries its own label; anything else gets one.
@@ -641,16 +721,17 @@ function SourceCell({ source, detail }: { source: string | null; detail: string 
 
 
 /**
- * The people table, mounted twice.
+ * The people table, mounted as two separate pages.
  *
- * `/leads` and `/contacts` are the same screen over two different sets of
- * lists, which is deliberate: the work is identical - search, filter, tag,
- * file into a list - and the only real difference is what may be done with
- * the result. Leads can be pitched. Contacts cannot, and the rail says so.
+ * `/leads` is the outbound side: leads only (lifecycle 'prospect'), lead
+ * lists, verification, sequence status, Add to campaign and Convert to
+ * contact. `/contacts` is the CRM: contacts and customers only, contact
+ * lists, deals, Mark as customer and Move back to leads.
  *
- * The kind arrives from the route rather than a control on the page, so the
- * two are separately linkable, separately bookmarkable, and cannot be
- * confused for one screen with a toggle somebody left in the wrong position.
+ * Nobody is on both. There used to be a Contacts / Prospects / Everyone
+ * toggle on each, which turned either page into the other and made them
+ * read as one screen twice. The grid machinery is shared; what each page
+ * shows, filters by and lets you do is not.
  */
 export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind } = {}) {
   /*
@@ -717,6 +798,29 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
     setPage(1);
   };
 
+  /*
+   * Contacts: which side of the CRM (both, contacts, customers). Leads has
+   * no such choice - it is leads, always - and instead filters by where each
+   * lead is in the outbound cycle.
+   */
+  const [stage, setStageState] = useState<ContactStage>(() => {
+    try {
+      const v = localStorage.getItem('contacts.stage');
+      return v === 'contact' || v === 'customer' ? v : 'engaged';
+    } catch { return 'engaged'; }
+  });
+  const setStage = (v: ContactStage) => {
+    setStageState(v);
+    setPage(1);
+    try { localStorage.setItem('contacts.stage', v); } catch { /* private window */ }
+  };
+  const [outreach, setOutreachState] = useState<LeadOutreach | ''>('');
+  const setOutreach = (v: LeadOutreach | '') => { setOutreachState(v); setPage(1); };
+  /** The only people this page ever shows. Applied inside lists too. */
+  const lifecycle: NonNullable<ContactsListParams['lifecycle']> = listKind === 'lead' ? 'prospect' : stage;
+  /** This page's whole population, whatever the stage filter says. */
+  const pageScope: NonNullable<ContactsListParams['lifecycle']> = listKind === 'lead' ? 'prospect' : 'engaged';
+
   const activeListId = searchParams.get('list') || null;
 
   // Reset to page 1 (and, when the active list changes, clear the status
@@ -725,7 +829,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
   // filter change — an effect-based reset lags one render behind, letting a
   // request for the old (now out-of-range) page fire against the new filters
   // before the corrective effect runs, producing a wrong/empty flash.
-  const filterResetKey = `${activeListId}||${debouncedSearch}||${companyFilter}`;
+  const filterResetKey = `${activeListId}||${debouncedSearch}||${companyFilter}||${outreach}||${stage}`;
   const [prevFilterResetKey, setPrevFilterResetKey] = useState(filterResetKey);
   if (filterResetKey !== prevFilterResetKey) {
     setPrevFilterResetKey(filterResetKey);
@@ -748,8 +852,11 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
      from a 1-row probe of the same endpoint rather than a contact_count
      column. Cheap: the server answers from an index and returns one row. */
   const { data: unlistedCount = 0 } = useQuery({
-    queryKey: ['contacts', 'unlisted-count'],
-    queryFn: async () => (await contactsApi.list({ list_id: UNLISTED_LIST_ID, limit: 1 })).total,
+    queryKey: ['contacts', 'unlisted-count', listKind],
+    queryFn: async () => (await contactsApi.list({
+      list_id: UNLISTED_LIST_ID, limit: 1,
+      lifecycle: listKind === 'lead' ? 'prospect' : 'engaged',
+    })).total,
     staleTime: 15000,
   });
 
@@ -758,9 +865,11 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
   const autoVerifyOn = userSettings?.auto_verify_contacts ?? true;
 
   // Verification-status breakdown for the summary pills (scoped to the list)
+  // Verification is outbound work, so the pills are a Leads page thing.
   const { data: breakdown } = useQuery({
-    queryKey: ['verification-breakdown', activeListId],
-    queryFn: () => contactsApi.verificationBreakdown(activeListId || undefined),
+    queryKey: ['verification-breakdown', activeListId, listKind],
+    queryFn: () => contactsApi.verificationBreakdown(activeListId || undefined, 'prospect'),
+    enabled: listKind === 'lead',
     refetchInterval: (q) => {
       const d = q.state.data as any;
       return autoVerifyOn && d && d.unverified > 0 ? 12000 : false;
@@ -787,19 +896,6 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
    * to prospects also narrowed Leads, and neither page could be left set up
    * the way its own work wants.
    */
-  const lifecycleKey = `contacts.lifecycle.${listKind}`;
-  const [lifecycle, setLifecycle] = useState<'engaged' | 'prospect' | 'all'>(() => {
-    try {
-      return (localStorage.getItem(lifecycleKey) as any) || (listKind === 'lead' ? 'all' : 'engaged');
-    } catch {
-      return listKind === 'lead' ? 'all' : 'engaged';
-    }
-  });
-  const setLifecyclePersisted = (v: 'engaged' | 'prospect' | 'all') => {
-    setLifecycle(v);
-    setPage(1);
-    try { localStorage.setItem(lifecycleKey, v); } catch { /* private window */ }
-  };
 
   const { data: lifecycleCounts } = useQuery({
     queryKey: ['contacts', 'lifecycle-counts'],
@@ -807,7 +903,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
   });
 
   const { data: contactsData, isLoading, isPlaceholderData: stale } = useQuery({
-    queryKey: ['contacts', page, pageSize, debouncedSearch, activeListId, sortBy, sortDir, statusFilter, companyFilter, lifecycle],
+    queryKey: ['contacts', listKind, page, pageSize, debouncedSearch, activeListId, sortBy, sortDir, statusFilter, companyFilter, lifecycle, outreach],
     queryFn: () => contactsApi.list({
       page,
       limit: pageSize,
@@ -816,18 +912,21 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
       list_id: activeListId || undefined,
       sort_by: sortBy,
       sort_order: sortDir,
-      verification_status: statusFilter || undefined,
+      verification_status: (listKind === 'lead' && statusFilter) || undefined,
       /*
-       * Inside a list, show everybody. A list exists to hold people
-       * you have not spoken to, so filtering prospects out of it would
-       * leave most lists looking empty and the filter looking broken.
+       * Inside a list too. A lead who replied is a contact now, and shows
+       * on the Contacts page even though they are still a member of the
+       * lead list they came from - the notice above the table says how
+       * many, so the count in the rail is never a mystery.
        */
-      lifecycle: activeListId ? 'all' : lifecycle,
+      lifecycle,
+      outreach: (listKind === 'lead' && outreach) || undefined,
+      include: listKind === 'lead' ? 'outreach' : 'deals',
     }),
     // While auto-verify is on and some visible contacts are still pending,
     // poll so their status flips live as the background worker processes them.
     refetchInterval: (query) => {
-      if (!autoVerifyOn) return false;
+      if (!autoVerifyOn || listKind !== 'lead') return false;
       const rows = ((query.state.data as any)?.data || []) as any[];
       return rows.some((r) => !r.dcs_verified_at && !r.is_bounced) ? 12000 : false;
     },
@@ -905,10 +1004,6 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
     return groups;
   }, [lists, folders]);
 
-  const { data: stats } = useQuery({
-    queryKey: ['contact-stats'],
-    queryFn: contactsApi.getStats,
-  });
 
   /*
    * The email finder has a working endpoint and was reachable from nowhere.
@@ -937,12 +1032,24 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
   const canFindEmail = !!(form.website || '').trim() && !!((form.first_name || '').trim() || (form.last_name || '').trim());
 
   const createMutation = useMutation({
-    mutationFn: (input: CreateContactInput) =>
-      editId ? contactsApi.update(editId, input) : contactsApi.create(input),
+    mutationFn: async (input: CreateContactInput) => {
+      if (editId) return contactsApi.update(editId, input);
+      // Added on Leads: a lead, on Contacts: a contact - so they appear on
+      // the page they were added from.
+      const created = await contactsApi.create({ ...input, lifecycle: listKind === 'lead' ? 'prospect' : 'contact' });
+      // And into the list that is open, which is where you were looking.
+      if (activeListId && activeListId !== UNLISTED_LIST_ID && created?.id) {
+        await listsApi.addContacts(activeListId, [created.id]).catch(() => {
+          toast.error(`Added, but not to "${currentListName}". Add them from the table.`);
+        });
+      }
+      return created;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
       queryClient.invalidateQueries({ queryKey: ['contact-stats'] });
-      toast.success(editId ? 'Contact updated' : 'Contact created');
+      queryClient.invalidateQueries({ queryKey: ['lists'] });
+      toast.success(editId ? `${noun === 'lead' ? 'Lead' : 'Contact'} updated` : `${noun === 'lead' ? 'Lead' : 'Contact'} added`);
       closeCreateModal();
     },
     onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to save'),
@@ -958,12 +1065,36 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
 
   // Prospects <-> Contacts by hand. Automatic promotion only moves forward;
   // this is the person deciding otherwise, in either direction.
+  /*
+   * Crossing between the two pages, by hand. Automatic promotion only moves
+   * forward (a reply makes a lead a contact); this is the person deciding,
+   * in either direction. The people leave this page, so the toast says
+   * where they went and takes you there.
+   */
   const lifecycleMutation = useMutation({
-    mutationFn: ({ ids, to }: { ids: string[]; to: 'prospect' | 'contact' }) => contactsApi.setLifecycle(ids, to),
+    mutationFn: ({ ids, to }: { ids: string[]; to: Lifecycle }) => contactsApi.setLifecycle(ids, to),
     onSuccess: (result, { to }) => {
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
       setSelectedContacts(new Set());
-      toast.success(`Moved ${plural(result.updated, 'person', 'people')} to ${to === 'contact' ? 'Contacts' : 'Prospects'}`);
+      const who = plural(result.updated, 'person', 'people');
+      const leavesPage = (listKind === 'lead') !== (to === 'prospect');
+      const msg = to === 'customer' ? `Marked ${who} as customers`
+        : to === 'contact' ? `Converted ${who} to contacts`
+        : `Moved ${who} back to Leads`;
+      if (!leavesPage) { toast.success(msg); return; }
+      const href = to === 'prospect' ? '/leads' : '/contacts';
+      toast.success((t) => (
+        <span className="inline-flex items-center gap-2">
+          {msg}
+          <button
+            type="button"
+            onClick={() => { toast.dismiss(t.id); navigate(href); }}
+            className="font-semibold text-[var(--indigo-text)] hover:underline"
+          >
+            View
+          </button>
+        </span>
+      ), { duration: 6000 });
     },
     onError: (err: any) => toast.error(err?.response?.data?.error || 'Could not move them'),
   });
@@ -1220,14 +1351,15 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
       // was surprising when a user opened one list and expected "Export" to
       // mean "this list".
       const listId = ids ? undefined : activeListId || undefined;
-      const blob = await contactsApi.export(ids, 'csv', listId);
+      // Exporting from Leads gives leads; from Contacts, contacts.
+      const blob = await contactsApi.export(ids, 'csv', listId, undefined, ids ? undefined : pageScope);
       const url = URL.createObjectURL(blob as Blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'contacts.csv';
+      a.download = `${noun}s.csv`;
       a.click();
       URL.revokeObjectURL(url);
-      toast.success(listId ? `Exported "${currentListName}"` : 'Contacts exported');
+      toast.success(listId ? `Exported "${currentListName}"` : `${noun === 'lead' ? 'Leads' : 'Contacts'} exported`);
     } catch {
       toast.error('Export failed');
     }
@@ -1302,10 +1434,15 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
     debouncedSearch.trim() && { id: 'search', label: `“${debouncedSearch.trim()}”`, clear: () => setSearch('') },
     statusFilter && { id: 'status', label: STATUS_LABEL[statusFilter] ?? statusFilter, clear: () => setStatusFilter('') },
     companyFilter && { id: 'company', label: companyFilter, clear: () => setCompanyFilter(null) },
-    lifecycle !== (listKind === 'lead' ? 'all' : 'engaged') && {
-      id: 'lifecycle',
-      label: lifecycle === 'engaged' ? 'Contacts only' : lifecycle === 'prospect' ? 'Prospects only' : 'Everyone',
-      clear: () => setLifecyclePersisted(listKind === 'lead' ? 'all' : 'engaged'),
+    listKind === 'lead' && outreach && {
+      id: 'outreach',
+      label: LEAD_OUTREACH_LABEL[outreach],
+      clear: () => setOutreach(''),
+    },
+    listKind === 'contact' && stage !== 'engaged' && {
+      id: 'stage',
+      label: `${STAGE_FILTER_LABEL[stage]} only`,
+      clear: () => setStage('engaged'),
     },
   ].filter(Boolean) as { id: string; label: string; clear: () => void }[];
 
@@ -1313,7 +1450,8 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
     setSearch('');
     setStatusFilter('');
     setCompanyFilter(null);
-    setLifecyclePersisted(listKind === 'lead' ? 'all' : 'engaged');
+    setOutreach('');
+    if (listKind === 'contact') setStage('engaged');
     setPage(1);
   };
 
@@ -1322,7 +1460,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
    * chips above describe, plus the sort and the list you are in.
    */
   const currentView: SavedViewConfig = {
-    lifecycle,
+    ...(listKind === 'contact' ? { lifecycle: stage } : { outreach: outreach || undefined }),
     search: debouncedSearch.trim() || undefined,
     status: statusFilter || undefined,
     company: companyFilter,
@@ -1331,7 +1469,10 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
     sort_dir: sortDir,
   };
   const applyView = (cfg: SavedViewConfig) => {
-    setLifecyclePersisted(cfg.lifecycle ?? (listKind === 'lead' ? 'all' : 'engaged'));
+    // Views saved before the split carry 'all' or 'prospect': read as the
+    // page's own default rather than an error.
+    if (listKind === 'contact') setStage(cfg.lifecycle === 'contact' || cfg.lifecycle === 'customer' ? cfg.lifecycle : 'engaged');
+    else setOutreach(cfg.outreach ?? '');
     setSearch(cfg.search ?? '');
     setStatusFilter((cfg.status ?? '') as StatusFilter);
     setCompanyFilter(cfg.company ?? null);
@@ -1364,6 +1505,26 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
    * how a person stops trusting that the app knows what it is doing.
    */
   const noun = listKind === 'lead' ? 'lead' : 'contact';
+  /** Everybody on this page, for the rail and the "x of y" count. */
+  const pageTotal = lifecycleCounts
+    ? (listKind === 'lead' ? lifecycleCounts.prospect : lifecycleCounts.contact + lifecycleCounts.customer)
+    : undefined;
+  /** People on the other page, for the cross-link at the top. */
+  const otherTotal = lifecycleCounts
+    ? (listKind === 'lead' ? lifecycleCounts.contact + lifecycleCounts.customer : lifecycleCounts.prospect)
+    : undefined;
+  const activeList = activeListId && activeListId !== UNLISTED_LIST_ID
+    ? ((lists || []) as any[]).find((l) => l.id === activeListId)
+    : null;
+  /*
+   * Members of the open list who live on the other page: leads in a contact
+   * list, or (far more often) leads in a lead list who replied and became
+   * contacts. Only counted with nothing else narrowing the table, when the
+   * gap between the rail's count and the rows can only mean that.
+   */
+  const crossedOver = activeList && !debouncedSearch.trim() && !statusFilter && !companyFilter && !outreach && (listKind === 'lead' || stage === 'engaged') && contactsData
+    ? Math.max(0, (activeList.contact_count || 0) - totalContacts)
+    : 0;
 
   const currentListName = isUnlistedView
     ? UNLISTED_LIST_NAME
@@ -1486,44 +1647,21 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
 
   // Configurable table columns (persisted), mapped to our contact fields.
   // Standard column ids come from ALL_COLUMNS; custom fields use a `cf:<key>` id.
+  /*
+   * Saved per page, so arranging the Leads grid leaves the Contacts grid as
+   * it was. Anything saved that this page does not offer is dropped.
+   */
+  const columnsKey = `${listKind}s.columns`;
+  const allowedColumns = PAGE_COLUMNS[listKind] as string[];
   const [visibleColumns, setVisibleColumns] = useState<string[]>(() => {
     try {
-      const s = localStorage.getItem('contacts.columns');
+      const s = localStorage.getItem(columnsKey);
       if (s) {
         const saved: string[] = JSON.parse(s);
-        /*
-         * A saved layout predates any column added after it, so Stage would be
-         * invisible to exactly the people who use this page most — and nobody
-         * goes hunting in the column menu for a column they have never heard
-         * of. So it is inserted once, next to Status where it belongs, with
-         * every other choice they made left alone.
-         *
-         * Once, not on every load: the marker is what makes hiding it again
-         * stick. Keying off "is it in the saved list" instead would put the
-         * column straight back the next time the page mounted, which is worse
-         * than never having shown it.
-         */
-        let next = saved;
-        if (!localStorage.getItem(LIFECYCLE_COLUMN_SHOWN)) {
-          localStorage.setItem(LIFECYCLE_COLUMN_SHOWN, '1');
-          if (!next.includes('lifecycle')) {
-            const at = next.indexOf('status');
-            next = [...next];
-            next.splice(at >= 0 ? at + 1 : next.length, 0, 'lifecycle');
-          }
-        }
-        if (!localStorage.getItem(SOURCE_COLUMN_SHOWN)) {
-          localStorage.setItem(SOURCE_COLUMN_SHOWN, '1');
-          if (!next.includes('source')) {
-            const at = next.indexOf('added');
-            next = [...next];
-            next.splice(at >= 0 ? at : next.length, 0, 'source');
-          }
-        }
-        return next;
+        if (Array.isArray(saved)) return saved.filter((id) => id.startsWith('cf:') || allowedColumns.includes(id));
       }
     } catch { /* ignore */ }
-    return DEFAULT_COLUMNS;
+    return DEFAULT_COLUMNS_FOR[listKind];
   });
   const [columnMenuOpen, setColumnMenuOpen] = useState(false);
   const [columnSearch, setColumnSearch] = useState('');
@@ -1536,7 +1674,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
   const [colDragIndex, setColDragIndex] = useState<number | null>(null);
   const persistColumns = (next: string[]) => {
     setVisibleColumns(next);
-    try { localStorage.setItem('contacts.columns', JSON.stringify(next)); } catch { /* ignore */ }
+    try { localStorage.setItem(columnsKey, JSON.stringify(next)); } catch { /* ignore */ }
   };
   const toggleColumn = (id: string) =>
     persistColumns(visibleColumns.includes(id) ? visibleColumns.filter((c) => c !== id) : [...visibleColumns, id]);
@@ -1570,7 +1708,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
           : <span className="text-body text-[var(--text-tertiary)]">—</span>,
       };
     }
-    return ALL_COLUMNS.find((c) => c.id === id) || null;
+    return (allowedColumns.includes(id) && ALL_COLUMNS.find((c) => c.id === id)) || null;
   };
   // Columns to render, in the user's saved order (standard + custom unified).
   const chosenColumns = visibleColumns.map(resolveColumn).filter(Boolean) as { id: string; label: string; icon?: React.ElementType; sortKey?: ContactSortKey; render: (c: any) => React.ReactNode; tdClass?: string }[];
@@ -1602,7 +1740,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
   const foldedLabels = chosenColumns.filter((c) => emptyColumnIds.has(c.id)).map((c) => c.label);
   // Everything available to add, with a friendly label, minus what's shown.
   const availableColumns = [
-    ...ALL_COLUMNS.map((c) => ({ id: c.id as string, label: c.label })),
+    ...ALL_COLUMNS.filter((c) => allowedColumns.includes(c.id)).map((c) => ({ id: c.id as string, label: c.label })),
     ...customFieldKeys.map((k) => ({ id: `cf:${k}`, label: k })),
   ];
   const hiddenColumns = availableColumns.filter((c) => !visibleColumns.includes(c.id));
@@ -1611,7 +1749,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
     <div>
       {/* Full-width page header */}
       <PageHeader
-        icon={Users}
+        icon={listKind === 'lead' ? Radar : Contact2}
         title={
           !activeListId || isUnlistedView ? currentListName : titleRenaming ? (
             <form
@@ -1650,19 +1788,25 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
         description={
           isUnlistedView
             ? (totalContacts === 0
-                ? 'Every contact belongs to at least one list — nothing to tidy up.'
-                : `${totalContacts.toLocaleString()} contact${totalContacts !== 1 ? 's' : ''} that aren't in any list. Select them to file them into one.`)
+                ? `Every ${noun} belongs to at least one list — nothing to tidy up.`
+                : `${totalContacts.toLocaleString()} ${noun}${totalContacts !== 1 ? 's' : ''} that aren't in any list. Select them to file them into one.`)
             : totalContacts === 0
               ? (listKind === 'lead'
-                  ? 'No leads yet — start building your audience'
-                  : 'No contacts yet — people arrive here when they reply, meet you, or win a deal')
+                  ? 'No leads yet — find some with the Prospector, or import a list'
+                  : 'No contacts yet — leads move here when they reply, meet you, or are put on a deal')
               : listKind === 'lead'
-                ? `${totalContacts.toLocaleString()} ${totalContacts !== 1 ? 'people' : 'person'} you can put into a campaign`
-                : `${totalContacts.toLocaleString()} contact${totalContacts !== 1 ? 's' : ''} in your CRM`
+                ? `${totalContacts.toLocaleString()} lead${totalContacts !== 1 ? 's' : ''} to source, verify and sequence`
+                : `${totalContacts.toLocaleString()} ${totalContacts !== 1 ? 'people' : 'person'} you have a relationship with`
         }
         actions={
           <div className="flex items-center gap-2">
-            <button onClick={() => navigate('/contacts/import')} className="btn-secondary">
+            {listKind === 'lead' && (
+              <button onClick={() => navigate('/prospector')} className="btn-secondary" title="Search for new leads to add">
+                <Radar className="h-3.5 w-3.5" />
+                Find leads
+              </button>
+            )}
+            <button onClick={() => navigate(`/contacts/import?as=${listKind}`)} className="btn-secondary">
               <Upload className="h-3.5 w-3.5" />
               Import CSV
             </button>
@@ -1711,11 +1855,11 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
               </div>
             </div>
 
-            {listKind === 'contact' && (
-              <p className="px-1.5 pb-1 text-micro leading-snug text-[var(--text-tertiary)]">
-                Cold campaigns can never send to these.
-              </p>
-            )}
+            <p className="px-1.5 pb-1 text-micro leading-snug text-[var(--text-tertiary)]">
+              {listKind === 'contact'
+                ? 'Cold campaigns can never send to these.'
+                : 'Campaigns send to these lists.'}
+            </p>
           {/* All Contacts */}
           <button
             onClick={() => setSearchParams({})}
@@ -1732,7 +1876,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
               "text-micro font-semibold tabular px-1.5 rounded",
               !activeListId ? "text-[var(--indigo-text)]" : "text-[var(--text-tertiary)]"
             )}>
-              {stats?.total || 0}
+              {(pageTotal ?? 0).toLocaleString()}
             </span>
           </button>
 
@@ -1890,7 +2034,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
             {/* Not in Lists — automatic view, never editable */}
             <button
               onClick={() => setSearchParams({ list: UNLISTED_LIST_ID })}
-              title="Contacts that don't belong to any list"
+              title={`${noun === 'lead' ? 'Leads' : 'Contacts'} that don't belong to any list`}
               className={cn(
                 'w-full flex items-center gap-2 h-8 px-2.5 rounded-md text-body font-medium transition-all',
                 isUnlistedView
@@ -2000,62 +2144,94 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
           <Notice tone="attention">{(contactsData as any).sort_unavailable}</Notice>
         )}
         {/*
-          Prospects and contacts, kept apart.
+          What this page is, and the way to the other one.
 
-          Sourcing produces thousands of people nobody has spoken to, and
-          while they shared one list with real relationships the list was
-          mostly noise: search returned junk and a contact count answered
-          nothing. Campaigns still reach everybody — that is their job —
-          but this page opens on the people you actually know.
-
-          Hidden inside a list, where "everyone in this list" is the only
-          sensible answer and a filter would make most lists look empty.
+          The two pages hold different people and nobody is on both, so the
+          one thing worth saying up top is where the others went, and how
+          many there are. A lead who replies moves across on their own.
         */}
-        {!activeListId && lifecycleCounts && lifecycleCounts.total > 0 && (
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex max-w-full items-center gap-0.5 overflow-x-auto rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-0.5 sm:overflow-visible">
-              {([
-                { id: 'engaged' as const, label: 'Contacts', count: lifecycleCounts.contact + lifecycleCounts.customer,
-                  hint: 'People who replied, met you, or were added deliberately' },
-                { id: 'prospect' as const, label: 'Prospects', count: lifecycleCounts.prospect,
-                  hint: 'Sourced but never engaged. These are who campaigns are for' },
-                { id: 'all' as const, label: 'Everyone', count: lifecycleCounts.total,
-                  hint: 'Both, in one list' },
-              ]).map((opt) => (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2 text-caption text-[var(--text-secondary)]">
+          {listKind === 'lead' ? (
+            <>
+              <Radar className="h-3.5 w-3.5 flex-shrink-0 text-[var(--indigo-text)]" />
+              <span className="min-w-0 flex-1">
+                <span className="font-semibold text-[var(--text-primary)]">Leads</span> are your outbound pipeline: people you are sourcing, verifying and sequencing.
+                {' '}Anyone who replies, books a meeting or goes on a deal becomes a contact.
+              </span>
+              {otherTotal != null && (
+                <Link to="/contacts" className="inline-flex flex-shrink-0 items-center gap-1 font-medium text-[var(--indigo-text)] hover:underline">
+                  {otherTotal.toLocaleString()} contact{otherTotal === 1 ? '' : 's'} in your CRM <ArrowRight className="h-3 w-3" />
+                </Link>
+              )}
+            </>
+          ) : (
+            <>
+              <Contact2 className="h-3.5 w-3.5 flex-shrink-0 text-[var(--indigo-text)]" />
+              <span className="min-w-0 flex-1">
+                <span className="font-semibold text-[var(--text-primary)]">Contacts</span> are your CRM: people you have a relationship with. Cold campaigns never send to contact lists.
+              </span>
+              {otherTotal != null && (
+                <Link to="/leads" className="inline-flex flex-shrink-0 items-center gap-1 font-medium text-[var(--indigo-text)] hover:underline">
+                  {otherTotal.toLocaleString()} lead{otherTotal === 1 ? '' : 's'} in outreach <ArrowRight className="h-3 w-3" />
+                </Link>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Each page's own filter. Leads: where they are in outreach.
+            Contacts: which side of the CRM. Neither can show the other page. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div
+            role="radiogroup"
+            aria-label={listKind === 'lead' ? 'Outreach' : 'Stage'}
+            className="flex max-w-full items-center gap-0.5 overflow-x-auto rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-0.5 sm:overflow-visible"
+          >
+            {(listKind === 'lead'
+              ? ([
+                  { id: '', label: 'All leads', hint: 'Every lead, wherever they are in outreach' },
+                  ...(['none', 'in_sequence', 'finished', 'replied'] as LeadOutreach[]).map((id) => ({ id, label: LEAD_OUTREACH_LABEL[id], hint: LEAD_OUTREACH_HINT[id] })),
+                ] as { id: string; label: string; hint: string; count?: number }[])
+              : ([
+                  { id: 'engaged', label: STAGE_FILTER_LABEL.engaged, hint: 'Contacts and customers', count: lifecycleCounts ? lifecycleCounts.contact + lifecycleCounts.customer : undefined },
+                  { id: 'contact', label: STAGE_FILTER_LABEL.contact, hint: 'Replied, met you, or added deliberately', count: lifecycleCounts?.contact },
+                  { id: 'customer', label: STAGE_FILTER_LABEL.customer, hint: 'Won a deal. Kept out of cold outreach.', count: lifecycleCounts?.customer },
+                ] as { id: string; label: string; hint: string; count?: number }[])
+            ).map((opt) => {
+              const on = listKind === 'lead' ? outreach === opt.id : stage === opt.id;
+              return (
                 <button
-                  key={opt.id}
+                  key={opt.id || 'all'}
                   type="button"
+                  role="radio"
+                  aria-checked={on}
                   title={opt.hint}
-                  onClick={() => setLifecyclePersisted(opt.id)}
+                  onClick={() => (listKind === 'lead' ? setOutreach(opt.id as LeadOutreach | '') : setStage(opt.id as ContactStage))}
                   className={cn(
                     'inline-flex flex-shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-body font-medium transition-colors',
-                    lifecycle === opt.id
-                      ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)]'
-                      : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]',
+                    on ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]',
                   )}
                 >
                   {opt.label}
-                  <span className="text-caption tabular-nums text-[var(--text-tertiary)]">
-                    {opt.count.toLocaleString()}
-                  </span>
+                  {opt.count != null && (
+                    <span className="text-caption tabular-nums text-[var(--text-tertiary)]">{opt.count.toLocaleString()}</span>
+                  )}
                 </button>
-              ))}
-            </div>
-            {/* CRM information, so it stays on the CRM page. On Leads it was
-                telling you about the people you specifically cannot pitch. */}
-            {listKind === 'contact' && lifecycleCounts.customer > 0 && (
-              <span
-                className="inline-flex h-7 items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/[0.08] px-2.5 text-caption font-medium text-emerald-600 dark:text-emerald-400"
-                title="Won a deal. Kept out of cold campaigns by default."
-              >
-                {lifecycleCounts.customer.toLocaleString()} customer{lifecycleCounts.customer === 1 ? '' : 's'}
-              </span>
-            )}
+              );
+            })}
           </div>
+        </div>
+
+        {crossedOver > 0 && (
+          <Notice tone="info">
+            {listKind === 'lead'
+              ? <>{plural(crossedOver, 'person', 'people')} in this list {crossedOver === 1 ? 'has' : 'have'} become {crossedOver === 1 ? 'a contact' : 'contacts'} and {crossedOver === 1 ? 'is' : 'are'} on the <Link to="/contacts" className="font-medium text-[var(--indigo-text)] hover:underline">Contacts page</Link> now.</>
+              : <>{plural(crossedOver, 'person', 'people')} in this list {crossedOver === 1 ? 'is a lead' : 'are leads'}, so {crossedOver === 1 ? 'they show' : 'they show'} on the <Link to="/leads" className="font-medium text-[var(--indigo-text)] hover:underline">Leads page</Link>.</>}
+          </Notice>
         )}
 
         {/* Verification summary pills — counts per deliverability state, click to filter */}
-        {breakdown && (
+        {listKind === 'lead' && breakdown && (
           <div className="flex items-center gap-2 flex-wrap">
             <StatusPill label="All"        count={breakdown.total}      dot="bg-[var(--text-tertiary)]"            active={statusFilter === ''}           onClick={() => { setStatusFilter(''); setPage(1); }} />
             <StatusPill label="Valid"      count={breakdown.valid}      dot="bg-emerald-500"                       active={statusFilter === 'valid'}      onClick={() => { setStatusFilter((s) => s === 'valid' ? '' : 'valid'); setPage(1); }} />
@@ -2077,7 +2253,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
             <input
               ref={searchRef}
               type="text"
-              aria-label="Search contacts"
+              aria-label={`Search ${noun}s`}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by name, email, or company…  /"
@@ -2095,7 +2271,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
           {activeFilters.length > 0 && (
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className="text-caption font-medium text-[var(--text-tertiary)] tabular-nums">
-                {totalContacts.toLocaleString()} of {(lifecycleCounts?.total ?? totalContacts).toLocaleString()}
+                {totalContacts.toLocaleString()} of {(pageTotal ?? totalContacts).toLocaleString()}
               </span>
               {activeFilters.map((f) => (
                 <button
@@ -2123,7 +2299,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
           <CompanyFilter value={companyFilter} options={companyOptions || []} onChange={setCompanyFilter} />
 
           {/* Live auto-verification indicator */}
-          {autoVerifyOn && pendingOnPage > 0 && (
+          {listKind === 'lead' && autoVerifyOn && pendingOnPage > 0 && (
             <span className="inline-flex items-center gap-1.5 text-caption font-medium text-[var(--indigo-text)] bg-[var(--indigo-subtle)] px-2.5 h-7 rounded-lg" title="Contacts are being verified in the background">
               <Loader2 className="h-3 w-3 animate-spin" />
               Verifying {pendingOnPage} on this page…
@@ -2228,7 +2404,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
 
                     <div className="border-t border-[var(--border-subtle)] p-1.5">
                       <button
-                        onClick={() => { persistColumns(DEFAULT_COLUMNS); setColumnSearch(''); }}
+                        onClick={() => { persistColumns(DEFAULT_COLUMNS_FOR[listKind]); setColumnSearch(''); }}
                         className="w-full flex items-center gap-2 px-1.5 h-8 rounded-lg text-body text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
                       >
                         <RotateCcw className="h-3.5 w-3.5" />
@@ -2250,45 +2426,78 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                 {selectedContacts.size}
               </span>
               <span className="text-strong font-medium text-[var(--text-primary)] whitespace-nowrap">
-                contact{selectedContacts.size !== 1 ? 's' : ''} selected
+                {noun}{selectedContacts.size !== 1 ? 's' : ''} selected
               </span>
             </div>
             <div className="flex items-center gap-2 ml-auto">
               {/*
-                Not offered from the CRM rail at all.
-
-                The server refuses these anyway - a contact filed only in
-                contact lists is dropped at enrolment with a reason - but
-                letting someone select forty customers, press the button and
-                read a wall of skips is a worse way to learn the rule than
-                simply not putting the button there.
+                Outbound actions only on Leads. Contacts are never put into a
+                cold campaign from here; the server would refuse a contact
+                filed only in contact lists anyway.
               */}
-              {listKind === 'lead' ? (
-                <button
-                  onClick={() => setShowCampaignModal(true)}
-                  className="inline-flex items-center gap-1.5 text-strong h-8 px-3 rounded-lg font-semibold text-white transition-opacity hover:opacity-90"
-                  style={{ background: 'var(--indigo-grad)' }}
-                >
-                  <Megaphone className="h-3.5 w-3.5" />
-                  Add to campaign
-                </button>
-              ) : (
-                <span
-                  className="inline-flex items-center gap-1.5 whitespace-nowrap text-body h-8 px-3 rounded-lg font-medium text-[var(--text-tertiary)] bg-[var(--bg-elevated)] border border-[var(--border-subtle)]"
-                  title="Cold outreach only goes to lead lists. Move these people to a lead list first if you mean to pitch them."
-                >
-                  <Megaphone className="h-3.5 w-3.5 flex-shrink-0" />
-                  Not for cold campaigns
-                </span>
+              {listKind === 'lead' && (
+                <>
+                  <button
+                    onClick={() => setShowCampaignModal(true)}
+                    className="inline-flex items-center gap-1.5 text-strong h-8 px-3 rounded-lg font-semibold text-white transition-opacity hover:opacity-90"
+                    style={{ background: 'var(--indigo-grad)' }}
+                  >
+                    <Megaphone className="h-3.5 w-3.5" />
+                    Add to campaign
+                  </button>
+                  <button
+                    onClick={() => batchVerifyMutation.mutate(Array.from(selectedContacts))}
+                    disabled={batchVerifyMutation.isPending}
+                    className="btn-secondary text-strong h-8 rounded-lg disabled:opacity-50"
+                  >
+                    {batchVerifyMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
+                    Verify emails
+                  </button>
+                  <button
+                    onClick={() => lifecycleMutation.mutate({ ids: Array.from(selectedContacts), to: 'contact' })}
+                    disabled={lifecycleMutation.isPending}
+                    title="They have a relationship with you now: they move to the Contacts page and its lists"
+                    className="btn-secondary text-strong h-8 rounded-lg disabled:opacity-50"
+                  >
+                    <Contact2 className="h-3.5 w-3.5" />
+                    Convert to contact
+                  </button>
+                </>
               )}
-              <button
-                onClick={() => batchVerifyMutation.mutate(Array.from(selectedContacts))}
-                disabled={batchVerifyMutation.isPending}
-                className="btn-secondary text-strong h-8 rounded-lg disabled:opacity-50"
-              >
-                {batchVerifyMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
-                Verify emails
-              </button>
+              {listKind === 'contact' && (
+                <>
+                  {stage !== 'customer' && (
+                    <button
+                      onClick={() => lifecycleMutation.mutate({ ids: Array.from(selectedContacts), to: 'customer' })}
+                      disabled={lifecycleMutation.isPending}
+                      title="They bought from you. Customers stay out of cold outreach."
+                      className="btn-secondary text-strong h-8 rounded-lg disabled:opacity-50"
+                    >
+                      <BadgeCheck className="h-3.5 w-3.5" />
+                      Mark as customer
+                    </button>
+                  )}
+                  {stage === 'customer' && (
+                    <button
+                      onClick={() => lifecycleMutation.mutate({ ids: Array.from(selectedContacts), to: 'contact' })}
+                      disabled={lifecycleMutation.isPending}
+                      className="btn-secondary text-strong h-8 rounded-lg disabled:opacity-50"
+                    >
+                      <Contact2 className="h-3.5 w-3.5" />
+                      Not a customer
+                    </button>
+                  )}
+                  <button
+                    onClick={() => lifecycleMutation.mutate({ ids: Array.from(selectedContacts), to: 'prospect' })}
+                    disabled={lifecycleMutation.isPending}
+                    title="Back to the Leads page, as people to prospect. Replies will not move them back on their own."
+                    className="btn-secondary text-strong h-8 rounded-lg disabled:opacity-50"
+                  >
+                    <Undo2 className="h-3.5 w-3.5" />
+                    Move back to leads
+                  </button>
+                </>
+              )}
               <button onClick={() => { setTagMode('add'); setTagSel(new Set()); setShowTagModal(true); }} className="btn-secondary text-strong h-8 rounded-lg">
                 <TagIcon className="h-3.5 w-3.5" />
                 Add tags
@@ -2311,33 +2520,11 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                   Move
                 </button>
               )}
-              {lifecycle !== 'engaged' && (
-                <button
-                  onClick={() => lifecycleMutation.mutate({ ids: Array.from(selectedContacts), to: 'contact' })}
-                  disabled={lifecycleMutation.isPending}
-                  title="Treat them as relationships: they show on the Contacts tab"
-                  className="btn-secondary text-strong h-8 rounded-lg disabled:opacity-50"
-                >
-                  <ArrowRightLeft className="h-3.5 w-3.5" />
-                  Move to Contacts
-                </button>
-              )}
-              {lifecycle !== 'prospect' && (
-                <button
-                  onClick={() => lifecycleMutation.mutate({ ids: Array.from(selectedContacts), to: 'prospect' })}
-                  disabled={lifecycleMutation.isPending}
-                  title="Back to the cold pile: they show on the Prospects tab until they reply"
-                  className="btn-secondary text-strong h-8 rounded-lg disabled:opacity-50"
-                >
-                  <ArrowRightLeft className="h-3.5 w-3.5" />
-                  Move to Prospects
-                </button>
-              )}
               <button
                 onClick={() => {
                   const ids = Array.from(selectedContacts);
                   setSelectedContacts(new Set());
-                  gone.removeMany(ids, `Deleted ${plural(ids.length, 'contact')}`, () => bulkDeleteMutation.mutateAsync(ids));
+                  gone.removeMany(ids, `Deleted ${plural(ids.length, noun)}`, () => bulkDeleteMutation.mutateAsync(ids));
                 }}
                 className="btn-danger text-strong h-8 rounded-lg"
               >
@@ -2378,14 +2565,16 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                   sentence on every screen. */}
               <EmptyState
                 icon={Users}
-                title={activeListId ? `Nothing in this list yet` : `No ${noun}s yet`}
-                description={listKind === 'lead'
-                  ? 'Import a list, find people with the Prospector, or add someone by hand. Leads are who your campaigns send to.'
-                  : 'Contacts arrive here on their own when someone replies, books a meeting, or wins a deal. You can also add one by hand.'}
-                actionLabel={`Add ${noun}`}
-                onAction={() => setShowCreateModal(true)}
-                secondaryActionLabel="Import CSV"
-                onSecondaryAction={() => navigate('/contacts/import')}
+                title={activeFilters.length > 0 ? `No ${noun}s match` : activeListId ? `No ${noun}s in this list` : `No ${noun}s yet`}
+                description={activeFilters.length > 0
+                  ? 'Nothing here fits these filters. Clear them to see everyone on this page.'
+                  : listKind === 'lead'
+                    ? 'Find people with the Prospector, import a list, or add someone by hand. Leads are who your campaigns send to.'
+                    : 'Leads arrive here on their own when they reply, book a meeting, or go on a deal. You can also add a contact by hand.'}
+                actionLabel={activeFilters.length > 0 ? 'Clear filters' : listKind === 'lead' ? 'Find leads' : `Add ${noun}`}
+                onAction={() => (activeFilters.length > 0 ? clearAllFilters() : listKind === 'lead' ? navigate('/prospector') : setShowCreateModal(true))}
+                secondaryActionLabel={activeFilters.length > 0 ? undefined : listKind === 'lead' ? `Add ${noun}` : 'Import CSV'}
+                onSecondaryAction={activeFilters.length > 0 ? undefined : () => (listKind === 'lead' ? setShowCreateModal(true) : navigate(`/contacts/import?as=${listKind}`))}
               />
             </div>
           ) : (
@@ -2422,13 +2611,13 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                           checked={allSelected}
                           indeterminate={someSelected && !allSelected}
                           onChange={toggleSelectAll}
-                          aria-label="Select all contacts"
+                          aria-label={`Select all ${noun}s`}
                         />
                       </th>
                       <th className="relative sticky top-0 left-[44px] z-[5] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] px-3 py-[7px] shadow-[inset_-1px_0_0_var(--border-subtle)]">
                         <span className="flex items-center gap-1.5 min-w-0">
                           <Users className="h-3 w-3 flex-shrink-0 text-[var(--text-tertiary)]" strokeWidth={1.9} />
-                          <SortableHeader label="Contact" colKey="first_name" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
+                          <SortableHeader label={noun === 'lead' ? 'Lead' : 'Contact'} colKey="first_name" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
                         </span>
                         <ResizeHandle
                           onPointerDown={(e) => startResize(CONTACT_COL_ID, e)}
@@ -2562,7 +2751,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                                     onClick={(e) => e.stopPropagation()}
                                     className="block text-body font-semibold text-[var(--text-primary)] truncate hover:text-[var(--indigo-text)] hover:underline decoration-[var(--indigo)]/40 underline-offset-2 transition-colors"
                                   >
-                                    {fullName || 'Unnamed contact'}
+                                    {fullName || `Unnamed ${noun}`}
                                   </Link>
                                   <LinkedInGlyph url={contact.linkedin_url} />
                                 </span>
@@ -2585,16 +2774,26 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                           <td className="border-b border-[var(--border-subtle)]" />
                           <td className={cn('sticky right-0 z-[1] px-2 py-2 border-b border-[var(--border-subtle)] shadow-[inset_1px_0_0_var(--border-subtle)]', frozenBg)} onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-                              <button aria-label="Verify email"
-                                onClick={() => verifyMutation.mutate(contact.id)}
-                                disabled={verifyingIds.has(contact.id)}
-                                className="icon-btn hover:text-[var(--indigo-text)] hover:bg-[var(--indigo-subtle)]"
-                                title="Verify email"
-                              >
-                                {verifyingIds.has(contact.id)
-                                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                  : <ShieldCheck className="h-3.5 w-3.5" />}
-                              </button>
+                              {listKind === 'lead' ? (
+                                <button aria-label="Verify email"
+                                  onClick={() => verifyMutation.mutate(contact.id)}
+                                  disabled={verifyingIds.has(contact.id)}
+                                  className="icon-btn hover:text-[var(--indigo-text)] hover:bg-[var(--indigo-subtle)]"
+                                  title="Verify email"
+                                >
+                                  {verifyingIds.has(contact.id)
+                                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    : <ShieldCheck className="h-3.5 w-3.5" />}
+                                </button>
+                              ) : (
+                                <button aria-label={`New deal with ${contact.email}`}
+                                  onClick={() => navigate(`/contacts/${contact.id}?deal=new`)}
+                                  className="icon-btn hover:text-[var(--indigo-text)] hover:bg-[var(--indigo-subtle)]"
+                                  title="New deal"
+                                >
+                                  <Handshake className="h-3.5 w-3.5" />
+                                </button>
+                              )}
                               <button aria-label={`Edit ${contact.email}`} onClick={() => openEdit(contact)} className="icon-btn" title="Edit">
                                 <Pencil className="h-3.5 w-3.5" />
                               </button>
@@ -2689,7 +2888,11 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
             isOpen={showCreateModal}
             onClose={closeCreateModal}
             title={editId ? `Edit ${noun}` : `Add ${noun}`}
-            description={editId ? 'Update this contact’s details.' : 'Create a new contact in your database.'}
+            description={editId
+              ? `Update this ${noun}’s details.`
+              : listKind === 'lead'
+                ? `A new lead for outreach${activeList ? `, added to “${activeList.name}”` : ''}. They move to Contacts when they reply.`
+                : `A new contact in your CRM${activeList ? `, added to “${activeList.name}”` : ''}.`}
             size="lg"
             footer={
               <>
@@ -2723,7 +2926,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                 )}
                 <div className="min-w-0">
                   <p className="text-strong font-semibold text-[var(--text-primary)] truncate">
-                    {previewName || 'New contact'}
+                    {previewName || `New ${noun}`}
                   </p>
                   <p className="text-body text-[var(--text-tertiary)] truncate">
                     {previewSub || form.email || 'Fill in the details below'}
@@ -2970,7 +3173,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
           isOpen={showAddToListModal}
           onClose={() => setShowAddToListModal(false)}
           title="Add to list"
-          description={`Add ${selectedContacts.size} contact${selectedContacts.size !== 1 ? 's' : ''} to a list.`}
+          description={`Add ${selectedContacts.size} ${noun}${selectedContacts.size !== 1 ? 's' : ''} to a ${noun} list.`}
           size="sm"
         >
           <div className="space-y-1.5 max-h-64 overflow-y-auto -mx-1 px-1">

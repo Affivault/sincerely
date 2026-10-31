@@ -192,7 +192,14 @@ export type SavedViewPage = 'lead' | 'contact';
 
 /** Everything a view restores. Anything else in a stored config is ignored. */
 export interface SavedViewConfig {
-  lifecycle?: 'engaged' | 'prospect' | 'all';
+  /**
+   * Which stage on the Contacts page: 'engaged' is both, or one of them.
+   * 'prospect' and 'all' are from before Leads and Contacts were split and
+   * are read as the page's own default.
+   */
+  lifecycle?: 'engaged' | 'prospect' | 'all' | 'contact' | 'customer';
+  /** Leads page only: where they are in the outbound cycle. */
+  outreach?: 'none' | 'in_sequence' | 'finished' | 'replied';
   search?: string;
   status?: '' | 'valid' | 'risky' | 'invalid' | 'not_found' | 'unverified';
   company?: string | null;
@@ -211,7 +218,8 @@ export interface SavedView {
   updated_at: string;
 }
 
-const VIEW_LIFECYCLES = new Set(['engaged', 'prospect', 'all']);
+const VIEW_LIFECYCLES = new Set(['engaged', 'prospect', 'all', 'contact', 'customer']);
+const VIEW_OUTREACH = new Set(['none', 'in_sequence', 'finished', 'replied']);
 const VIEW_STATUSES = new Set(['', 'valid', 'risky', 'invalid', 'not_found', 'unverified']);
 export const VIEW_SORT_KEYS = ['first_name', 'email', 'company', 'dcs_score', 'created_at', 'engagement_score'] as const;
 
@@ -226,6 +234,7 @@ export function sanitizeViewConfig(raw: unknown): SavedViewConfig {
   const r = (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw as Record<string, unknown> : {};
   const out: SavedViewConfig = {};
   if (typeof r.lifecycle === 'string' && VIEW_LIFECYCLES.has(r.lifecycle)) out.lifecycle = r.lifecycle as SavedViewConfig['lifecycle'];
+  if (typeof r.outreach === 'string' && VIEW_OUTREACH.has(r.outreach)) out.outreach = r.outreach as SavedViewConfig['outreach'];
   if (typeof r.search === 'string' && r.search.trim()) out.search = r.search.trim().slice(0, 200);
   if (typeof r.status === 'string' && VIEW_STATUSES.has(r.status)) out.status = r.status as SavedViewConfig['status'];
   if (typeof r.company === 'string' && r.company.trim()) out.company = r.company.trim().slice(0, 200);
@@ -239,7 +248,7 @@ export function sanitizeViewConfig(raw: unknown): SavedViewConfig {
 export function sameViewConfig(a: SavedViewConfig, b: SavedViewConfig): boolean {
   const x = sanitizeViewConfig(a);
   const y = sanitizeViewConfig(b);
-  const keys: (keyof SavedViewConfig)[] = ['lifecycle', 'search', 'status', 'company', 'list_id', 'sort_by', 'sort_dir'];
+  const keys: (keyof SavedViewConfig)[] = ['lifecycle', 'outreach', 'search', 'status', 'company', 'list_id', 'sort_by', 'sort_dir'];
   return keys.every((k) => (x[k] ?? '') === (y[k] ?? ''));
 }
 

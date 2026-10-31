@@ -191,10 +191,10 @@ export default function App() {
           <Route path="/pipeline"           element={<Navigate to="/deals" replace />} />
           <Route path="/insights"           element={<Navigate to="/analytics" replace />} />
           {/*
-            One component, two pages. /leads is the outreach side - lead
-            lists, the people campaigns send to. /contacts is the CRM, and
-            nothing cold reaches it. Separate routes rather than a toggle so
-            each is linkable and neither can be mistaken for the other.
+            Two pages over one table. /leads is the outbound side: leads only,
+            lead lists, sequences. /contacts is the CRM: contacts and customers
+            only, contact lists, deals. Nobody shows on both, and there is no
+            toggle that turns one into the other (pages/contacts/ContactsListPage).
           */}
           <Route path="/leads"              element={<ContactsListPage key="lead" kind="lead" />} />
           <Route path="/contacts"           element={<ContactsListPage key="contact" kind="contact" />} />

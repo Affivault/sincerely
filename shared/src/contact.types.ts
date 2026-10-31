@@ -120,9 +120,14 @@ export interface CreateContactInput {
   location?: string;
   custom_fields?: Record<string, string>;
   tag_ids?: string[];
+  /**
+   * Create only. Added from the Leads page: 'prospect'. Anywhere else a
+   * person typed in by hand is a relationship, which is the default.
+   */
+  lifecycle?: 'prospect' | 'contact';
 }
 
-export interface UpdateContactInput extends Partial<CreateContactInput> {}
+export interface UpdateContactInput extends Partial<Omit<CreateContactInput, 'lifecycle'>> {}
 
 export interface PaginatedResponse<T> {
   data: T[];
@@ -322,6 +327,13 @@ export interface ContactsListParams {
    * the entire job.
    */
   lifecycle?: 'engaged' | 'all' | 'prospect' | 'contact' | 'customer';
+  /** Leads page: where they are in the outbound cycle (shared/lifecycle). */
+  outreach?: 'none' | 'in_sequence' | 'finished' | 'replied';
+  /**
+   * Extra per-row facts for one page: 'outreach' (campaign state, Leads)
+   * or 'deals' (open and won deals, Contacts).
+   */
+  include?: 'outreach' | 'deals';
   sort_by?: 'created_at' | 'email' | 'first_name' | 'company' | 'dcs_score' | 'engagement_score';
   sort_order?: 'asc' | 'desc';
 }
