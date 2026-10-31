@@ -1,4 +1,5 @@
-import { lazy, type ComponentType } from 'react';
+import { type ComponentType } from 'react';
+import { lazyNamed } from './chunkReload';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Route chunks start downloading when you look at a link, not when you
@@ -68,7 +69,9 @@ export function lazyRoute<M>(
   // and /campaigns/:id/edit - and a link to the second one has to warm the
   // same chunk as a link to the first.
   for (const p of Array.isArray(path) ? path : [path]) routes.set(p, load);
-  return lazy(() => load().then((m) => ({ default: pick(m) })));
+  // A chunk that no longer exists after a deploy reloads the page once
+  // rather than showing an error - see chunkReload.ts.
+  return lazyNamed(load, pick);
 }
 
 /** Whether a pattern segment stands in for anything: `:id`, `:slug`. */

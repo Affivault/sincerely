@@ -1,4 +1,5 @@
-import { Component, lazy, Suspense, type ReactNode } from 'react';
+import { Component, Suspense, type ReactNode } from 'react';
+import { lazyNamed } from '../../lib/chunkReload';
 import toast from 'react-hot-toast';
 import { usePeek } from '../peek/usePeek';
 
@@ -51,9 +52,9 @@ const loadPeek = () => import('../peek/PeekDrawer');
 const loadPalette = () => import('../CommandPalette');
 const loadShortcuts = () => import('../ShortcutsOverlay');
 
-const PeekDrawerImpl = lazy(() => loadPeek().then((m) => ({ default: m.PeekDrawer })));
-const CommandPaletteImpl = lazy(() => loadPalette().then((m) => ({ default: m.CommandPalette })));
-const ShortcutsOverlayImpl = lazy(() => loadShortcuts().then((m) => ({ default: m.ShortcutsOverlay })));
+const PeekDrawerImpl = lazyNamed(loadPeek, (m) => m.PeekDrawer);
+const CommandPaletteImpl = lazyNamed(loadPalette, (m) => m.CommandPalette);
+const ShortcutsOverlayImpl = lazyNamed(loadShortcuts, (m) => m.ShortcutsOverlay);
 
 let warmed = false;
 

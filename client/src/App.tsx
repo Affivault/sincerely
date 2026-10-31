@@ -4,6 +4,7 @@ import { Skeleton, SkeletonList } from './components/ui/Skeleton';
 import { lazyRoute } from './lib/prefetch';
 import { useAuth } from './context/AuthContext';
 import { AppLayout } from './components/layout/AppLayout';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { rememberReturnTo, takeReturnTo, hasReturnTo } from './lib/returnTo';
 
 // Eagerly loaded — needed on every first paint
@@ -141,7 +142,12 @@ function LandingOrDashboard() {
 }
 
 export default function App() {
+  // Last line of defence for the screens outside the app shell (landing,
+  // booking, shared results): without it a render error there unmounts the
+  // whole tree and leaves a blank white page. The shell keeps its own
+  // per-route boundary inside this one.
   return (
+    <ErrorBoundary>
     <Suspense fallback={<PageSpinner />}>
       <Routes>
         {/* Public landing page */}
@@ -269,5 +275,6 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Suspense>
+    </ErrorBoundary>
   );
 }

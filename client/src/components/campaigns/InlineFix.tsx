@@ -1,4 +1,5 @@
-import { lazy, Suspense, useState } from 'react';
+import { Suspense, useState } from 'react';
+import { lazyNamed } from '../../lib/chunkReload';
 import { Check, Loader2, Wrench } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { InlineFixKind, ReadinessCheck } from '@lemlist/shared';
@@ -9,8 +10,8 @@ import { settingsApi } from '../../api/settings.api';
 import { campaignsApi } from '../../api/campaigns.api';
 
 // The connect wizard is large and needed only when this row says so.
-const SmtpAccountModal = lazy(() =>
-  import('../../pages/smtp/SmtpAccountModal').then((m) => ({ default: m.SmtpAccountModal })));
+const SmtpAccountModal = lazyNamed(() =>
+  import('../../pages/smtp/SmtpAccountModal'), (m) => m.SmtpAccountModal);
 
 /* ═══════════════════════════════════════════════════════════════════════
    The fix, where the problem is.
