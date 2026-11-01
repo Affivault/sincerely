@@ -4,6 +4,8 @@ import { Avatar } from '../shared/Avatar';
 import { usePeek } from '../peek/usePeek';
 import { DealHealthDot } from './DealHealth';
 import { NextActivity, type NextStepInfo } from './NextActivity';
+import { ChecklistBadge } from './StageChecklist';
+import { usePipelines } from '../../hooks/usePipelines';
 import { cn } from '../../lib/utils';
 import {
   formatDayMonth, formatMoney, parseDay, probabilityOf, rotOf,
@@ -67,6 +69,7 @@ export function DealCard({
   stageName?: string;
 }) {
   const { openPeek } = usePeek();
+  const pipes = usePipelines();
   const navigate = useNavigate();
   const open = deal.stage !== 'won' && deal.stage !== 'lost';
   const rot = rotOf(deal);
@@ -158,6 +161,7 @@ export function DealCard({
       {open && (
         <div className="mt-2 flex items-center gap-1.5 border-t border-[var(--border-subtle)] pt-2">
           <span className="min-w-0 flex-1"><NextActivity deal={deal} info={next} compact /></span>
+          {pipes.styled && <ChecklistBadge stage={pipes.stageOf(deal)} deal={deal} />}
           {rot.rotting && (
             <span
               title={`No movement for ${rot.days} days. Deals here are expected to move within ${rot.limit}.`}

@@ -1,4 +1,5 @@
-import { daysByStage } from '@lemlist/shared';
+import { daysByStage, stageColor } from '@lemlist/shared';
+import { STAGE_TONE } from '../../lib/stageColors';
 import type { Deal, DealStageEvent, PipelineStage } from '@lemlist/shared';
 import { cn } from '../../lib/utils';
 import { Check, Trophy, XCircle } from 'lucide-react';
@@ -65,19 +66,20 @@ export function DealStageBar({
           // actually took rather than a journey it abandoned.
           const done = (closed && i <= currentIndex) || (currentIndex > -1 && i < currentIndex);
           const days = spentIn(st);
+          const tone = STAGE_TONE[stageColor(st, i)];
           return (
             <button
               key={id}
               type="button"
               disabled={busy || active}
               onClick={() => onStage(id)}
-              title={active ? `Currently in ${meta?.label}` : `Move to ${meta?.label}`}
+              title={`${active ? `Currently in ${meta?.label}` : `Move to ${meta?.label}`}${st.description ? `. ${st.description}` : ''}`}
               className={cn(
                 'group relative flex min-w-0 flex-1 flex-col justify-center gap-0.5 rounded-lg px-3 py-2 text-left transition-all',
                 active
-                  ? 'bg-[var(--indigo)] text-white shadow-[var(--shadow-sm)]'
+                  ? cn(tone.solid, 'shadow-[var(--shadow-sm)]')
                   : done
-                    ? 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)] hover:bg-[var(--indigo)]/20'
+                    ? cn(tone.soft, 'hover:opacity-80')
                     : 'bg-[var(--bg-muted)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
                 (busy || active) && 'cursor-default',
               )}

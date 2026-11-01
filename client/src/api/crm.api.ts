@@ -9,7 +9,7 @@ import type {
 } from '@lemlist/shared';
 
 /** A stage as the pipeline editor sends it: no id means a new stage. */
-export type StageDraft = Pick<PipelineStage, 'name' | 'phase' | 'probability' | 'rot_days'> & { id?: string };
+export type StageDraft = Pick<PipelineStage, 'name' | 'phase' | 'probability' | 'rot_days' | 'color' | 'description' | 'checklist'> & { id?: string };
 
 export const crmApi = {
   // Pipelines and their stages
