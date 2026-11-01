@@ -12,6 +12,7 @@ import { crmApi } from '../../api/crm.api';
 import { ActivityModal, MeetingModal, toDateInput } from '../../components/crm/CrmPrimitives';
 import { DealModal } from './DealsPage';
 import { DealStageBar } from '../../components/crm/DealStageBar';
+import { StageChecklist } from '../../components/crm/StageChecklist';
 import { usePipelines } from '../../hooks/usePipelines';
 import { DealSource } from '../../components/crm/DealSource';
 import { DealPeople } from '../../components/crm/DealPeople';
@@ -306,6 +307,13 @@ export function DealDetailPage() {
       <div className="mb-3">
         <DealStageBar deal={deal} history={history} stages={pipeline?.stages || []} currentStageId={currentStage?.id || null} onStage={onStage} busy={move.isPending} />
       </div>
+
+      {/* What this stage means, and the checklist to work through before moving on. */}
+      {pipes.styled && (
+        <div className="mb-3 empty:hidden">
+          <StageChecklist deal={deal} stage={currentStage} index={currentStage ? pipes.stageIndex(currentStage) : 0} />
+        </div>
+      )}
 
       {/* The next step. Activity-based selling in one line: a live deal with
           nothing booked against it is not fine, it is forgotten. */}

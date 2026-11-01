@@ -35,6 +35,8 @@ export interface Deal {
   /** The pipeline this deal is in, and its named stage there (migration 105). */
   pipeline_id?: string | null;
   stage_id?: string | null;
+  /** Checklist items done on this deal, by stage id (migration 106). */
+  stage_checks?: Record<string, string[]>;
   expected_close_date: string | null;
   notes: string | null;
   position: number;
@@ -167,6 +169,7 @@ export interface CreateDealInput {
   stage?: DealStage;
   pipeline_id?: string | null;
   stage_id?: string | null;
+  stage_checks?: Record<string, string[]>;
   expected_close_date?: string | null;
   notes?: string | null;
   probability?: number | null;

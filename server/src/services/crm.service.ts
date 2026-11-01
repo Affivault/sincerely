@@ -31,7 +31,7 @@ function pick(body: any, keys: readonly string[]): Record<string, any> {
 }
 
 const DEAL_KEYS = ['title', 'company', 'company_id', 'contact_name', 'contact_email', 'contact_id', 'value', 'currency', 'stage', 'pipeline_id', 'stage_id', 'expected_close_date', 'notes', 'position', 'probability', 'outcome_reason', 'label', 'source', 'source_campaign_id', 'source_step_id', 'attribution', 'attributed_at',
-  'recurring_amount', 'recurring_period', 'one_off_amount', 'term_months'] as const;
+  'recurring_amount', 'recurring_period', 'one_off_amount', 'term_months', 'stage_checks'] as const;
 
 const DEAL_LABELS = ['hot', 'warm', 'cold'];
 
@@ -70,7 +70,24 @@ function assertRunsForwards(startRaw: unknown, endRaw: unknown) {
 }
 
 /** Coerce/validate deal input in place so bad payloads 400 instead of 500ing at the DB. */
+/**
+ * Ticked checklist items, as { stageId: [item text] } (migration 106).
+ * Kept small and plain: at most 30 stages, 10 items each, 120 characters.
+ */
+function cleanStageChecks(raw: unknown): Record<string, string[]> {
+  if (raw === null) return {};
+  if (typeof raw !== 'object' || Array.isArray(raw)) throw new AppError('Checklist progress must be an object', 400);
+  const out: Record<string, string[]> = {};
+  for (const [stageId, items] of Object.entries(raw as Record<string, unknown>).slice(0, 30)) {
+    if (!/^[0-9a-f-]{36}$/i.test(stageId) || !Array.isArray(items)) continue;
+    const clean = [...new Set(items.filter((i): i is string => typeof i === 'string').map((i) => i.trim().slice(0, 120)).filter(Boolean))].slice(0, 10);
+    if (clean.length > 0) out[stageId] = clean;
+  }
+  return out;
+}
+
 function sanitizeDealInput(input: Record<string, any>) {
+  if (input.stage_checks !== undefined) input.stage_checks = cleanStageChecks(input.stage_checks);
   if (input.stage && !DEAL_STAGES.includes(input.stage)) throw new AppError('Invalid stage', 400);
   if (input.value !== undefined && input.value !== null) {
     const n = Number(input.value);

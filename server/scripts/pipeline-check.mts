@@ -53,6 +53,11 @@ import {
   valuePerReply,
   isStrongAttribution,
   registerStageSettings,
+  stageColor,
+  checklistProgress,
+  STAGE_COLORS,
+  AUTO_STAGE_COLORS,
+  PIPELINE_TEMPLATES,
 } from '@lemlist/shared';
 import type { Deal, DealStage } from '@lemlist/shared';
 
@@ -741,6 +746,24 @@ console.log('\nnamed stages carry their own odds and stale limits (migration 105
   registerStageSettings([]);
   is('and with nothing registered the phase defaults apply, as on the server',
      probabilityOf(deal({ stage: 'proposal', stage_id: 'st-neg' } as any)) === STAGE_PROBABILITY.proposal);
+}
+
+console.log('\nstage colours, checklists and templates (migration 106)');
+{
+  is('a picked colour is used', stageColor({ color: 'rose' }, 0) === 'rose');
+  is('no colour falls back to its place in the order', stageColor({ color: null }, 2) === AUTO_STAGE_COLORS[2]);
+  is('the fallback wraps past the end of the palette', stageColor({}, AUTO_STAGE_COLORS.length + 1) === AUTO_STAGE_COLORS[1]);
+  is('an unknown colour name is ignored', stageColor({ color: 'chartreuse' as any }, 0) === AUTO_STAGE_COLORS[0]);
+  is('every automatic colour is one the database accepts', AUTO_STAGE_COLORS.every((c) => (STAGE_COLORS as readonly string[]).includes(c)));
+  const st = { id: 'st-1', checklist: ['Budget', 'Timeline', 'Champion'] };
+  is('progress counts ticked items', JSON.stringify(checklistProgress(st, { 'st-1': ['Budget', 'Champion'] })) === JSON.stringify({ done: 2, total: 3 }));
+  is('ticks on items no longer listed do not count', checklistProgress(st, { 'st-1': ['Old item', 'Budget'] }).done === 1);
+  is('ticks from another stage do not count', checklistProgress(st, { 'st-2': ['Budget'] }).done === 0);
+  is('a stage with no checklist reports nothing', checklistProgress({ id: 'x', checklist: [] }, {}).total === 0);
+  is('no stage reports nothing', checklistProgress(null, {}).total === 0);
+  is('every template has at least one stage, within the limits', PIPELINE_TEMPLATES.every((t) =>
+    t.stages.length > 0 && t.stages.length <= 20 && t.stages.every((s) => (s.checklist || []).length <= 10 && (s.description || '').length <= 280)));
+  is('template colours are all from the palette', PIPELINE_TEMPLATES.every((t) => t.stages.every((s) => !s.color || (STAGE_COLORS as readonly string[]).includes(s.color))));
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

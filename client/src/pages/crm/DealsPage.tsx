@@ -28,11 +28,12 @@ import {
 } from '../../components/crm/DealFilters';
 import { useFillViewport, autoScrollX, autoScrollY } from '../../hooks/useFillViewport';
 import { cn } from '../../lib/utils';
+import { STAGE_TONE } from '../../lib/stageColors';
 import toast from 'react-hot-toast';
 import { EmptyState } from '../../components/shared/EmptyState';
 import {
   AlertTriangle, BarChart3, Check, ChevronDown, Clock, Download, Handshake,
-  Layers, Plus, Settings2, Star, Trash2, Trophy, XCircle,
+  Info, Layers, Plus, Settings2, Star, Trash2, Trophy, XCircle,
 } from 'lucide-react';
 import {
   dealStageLabel,
@@ -44,6 +45,8 @@ import {
   totalContractValue,
   DEFAULT_TERM_MONTHS,
   STAGE_PROBABILITY,
+  stageColor,
+  type StageColor,
   type Deal, type DealStage, type CreateDealInput,
   type CrmTask,
   type CrmEvent,
@@ -438,6 +441,9 @@ interface BoardColumn {
   kind: 'stage' | 'won' | 'lost';
   phase: DealStage;
   probability: number;
+  /** The stage's colour and what being in it means (migration 106). */
+  color?: StageColor;
+  description?: string | null;
 }
 
 function PipelineBoard({
@@ -563,13 +569,18 @@ function PipelineBoard({
               <header className="flex-shrink-0 px-3 pt-3 pb-2">
                 <div className="flex items-center gap-2">
                   {col.kind === 'stage' ? (
-                    <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-[var(--indigo-subtle)] text-micro font-semibold tabular-nums text-[var(--indigo-text)]">{colIndex + 1}</span>
+                    <span className={cn('flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-micro font-semibold tabular-nums', col.color ? STAGE_TONE[col.color].solid : 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)]')}>{colIndex + 1}</span>
                   ) : col.kind === 'won' ? (
                     <Trophy className="h-4 w-4 flex-shrink-0 text-emerald-500" />
                   ) : (
                     <XCircle className="h-4 w-4 flex-shrink-0 text-rose-500" />
                   )}
-                  <h3 className="min-w-0 truncate text-strong font-semibold text-[var(--text-primary)]">{col.name}</h3>
+                  <h3 className="min-w-0 truncate text-strong font-semibold text-[var(--text-primary)]" title={col.description || undefined}>{col.name}</h3>
+                  {col.description && (
+                    <span title={col.description} aria-label={col.description} className="flex-shrink-0 cursor-help text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]">
+                      <Info className="h-3 w-3" />
+                    </span>
+                  )}
                   <span className="flex-shrink-0 rounded-full bg-[var(--bg-surface)] px-1.5 text-micro font-semibold tabular-nums text-[var(--text-secondary)] shadow-[var(--shadow-sm)]">{items.length}</span>
                   <span className="flex-1" />
                   {col.kind === 'stage' && (
@@ -603,7 +614,7 @@ function PipelineBoard({
                 </div>
                 {col.kind === 'stage' && (
                   <div className="mt-2 h-1 overflow-hidden rounded-full bg-[var(--border-subtle)]" title={`${share}% of the weighted pipeline`}>
-                    <div className="h-full rounded-full bg-[var(--indigo)] transition-all" style={{ width: `${share}%` }} />
+                    <div className={cn('h-full rounded-full transition-all', col.color ? STAGE_TONE[col.color].dot : 'bg-[var(--indigo)]')} style={{ width: `${share}%` }} />
                   </div>
                 )}
               </header>
@@ -746,6 +757,9 @@ function PipelineSwitcher({
                 <span className="block text-caption text-[var(--text-tertiary)]">
                   {p.stages.length} stages · {counts[p.id]?.n || 0} open · {fmtMoney(counts[p.id]?.value || 0)}
                 </span>
+                <span className="mt-1 flex gap-0.5" aria-hidden="true">
+                  {p.stages.map((st, i) => <span key={st.id} className={cn('h-1 flex-1 rounded-full', STAGE_TONE[stageColor(st, i)].dot)} />)}
+                </span>
               </span>
             </button>
           ))}
@@ -838,9 +852,11 @@ export function DealsPage() {
     d.stage === 'won' || d.stage === 'lost' ? d.stage : pipes.stageOf(d)?.id || d.stage;
 
   const columns: BoardColumn[] = useMemo(() => {
-    const stageCols: BoardColumn[] = (active?.stages || []).map((s) => ({
+    const stageCols: BoardColumn[] = (active?.stages || []).map((s, i) => ({
       id: s.id, name: s.name, kind: 'stage', phase: s.phase,
       probability: s.probability ?? STAGE_PROBABILITY[s.phase],
+      color: stageColor(s, i),
+      description: s.description || null,
     }));
     return [
       ...stageCols,

@@ -24,6 +24,8 @@ export const PIPELINES_KEY = ['crm', 'pipelines'] as const;
 export interface PipelinesApi {
   /** False until migration 105 has run: one built-in pipeline, not editable. */
   ready: boolean;
+  /** False until migration 106 has run: no stage colours, notes or checklists saved. */
+  styled: boolean;
   loading: boolean;
   pipelines: Pipeline[];
   defaultPipeline: Pipeline | null;
@@ -34,6 +36,8 @@ export interface PipelinesApi {
   stageOf: (deal: Pick<Deal, 'stage' | 'stage_id' | 'pipeline_id'>) => PipelineStage | null;
   /** "Meeting booked", "Won", "Lost" - what to print for a deal's stage. */
   stageLabel: (deal: Pick<Deal, 'stage' | 'stage_id' | 'pipeline_id'>) => string;
+  /** A stage's place in its pipeline, from 0: what picks its colour when none was chosen. */
+  stageIndex: (stage: PipelineStage) => number;
 }
 
 export function usePipelines(): PipelinesApi {
@@ -45,6 +49,7 @@ export function usePipelines(): PipelinesApi {
 
   const pipelines = useMemo(() => q.data?.pipelines ?? [], [q.data]);
   const ready = q.data?.ready ?? false;
+  const styled = ready && (q.data?.styled ?? false);
 
   // During render, not in an effect: the page's children read the forecast
   // maths in this same render, and an effect would run after they had
@@ -75,6 +80,9 @@ export function usePipelines(): PipelinesApi {
       return stageOf(deal)?.name || dealStageLabel(deal.stage);
     };
 
-    return { ready, loading: q.isLoading, pipelines, defaultPipeline, stageById, pipelineOf, stageOf, stageLabel };
-  }, [pipelines, ready, q.isLoading]);
+    const stageIndex: PipelinesApi['stageIndex'] = (stage) =>
+      Math.max(0, pipelines.find((p) => p.id === stage.pipeline_id)?.stages.findIndex((s) => s.id === stage.id) ?? 0);
+
+    return { ready, styled, loading: q.isLoading, pipelines, defaultPipeline, stageById, pipelineOf, stageOf, stageLabel, stageIndex };
+  }, [pipelines, ready, styled, q.isLoading]);
 }

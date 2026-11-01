@@ -3,6 +3,11 @@ import { AppError } from '../middleware/error.middleware.js';
 import {
   DEFAULT_PIPELINE_STAGES,
   PIPELINE_PHASES,
+  STAGE_CHECKLIST_MAX,
+  STAGE_CHECK_MAX_LENGTH,
+  STAGE_COLORS,
+  STAGE_DESCRIPTION_MAX_LENGTH,
+  type StageColor,
   type Pipeline,
   type PipelineStage,
   type PipelinesResponse,
@@ -24,7 +29,34 @@ import {
    SQL has been applied.
    ═══════════════════════════════════════════════════════════════════════ */
 
-const STAGE_COLS = 'id, pipeline_id, name, position, phase, probability, rot_days';
+const BASE_STAGE_COLS = 'id, pipeline_id, name, position, phase, probability, rot_days';
+const STYLE_STAGE_COLS = `${BASE_STAGE_COLS}, color, description, checklist`;
+
+/*
+ * Colours, notes and checklists arrive with migration 106. Until it runs the
+ * columns are missing, so reads fall back to the base columns and writes
+ * leave them out. Checked once per process and remembered; a failed read
+ * clears the memory so running the SQL takes effect without a restart.
+ */
+let styled: boolean | null = null;
+
+function isMissingColumn(error: any): boolean {
+  if (!error) return false;
+  const code = String(error.code || '');
+  const msg = String(error.message || '');
+  return code === '42703' || code === 'PGRST204' || /column .* does not exist|could not find the .* column/i.test(msg);
+}
+
+async function stageCols(): Promise<string> {
+  if (styled === null) {
+    const { error } = await supabaseAdmin.from('pipeline_stages').select('color, description, checklist').limit(1);
+    styled = !error ? true : isMissingColumn(error) ? false : null;
+  }
+  return styled ? STYLE_STAGE_COLS : BASE_STAGE_COLS;
+}
+
+let STAGE_COLS = BASE_STAGE_COLS;
+async function refreshStageCols() { STAGE_COLS = await stageCols(); }
 const PIPELINE_COLS = 'id, name, position, is_default, created_at';
 
 /** The table is not there yet: Postgres says 42P01, PostgREST says PGRST205. */
@@ -69,6 +101,42 @@ function cleanRotDays(raw: unknown): number | null {
   return n;
 }
 
+function cleanColor(raw: unknown): StageColor | null {
+  if (raw === '' || raw === null || raw === undefined) return null;
+  if (typeof raw === 'string' && (STAGE_COLORS as readonly string[]).includes(raw)) return raw as StageColor;
+  throw new AppError('Pick a stage colour from the palette', 400);
+}
+
+function cleanDescription(raw: unknown): string | null {
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw !== 'string') throw new AppError('A stage note must be text', 400);
+  const t = raw.trim();
+  if (t.length > STAGE_DESCRIPTION_MAX_LENGTH) throw new AppError(`A stage note can be up to ${STAGE_DESCRIPTION_MAX_LENGTH} characters`, 400);
+  return t || null;
+}
+
+function cleanChecklist(raw: unknown): string[] {
+  if (raw === null || raw === undefined) return [];
+  if (!Array.isArray(raw)) throw new AppError('A stage checklist must be a list', 400);
+  const items = [...new Set(raw.filter((i): i is string => typeof i === 'string').map((i) => i.trim()).filter(Boolean))];
+  if (items.length > STAGE_CHECKLIST_MAX) throw new AppError(`A stage can have up to ${STAGE_CHECKLIST_MAX} checklist items`, 400);
+  if (items.some((i) => i.length > STAGE_CHECK_MAX_LENGTH)) throw new AppError(`Checklist items can be up to ${STAGE_CHECK_MAX_LENGTH} characters`, 400);
+  return items;
+}
+
+/** The columns a stage row writes, leaving out the 106 ones until they exist. */
+function stageFields(s: Partial<PipelineStage>, position: number) {
+  const base = {
+    name: cleanName(s.name, 'A stage'),
+    position,
+    phase: cleanPhase(s.phase),
+    probability: cleanPercent(s.probability),
+    rot_days: cleanRotDays(s.rot_days),
+  };
+  if (!styled) return base;
+  return { ...base, color: cleanColor(s.color), description: cleanDescription(s.description), checklist: cleanChecklist(s.checklist) };
+}
+
 function cleanPhase(raw: unknown): PipelinePhase {
   if (typeof raw === 'string' && (PIPELINE_PHASES as readonly string[]).includes(raw)) return raw as PipelinePhase;
   throw new AppError('Each stage must count as lead, qualified or proposal', 400);
@@ -88,15 +156,8 @@ async function ownedPipeline(userId: string, id: string) {
 
 async function insertStages(userId: string, pipelineId: string, stages: Array<Partial<PipelineStage>>) {
   if (stages.length === 0) return;
-  const rows = stages.map((s, i) => ({
-    user_id: userId,
-    pipeline_id: pipelineId,
-    name: cleanName(s.name, 'A stage'),
-    position: i,
-    phase: cleanPhase(s.phase),
-    probability: cleanPercent(s.probability),
-    rot_days: cleanRotDays(s.rot_days),
-  }));
+  await refreshStageCols();
+  const rows = stages.map((s, i) => ({ user_id: userId, pipeline_id: pipelineId, ...stageFields(s, i) }));
   const { error } = await supabaseAdmin.from('pipeline_stages').insert(rows);
   if (error) throw new AppError(error.message, 500);
 }
@@ -135,13 +196,25 @@ export const pipelinesService = {
     }
 
     const ids = pipelines.map((p) => p.id);
-    const { data: stages, error: stageError } = await supabaseAdmin
+    await refreshStageCols();
+    let { data: stages, error: stageError } = await supabaseAdmin
       .from('pipeline_stages')
-      .select(STAGE_COLS)
+      .select(STAGE_COLS as '*')
       .eq('user_id', userId)
       .in('pipeline_id', ids)
       .order('position', { ascending: true });
+    if (stageError && isMissingColumn(stageError)) {
+      // The columns went away, or the remembered answer was stale.
+      styled = false;
+      STAGE_COLS = BASE_STAGE_COLS;
+      ({ data: stages, error: stageError } = await supabaseAdmin
+        .from('pipeline_stages').select(BASE_STAGE_COLS as '*').eq('user_id', userId).in('pipeline_id', ids)
+        .order('position', { ascending: true }));
+    }
     if (stageError) throw new AppError(stageError.message, 500);
+    // Not styled yet: ask again next time, so running 106 shows up without a restart.
+    const isStyled = styled === true;
+    if (!isStyled) styled = null;
 
     const byPipeline = new Map<string, PipelineStage[]>();
     for (const s of (stages || []) as PipelineStage[]) {
@@ -151,6 +224,7 @@ export const pipelinesService = {
     }
     return {
       ready: true,
+      styled: isStyled,
       pipelines: pipelines.map((p) => ({ ...p, stages: byPipeline.get(p.id) || [] })),
     };
   },
@@ -212,13 +286,14 @@ export const pipelinesService = {
     }
 
     if (Array.isArray(body?.stages)) {
+      await refreshStageCols();
       const wanted = body.stages as Array<Partial<PipelineStage>>;
       if (wanted.length === 0) throw new AppError('A pipeline needs at least one stage', 400);
       if (wanted.length > 20) throw new AppError('A pipeline can have up to 20 stages', 400);
 
       const { data: current, error } = await supabaseAdmin
         .from('pipeline_stages')
-        .select(STAGE_COLS)
+        .select(STAGE_COLS as '*')
         .eq('pipeline_id', id)
         .eq('user_id', userId);
       if (error) throw new AppError(error.message, 500);
@@ -227,11 +302,7 @@ export const pipelinesService = {
       // Validate everything before writing anything.
       const rows = wanted.map((s, i) => ({
         id: s.id && existing.has(s.id) ? s.id : null,
-        name: cleanName(s.name, 'A stage'),
-        position: i,
-        phase: cleanPhase(s.phase),
-        probability: cleanPercent(s.probability),
-        rot_days: cleanRotDays(s.rot_days),
+        ...stageFields(s, i),
       }));
 
       // Updates first, then inserts, so a new stage can be a move target.
@@ -244,7 +315,7 @@ export const pipelinesService = {
       const fresh = rows.filter((r) => !r.id).map(({ id: _id, ...fields }) => ({ ...fields, user_id: userId, pipeline_id: id }));
       let inserted: PipelineStage[] = [];
       if (fresh.length > 0) {
-        const { data: ins, error: insErr } = await supabaseAdmin.from('pipeline_stages').insert(fresh).select(STAGE_COLS);
+        const { data: ins, error: insErr } = await supabaseAdmin.from('pipeline_stages').insert(fresh).select(STAGE_COLS as '*');
         if (insErr) throw new AppError(insErr.message, 500);
         inserted = (ins || []) as PipelineStage[];
       }
@@ -317,9 +388,10 @@ export const pipelinesService = {
 
   /** Throws unless this stage belongs to this user. Returns it. */
   async ownedStage(userId: string, stageId: string) {
+    await refreshStageCols();
     const { data, error } = await supabaseAdmin
       .from('pipeline_stages')
-      .select(STAGE_COLS)
+      .select(STAGE_COLS as '*')
       .eq('id', stageId)
       .eq('user_id', userId)
       .maybeSingle();
