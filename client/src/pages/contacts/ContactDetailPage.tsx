@@ -565,6 +565,10 @@ export function ContactDetailPage() {
               )}
               <InfoRow icon={Briefcase} label="Job title" value={contact.job_title} onSave={field('job_title')} />
               <InfoRow icon={MapPin} label="Location" value={contact.location} onSave={field('location')} />
+              {contact.city && <InfoRow icon={MapPin} label="City" value={contact.city} onSave={field('city')} />}
+              {contact.state && <InfoRow icon={MapPin} label="State" value={contact.state} onSave={field('state')} />}
+              <InfoRow icon={MapPin} label="Country" value={contact.country ?? null} onSave={field('country')} />
+              <InfoRow icon={Building2} label="Industry" value={contact.industry ?? null} onSave={field('industry')} />
               <InfoRow icon={Phone} label="Phone" value={contact.phone} onSave={field('phone')} />
               <InfoRow icon={Linkedin} label="LinkedIn" value={contact.linkedin_url} isLink onSave={field('linkedin_url')} />
               <InfoRow icon={Globe} label="Website" value={contact.website} isLink onSave={field('website')} />

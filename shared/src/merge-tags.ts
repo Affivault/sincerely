@@ -106,8 +106,12 @@ export function buildTagValues(ctx: MergeContext): Record<string, string> {
     linkedin_url: str(c.linkedin_url),
     website: str(c.website),
     location: str(c.location),
-    city: cityFromLocation(c.location),
-    country: countryFromLocation(c.location),
+    // The real columns (migration 109) when an import filled them; read
+    // out of the location text otherwise.
+    city: str(c.city) || cityFromLocation(c.location),
+    country: str(c.country) || countryFromLocation(c.location),
+    state: str(c.state),
+    industry: str(c.industry),
 
     // ─── The account's own scheduler ───
     // A cold email that ends "here is my calendar" converts a reply into a
@@ -430,7 +434,9 @@ export const TAG_LABELS: Record<string, string> = {
   website: 'Website',
   location: 'Location',
   city: 'City',
+  state: 'State / region',
   country: 'Country',
+  industry: 'Industry',
   sender_name: 'Your name',
   sender_first_name: 'Your first name',
   sender_email: 'Your email',
@@ -452,7 +458,9 @@ export const TAG_SOURCE_FIELD: Record<string, string> = {
   website: 'website',
   location: 'location',
   city: 'location',
+  state: 'state',
   country: 'location',
+  industry: 'industry',
 };
 
 /**

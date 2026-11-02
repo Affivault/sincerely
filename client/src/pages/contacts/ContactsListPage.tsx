@@ -2,7 +2,6 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
-import Papa from 'papaparse';
 import { useDebounce } from '../../hooks/useDebounce';
 import { usePopover } from '../../hooks/usePopover';
 import { useAriaSort } from '../../components/table/TableParts';
@@ -143,6 +142,7 @@ import { Refreshing } from '../../components/ui/Refreshing';
 import { Notice } from '../../components/ui/Notice';
 import { EngagementCell } from '../../components/contacts/Engagement';
 import { DuplicatesBanner } from '../../components/contacts/Duplicates';
+import { ExportDialog } from '../../components/contacts/ExportDialog';
 import { ListsRail, LIST_COLORS } from '../../components/contacts/ListsRail';
 import { SavedViewsBar } from '../../components/contacts/SavedViews';
 import { BulkEditModal } from '../../components/contacts/BulkEditModal';
@@ -557,7 +557,7 @@ function CompanyFilter({ value, options, onChange }: {
 /* Configurable table columns, mapped to our contact fields (the same set
    surfaced during CSV import). The Contact identity column is always shown;
    these are the optional middle columns the user can toggle + reorder-by-default. */
-type ColumnId = 'email' | 'status' | 'lifecycle' | 'outreach' | 'deals' | 'engagement' | 'company' | 'location' | 'job_title' | 'phone' | 'website' | 'linkedin_url' | 'tags' | 'lists' | 'source' | 'added' | 'since' | 'health';
+type ColumnId = 'email' | 'status' | 'lifecycle' | 'outreach' | 'deals' | 'engagement' | 'company' | 'location' | 'country' | 'industry' | 'job_title' | 'phone' | 'website' | 'linkedin_url' | 'tags' | 'lists' | 'source' | 'added' | 'since' | 'health';
 interface ColumnDef {
   id: ColumnId;
   label: string;
@@ -617,6 +617,8 @@ const ALL_COLUMNS: ColumnDef[] = [
   { id: 'engagement',  label: 'Engagement', icon: Flame,      sortKey: 'engagement_score', render: (c) => <EngagementCell score={c.engagement_score} factors={c.engagement_factors} /> },
   { id: 'company',     label: 'Company',   icon: Building2,   sortKey: 'company',    tdClass: 'max-w-[200px]', render: (c) => <CompanyCell company={c.company} website={c.website} email={c.email} /> },
   { id: 'location',    label: 'Location',  icon: MapPin,                             tdClass: 'max-w-[200px]', render: (c) => <TextCell v={c.location} /> },
+  { id: 'country',     label: 'Country',   icon: MapPin,                             tdClass: 'max-w-[160px]', render: (c) => <TextCell v={c.country} /> },
+  { id: 'industry',    label: 'Industry',  icon: Building2,                          tdClass: 'max-w-[180px]', render: (c) => <TextCell v={c.industry} /> },
   { id: 'job_title',   label: 'Job title', icon: Briefcase,                          tdClass: 'max-w-[180px]', render: (c) => <TextCell v={c.job_title} /> },
   { id: 'phone',       label: 'Phone',     icon: Phone,                              render: (c) => <TextCell v={c.phone} mono /> },
   { id: 'website',     label: 'Website',   icon: Globe,                              tdClass: 'max-w-[180px]', render: (c) => <LinkCell href={c.website} /> },
@@ -645,8 +647,8 @@ const ALL_COLUMNS: ColumnDef[] = [
  * column that only means something on the other page is not offered here.
  */
 const PAGE_COLUMNS: Record<ListKind, ColumnId[]> = {
-  lead: ['email', 'status', 'outreach', 'engagement', 'company', 'location', 'job_title', 'phone', 'website', 'linkedin_url', 'tags', 'lists', 'source', 'added', 'health'],
-  contact: ['email', 'lifecycle', 'deals', 'engagement', 'company', 'location', 'job_title', 'phone', 'website', 'linkedin_url', 'tags', 'lists', 'since', 'source', 'added', 'status', 'health'],
+  lead: ['email', 'status', 'outreach', 'engagement', 'company', 'location', 'country', 'industry', 'job_title', 'phone', 'website', 'linkedin_url', 'tags', 'lists', 'source', 'added', 'health'],
+  contact: ['email', 'lifecycle', 'deals', 'engagement', 'company', 'location', 'country', 'industry', 'job_title', 'phone', 'website', 'linkedin_url', 'tags', 'lists', 'since', 'source', 'added', 'status', 'health'],
 };
 const DEFAULT_COLUMNS_FOR: Record<ListKind, ColumnId[]> = {
   lead: ['email', 'status', 'outreach', 'engagement', 'company', 'location', 'source', 'lists', 'added'],
@@ -775,16 +777,13 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
     setShowCreateModal(true);
     setSearchParams((prev) => { const next = new URLSearchParams(prev); next.delete('new'); return next; }, { replace: true });
   }, [searchParams, setSearchParams]);
-  const [showImportModal, setShowImportModal] = useState(false);
   const [showListModal, setShowListModal] = useState(false);
   const [showAddToListModal, setShowAddToListModal] = useState(false);
   const [showCampaignModal, setShowCampaignModal] = useState(false);
   const [form, setForm] = useState<CreateContactInput>({ ...emptyContact });
   const [editId, setEditId] = useState<string | null>(null);
-  const [importFile, setImportFile] = useState<File | null>(null);
-  const [columnMapping, setColumnMapping] = useState<Record<string, string>>({});
-  const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
   const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set());
+  const [showExport, setShowExport] = useState(false);
   const [listForm, setListForm] = useState<{ name: string; description: string; color: string; folder_id: string | null }>({ name: '', description: '', color: LIST_COLORS[0], folder_id: null });
   const [editingList, setEditingList] = useState<ContactList | null>(null);
   const [sortBy, setSortBy] = useState<ContactSortKey>('created_at');
@@ -1241,21 +1240,6 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
     });
   };
 
-  const importMutation = useMutation({
-    mutationFn: ({ file, mapping }: { file: File; mapping: Record<string, string> }) =>
-      contactsApi.import(file, mapping),
-    onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ['contacts'] });
-      queryClient.invalidateQueries({ queryKey: ['contact-stats'] });
-      toast.success(`Imported ${plural(result.imported, 'contact')}`);
-      setShowImportModal(false);
-      setImportFile(null);
-      setCsvHeaders([]);
-      setColumnMapping({});
-    },
-    onError: (e: any) => toast.error(e.response?.data?.error || 'Import failed'),
-  });
-
   const closeCreateModal = () => {
     setShowCreateModal(false);
     setEditId(null);
@@ -1297,55 +1281,9 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
     setShowCreateModal(true);
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setImportFile(file);
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = event.target?.result as string;
-      // Use PapaParse to correctly handle quoted fields containing commas
-      const result = Papa.parse<string[]>(text, { header: false, preview: 1 });
-      const headers = (result.data[0] || []).map((h: string) => h.trim());
-      setCsvHeaders(headers);
-      const autoMap: Record<string, string> = {};
-      for (const h of headers) {
-        const lower = h.toLowerCase();
-        if (lower.includes('email')) autoMap[h] = 'email';
-        else if (lower === 'first name' || lower === 'first_name') autoMap[h] = 'first_name';
-        else if (lower === 'last name' || lower === 'last_name') autoMap[h] = 'last_name';
-        else if (lower.includes('company')) autoMap[h] = 'company';
-        else if (lower.includes('title')) autoMap[h] = 'job_title';
-        else if (lower.includes('phone')) autoMap[h] = 'phone';
-      }
-      setColumnMapping(autoMap);
-    };
-    reader.onerror = () => toast.error('Failed to read file — please try again');
-    reader.readAsText(file);
-  };
-
-  const handleExport = async () => {
-    try {
-      const ids = selectedContacts.size > 0 ? Array.from(selectedContacts) : undefined;
-      // With nothing individually checked, scope the export to whatever list
-      // is currently open instead of silently dumping every contact — that
-      // was surprising when a user opened one list and expected "Export" to
-      // mean "this list".
-      const listId = ids ? undefined : activeListId || undefined;
-      // Exporting from Leads gives leads; from Contacts, contacts.
-      const blob = await contactsApi.export(ids, 'csv', listId, undefined, ids ? undefined : pageScope);
-      const url = URL.createObjectURL(blob as Blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${noun}s.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
-      toast.success(listId ? `Exported "${currentListName}"` : `${noun === 'lead' ? 'Leads' : 'Contacts'} exported`);
-    } catch {
-      toast.error('Export failed');
-    }
-  };
+  /* Export opens the dialog: who (ticked, this view, everyone), what for,
+     and CSV or Excel. "This view" is the list AND the filters on screen. */
+  const handleExport = () => setShowExport(true);
 
   const toggleSelectContact = (id: string) => {
     setSelectedContacts((prev) => {
@@ -2713,155 +2651,6 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
         );
       })()}
 
-      {/* Import Modal */}
-      <Modal
-        isOpen={showImportModal}
-        onClose={() => setShowImportModal(false)}
-        title="Import contacts"
-        description="Upload a CSV file and map columns to contact fields"
-        size="lg"
-      >
-        <div className="space-y-5">
-          {/* Step indicators */}
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <span className={cn(
-                "inline-flex items-center justify-center h-6 w-6 rounded-full text-caption font-bold",
-                csvHeaders.length > 0
-                  ? "bg-[var(--success)] text-[var(--bg-surface)]"
-                  : "bg-[var(--text-primary)] text-[var(--bg-surface)]"
-              )}>
-                {csvHeaders.length > 0 ? '\u2713' : '1'}
-              </span>
-              <span className={cn(
-                "text-strong font-medium",
-                csvHeaders.length > 0 ? "text-[var(--text-tertiary)]" : "text-[var(--text-primary)]"
-              )}>
-                Upload
-              </span>
-            </div>
-            <div className="flex-1 h-px bg-[var(--border-subtle)]" />
-            <div className="flex items-center gap-2">
-              <span className={cn(
-                "inline-flex items-center justify-center h-6 w-6 rounded-full text-caption font-bold",
-                csvHeaders.length > 0
-                  ? "bg-[var(--text-primary)] text-[var(--bg-surface)]"
-                  : "bg-[var(--bg-elevated)] text-[var(--text-tertiary)]"
-              )}>
-                2
-              </span>
-              <span className={cn(
-                "text-strong font-medium",
-                csvHeaders.length > 0 ? "text-[var(--text-primary)]" : "text-[var(--text-tertiary)]"
-              )}>
-                Map fields
-              </span>
-            </div>
-          </div>
-
-          {/* File drop zone */}
-          <div className={cn(
-            "relative rounded-xl p-8 text-center transition-all duration-200 cursor-pointer focus-within:shadow-[var(--ring-focus)]",
-            importFile
-              ? "border-2 border-[var(--success)] border-opacity-40 bg-[var(--success-bg)]"
-              : "border-2 border-dashed border-[var(--border-default)] hover:border-[var(--border-default)] hover:bg-[var(--bg-elevated)]"
-          )}>
-            {importFile ? (
-              <>
-                <div className="inline-flex items-center justify-center h-12 w-12 rounded-xl bg-[var(--success)] bg-opacity-10 mb-3">
-                  <Upload className="h-6 w-6 text-[var(--success)]" strokeWidth={1.5} />
-                </div>
-                <p className="text-strong font-medium text-[var(--text-primary)] mb-0.5">{importFile.name}</p>
-                <p className="text-body text-[var(--text-tertiary)]">
-                  {csvHeaders.length} columns detected
-                </p>
-              </>
-            ) : (
-              <>
-                <div className="inline-flex items-center justify-center h-12 w-12 rounded-xl bg-[var(--bg-elevated)] mb-3">
-                  <Upload className="h-6 w-6 text-[var(--text-primary)]" strokeWidth={1.5} />
-                </div>
-                <p className="text-strong font-medium text-[var(--text-primary)] mb-0.5">
-                  Drop your CSV file here
-                </p>
-                <p className="text-body text-[var(--text-tertiary)]">or click to browse files</p>
-              </>
-            )}
-            <input
-              type="file"
-              aria-label="Choose a CSV file to import"
-              accept=".csv"
-              onChange={handleFileSelect}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-            />
-          </div>
-
-          {/* Column mapping */}
-          {csvHeaders.length > 0 && (
-            <div className="space-y-2.5 max-h-52 overflow-y-auto pr-1">
-              <p className="text-body font-semibold text-[var(--text-tertiary)] mb-1">
-                Column mapping
-              </p>
-              {csvHeaders.map((header) => (
-                <div
-                  key={header}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)]"
-                >
-                  <span className="w-28 truncate text-strong font-medium text-[var(--text-primary)]">
-                    {header}
-                  </span>
-                  <ArrowRight className="h-3.5 w-3.5 text-[var(--text-tertiary)] flex-shrink-0" />
-                  <select
-                    aria-label={`Map column ${header} to`}
-                    className="flex-1 h-8 px-2.5 text-strong bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-default)] focus:shadow-[0_0_0_3px_var(--bg-elevated)] transition-all duration-200 cursor-pointer"
-                    value={columnMapping[header] || ''}
-                    onChange={(e) => setColumnMapping({ ...columnMapping, [header]: e.target.value })}
-                  >
-                    <option value="">Skip this column</option>
-                    <option value="email">Email</option>
-                    <option value="first_name">First name</option>
-                    <option value="last_name">Last name</option>
-                    <option value="company">Company</option>
-                    <option value="job_title">Job title</option>
-                    <option value="phone">Phone</option>
-                  </select>
-                  {columnMapping[header] && (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-caption font-medium bg-[var(--success-bg)] text-[var(--success)]">
-                      Mapped
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="flex justify-end gap-3 pt-3 border-t border-[var(--border-subtle)]">
-            <button
-              onClick={() => setShowImportModal(false)}
-              className="btn-secondary rounded-lg"
-            >
-              Cancel
-            </button>
-            <button
-              disabled={!importFile || importMutation.isPending}
-              onClick={() => importFile && importMutation.mutate({ file: importFile, mapping: columnMapping })}
-              className="btn-primary rounded-lg"
-            >
-              {importMutation.isPending ? (
-                <>
-                  <Spinner size="sm" />
-                  Importing...
-                </>
-              ) : (
-                <>
-                  <Upload className="h-4 w-4" />
-                  Import contacts
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      </Modal>
 
       {/* Create List Modal */}
       {showListModal && (
@@ -2955,6 +2744,31 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
           </form>
         </Modal>
       )}
+
+      <ExportDialog
+        isOpen={showExport}
+        onClose={() => setShowExport(false)}
+        noun={noun}
+        selectedIds={Array.from(selectedContacts)}
+        view={{
+          listId: activeListId || undefined,
+          // The stage filter on Contacts narrows the view; "everyone" is the page's whole population.
+          lifecycle,
+          search: debouncedSearch || undefined,
+          company: companyFilter || undefined,
+          outreach: (listKind === 'lead' && outreach) || undefined,
+          verificationStatus: (listKind === 'lead' && statusFilter) || undefined,
+        }}
+        viewCount={totalContacts}
+        viewLabel={activeListId ? currentListName : undefined}
+        filterSummary={[
+          debouncedSearch ? `search "${debouncedSearch}"` : null,
+          companyFilter ? `company ${companyFilter}` : null,
+          listKind === 'lead' && outreach ? `outreach: ${outreach.replace(/_/g, ' ')}` : null,
+          listKind === 'lead' && statusFilter ? `email: ${statusFilter.replace(/_/g, ' ')}` : null,
+          listKind !== 'lead' && lifecycle !== pageScope ? `stage: ${lifecycle}` : null,
+        ].filter(Boolean).join(' · ') || undefined}
+      />
 
       {/* Add to Campaign Modal — the funnel closer */}
       {showCampaignModal && (

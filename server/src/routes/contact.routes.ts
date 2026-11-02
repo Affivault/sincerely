@@ -36,6 +36,8 @@ contactRoutes.put('/:id', contactsController.update);
 contactRoutes.delete('/:id', contactsController.delete);
 contactRoutes.post('/import', upload.single('file'), contactsController.importCsv);
 contactRoutes.post('/bulk', contactsController.bulkCreate);
+contactRoutes.post('/import/preflight', contactsController.importPreflight);
+contactRoutes.post('/import/find-emails', contactsController.importFindEmails);
 contactRoutes.post('/export', contactsController.export);
 contactRoutes.post('/bulk-tag', contactsController.bulkTag);
 contactRoutes.delete('/bulk-tag', contactsController.bulkUntag);

@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware.js';
 import { contactsService } from '../services/contacts.service.js';
+import { importEmailFinder } from '../services/import-email-finder.service.js';
+import { creditsService } from '../services/credits.service.js';
 import { contactHygieneService } from '../services/contact-hygiene.service.js';
 import { engagementService } from '../services/engagement.service.js';
 import { contactEnrichmentService } from '../services/contact-enrichment.service.js';
@@ -98,7 +100,7 @@ export const contactsController = {
 
   async bulkCreate(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const { contacts, list_id, import_source, context } = req.body || {};
+      const { contacts, list_id, import_source, context, mode, tag_ids } = req.body || {};
       if (!Array.isArray(contacts)) {
         res.status(400).json({ error: 'Request body must include a contacts array' });
         return;
@@ -114,8 +116,47 @@ export const contactsController = {
       const result = await contactsService.bulkCreate(
         req.userId!, contacts, list_id || undefined, import_source || undefined,
         context === 'contacts' ? 'contacts' : undefined,
+        {
+          mode: typeof mode === 'string' ? (mode as any) : undefined,
+          tagIds: Array.isArray(tag_ids) ? tag_ids.filter((t: unknown) => typeof t === 'string') : undefined,
+        },
       );
       res.json(result);
+    } catch (err) { next(err); }
+  },
+
+  /** Before an import: how many of these addresses exist, how many are suppressed, and can missing emails be searched for. */
+  async importPreflight(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const emails = Array.isArray(req.body?.emails) ? req.body.emails : [];
+      if (emails.length > 50_000) {
+        res.status(413).json({ error: 'At most 50,000 addresses per check' });
+        return;
+      }
+      const counts = await contactsService.importPreflight(req.userId!, emails);
+      res.json({ ...counts, finder: importEmailFinder.paidAvailable() });
+    } catch (err) { next(err); }
+  },
+
+  /** Find addresses for imported rows that have a name and a company but no email. */
+  async importFindEmails(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const people = Array.isArray(req.body?.people) ? req.body.people : [];
+      if (people.length > 25) {
+        res.status(413).json({ error: 'At most 25 people per request' });
+        return;
+      }
+      const clean = people
+        .filter((p: any) => p && typeof p === 'object' && (typeof p.key === 'string' || typeof p.key === 'number'))
+        .map((p: any) => {
+          const str = (v: unknown) => (typeof v === 'string' ? v.slice(0, 300) : undefined);
+          return {
+            key: String(p.key), first_name: str(p.first_name), last_name: str(p.last_name), full_name: str(p.full_name),
+            company: str(p.company), domain: str(p.domain), linkedin_url: str(p.linkedin_url),
+          };
+        });
+      const result = await importEmailFinder.find(req.userId!, clean, req.body?.allow_paid !== false);
+      res.json({ ...result, credits: await creditsService.summary(req.userId!).catch(() => null) });
     } catch (err) { next(err); }
   },
 
@@ -148,13 +189,27 @@ export const contactsController = {
 
   async export(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const { contact_ids, format, list_id, segment_id, lifecycle } = req.body;
-      const result = await contactsService.export(req.userId!, contact_ids, format, list_id, segment_id, typeof lifecycle === 'string' ? lifecycle : undefined);
+      const b = req.body || {};
+      const str = (v: unknown) => (typeof v === 'string' && v ? v : undefined);
+      const result = await contactsService.export(req.userId!, {
+        contactIds: Array.isArray(b.contact_ids) ? b.contact_ids : undefined,
+        format: b.format,
+        listId: str(b.list_id),
+        segmentId: str(b.segment_id),
+        lifecycle: str(b.lifecycle),
+        search: str(b.search),
+        company: str(b.company),
+        outreach: str(b.outreach),
+        verificationStatus: str(b.verification_status),
+        tagIds: Array.isArray(b.tag_ids) ? b.tag_ids : undefined,
+        columns: Array.isArray(b.columns) ? b.columns : undefined,
+      });
 
       if (result.format === 'csv') {
-        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
         res.setHeader('Content-Disposition', 'attachment; filename=contacts.csv');
-        res.send(result.data);
+        // A byte-order mark, so Excel reads accented names as UTF-8.
+        res.send('\uFEFF' + result.data);
       } else {
         res.json(result.data);
       }
