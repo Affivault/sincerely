@@ -35,6 +35,8 @@ export const verificationApi = {
         consecutive_failures: number;
         last_reason: string;
         retry_after_seconds: number | null;
+        /** Straight out on port 25, or through the SMTP proxy. */
+        via?: 'proxy' | 'direct';
       };
     }>('/verification/stats');
     return data;

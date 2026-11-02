@@ -14,6 +14,7 @@ import {
 import { resolveDoh, resolveHostIp } from '../utils/dns-doh.js';
 import { chunk, fetchAllPages } from '../utils/batch.js';
 import { env } from '../config/env.js';
+import { connectViaSocks5, parseSocks5Url } from '../utils/socks5.js';
 import { icypeas, icypeasAwait } from './prospect-providers.js';
 import { creditsService, OutOfCreditsError } from './credits.service.js';
 import { withUsage } from './provider-usage.service.js';
@@ -62,6 +63,204 @@ async function checkDomain(email: string): Promise<boolean> {
   return aRecords.length > 0;
 }
 
+/*
+ * How the check reaches mail servers, following the advice of people who run
+ * verification at scale (Reacher's SMTP proxy guide among them):
+ *
+ *   - Through a SOCKS5 proxy when VERIFY_SMTP_PROXY is set. Render blocks
+ *     outbound port 25, and the big mailbox providers judge the caller's IP,
+ *     so a proxy on clean IPs is how this check gets a verdict at all. SMTP
+ *     cannot go through an HTTP proxy.
+ *   - Introducing itself (EHLO) and sending from (MAIL FROM) a domain that
+ *     matches those IPs: VERIFY_HELO_NAME and VERIFY_FROM_EMAIL. Ask the
+ *     proxy provider which to use. A mismatch is a reason to be refused.
+ *   - A refusal aimed at us (our IP's reputation, a blocklist, a rate limit)
+ *     says nothing about the address, so it never marks one as bad.
+ *   - A domain that accepts any address (catch-all) cannot confirm one, so
+ *     a "yes" from it is not counted as checked.
+ *   - At most a couple of checks at a time against any one domain, so a list
+ *     full of gmail.com does not hammer Gmail from one IP.
+ */
+const verifyProxy = parseSocks5Url(env.VERIFY_SMTP_PROXY);
+const HELO_NAME = env.VERIFY_HELO_NAME || 'usesincerely.com';
+const FROM_EMAIL = env.VERIFY_FROM_EMAIL || `verify@${HELO_NAME}`;
+const SMTP_TIMEOUT_MS = 10_000;
+
+export interface SmtpVerdict {
+  ok: boolean;
+  checked: boolean;
+  reason?: string;
+  /** A mail server answered at all: the route works, whatever it said. */
+  reachable: boolean;
+  catch_all?: boolean;
+}
+
+/* Wording that says a refusal is about the caller, not the mailbox. */
+const AIMED_AT_US = /spamhaus|barracuda|spamcop|block ?list|black ?list|blocked|\brbl\b|dnsbl|reputation|policy|5\.7\.\d|not (?:allowed|permitted|authori[sz]ed)|access denied|denied|banned|abuse|too many|rate ?limit|try again later|client host|ptr|reverse dns|helo/i;
+/* Wording that says the mailbox itself does not exist. */
+const NO_SUCH_MAILBOX = /5\.1\.(?:0|1|10)\b|user unknown|unknown user|no such (?:user|mailbox|recipient)|does not exist|doesn'?t exist|mailbox (?:unavailable|not found)|recipient (?:address )?rejected|invalid (?:recipient|mailbox|address)|address rejected|not a valid|unknown recipient|recipient not found|no mailbox/i;
+
+/** What a reply to RCPT TO says about the address. Exported for the checks. */
+export function classifyRcpt(code: number, text: string): Omit<SmtpVerdict, 'reachable'> {
+  if (code === 250 || code === 251) return { ok: true, checked: true };
+  if (code === 452 || code === 552) {
+    // "Mailbox full" exists; "too many recipients" (also 452) is about us.
+    return AIMED_AT_US.test(text) && !/full|quota|storage/i.test(text)
+      ? { ok: true, checked: false, reason: `The mail server is limiting checks (${code})` }
+      : { ok: true, checked: true, reason: 'Mailbox full but exists' };
+  }
+  if (code >= 500 && code < 600) {
+    if (NO_SUCH_MAILBOX.test(text)) return { ok: false, checked: true, reason: `Mailbox does not exist (${code})` };
+    if (AIMED_AT_US.test(text)) return { ok: true, checked: false, reason: `The mail server refused our check, not the address (${code})` };
+    if (code === 550 || code === 551 || code === 553) return { ok: false, checked: true, reason: `Mailbox does not exist (${code})` };
+    return { ok: true, checked: false, reason: `Mail server would not confirm (${code})` };
+  }
+  // Greylisting, rate limits, a server that won't say: no verdict.
+  return { ok: true, checked: false, reason: `Mail server would not confirm (${code})` };
+}
+
+/** An address at the same domain that nobody has, to tell a catch-all apart. */
+const unlikelyAddress = (domain: string) => `sincerely-check-${Math.random().toString(36).slice(2, 12)}@${domain}`;
+
+/**
+ * One SMTP conversation on an open socket: greeting, EHLO, MAIL FROM, RCPT TO
+ * for the address, then RCPT TO for an address nobody has. Never sends DATA,
+ * so no message is ever sent.
+ */
+export function smtpConversation(socket: net.Socket, email: string, opts: { helo?: string; from?: string; timeoutMs?: number } = {}): Promise<SmtpVerdict> {
+  const helo = opts.helo || HELO_NAME;
+  const from = opts.from || FROM_EMAIL;
+  const domain = email.split('@')[1] || '';
+  return new Promise((resolve) => {
+    let lineBuf = '';
+    let text = '';
+    let step: 'greeting' | 'ehlo' | 'helo' | 'mail' | 'rcpt' | 'probe' = 'greeting';
+    let real: Omit<SmtpVerdict, 'reachable'> | null = null;
+    let done = false;
+    let answered = false;
+
+    const finish = (v: SmtpVerdict) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      try { socket.write('QUIT\r\n'); } catch { /* already closed */ }
+      socket.destroy();
+      resolve(v);
+    };
+    const timer = setTimeout(() => {
+      // A slow server is not a bad address, nor a checked one. If the real
+      // address already got a yes, only the catch-all probe went quiet.
+      if (real) finish({ ...real, reachable: true });
+      else finish({ ok: true, checked: false, reachable: answered, reason: 'Mail server did not answer in time' });
+    }, opts.timeoutMs ?? SMTP_TIMEOUT_MS);
+
+    socket.on('error', (err) => {
+      if (real) return finish({ ...real, reachable: true });
+      finish({ ok: true, checked: false, reachable: answered, reason: answered ? 'The mail server hung up' : `Could not reach the mail server (${err.message})` });
+    });
+    socket.on('close', () => {
+      if (done) return;
+      if (real) return finish({ ...real, reachable: true });
+      finish({ ok: true, checked: false, reachable: answered, reason: answered ? 'The mail server hung up' : 'Could not reach the mail server' });
+    });
+
+    // A proxied socket arrives paused (see socks5.ts): listen, then resume.
+    queueMicrotask(() => socket.resume());
+    socket.on('data', (data) => {
+      lineBuf += data.toString();
+      const lines = lineBuf.split(/\r?\n/);
+      lineBuf = lines.pop() ?? '';
+      for (const line of lines) {
+        if (done) return;
+        if (line.length < 3) continue;
+        text += ` ${line.slice(4)}`;
+        if (line[3] === '-') continue; // multi-line reply continues
+        answered = true;
+        const code = parseInt(line.substring(0, 3), 10);
+        const said = text.trim();
+        text = '';
+
+        if (step === 'greeting') {
+          // A refused greeting (554, 421) is about the caller: our IP, a rate
+          // limit, a blocklist. It is never evidence against the address.
+          if (code !== 220) return finish({ ok: true, checked: false, reachable: true, reason: `The mail server refused our connection (${code})` });
+          socket.write(`EHLO ${helo}\r\n`);
+          step = 'ehlo';
+        } else if (step === 'ehlo' || step === 'helo') {
+          if (code === 250) {
+            socket.write(`MAIL FROM:<${from}>\r\n`);
+            step = 'mail';
+          } else if (step === 'ehlo' && code >= 500) {
+            // An old server that only speaks HELO.
+            socket.write(`HELO ${helo}\r\n`);
+            step = 'helo';
+          } else {
+            return finish({ ok: true, checked: false, reachable: true, reason: `The mail server refused our greeting (${code})` });
+          }
+        } else if (step === 'mail') {
+          if (code !== 250) return finish({ ok: true, checked: false, reachable: true, reason: `The mail server refused our sender (${code})` });
+          socket.write(`RCPT TO:<${email}>\r\n`);
+          step = 'rcpt';
+        } else if (step === 'rcpt') {
+          real = classifyRcpt(code, said);
+          // Only a yes needs the catch-all test; a no or a shrug is final.
+          if (!(real.ok && real.checked) || !domain) return finish({ ...real, reachable: true });
+          socket.write(`RCPT TO:<${unlikelyAddress(domain)}>\r\n`);
+          step = 'probe';
+        } else if (step === 'probe') {
+          if (code === 250 || code === 251) {
+            return finish({ ok: true, checked: false, reachable: true, catch_all: true, reason: 'The domain accepts every address (catch-all), so this one cannot be confirmed' });
+          }
+          return finish({ ...real!, reachable: true, catch_all: false });
+        }
+      }
+    });
+  });
+}
+
+/* At most this many checks at once against one domain. */
+const PER_DOMAIN = 2;
+const inFlight = new Map<string, number>();
+const waiting = new Map<string, (() => void)[]>();
+
+async function withDomainSlot<T>(domain: string, run: () => Promise<T>): Promise<T> {
+  if ((inFlight.get(domain) || 0) >= PER_DOMAIN) {
+    await new Promise<void>((r) => waiting.set(domain, [...(waiting.get(domain) || []), r]));
+  }
+  inFlight.set(domain, (inFlight.get(domain) || 0) + 1);
+  try {
+    return await run();
+  } finally {
+    const left = (inFlight.get(domain) || 1) - 1;
+    if (left) inFlight.set(domain, left); else inFlight.delete(domain);
+    const queue = waiting.get(domain);
+    const next = queue?.shift();
+    if (queue && !queue.length) waiting.delete(domain);
+    next?.();
+  }
+}
+
+/** Open a connection to a mail server, through the proxy when one is set. */
+async function openSmtp(host: string, ip: string | null, port = 25): Promise<net.Socket> {
+  if (verifyProxy) return connectViaSocks5(verifyProxy, ip || host, port, SMTP_TIMEOUT_MS);
+  return new Promise((resolve, reject) => {
+    // Dial by resolved IP: net.connect(port, hostname) does its own DNS
+    // lookup via the OS resolver, which is the exact resolver DoH avoids.
+    const socket = net.connect(port, ip || host);
+    const timer = setTimeout(() => { socket.destroy(); reject(new Error('connect timed out')); }, SMTP_TIMEOUT_MS);
+    socket.once('connect', () => { clearTimeout(timer); socket.removeAllListeners('error'); resolve(socket); });
+    socket.once('error', (err) => { clearTimeout(timer); reject(err); });
+  });
+}
+
+const PROXY_BLOCKED = 'Mail servers cannot be reached through the SMTP proxy. Check its address and login, and that it allows port 25.';
+const blockedReason = () => (verifyProxy ? PROXY_BLOCKED : smtpBlockedMessage());
+
+/** How this server reaches mail servers, for the verification page. */
+export function smtpRoute(): { via: 'proxy' | 'direct'; helo: string; from: string } {
+  return { via: verifyProxy ? 'proxy' : 'direct', helo: HELO_NAME, from: FROM_EMAIL };
+}
+
 // ============================================
 // Layer 3: SMTP Handshake Simulation
 // ============================================
@@ -80,13 +279,13 @@ async function checkDomain(email: string): Promise<boolean> {
 async function checkSmtp(
   email: string
 ): Promise<{ ok: boolean; checked: boolean; reason?: string }> {
-  const domain = email.split('@')[1];
+  const domain = email.split('@')[1]?.toLowerCase();
   if (!domain) return { ok: false, checked: true, reason: 'Invalid domain' };
 
   // Already established that this host can't reach port 25: answer at once
   // rather than stalling for the connect timeout on every single address.
   if (shouldSkipSmtpProbe()) {
-    return { ok: true, checked: false, reason: smtpBlockedMessage() };
+    return { ok: true, checked: false, reason: blockedReason() };
   }
 
   const mxAnswers = await resolveDoh(domain, 'MX');
@@ -95,7 +294,7 @@ async function checkSmtp(
       const m = d.trim().match(/^(\d+)\s+(\S+)$/);
       return m ? { priority: Number(m[1]), exchange: m[2].replace(/\.$/, '') } : null;
     })
-    .filter((r): r is { priority: number; exchange: string } => r !== null)
+    .filter((r): r is { priority: number; exchange: string } => r !== null && r.exchange !== '')
     .sort((a, b) => a.priority - b.priority);
 
   if (sorted.length === 0) {
@@ -108,104 +307,25 @@ async function checkSmtp(
     return { ok: false, checked: true, reason: 'No MX records' };
   }
 
-  const mxHost = sorted[0].exchange;
-  // Dial by resolved IP — net.Socket.connect(port, hostname) does its own DNS
-  // lookup via the OS resolver, which is the exact resolver DoH exists to avoid.
-  const mxIp = await resolveHostIp(mxHost);
-
-  return new Promise((resolve) => {
-    const socket = new net.Socket();
-    let lineBuf = '';
-    let step = 0;
-
-    const timeout = setTimeout(() => {
-      socket.destroy();
-      // A slow server is not a bad address, but it is not a checked one either:
-      // no verdict arrived, so nothing may be credited to the SMTP layer.
-      noteSmtpOutcome(step > 0, 'Mail server did not answer in time');
-      resolve({ ok: true, checked: false, reason: 'Mail server did not answer in time' });
-    }, 10000);
-
-    socket.connect(25, mxIp || mxHost, () => {
-      // Connected, wait for greeting
-    });
-
-    socket.on('data', (data) => {
-      lineBuf += data.toString();
-      // Parse complete lines; a final response line has a space at position 3, not '-'
-      const lines = lineBuf.split('\r\n');
-      lineBuf = lines.pop() ?? '';
-      for (const line of lines) {
-        if (line.length < 4) continue;
-        if (line[3] === '-') continue; // multi-line continuation, skip
-        const code = parseInt(line.substring(0, 3), 10);
-
-        if (step === 0) {
-          // Server greeting
-          if (code === 220) {
-            socket.write('EHLO usesincerely.com\r\n');
-            step = 1;
-          } else {
-            clearTimeout(timeout);
-            socket.destroy();
-            noteSmtpOutcome(true);
-            resolve({ ok: false, checked: true, reason: `Bad greeting: ${code}` });
-          }
-        } else if (step === 1) {
-          // EHLO response
-          if (code === 250) {
-            socket.write(`MAIL FROM:<verify@usesincerely.com>\r\n`);
-            step = 2;
-          } else {
-            clearTimeout(timeout);
-            socket.destroy();
-            noteSmtpOutcome(true);
-            resolve({ ok: false, checked: true, reason: `EHLO rejected: ${code}` });
-          }
-        } else if (step === 2) {
-          // MAIL FROM response
-          if (code === 250) {
-            socket.write(`RCPT TO:<${email}>\r\n`);
-            step = 3;
-          } else {
-            clearTimeout(timeout);
-            socket.destroy();
-            noteSmtpOutcome(true);
-            resolve({ ok: false, checked: true, reason: `MAIL FROM rejected: ${code}` });
-          }
-        } else if (step === 3) {
-          // RCPT TO response - this is the key check
-          clearTimeout(timeout);
-          socket.write('QUIT\r\n');
-          socket.destroy();
-
-          noteSmtpOutcome(true);
-
-          if (code === 250 || code === 251) {
-            resolve({ ok: true, checked: true });
-          } else if (code === 550 || code === 551 || code === 553) {
-            resolve({ ok: false, checked: true, reason: `Mailbox does not exist (${code})` });
-          } else if (code === 452 || code === 552) {
-            resolve({ ok: true, checked: true, reason: 'Mailbox full but exists' });
-          } else {
-            // Greylisting or a server that won't say. Not a bad address, but no
-            // verdict either — scoring it as a pass is how a guess becomes a
-            // "verified" address.
-            resolve({ ok: true, checked: false, reason: `Mail server would not confirm (${code})` });
-          }
-        }
+  return withDomainSlot(domain, async () => {
+    let last: SmtpVerdict = { ok: true, checked: false, reachable: false, reason: 'Could not reach the mail server' };
+    // The main server, then one backup when the main one can't be reached.
+    for (const mx of sorted.slice(0, 2)) {
+      const ip = verifyProxy ? null : await resolveHostIp(mx.exchange);
+      let socket: net.Socket;
+      try {
+        socket = await openSmtp(mx.exchange, ip);
+      } catch (err: any) {
+        last = { ok: true, checked: false, reachable: false, reason: `Could not reach the mail server (${err?.message || 'error'})` };
+        continue;
       }
-    });
-
-    socket.on('error', (err) => {
-      clearTimeout(timeout);
-      socket.destroy();
-      // Could not get a conversation started at all. On a host with outbound
-      // port 25 blocked this is every address, which is why it is recorded: a
-      // few of these in a row and the probe stops being attempted.
-      noteSmtpOutcome(false, err.message);
-      resolve({ ok: true, checked: false, reason: 'Could not reach the mail server' });
-    });
+      last = await smtpConversation(socket, email);
+      if (last.reachable) break;
+    }
+    // On a host with outbound port 25 blocked every connect fails, which is
+    // why it is recorded: a few in a row and the probe stops being attempted.
+    noteSmtpOutcome(last.reachable, last.reason);
+    return { ok: last.ok, checked: last.checked, reason: last.reason };
   });
 }
 
@@ -566,6 +686,8 @@ export async function getDcsStats(userId: string): Promise<{
     consecutive_failures: number;
     last_reason: string;
     retry_after_seconds: number | null;
+    /** Straight out on port 25, or through the SMTP proxy. */
+    via: 'proxy' | 'direct';
   };
 }> {
   // Paged: an unpaged select stops at 1,000 rows, so on any real account
@@ -594,7 +716,10 @@ export async function getDcsStats(userId: string): Promise<{
     unverified: all.length - verified.length,
     avg_score: avg,
     score_distribution: distribution,
-    smtp: outboundSmtpStatus(),
+    smtp: (() => {
+      const status = outboundSmtpStatus();
+      return { ...status, last_reason: status.available === false ? blockedReason() : status.last_reason, via: smtpRoute().via };
+    })(),
   };
 }
 
