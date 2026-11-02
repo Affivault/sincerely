@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '../config/supabase.js';
+import { accountCurrency } from './settings.service.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { crmService } from './crm.service.js';
 import { promoteToContact } from './lifecycle.service.js';
@@ -92,6 +93,7 @@ export const leadsService = {
     if (input.company === undefined) input.company = contact.company || null;
     if (input.company_id === undefined) input.company_id = contact.company_id || null;
 
+    if (!input.currency) input.currency = await accountCurrency(userId);
     const { data, error } = await supabaseAdmin
       .from('leads')
       .insert({ ...input, user_id: userId, contact_id: contactId })
@@ -201,7 +203,7 @@ export const leadsService = {
       company_id: lead.company_id,
       contact_id: lead.contact_id,
       value: body.value !== undefined ? body.value : (lead.value ?? 0),
-      currency: lead.currency || 'USD',
+      currency: lead.currency || undefined,
       stage: body.stage || 'lead',
       label: lead.label,
       // Where a deal came from is worth more than where a lead came from,

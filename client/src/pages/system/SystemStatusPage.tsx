@@ -1,3 +1,4 @@
+import { ForOwner } from '../../components/ui/ForOwner';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
@@ -97,7 +98,7 @@ export function SystemStatusPage() {
               <p className="text-heading font-semibold">{data.headline}</p>
               <p className="mt-0.5 text-caption opacity-80">
                 Checked {formatRelativeTime(data.checked_at)}{isFetching ? ' · refreshing' : ''} · problems are also sent to Slack and your webhooks
-                {!data.persisted && ' · run migration 078 to keep this history across restarts'}
+                {!data.persisted && <> · history is kept until the next restart <ForOwner>migration 078 keeps it</ForOwner></>}
               </p>
             </div>
           </div>

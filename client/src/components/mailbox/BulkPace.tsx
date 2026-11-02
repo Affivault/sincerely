@@ -1,3 +1,4 @@
+import { ForOwner } from '../ui/ForOwner';
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, Gauge } from 'lucide-react';
@@ -138,7 +139,7 @@ export function BulkPace({ open, onClose, mailboxes, initialIds, initialPace }: 
             </p>
             {result.unchanged > 0 && <p>{result.unchanged} already had this pace.</p>}
             {result.skipped > 0 && <p>{result.skipped} could not be found, so {result.skipped === 1 ? 'it was' : 'they were'} left alone.</p>}
-            {!result.gap_saved && <p>The daily limit was saved. The gap needs migration 089 before it can be stored.</p>}
+            {!result.gap_saved && <p>The daily limit was saved. The gap between emails could not be saved yet, so the usual gap is used. <ForOwner>migration 089</ForOwner></p>}
           </div>
         </div>
       ) : (

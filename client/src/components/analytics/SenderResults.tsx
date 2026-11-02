@@ -84,7 +84,7 @@ export function SenderResults() {
           ))}
           {query.data && (
             <Button variant="secondary" size="sm" onClick={() => senderCsv(query.data!, view)}>
-              <Download className="h-3.5 w-3.5" /> CSV
+              <Download className="h-3.5 w-3.5" /> Export
             </Button>
           )}
         </div>

@@ -1,3 +1,4 @@
+import { ForOwner } from '../../components/ui/ForOwner';
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
@@ -322,7 +323,7 @@ export function SendingHealthPage() {
 
             {!r.placement_available && (
               <p className="flex items-center gap-1.5 text-caption text-[var(--text-tertiary)]">
-                <Target className="h-3 w-3" /> Placement results need migration 070; until then this page cannot say where mail lands.
+                <Target className="h-3 w-3" /> Placement results are not switched on for your account yet, so this page cannot say where mail lands. <ForOwner>migration 070</ForOwner>
               </p>
             )}
             <p className="text-caption text-[var(--text-tertiary)]">

@@ -1,3 +1,4 @@
+import { ForOwner } from '../ui/ForOwner';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -112,7 +113,7 @@ export function ImproveCard({ campaignId }: { campaignId: string }) {
       </div>
 
       {!data.ready && (
-        <p className="border-t border-[var(--border-subtle)] px-4 py-2.5 text-caption text-[var(--text-tertiary)]">Run migration 082 to switch this on.</p>
+        <p className="border-t border-[var(--border-subtle)] px-4 py-2.5 text-caption text-[var(--text-tertiary)]">This is still being switched on for your account. <ForOwner>migration 082</ForOwner></p>
       )}
 
       {data.enabled && (

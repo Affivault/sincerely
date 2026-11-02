@@ -6,7 +6,7 @@ import { invalidateGuardSettings } from './bounce-guard.service.js';
 import { invalidateDomainLimit } from './domain-throttle.service.js';
 import { invalidateSignalGuardSettings } from './signal-guard.service.js';
 import { invalidateBlackoutDates } from './blackout.service.js';
-import { normalizeBlackoutDates } from '@lemlist/shared';
+import { normalizeBlackoutDates, isCurrency } from '@lemlist/shared';
 
 export interface UserSettings {
   id: string;
@@ -71,6 +71,8 @@ export interface UserSettings {
   /** The follow-up's wording. Empty means the built-in one (shared/no-show). */
   no_show_subject: string;
   no_show_body: string;
+  /** The account's currency (107): totals are shown in it and new deals start in it. */
+  currency: string;
   created_at: string;
   updated_at: string;
 }
@@ -134,6 +136,7 @@ const DEFAULTS: Omit<UserSettings, 'id' | 'user_id' | 'created_at' | 'updated_at
   no_show_auto_send: false,
   no_show_subject: '',
   no_show_body: '',
+  currency: 'USD',
 };
 
 /** Columns a client may write. Everything else (id, user_id, timestamps —
@@ -163,6 +166,23 @@ function stripMissingColumn(errorMessage: string, obj: Record<string, any>): boo
     return true;
   }
   return false;
+}
+
+/* The account currency, read on every deal and lead created; cached a
+   minute so an import of five hundred deals is one read, not five hundred. */
+const currencyCache = new Map<string, { code: string; at: number }>();
+function invalidateCurrency(userId: string): void { currencyCache.delete(userId); }
+
+export async function accountCurrency(userId: string): Promise<string> {
+  const hit = currencyCache.get(userId);
+  if (hit && Date.now() - hit.at < 60_000) return hit.code;
+  let code = 'USD';
+  try {
+    const { data } = await supabaseAdmin.from('user_settings').select('*').eq('user_id', userId).maybeSingle();
+    if (data && isCurrency((data as any).currency)) code = (data as any).currency;
+  } catch { /* the default is a fine answer */ }
+  currencyCache.set(userId, { code, at: Date.now() });
+  return code;
 }
 
 export const settingsService = {
@@ -237,6 +257,12 @@ export const settingsService = {
     }
     if ('no_show_subject' in filtered) filtered.no_show_subject = String(filtered.no_show_subject ?? '').slice(0, 200);
     if ('no_show_body' in filtered) filtered.no_show_body = String(filtered.no_show_body ?? '').slice(0, 5000);
+    if ('currency' in filtered) {
+      const code = String(filtered.currency ?? '').toUpperCase();
+      if (!isCurrency(code)) throw new AppError('That currency is not one Sincerely supports yet', 400);
+      filtered.currency = code;
+    }
+    const wantsCurrency = 'currency' in filtered;
     if ('relay_offer' in filtered) filtered.relay_offer = String(filtered.relay_offer ?? '').slice(0, 2000);
     if (Object.keys(filtered).length === 0) return settingsService.get(userId);
 
@@ -255,8 +281,19 @@ export const settingsService = {
         .eq('user_id', userId)
         .select('*')
         .single();
-      if (!error) return { ...DEFAULTS, ...(data as any) } as UserSettings;
+      if (!error) {
+        invalidateCurrency(userId);
+        // The column is stripped when its migration has not run; saying
+        // "saved" while the old currency comes back would be a lie.
+        if (wantsCurrency && !('currency' in (data as any))) {
+          throw new AppError('Choosing a currency needs database migration 107_account_currency.sql to be run first.', 503);
+        }
+        return { ...DEFAULTS, ...(data as any) } as UserSettings;
+      }
       if (!stripMissingColumn(error.message, filtered) || Object.keys(filtered).length === 0) {
+        if (wantsCurrency && !('currency' in filtered)) {
+          throw new AppError('Choosing a currency needs database migration 107_account_currency.sql to be run first.', 503);
+        }
         throw new AppError(error.message, 500);
       }
     }

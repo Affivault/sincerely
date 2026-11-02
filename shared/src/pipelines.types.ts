@@ -87,6 +87,25 @@ export interface PipelinesResponse {
   pipelines: Pipeline[];
 }
 
+/**
+ * The one pipeline there is before migration 105, built from the three fixed
+ * phases. The server returns it until the tables exist; the client falls back
+ * to it when the pipelines cannot be loaded, so a board never draws empty.
+ */
+export function builtInPipeline(): Pipeline {
+  const phases: PipelinePhase[] = ['lead', 'qualified', 'proposal'];
+  const stages: PipelineStage[] = phases.map((phase, i) => ({
+    id: phase,
+    pipeline_id: 'default',
+    name: phase === 'lead' ? 'Lead' : phase === 'qualified' ? 'Qualified' : 'Proposal',
+    position: i,
+    phase,
+    probability: null,
+    rot_days: null,
+  }));
+  return { id: 'default', name: 'Sales pipeline', position: 0, is_default: true, created_at: null, stages };
+}
+
 /** The stage list a new pipeline starts with. */
 export type StageTemplate = Pick<PipelineStage, 'name' | 'phase' | 'probability' | 'rot_days'> &
   Partial<Pick<PipelineStage, 'color' | 'description' | 'checklist'>>;

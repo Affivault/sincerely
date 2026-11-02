@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
+import { CompanyLogo } from '../shared/CompanyLogo';
 import { Building2, MapPin, Sparkles, Search, Linkedin, ChevronLeft, ChevronRight, SearchX, Users, Globe } from 'lucide-react';
 import { COMPANY_DIRECTORY_ATTRIBUTION, CREDIT_PRICES, PROSPECT_INDUSTRIES, creditsLabel } from '@lemlist/shared';
 import type { CompanySearchResponse, CompanySearchFilters, DirectoryCompany } from '@lemlist/shared';
@@ -190,6 +191,7 @@ export function CompanySearch({ onFindPeople, onOpen, icypeas = false }: { onFin
                       </td>
                       <td className="py-2.5 pr-3">
                         <div className="flex items-center gap-1.5 min-w-0">
+                          <CompanyLogo domain={c.domain} name={c.name} logoUrl={(c as { logo_url?: string | null }).logo_url} size="sm" className="mr-0.5" />
                           <button type="button" onClick={() => onOpen(c)} title="See the company and its people" className="text-strong font-medium text-[var(--text-primary)] hover:text-[var(--indigo-text)] hover:underline truncate max-w-[220px] text-left">{fromDirectory ? titleCase(c.name) : c.name}</button>
                           {c.linkedin_url && (
                             <a href={c.linkedin_url} target="_blank" rel="noopener noreferrer" className="relative text-[var(--text-tertiary)] hover:text-[#0A66C2] transition-colors flex-shrink-0 after:absolute after:-inset-1.5 after:content-['']" title="Open LinkedIn" aria-label={`Open ${c.name} on LinkedIn`}>

@@ -348,7 +348,7 @@ export const contactsService = {
       // list in its usual order and say why, rather than show nothing.
       if (sortBy === 'engagement_score' && /engagement_score/.test(error.message || '')) {
         const fallback = await contactsService.list(userId, { ...params, sort_by: 'created_at' });
-        return { ...fallback, sort_unavailable: 'Sorting by engagement needs database migration 096_duplicates_views_engagement_noshow.sql.' };
+        return { ...fallback, sort_unavailable: 'Sorting by engagement is not switched on for your account yet, so the usual order is shown.' };
       }
       // An outreach filter the database cannot run: show the leads unfiltered
       // and say so, rather than show nothing.
@@ -358,7 +358,7 @@ export const contactsService = {
         return {
           ...fallback,
           sort_unavailable: /outreach_state/.test(error.message || '')
-            ? 'Filtering by outreach needs database migration 104_outreach_state.sql. Every lead is shown until it is run.'
+            ? 'Filtering by outreach is not switched on for your account yet, so every lead is shown.'
             : 'That outreach filter could not be applied, so every lead is shown.',
         };
       }

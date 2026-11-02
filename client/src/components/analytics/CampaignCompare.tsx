@@ -128,7 +128,7 @@ export function CampaignCompare({ campaigns }: { campaigns: CampaignListItem[] }
                     <p className="mt-0.5 text-caption text-[var(--text-secondary)]">All time. Rates are of the people each campaign reached.</p>
                   </div>
                   <Button variant="secondary" size="sm" onClick={() => comparisonCsv(rows)}>
-                    <Download className="h-3.5 w-3.5" /> CSV
+                    <Download className="h-3.5 w-3.5" /> Export
                   </Button>
                 </div>
                 <div className="overflow-x-auto">

@@ -1440,7 +1440,7 @@ async function recordSent(row: Record<string, unknown>, attachments: AttachmentM
   let { error } = await supabaseAdmin.from('inbox_messages').insert(full);
   if (error && /nudge_at/.test(error.message)) {
     delete full.nudge_at;
-    notes.push('The reminder could not be saved: run database migration 092 to turn reminders on.');
+    notes.push('The reply was sent, but reminders are not switched on for your account yet, so the reminder was not set.');
     ({ error } = await supabaseAdmin.from('inbox_messages').insert(full));
   }
   if (error && /attachments/.test(error.message)) {

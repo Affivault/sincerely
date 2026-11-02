@@ -30,7 +30,7 @@ import {
   LayoutDashboard, MessageSquare, Sparkles, Layers, FileText, CalendarClock,
   Contact2, Building2, Radar, CalendarDays, ListTodo, Link2, Clock, Banknote, Crosshair, Trophy,
   LineChart, Users as TeamIcon, CreditCard, AtSign, Activity, Target, Ban, ShieldCheck,
-  Blocks, Linkedin, Code2, Wrench, BookOpen, HeartPulse, Zap, type LucideIcon,
+  Blocks, Linkedin, Code2, BookOpen, HeartPulse, Zap, type LucideIcon,
 } from 'lucide-react';
 
 export interface SectionTab {
@@ -151,7 +151,6 @@ export const SETTINGS_GROUPS: { label: string; items: SectionTab[] }[] = [
       { label: 'Integrations', href: '/integrations', icon: Blocks, keywords: 'slack discord zapier make hubspot pipedrive apps' },
       { label: 'LinkedIn', href: '/linkedin', icon: Linkedin, keywords: 'connect invite social extension agent' },
       { label: 'API & webhooks', href: '/developer', icon: Code2, keywords: 'api developer events keys' },
-      { label: 'Toolkit', href: '/toolkit', icon: Wrench, keywords: 'tools utilities' },
     ],
   },
 ];

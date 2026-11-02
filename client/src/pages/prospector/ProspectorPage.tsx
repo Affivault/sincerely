@@ -1,5 +1,6 @@
 import { StandingSearches, SaveStandingSearch } from '../../components/prospector/StandingSearches';
 import { CompanySearch } from '../../components/prospector/CompanySearch';
+import { CompanyLogo } from '../../components/shared/CompanyLogo';
 import { ProspectDrawer, companyAsProspect } from '../../components/prospector/ProspectDrawer';
 import { FilterPanel, EMPTY_FILTERS, DEFAULT_OPEN_ROWS, ALL_ROWS, countFilters, type FilterState } from '../../components/prospector/FilterPanel';
 import { useDebounce } from '../../hooks/useDebounce';
@@ -54,7 +55,13 @@ export function ProspectorPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   // Filters
-  const [form, setForm] = useState<FilterState>(EMPTY_FILTERS);
+  // ?company=acme.com (from a company page or the Companies list) starts the
+  // search at that company. Nothing runs until Search is pressed, so a link
+  // never spends a credit on its own.
+  const [form, setForm] = useState<FilterState>(() => {
+    const company = new URLSearchParams(window.location.search).get('company');
+    return company ? { ...EMPTY_FILTERS, companies: [company] } : EMPTY_FILTERS;
+  });
   // Earlier filter states, newest last, so a stray click (or Clear all) is one Undo away.
   const [formHistory, setFormHistory] = useState<FilterState[]>([]);
   const changeForm = (next: FilterState) => {
@@ -67,7 +74,7 @@ export function ProspectorPage() {
     setFormHistory((h) => h.slice(0, -1));
     setForm(prev);
   };
-  const [openRows, setOpenRows] = useState<Set<string>>(() => new Set(DEFAULT_OPEN_ROWS));
+  const [openRows, setOpenRows] = useState<Set<string>>(() => new Set([...DEFAULT_OPEN_ROWS, ...(new URLSearchParams(window.location.search).get('company') ? ['company'] : [])]));
   const toggleRow = (id: string) => setOpenRows((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   const allOpen = openRows.size >= ALL_ROWS.length;
   const [saveRuleOpen, setSaveRuleOpen] = useState(false);
@@ -75,6 +82,11 @@ export function ProspectorPage() {
   const [page, setPage] = useState(1);
   const [listId, setListId] = useState(rememberedListId);
   const [results, setResults] = useState<ProspectSearchResponse | null>(null);
+  /* On a phone the filters and the results share one column, and with every
+     filter listed the results started some twenty sections down. Once a
+     search runs the filters fold to one bar and the page goes to the results. */
+  const [phoneFilters, setPhoneFilters] = useState(true);
+  const resultsRef = useRef<HTMLDivElement>(null);
   const [revealingId, setRevealingId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkRevealing, setBulkRevealing] = useState(false);
@@ -110,6 +122,10 @@ export function ProspectorPage() {
       if (vars.requestId !== searchRequestIdRef.current) return;
       lastSearchRef.current = vars.f ?? filters;
       setResults(data);
+      setPhoneFilters(false);
+      if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+        requestAnimationFrame(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+      }
       setPage(vars.p);
       setSelectedIds(new Set());
       qc.invalidateQueries({ queryKey: ['prospecting', 'status'] });
@@ -310,7 +326,20 @@ export function ProspectorPage() {
       <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-4 items-start">
         {/* Filters: every one in view, no hidden step. */}
         {/* On wide screens the panel scrolls on its own, so results stay in view beside it. */}
-        <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] lg:sticky lg:top-4 lg:flex lg:flex-col lg:max-h-[calc(100vh-10rem)]">
+        {!phoneFilters && (
+          <button
+            type="button"
+            onClick={() => setPhoneFilters(true)}
+            aria-expanded={false}
+            className="lg:hidden flex w-full items-center gap-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-3 text-left"
+          >
+            <Search className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
+            <span className="text-body font-medium text-[var(--text-primary)]">Filters</span>
+            {activeFilters > 0 && <span className="text-body text-[var(--indigo-text)] tabular">{activeFilters} on</span>}
+            <span className="ml-auto text-caption font-semibold text-[var(--indigo-text)]">Edit filters</span>
+          </button>
+        )}
+        <div className={cn('rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] lg:sticky lg:top-4 lg:flex lg:flex-col lg:max-h-[calc(100vh-10rem)]', !phoneFilters && 'hidden')}>
           <div className="flex items-center justify-between px-4 pt-4 pb-3 flex-shrink-0">
             <p className="text-caption font-medium text-[var(--text-tertiary)] flex items-center gap-1.5">
               <Search className="h-3 w-3" /> Filters
@@ -360,6 +389,11 @@ export function ProspectorPage() {
             <Button className="w-full" onClick={() => runSearch(1)} disabled={!providerReady || searchMutation.isPending}>
               {searchMutation.isPending ? <><Spinner size="sm" /> Searching…</> : <><Search className="h-3.5 w-3.5" /> Search prospects</>}
             </Button>
+            {results && (
+              <button type="button" onClick={() => { setPhoneFilters(false); requestAnimationFrame(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })); }} className="lg:hidden w-full text-caption font-semibold text-[var(--indigo-text)]">
+                Back to the {results.total.toLocaleString()} results
+              </button>
+            )}
             <p className="text-caption text-[var(--text-tertiary)] text-center">Each new page of 25 costs {creditsLabel(CREDIT_PRICES.search)}. The match count is free.</p>
             {/* The same search, working every day without you. */}
             <button
@@ -376,15 +410,20 @@ export function ProspectorPage() {
         </div>
 
         {/* Results */}
-        <div className="min-w-0 space-y-3">
-          <StandingSearches />
-          {/* Where saved leads go, and the campaigns that list feeds. */}
-          <DestinationPicker listId={listId} onChange={setListId} />
-          {results && (
-            <p className="text-body text-[var(--text-tertiary)] tabular text-right">
-              {results.total.toLocaleString()} match{results.total === 1 ? '' : 'es'}
-            </p>
-          )}
+        <div ref={resultsRef} className="min-w-0 space-y-3 scroll-mt-28">
+          {/* Once results are in, they are what the page is for: the
+              standing searches fold to a line above them. */}
+          <StandingSearches folded={!!results} />
+          {/* Where saved leads go, and the campaigns that list feeds - on
+              one line with the match count, so the results start higher. */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <div className="min-w-0 flex-1"><DestinationPicker listId={listId} onChange={setListId} /></div>
+            {results && (
+              <p className="text-body text-[var(--text-tertiary)] tabular">
+                {results.total.toLocaleString()} match{results.total === 1 ? '' : 'es'}
+              </p>
+            )}
+          </div>
 
           {selectedIds.size > 0 && (
             <div className="flex items-center gap-2.5 mb-3 rounded-lg border border-[var(--indigo)]/25 bg-[var(--indigo-subtle)] px-3 py-2">
@@ -484,10 +523,15 @@ export function ProspectorPage() {
                           </div>
                         </td>
                         <td className="py-2.5 px-3">
-                          {p.company
-                            ? <button type="button" onClick={() => setPeekPerson({ person: p, tab: 'company' })} title="See the company and its people" className="block text-body text-[var(--text-primary)] hover:text-[var(--indigo-text)] hover:underline truncate max-w-[180px] text-left">{p.company}</button>
-                            : <p className="text-body text-[var(--text-primary)]">—</p>}
-                          <p className="text-caption text-[var(--text-tertiary)] truncate">{[p.industry, p.company_size && `${p.company_size} people`].filter(Boolean).join(' · ')}</p>
+                          <div className="flex items-center gap-2 min-w-0">
+                            {p.company && <CompanyLogo domain={p.company_domain} name={p.company} size="sm" />}
+                            <div className="min-w-0">
+                              {p.company
+                                ? <button type="button" onClick={() => setPeekPerson({ person: p, tab: 'company' })} title="See the company and its people" className="block text-body text-[var(--text-primary)] hover:text-[var(--indigo-text)] hover:underline truncate max-w-[180px] text-left">{p.company}</button>
+                                : <p className="text-body text-[var(--text-primary)]">—</p>}
+                              <p className="text-caption text-[var(--text-tertiary)] truncate">{[p.industry, p.company_size && `${p.company_size} people`].filter(Boolean).join(' · ')}</p>
+                            </div>
+                          </div>
                         </td>
                         <td className="py-2.5 px-3 text-body text-[var(--text-secondary)] truncate max-w-[150px]">{p.location || '—'}</td>
                         <td className="py-2.5 px-3">

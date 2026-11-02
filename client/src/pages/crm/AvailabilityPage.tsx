@@ -1,3 +1,4 @@
+import { ForOwner } from '../../components/ui/ForOwner';
 import { useEffect, useMemo, useState } from 'react';
 import { SkeletonList } from '../../components/ui/Skeleton';
 import { useSearchParams } from 'react-router-dom';
@@ -154,7 +155,7 @@ function ExternalCalendars() {
               || 'Could not read your calendar connections.'}
           </p>
           <p className="mt-1.5 text-caption text-[var(--text-tertiary)]">
-            If this mentions a missing table, migration 068 has not been run yet.
+            Try again in a moment. If it keeps happening, reconnect your calendar below. <ForOwner>a missing table means migration 068</ForOwner>
           </p>
         </div>
       </section>

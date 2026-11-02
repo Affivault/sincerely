@@ -188,6 +188,65 @@ export function formatFullDateTime(value: DateLike): string {
 /* ── Money ────────────────────────────────────────────────────────────── */
 
 /**
+ * The currencies an account can show its money in (Settings > General).
+ * The most used first; the order is the order of the picker.
+ */
+export const CURRENCIES: ReadonlyArray<{ code: string; name: string }> = [
+  { code: 'USD', name: 'US dollar' },
+  { code: 'EUR', name: 'Euro' },
+  { code: 'GBP', name: 'British pound' },
+  { code: 'CAD', name: 'Canadian dollar' },
+  { code: 'AUD', name: 'Australian dollar' },
+  { code: 'NZD', name: 'New Zealand dollar' },
+  { code: 'CHF', name: 'Swiss franc' },
+  { code: 'SEK', name: 'Swedish krona' },
+  { code: 'NOK', name: 'Norwegian krone' },
+  { code: 'DKK', name: 'Danish krone' },
+  { code: 'PLN', name: 'Polish zloty' },
+  { code: 'CZK', name: 'Czech koruna' },
+  { code: 'JPY', name: 'Japanese yen' },
+  { code: 'SGD', name: 'Singapore dollar' },
+  { code: 'HKD', name: 'Hong Kong dollar' },
+  { code: 'INR', name: 'Indian rupee' },
+  { code: 'AED', name: 'UAE dirham' },
+  { code: 'SAR', name: 'Saudi riyal' },
+  { code: 'ILS', name: 'Israeli shekel' },
+  { code: 'ZAR', name: 'South African rand' },
+  { code: 'BRL', name: 'Brazilian real' },
+  { code: 'MXN', name: 'Mexican peso' },
+];
+
+export function isCurrency(code: unknown): code is string {
+  return typeof code === 'string' && CURRENCIES.some((c) => c.code === code);
+}
+
+/*
+ * The account's own currency. Money with no currency of its own - a total,
+ * a forecast, revenue per contact - is shown in it, and a new deal starts in
+ * it. The client sets it once the settings load; until then, and on the
+ * server where nothing has set it, it is US dollars.
+ */
+let accountCurrency = 'USD';
+export function setAccountCurrency(code: string | null | undefined): void {
+  accountCurrency = isCurrency(code) ? code : 'USD';
+}
+export function getAccountCurrency(): string {
+  return accountCurrency;
+}
+
+/** The symbol alone ("£", "€", "CHF"), for an input's prefix. */
+export function currencySymbol(currency?: string | null): string {
+  const code = currency || accountCurrency;
+  try {
+    const part = (0).toLocaleString(undefined, { style: 'currency', currency: code, currencyDisplay: 'narrowSymbol' })
+      .replace(/[\d.,\s\u00a0]/g, '');
+    return part || code;
+  } catch {
+    return code;
+  }
+}
+
+/**
  * `$12,000` / `£12,000`, in the reader's number conventions.
  *
  * The currency comes from the record - a deal in euros is in euros - but
@@ -198,14 +257,14 @@ export function formatFullDateTime(value: DateLike): string {
  */
 export function formatMoney(
   value: number | null | undefined,
-  currency = 'USD',
+  currency?: string | null,
   opts: { cents?: boolean; compact?: boolean } = {},
 ): string {
   const n = Number(value) || 0;
   try {
     return n.toLocaleString(undefined, {
       style: 'currency',
-      currency: currency || 'USD',
+      currency: currency || accountCurrency,
       maximumFractionDigits: opts.cents ? 2 : 0,
       // `$1.2M` for a figure on a card, where the exact pounds are noise
       // and the width is not available anyway.

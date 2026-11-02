@@ -132,8 +132,11 @@ function ItemChip({ item, onOpen, onDragStart, onDragEnd, compact }: {
         )}
       >
         <Icon className="h-2.5 w-2.5 flex-shrink-0 text-[var(--indigo-text)]" />
+        {/* The week's columns are narrow: two lines there instead of an
+            ellipsis after a word or two. The month stays one line. */}
         <span className={cn(
-          'flex-1 min-w-0 truncate text-micro font-medium text-[var(--indigo-text)]',
+          'flex-1 min-w-0 text-micro font-medium text-[var(--indigo-text)]',
+          compact ? 'truncate' : 'line-clamp-2 break-words',
           off && 'line-through',
         )}>{e.title}</span>
         {!compact && !e.all_day && (
@@ -158,7 +161,7 @@ function ItemChip({ item, onOpen, onDragStart, onDragEnd, compact }: {
       )}
     >
       <Icon className={cn('h-2.5 w-2.5 flex-shrink-0', TASK_TYPE_TONE[t.type]?.split(' ')[0])} />
-      <span className={cn('flex-1 min-w-0 truncate text-micro font-medium text-[var(--text-secondary)]', t.is_done && 'line-through')}>
+      <span className={cn('flex-1 min-w-0 text-micro font-medium text-[var(--text-secondary)]', compact ? 'truncate' : 'line-clamp-2 break-words', t.is_done && 'line-through')}>
         {t.title}
       </span>
     </button>

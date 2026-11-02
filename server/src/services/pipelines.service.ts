@@ -2,6 +2,7 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
 import {
   DEFAULT_PIPELINE_STAGES,
+  builtInPipeline,
   PIPELINE_PHASES,
   STAGE_CHECKLIST_MAX,
   STAGE_CHECK_MAX_LENGTH,
@@ -68,18 +69,6 @@ function isMissingTable(error: any): boolean {
 }
 
 /** The pipeline shown before migration 105 exists: one stage per open phase. */
-function builtInPipeline(): Pipeline {
-  const stages: PipelineStage[] = (['lead', 'qualified', 'proposal'] as PipelinePhase[]).map((phase, i) => ({
-    id: phase,
-    pipeline_id: 'default',
-    name: phase === 'lead' ? 'Lead' : phase === 'qualified' ? 'Qualified' : 'Proposal',
-    position: i,
-    phase,
-    probability: null,
-    rot_days: null,
-  }));
-  return { id: 'default', name: 'Sales pipeline', position: 0, is_default: true, created_at: null, stages };
-}
 
 function cleanName(raw: unknown, what: string): string {
   const name = typeof raw === 'string' ? raw.trim().slice(0, 60) : '';

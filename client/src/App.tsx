@@ -73,7 +73,6 @@ const TeamPage             = lazyRoute('/team', () => import('./pages/team/TeamP
 const SchedulesPage        = lazyRoute('/schedules', () => import('./pages/schedules/SchedulesPage'), m => m.SchedulesPage);
 const InviteAcceptPage     = lazyRoute('/invite', () => import('./pages/team/InviteAcceptPage'), m => m.InviteAcceptPage);
 const LandingPageV2        = lazyRoute('/lp2', () => import('./pages/LandingPageV2'), m => m.LandingPageV2);
-const ToolkitPage          = lazyRoute('/toolkit', () => import('./pages/toolkit/ToolkitPage'), m => m.ToolkitPage);
 const BillingPage          = lazyRoute('/billing', () => import('./pages/billing/BillingPage'), m => m.BillingPage);
 const TermsPage            = lazyRoute('/terms', () => import('./pages/legal/TermsPage'), m => m.TermsPage);
 const PrivacyPage          = lazyRoute('/privacy', () => import('./pages/legal/PrivacyPage'), m => m.PrivacyPage);
@@ -253,7 +252,9 @@ export default function App() {
           <Route path="/billing"            element={<BillingPage />} />
           <Route path="/suppression"        element={<SuppressionPage />} />
           <Route path="/verification"       element={<VerificationPage />} />
-          <Route path="/toolkit"            element={<ToolkitPage />} />
+          {/* The Toolkit was a page of links to pages that already have their own
+              place in Settings; it now lands on the one with live numbers. */}
+          <Route path="/toolkit"            element={<Navigate to="/email-accounts/health" replace />} />
           <Route path="/team"               element={<TeamPage />} />
           <Route path="/schedules"          element={<SchedulesPage />} />
         </Route>

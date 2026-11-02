@@ -1,6 +1,24 @@
 import { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
 import crypto from 'crypto';
+import { isOwnerEmail } from '../config/admin.js';
+
+/*
+ * "Run migration 077 in the Supabase SQL editor" is an instruction for the
+ * people who run Sincerely, not for the people who use it: a customer can
+ * do nothing with it, and it reads as though they broke something. The
+ * owners still get the exact wording; everyone else gets what it means for
+ * them, and the detail goes to the log.
+ */
+const SETUP_WORDING = /migration|supabase|sql editor|database update|\.sql\b/i;
+export const NOT_SWITCHED_ON = 'This part of Sincerely is still being switched on for your account. Please try again a little later.';
+
+/** What a person may be shown, given who they are. */
+export function forAudience(message: string, email: string | null | undefined): string {
+  if (!SETUP_WORDING.test(message) || isOwnerEmail(email)) return message;
+  console.warn(`[setup] shown as "not switched on" to a customer: ${message}`);
+  return NOT_SWITCHED_ON;
+}
 
 export class AppError extends Error {
   statusCode: number;
@@ -27,7 +45,7 @@ export class AppError extends Error {
 
 export function errorMiddleware(
   err: Error,
-  _req: Request,
+  req: Request,
   res: Response,
   _next: NextFunction
 ): void {
@@ -36,7 +54,7 @@ export function errorMiddleware(
     // traffic; only the server-side ones are worth a stack trace in the log.
     if (err.statusCode >= 500) console.error('Error:', err);
     res.status(err.statusCode).json({
-      error: err.message,
+      error: forAudience(err.message, (req as { userEmail?: string }).userEmail),
       ...(err.code ? { code: err.code } : {}),
       ...(err.details || {}),
     });
@@ -72,7 +90,7 @@ export function errorMiddleware(
 
   const explained = explainDatabaseError(err);
   res.status(explained ? explained.status : 500).json({
-    error: explained ? explained.message : 'Something went wrong on our side.',
+    error: explained ? forAudience(explained.message, (req as { userEmail?: string }).userEmail) : 'Something went wrong on our side.',
     ref,
   });
 }

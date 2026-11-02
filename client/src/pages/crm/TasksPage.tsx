@@ -442,6 +442,8 @@ export function TasksPage() {
             const count = t.id === 'all'
               ? tasks.filter((x) => !x.is_done).length
               : tasks.filter((x) => !x.is_done && x.type === t.id).length;
+            // "Call 0, Meeting 0" is noise; the active chip always stays.
+            if (t.id !== 'all' && count === 0 && !active) return null;
             return (
               <button
                 key={t.id}

@@ -11,14 +11,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { Banknote, CalendarCheck, GitBranch, Loader2, Trophy } from 'lucide-react';
-import type { StepOutcomeArm } from '@lemlist/shared';
+import { formatMoney, type StepOutcomeArm } from '@lemlist/shared';
 import { analyticsApi } from '../../api/analytics.api';
 import { campaignsApi } from '../../api/campaigns.api';
 import { cn } from '../../lib/utils';
 
+/** In the account's currency (Settings > General). */
 function money(v: number): string {
-  try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(v); }
-  catch { return `$${Math.round(v)}`; }
+  return formatMoney(v);
 }
 
 function ArmLine({ label, arm, best }: { label: string; arm: StepOutcomeArm; best: boolean }) {
@@ -50,7 +50,9 @@ export function StepOutcomesPanel({ campaignId }: { campaignId: string }) {
     onError: (e: any) => toast.error(e?.response?.data?.error || 'Could not switch'),
   });
 
-  if (!data || data.steps.every((s) => s.sent === 0)) return null;
+  // A response without its steps (an older server, a proxy's error page
+  // parsed as JSON) used to take the whole campaign page down with it.
+  if (!data || !Array.isArray(data.steps) || data.steps.every((s) => s.sent === 0)) return null;
   const peak = Math.max(0.1, ...data.steps.map((s) => s.meetings_per_100));
 
   return (

@@ -405,7 +405,7 @@ export function ContactHistory({
         kind: 'deal',
         title: stageMoveTitle(e, d.title),
         detail: e.reason || null,
-        meta: won && d.value ? formatMoney(d.value, d.currency || 'USD') : !e.from_stage ? dealStageLabel(e.to_stage) : null,
+        meta: won && d.value ? formatMoney(d.value, d.currency) : !e.from_stage ? dealStageLabel(e.to_stage) : null,
         icon: Handshake,
         tone: won ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
           : lost ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400'

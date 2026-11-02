@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '../config/supabase.js';
+import { accountCurrency } from './settings.service.js';
 import { fetchAllPages } from '../utils/batch.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { widenWindowStart } from './calendar.service.js';
@@ -535,6 +536,8 @@ export const crmService = {
       if (credit) Object.assign(input, credit);
     }
 
+    // A deal nobody gave a currency is in the account's own.
+    if (!input.currency) input.currency = await accountCurrency(userId);
     const { data, error } = await supabaseAdmin
       .from('deals')
       .insert({ ...input, user_id: userId })

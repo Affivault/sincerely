@@ -1,3 +1,4 @@
+import { ForOwner } from '../ui/ForOwner';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -86,9 +87,9 @@ export function AutopilotPanel() {
           <Database className="h-4 w-4" />
         </span>
         <div>
-          <p className="text-strong font-semibold text-[var(--text-primary)]">One database update to switch this on</p>
+          <p className="text-strong font-semibold text-[var(--text-primary)]">The autopilot is being switched on</p>
           <p className="mt-1 text-body text-[var(--text-secondary)]">
-            Run migration 077 in the Supabase SQL editor. The autopilot starts watching your mailboxes within ten minutes of it.
+            It starts watching your mailboxes on its own once your account is ready. Nothing to do on your side. <ForOwner>migration 077</ForOwner>
           </p>
         </div>
       </div>

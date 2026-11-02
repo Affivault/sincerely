@@ -157,7 +157,7 @@ export function EmailAccountsPage() {
   const confirm = useConfirm();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
-  // Lets other pages (e.g. the Toolkit's Warm-up card) link straight to a
+  // Lets other pages (e.g. Sending health) link straight to a
   // specific tab instead of always landing on Mailboxes.
   const requestedTab = searchParams.get('tab');
   const tab: Tab = (VALID_TABS as string[]).includes(requestedTab || '') ? (requestedTab as Tab) : 'mailboxes';

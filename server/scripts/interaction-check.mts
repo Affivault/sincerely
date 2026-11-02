@@ -272,7 +272,8 @@ console.log('\nthere is one way to write a date down');
      'an empty timestamp would render as 1 January 1970');
 
   is('and money follows the reader too',
-     /export function formatMoney/.test(dateFmt) && /currency: currency \|\| 'USD'/.test(dateFmt),
+     // Falls back to the account's own currency (Settings), not a fixed one.
+     /export function formatMoney/.test(dateFmt) && /currency: currency \|\| accountCurrency/.test(dateFmt),
      'five local copies of the same currency helper, all locked to en-US');
 }
 

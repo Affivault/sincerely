@@ -23,12 +23,8 @@ import { ArrowDown, ArrowUp, Building2, Clock } from 'lucide-react';
 export type SortKey = 'title' | 'company' | 'value' | 'weighted' | 'stage' | 'close' | 'age' | 'lead';
 export type SortDir = 'asc' | 'desc';
 
-function money(v: number, currency = 'USD'): string {
-  try {
-    return formatMoney(v, currency);
-  } catch {
-    return `$${Math.round(v || 0).toLocaleString()}`;
-  }
+function money(v: number, currency?: string | null): string {
+  return formatMoney(v, currency);
 }
 
 const STAGE_DOT: Record<DealStage, string> = {
@@ -158,7 +154,7 @@ export function DealTable({
   onOpenCompany,
   onOpenLead,
   onStageChange,
-  currency = 'USD',
+  currency,
 }: {
   deals: Deal[];
   sortKey: SortKey;

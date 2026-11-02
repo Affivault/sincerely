@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  DEAL_LABELS, LEAD_ARCHIVE_REASONS, LEAD_STALE_DAYS, leadIsStale, summariseLeads, formatMoney, sourceLabel } from '@lemlist/shared';
+  DEAL_LABELS, LEAD_ARCHIVE_REASONS, LEAD_STALE_DAYS, leadIsStale, summariseLeads, formatMoney, sourceLabel, currencySymbol } from '@lemlist/shared';
 import type { DealLabel, Lead, LeadStatus } from '@lemlist/shared';
 import { leadsApi } from '../../api/leads.api';
 import { Modal } from '../../components/ui/Modal';
@@ -41,7 +41,7 @@ import { csvCell } from '@lemlist/shared';
    the product: two buttons, qualify or drop, and a reason either way.
    ═══════════════════════════════════════════════════════════════════════ */
 
-function money(v: number | null | undefined, currency = 'USD'): string {
+function money(v: number | null | undefined, currency?: string | null): string {
   if (v === null || v === undefined) return '—';
   return formatMoney(v, currency);
 }
@@ -118,7 +118,7 @@ function ConvertDialog({ lead, onClose }: { lead: Lead; onClose: () => void }) {
         </p>
         <Input label="Deal name" value={title} onChange={(e) => setTitle(e.target.value)} required autoFocus />
         <Input
-          label="Value (USD)"
+          label={`Value (${currencySymbol(lead.currency)})`}
           type="number"
           min="0"
           value={value}
@@ -263,7 +263,7 @@ export function LeadsPage() {
                 className="btn-secondary"
                 title="Export the leads shown below as a CSV file"
               >
-                <Download className="h-3.5 w-3.5" /> Export CSV
+                <Download className="h-3.5 w-3.5" /> Export
               </button>
             )}
           </>

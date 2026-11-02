@@ -172,7 +172,7 @@ export function SuppressionPage() {
               disabled={exporting || !data?.total}
               title="Export the full suppression list (matching the current search/filter) as a CSV file"
             >
-              <Download className="h-3.5 w-3.5" /> {exporting ? 'Exporting…' : 'Export CSV'}
+              <Download className="h-3.5 w-3.5" /> {exporting ? 'Exporting…' : 'Export'}
             </Button>
             <Button variant="secondary" size="sm" onClick={() => setShowBulkModal(true)}>
               <Upload className="h-3.5 w-3.5" /> Import

@@ -150,7 +150,7 @@ export function DealCard({
       )}
 
       <div className="mt-2.5 flex items-center gap-2">
-        <span className="text-strong font-semibold tabular-nums text-[var(--text-primary)]">{formatMoney(deal.value, deal.currency || 'USD')}</span>
+        <span className="text-strong font-semibold tabular-nums text-[var(--text-primary)]">{formatMoney(deal.value, deal.currency)}</span>
         {open && <span className="text-micro tabular-nums text-[var(--text-tertiary)]" title="Odds of closing">{odds}%</span>}
         {stageName && <span className="truncate rounded-full bg-[var(--bg-muted)] px-1.5 py-0.5 text-micro font-medium text-[var(--text-secondary)]">{stageName}</span>}
         <span className="flex-1" />
