@@ -16,6 +16,7 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { fetchAllPages } from '../utils/batch.js';
+import { blacklistService } from './blacklist.service.js';
 import {
   autopilotAllowance, warmupAllowance, warmupDayNumber, warmupIsComplete, judgeSendingHealth, placementSummary,
   percentOf, RECOMMENDED_GAP,
@@ -132,8 +133,14 @@ export const sendingHealthService = {
       }
     }
 
-    const mailboxes: MailboxHealth[] = accounts.map((a) => {
+    // Blacklists, looked up in parallel and cached, so a page load waits
+    // seconds at most the first time and nothing after.
+    const blacklists = await Promise.all(accounts.map((a) =>
+      blacklistService.forMailbox(matchDomain(domains, a.email_address)?.domain || domainOf(a.email_address), a.smtp_host ?? null)));
+
+    const mailboxes: MailboxHealth[] = accounts.map((a, i) => {
       const reg = matchDomain(domains, a.email_address);
+      const bl = blacklists[i];
       const domain: SendingHealthDomain = {
         domain: reg?.domain || domainOf(a.email_address),
         domain_id: reg?.id ?? null,
@@ -180,6 +187,7 @@ export const sendingHealthService = {
         trend: [...trendFor.get(a.id)!.values()],
         domain,
         placement,
+        blacklists: bl,
         health: judgeSendingHealth({
           is_active: !!a.is_active,
           is_verified: !!a.is_verified,
@@ -197,6 +205,7 @@ export const sendingHealthService = {
           complained_14d: t.complained,
           domain,
           placement,
+          blacklists: bl,
         }, now),
       };
     });

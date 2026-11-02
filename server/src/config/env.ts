@@ -38,6 +38,10 @@ const envSchema = z.object({
   VERIFY_SMTP_PROXY: z.string().optional().default(''),
   VERIFY_HELO_NAME: z.string().optional().default(''),
   VERIFY_FROM_EMAIL: z.string().optional().default(''),
+  // Spamhaus won't answer the public resolvers we use (Render blocks
+  // ordinary DNS). A free Data Query Service key gets answers:
+  // https://www.spamhaus.com/free-trial/sign-up-for-a-free-data-query-service-account/
+  SPAMHAUS_DQS_KEY: z.string().optional().default(''),
   PDL_API_KEY: z.string().optional().default(''),
   // What one Icypeas credit costs us, for the admin profit page ($19 per 1,000).
   ICYPEAS_USD_PER_CREDIT: z.string().optional().default('0.019').transform((v) => {

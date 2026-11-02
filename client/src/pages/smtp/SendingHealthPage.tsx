@@ -190,6 +190,7 @@ function MailboxRow({ m, selected, onSelect, onStep }: {
             <AuthBadge ok={m.domain.dkim} checked={m.domain.checked} label="DKIM" />
             <AuthBadge ok={m.domain.dmarc} checked={m.domain.checked} label="DMARC" />
           </div>
+          <BlacklistLine b={m.blacklists} />
           <p className="mt-1 text-caption text-[var(--text-tertiary)]">
             {m.placement
               ? `Placement: ${m.placement.inbox_rate === null ? m.placement.headline : `${Math.round(m.placement.inbox_rate * 100)}% to the inbox`}`
@@ -198,6 +199,30 @@ function MailboxRow({ m, selected, onSelect, onStep }: {
         </div>
       </div>
     </li>
+  );
+}
+
+/** One line on blacklists: listed (red, with the lists), clean, or not checked. */
+function BlacklistLine({ b }: { b: MailboxHealth['blacklists'] }) {
+  if (!b) return <p className="mt-1 text-caption text-[var(--text-tertiary)]">Blacklists not checked yet</p>;
+  if (b.listed.length) {
+    return (
+      <p className="mt-1 text-caption font-medium text-red-600 dark:text-red-400">
+        Blacklisted on {b.listed.map((h, i) => (
+          <span key={`${h.list}-${h.target}`}>{i > 0 && ', '}<a href={h.delist_url} target="_blank" rel="noopener noreferrer" className="underline">{h.list}</a></span>
+        ))}
+      </p>
+    );
+  }
+  if (!b.checked) return <p className="mt-1 text-caption text-[var(--text-tertiary)]">Blacklists could not be checked right now</p>;
+  const title = [
+    b.server_ip ? `Domain and mail server ${b.server_ip} checked` : 'Domain checked (its mail server is a shared provider\'s)',
+    b.unchecked.length ? `Would not answer: ${b.unchecked.join(', ')}` : '',
+  ].filter(Boolean).join('. ');
+  return (
+    <p className="mt-1 text-caption text-[var(--text-tertiary)]" title={title}>
+      Not on any blacklist ({b.checked_count} checked{b.unchecked.length ? `, ${b.unchecked.length} didn't answer` : ''})
+    </p>
   );
 }
 
@@ -230,6 +255,7 @@ export function SendingHealthPage() {
       case 'start_warmup': navigate('/email-accounts?tab=warmup'); break;
       case 'run_placement': navigate('/placement'); break;
       case 'slow_pace': setPace({ ids: [m.id], careful: true }); break;
+      case 'delist': if (m.health.next_step.url) window.open(m.health.next_step.url, '_blank', 'noopener,noreferrer'); break;
       default: break;
     }
   };
