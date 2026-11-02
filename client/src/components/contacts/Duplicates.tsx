@@ -285,10 +285,21 @@ export function ContactDuplicatesSection({ contactId, onMerged }: { contactId: s
     queryKey: ['contact-duplicates', 'for', contactId],
     queryFn: () => contactsApi.duplicatesFor(contactId),
     retry: false,
+    // A side check: its failure is one quiet line here, not a toast as well.
+    meta: { silentError: true },
   });
   // Nothing to say is the usual case, so this takes no room unless it has
-  // something; a failure stays inline rather than taking the page down.
-  if (!q.isError && (!q.data || q.data.groups.length === 0)) return null;
+  // something. A failure is one line, not a full-size error card sitting
+  // above the person's own details.
+  if (q.isError) {
+    return (
+      <p className="flex items-center gap-2 text-caption text-[var(--text-tertiary)]" data-contact-duplicates>
+        <Users className="h-3.5 w-3.5" /> The duplicate check did not load.
+        <button type="button" onClick={() => q.refetch()} className="font-semibold text-[var(--indigo-text)] hover:underline">Try again</button>
+      </p>
+    );
+  }
+  if (!q.data || q.data.groups.length === 0) return null;
   return (
     <section className="panel p-4" data-contact-duplicates>
       <h3 className="mb-2.5 flex items-center gap-2 text-strong font-semibold text-[var(--text-primary)]">

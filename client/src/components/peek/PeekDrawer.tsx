@@ -13,6 +13,7 @@ import { Spinner } from '../ui/Spinner';
 import { InlineEdit, InlineSelect } from '../ui/InlineEdit';
 import { COMPANY_SIZE_OPTIONS } from '../../lib/constants';
 import { ContactHistory } from '../crm/ContactHistory';
+import { CompanyLogo } from '../shared/CompanyLogo';
 import { cn } from '../../lib/utils';
 import { usePeek } from './usePeek';
 import { openModals } from '../ui/Modal';
@@ -235,7 +236,7 @@ function ContactPeek({ id, onClose }: { id: string; onClose: () => void }) {
             onClick={() => openPeek('company', contact.company_id!)}
             className="flex items-center gap-2 min-w-0 w-full text-left hover:text-[var(--indigo-text)]"
           >
-            <Building2 className="h-3.5 w-3.5 text-[var(--text-tertiary)] flex-shrink-0" />
+            <CompanyLogo domain={contact.website} name={contact.company} size="xs" className="!h-3.5 !w-3.5" />
             <span className="text-body text-[var(--text-secondary)] truncate hover:text-[var(--indigo-text)]">{contact.company}</span>
             <ArrowRight className="h-3 w-3 text-[var(--text-tertiary)] flex-shrink-0" />
           </button>
@@ -516,9 +517,7 @@ function CompanyPeek({ id, onClose }: { id: string; onClose: () => void }) {
           sits on top of the right end of the "Full page" link and swallows
           the click that was meant to open the record. */}
       <div className="flex items-start gap-3 pl-4 pr-12 py-4 border-b border-[var(--border-subtle)]">
-        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--bg-elevated)] text-[var(--text-secondary)] flex-shrink-0">
-          <Building2 className="h-5 w-5" />
-        </span>
+        <CompanyLogo domain={company.domain || company.website} name={company.name} size="lg" className="!h-10 !w-10 !rounded-xl" />
         <div className="flex-1 min-w-0">
           <InlineEdit
             value={company.name}
@@ -552,7 +551,7 @@ function CompanyPeek({ id, onClose }: { id: string; onClose: () => void }) {
         </div>
         <div className="px-3 py-3">
           <p className="text-title font-semibold tabular text-[var(--text-primary)] leading-none">
-            {formatMoney(company.open_value, 'USD', { compact: true })}
+            {formatMoney(company.open_value, undefined, { compact: true })}
           </p>
           <p className="text-micro text-[var(--text-tertiary)] mt-1">Open value</p>
         </div>

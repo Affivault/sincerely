@@ -15,15 +15,14 @@ import {
   AlertTriangle, ArrowDownLeft, ArrowUpRight, Briefcase, Building2, CalendarClock, CheckCircle2,
   ExternalLink, Handshake, ListChecks, Loader2, MessageSquare, Video,
 } from 'lucide-react';
-import { DEAL_STAGES, formatDate, type DealStage } from '@lemlist/shared';
+import { DEAL_STAGES, formatDate, formatMoney, type DealStage } from '@lemlist/shared';
 import { briefApi } from '../../api/flow.api';
 import { crmApi } from '../../api/crm.api';
 import { formatRelativeTime } from '../../lib/utils';
 import { DealHealthDot } from '../crm/DealHealth';
 
-function money(v: number, currency: string): string {
-  try { return new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 0 }).format(v); }
-  catch { return `${currency} ${Math.round(v)}`; }
+function money(v: number, currency?: string | null): string {
+  return formatMoney(v, currency);
 }
 
 function Section({ icon: Icon, title, children }: { icon: typeof Briefcase; title: string; children: React.ReactNode }) {

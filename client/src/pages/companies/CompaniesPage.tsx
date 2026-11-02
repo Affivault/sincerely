@@ -1,6 +1,8 @@
+import { CompanyLogo } from '../../components/shared/CompanyLogo';
+import { ForOwner } from '../../components/ui/ForOwner';
 import { useMemo, useState } from 'react';
 import { usePendingRemoval } from '../../components/ui/UndoBar';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { companiesApi } from '../../api/companies.api';
 import { PageHeader } from '../../components/shared/PageHeader';
@@ -19,6 +21,7 @@ import { formatDate, formatMoney } from '@lemlist/shared';
 import {
   Building2, Plus, Users, Handshake, Globe, MapPin, Factory,
   Linkedin, CircleDollarSign, CalendarPlus, ExternalLink, Download,
+  UserSearch,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { Company } from '@lemlist/shared';
@@ -43,7 +46,7 @@ type SortKey =
 
 const NAME_COL_ID = '__company__';
 const NAME_COL_W = 260;
-const ACTIONS_W = 60;
+const ACTIONS_W = 116;
 
 interface ColumnDef {
   id: string;
@@ -219,6 +222,12 @@ export function CompaniesPage() {
     setParams(next, { replace: true });
   };
   const [showNew, setShowNew] = useState(false);
+  // Narrowing the list the way Apollo and Snov do: by what the accounts are,
+  // not only by name. Picked from the values the accounts actually have.
+  const [industry, setIndustry] = useState('');
+  const [sizeFilter, setSizeFilter] = useState('');
+  const [place, setPlace] = useState('');
+  const navigate = useNavigate();
   const [sortBy, setSortBy] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const { openPeek } = usePeek();
@@ -228,7 +237,7 @@ export function CompaniesPage() {
     defaultOrder: DEFAULT_COLUMNS,
     widthOverrides: {
       [NAME_COL_ID]: NAME_COL_W,
-      open_value: 130, contact_count: 190, deal_count: 100, created_at: 130,
+      open_value: 130, contact_count: 170, deal_count: 100, created_at: 130,
     },
   });
 
@@ -258,7 +267,10 @@ export function CompaniesPage() {
   const gone = usePendingRemoval();
   const rows = useMemo(() => {
     const dir = sortDir === 'asc' ? 1 : -1;
-    return companies.filter((c: any) => !gone.hidden(c.id)).sort((a: any, b: any) => {
+    return companies.filter((c: any) => !gone.hidden(c.id)
+      && (!industry || c.industry === industry)
+      && (!sizeFilter || c.size === sizeFilter)
+      && (!place || c.location === place)).sort((a: any, b: any) => {
       if (sortBy === 'created_at') {
         return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir;
       }
@@ -272,7 +284,14 @@ export function CompaniesPage() {
       if (!bv) return -1;
       return String(av).localeCompare(String(bv)) * dir;
     });
-  }, [companies, sortBy, sortDir, gone]);
+  }, [companies, sortBy, sortDir, gone, industry, sizeFilter, place]);
+
+  const facet = (key: 'industry' | 'size' | 'location') =>
+    [...new Set((companies as any[]).map((c) => c[key]).filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b));
+  const industries = useMemo(() => facet('industry'), [companies]); // eslint-disable-line react-hooks/exhaustive-deps
+  const sizes = useMemo(() => facet('size'), [companies]); // eslint-disable-line react-hooks/exhaustive-deps
+  const places = useMemo(() => facet('location'), [companies]); // eslint-disable-line react-hooks/exhaustive-deps
+  const filtered = !!(industry || sizeFilter || place);
 
   const totalOpen = useMemo(
     () => companies.reduce((s: number, c: any) => s + (Number(c.open_value) || 0), 0),
@@ -294,14 +313,13 @@ export function CompaniesPage() {
         }
         actions={
           <div className="flex items-center gap-2">
-            <SearchInput value={search} onChange={onSearch} placeholder="Search companies…" className="hidden sm:block w-56" busy={stale} />
             {rows.length > 0 && (
               <button
                 onClick={() => exportCompaniesCsv(rows)}
                 className="btn-secondary"
                 title="Export the companies shown below as a CSV file"
               >
-                <Download className="h-3.5 w-3.5" /> Export CSV
+                <Download className="h-3.5 w-3.5" /> Export
               </button>
             )}
             <button onClick={() => setShowNew(true)} className="btn-primary">
@@ -311,13 +329,43 @@ export function CompaniesPage() {
         }
       />
 
+      {!needsMigration && (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <SearchInput value={search} onChange={onSearch} placeholder="Search companies…" className="w-full sm:w-64" busy={stale} />
+          {industries.length > 1 && (
+            <select value={industry} onChange={(e) => setIndustry(e.target.value)} aria-label="Industry" className="h-8 max-w-[12rem]">
+              <option value="">Any industry</option>
+              {industries.map((v) => <option key={v} value={v}>{v}</option>)}
+            </select>
+          )}
+          {sizes.length > 1 && (
+            <select value={sizeFilter} onChange={(e) => setSizeFilter(e.target.value)} aria-label="Headcount" className="h-8 max-w-[10rem]">
+              <option value="">Any size</option>
+              {sizes.map((v) => <option key={v} value={v}>{v} people</option>)}
+            </select>
+          )}
+          {places.length > 1 && (
+            <select value={place} onChange={(e) => setPlace(e.target.value)} aria-label="Location" className="h-8 max-w-[12rem]">
+              <option value="">Anywhere</option>
+              {places.map((v) => <option key={v} value={v}>{v}</option>)}
+            </select>
+          )}
+          {filtered && (
+            <button type="button" onClick={() => { setIndustry(''); setSizeFilter(''); setPlace(''); }} className="text-caption font-medium text-[var(--indigo-text)] hover:underline">
+              Clear filters
+            </button>
+          )}
+          {filtered && <span className="text-caption text-[var(--text-tertiary)] tabular">{rows.length} of {companies.length}</span>}
+        </div>
+      )}
+
       {needsMigration ? (
         <div className="panel px-5 py-8 text-center">
           <Building2 className="h-6 w-6 mx-auto text-[var(--text-tertiary)] mb-2" />
           <p className="text-heading font-semibold text-[var(--text-primary)]">Companies aren't set up yet</p>
           <p className="text-body text-[var(--text-tertiary)] mt-1 max-w-md mx-auto">
-            Run migration <span className="font-mono text-caption">038_companies.sql</span> in Supabase, then
-            preview the backfill before letting it group your existing contacts.
+            Companies are still being switched on for your account. Once they are, your existing contacts are grouped by company here.
+            <ForOwner>038_companies.sql, then preview the backfill</ForOwner>
           </p>
         </div>
       ) : isLoading ? (
@@ -378,7 +426,7 @@ export function CompaniesPage() {
                   ))}
 
                   <th aria-hidden="true" className="bg-[var(--bg-muted)] border-b border-[var(--border-subtle)]" />
-                  <th className="sticky right-0 z-[3] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] px-2 py-2 shadow-[inset_1px_0_0_var(--border-subtle)]"><span className="sr-only">Open</span></th>
+                  <th className="sticky right-0 z-[3] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] px-2 py-2 shadow-[inset_1px_0_0_var(--border-subtle)]"><span className="sr-only">Find people</span></th>
                 </tr>
               </thead>
 
@@ -405,9 +453,7 @@ export function CompaniesPage() {
                         onClick={(e) => { e.stopPropagation(); openPeek('company', c.id); }}
                         className="flex w-full min-w-0 items-center gap-2.5 rounded text-left"
                       >
-                        <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md bg-[var(--bg-elevated)] text-[var(--text-tertiary)]">
-                          <Building2 className="h-3 w-3" />
-                        </span>
+                        <CompanyLogo domain={c.domain || (c as any).website} name={c.name} />
                         <span className="text-body font-medium text-[var(--text-primary)] truncate">{c.name}</span>
                       </button>
                     </td>
@@ -426,9 +472,19 @@ export function CompaniesPage() {
 
                     <td className="border-b border-[var(--border-subtle)]" />
                     <td className="sticky right-0 z-[1] bg-[var(--bg-surface)] group-hover:bg-[var(--bg-hover)] px-2 py-1.5 border-b border-[var(--border-subtle)] shadow-[inset_1px_0_0_var(--border-subtle)] text-right">
-                      <span className="text-caption font-medium text-[var(--text-tertiary)] opacity-0 group-hover:opacity-100 transition-opacity">
-                        Open
-                      </span>
+                      {/* Straight to the people who work there, in the
+                          Prospector, with the company filled in. Nothing is
+                          searched until Search is pressed. */}
+                      {c.domain || c.name ? (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); navigate(`/prospector?company=${encodeURIComponent(c.domain || c.name)}`); }}
+                          title={`Find people at ${c.name} in the Prospector`}
+                          className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-caption font-medium text-[var(--indigo-text)] opacity-70 group-hover:opacity-100 hover:bg-[var(--indigo-subtle)] transition-opacity"
+                        >
+                          <UserSearch className="h-3.5 w-3.5" /> Find people
+                        </button>
+                      ) : null}
                     </td>
                   </tr>
                 ))}

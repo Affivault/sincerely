@@ -19,6 +19,7 @@ import {
 import { useNavigate, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { cn } from '../../lib/utils';
+import { Segmented, DAY_RANGES } from '../../components/ui/Segmented';
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid,
 } from 'recharts';
@@ -63,37 +64,7 @@ const METRICS = {
 } as const;
 type MetricKey = keyof typeof METRICS;
 
-const PERIODS = [
-  { value: 7, label: '7D' },
-  { value: 30, label: '30D' },
-  { value: 90, label: '90D' },
-];
-
-/* ─── Segmented control ─────────────────────────────── */
-function Segmented<T extends string | number>({ options, value, onChange, size = 'md' }: {
-  options: { value: T; label: string }[]; value: T; onChange: (v: T) => void; size?: 'sm' | 'md';
-}) {
-  return (
-    <div className="inline-flex items-center p-0.5 rounded-lg bg-[var(--bg-elevated)]">
-      {options.map((o) => (
-        <button
-          key={String(o.value)}
-          onClick={() => onChange(o.value)}
-          aria-pressed={value === o.value}
-          className={cn(
-            'rounded-md font-medium transition-all duration-150',
-            size === 'sm' ? 'h-6 px-2.5 text-body' : 'h-7 px-3 text-body',
-            value === o.value
-              ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]'
-              : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
-          )}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
-  );
-}
+const PERIODS = DAY_RANGES;
 
 /* ─── Delta (the only place red/green appears) ─────────── */
 function Delta({ value, className }: { value: number | null | undefined; className?: string }) {
@@ -456,7 +427,7 @@ export function DashboardPage() {
         <div className="flex flex-wrap items-center gap-2">
           {everSent && (
             <>
-              <Segmented options={PERIODS} value={period} onChange={setPeriodPersist} />
+              <Segmented label="Period" options={PERIODS} value={period} onChange={setPeriodPersist} />
               <button onClick={exportReport} disabled={exporting} className="btn-secondary disabled:opacity-50" title="Export CSV report">
                 <Download className="h-3.5 w-3.5" /> {exporting ? 'Exporting…' : 'Export'}
               </button>

@@ -52,6 +52,8 @@ export interface UserSettings {
   /** Empty or null: the built-in wording from shared/no-show. */
   no_show_subject?: string | null;
   no_show_body?: string | null;
+  /** The account's currency (migration 107). Totals show in it; new deals start in it. */
+  currency?: string;
   /** What you sell - Relay's drafts and the sequence writer start here. */
   relay_offer?: string;
   relay_tone?: 'friendly' | 'direct' | 'formal';

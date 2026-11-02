@@ -301,7 +301,10 @@ console.log('\nthe route boundary resets when you navigate away');
    * error page. Keying the wrapper on the pathname is what makes it
    * recoverable by walking away.
    */
-  const block = layout.slice(layout.indexOf('key={location.pathname}'), layout.indexOf('</main>'));
+  // Keyed on the pathname, alone or with something else (the account
+  // currency, so a change of it redraws every figure).
+  const keyAt = layout.search(/key=\{(`\$\{)?location\.pathname/);
+  const block = keyAt < 0 ? '' : layout.slice(keyAt, layout.indexOf('</main>'));
   is('the boundary is inside the pathname-keyed wrapper',
      block.includes('<ErrorBoundary>'),
      'one render crash would follow you to every other route');

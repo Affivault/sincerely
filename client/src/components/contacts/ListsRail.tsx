@@ -245,7 +245,8 @@ export function ListsRail({
         <Icon className="h-3.5 w-3.5" />
       </span>
       <span className={cn('flex-1 truncate text-body', active ? 'font-semibold' : 'font-medium')}>{label}</span>
-      {count != null && <span className="text-caption tabular-nums text-[var(--text-tertiary)]">{count.toLocaleString()}</span>}
+      {/* Tertiary grey on the active row's tint was 4.13:1, short of AA. */}
+      {count != null && <span className={cn('text-caption tabular-nums', active ? 'text-[var(--text-secondary)]' : 'text-[var(--text-tertiary)]')}>{count.toLocaleString()}</span>}
     </button>
   );
 

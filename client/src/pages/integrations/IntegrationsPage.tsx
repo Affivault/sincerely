@@ -103,6 +103,13 @@ function BrandTile({ providerId, size = 'md' }: { providerId: string; size?: 'md
   );
 }
 
+/* The two most people set up first: replies in Slack, deals into a CRM.
+   They keep the solid button and a badge; everything else is an outline, so
+   the page no longer shows a dozen equal blue buttons. */
+const RECOMMENDED = new Set(['slack', 'hubspot']);
+const OUTLINE_BTN = 'bg-[var(--bg-surface)] border border-[var(--border-control)] text-[var(--text-primary)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-hover)]';
+const SOLID_BTN = 'bg-[var(--indigo)] text-white hover:opacity-90 shadow-[var(--glow-indigo)]';
+
 /** "Connected to #wins · Acme" line for OAuth-connected providers. */
 function connectionMeta(row: UserIntegration): string | null {
   const parts = [row.config.channel, row.config.workspace].filter((v) => v && !v.includes('…'));
@@ -201,18 +208,27 @@ export function IntegrationsPage() {
               const connected = byProvider.get(meta.id);
               const oneClick = !!(meta.oauth && oauthAvailable?.[meta.id]);
               const cMeta = connected ? connectionMeta(connected) : null;
+              const recommended = !connected && RECOMMENDED.has(meta.id);
               return (
                 <div
                   key={meta.id}
-                  className="rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] p-4 flex flex-col gap-3 hover:border-[var(--border-default)] transition-colors"
+                  className={cn(
+                    'rounded-xl bg-[var(--bg-surface)] border p-4 flex flex-col gap-3 transition-colors',
+                    recommended ? 'border-[rgba(47,63,156,0.35)] hover:border-[rgba(47,63,156,0.6)]' : 'border-[var(--border-subtle)] hover:border-[var(--border-default)]',
+                  )}
                 >
                   <div className="flex items-start gap-3">
                     <BrandTile providerId={meta.id} />
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                         <h3 className="text-strong font-semibold text-[var(--text-primary)]">{meta.name}</h3>
+                        {recommended && (
+                          <span className="inline-flex items-center whitespace-nowrap rounded-full bg-[var(--indigo)] px-2 py-0.5 text-micro font-semibold text-white">
+                            Recommended
+                          </span>
+                        )}
                         {oneClick && !connected && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-[rgba(47,63,156,0.1)] px-2 py-0.5 text-micro font-medium text-[var(--indigo-text)]">
+                          <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-[rgba(47,63,156,0.1)] px-2 py-0.5 text-micro font-medium text-[var(--indigo-text)]">
                             <Sparkles className="h-2.5 w-2.5" />
                             1-click
                           </span>
@@ -254,7 +270,7 @@ export function IntegrationsPage() {
                         <button
                           onClick={() => oauthStartMutation.mutate(meta.id)}
                           disabled={oauthStartMutation.isPending}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-body font-semibold bg-[var(--indigo)] text-white hover:opacity-90 shadow-[var(--glow-indigo)] transition-all disabled:opacity-50"
+                          className={cn('inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-body font-semibold transition-all disabled:opacity-50', recommended ? SOLID_BTN : OUTLINE_BTN)}
                         >
                           {oauthStartMutation.isPending && oauthStartMutation.variables === meta.id
                             ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -275,7 +291,7 @@ export function IntegrationsPage() {
                           'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-body font-semibold transition-all',
                           connected
                             ? 'bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-primary)] hover:border-[var(--border-default)]'
-                            : 'bg-[var(--indigo)] text-white hover:opacity-90 shadow-[var(--glow-indigo)]'
+                            : recommended ? SOLID_BTN : OUTLINE_BTN
                         )}
                       >
                         {connected ? 'Manage' : 'Connect'}

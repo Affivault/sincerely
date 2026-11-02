@@ -627,7 +627,7 @@ const ALL_COLUMNS: ColumnDef[] = [
   { id: 'source',      label: 'Source',    icon: Radar,                              tdClass: 'max-w-[220px]', render: (c) => <SourceCell source={c.source} detail={c.import_source} /> },
   { id: 'added',       label: 'Added',     icon: Clock,       sortKey: 'created_at', render: (c) => <span className="text-caption text-[var(--text-tertiary)]" title={formatDate(c.created_at)}>{formatRelativeTime(c.created_at)}</span> },
   // Leads: where they are in the outbound cycle, read from their campaigns.
-  { id: 'outreach',    label: 'Outreach',  icon: Send,                               tdClass: 'max-w-[240px]', render: (c) => <OutreachCell o={c.outreach} /> },
+  { id: 'outreach',    label: 'Outreach',  icon: Send,                               tdClass: 'max-w-[200px]', render: (c) => <OutreachCell o={c.outreach} /> },
   // Contacts: what is in the pipeline with them.
   { id: 'deals',       label: 'Deals',     icon: Handshake,                          render: (c) => <DealsCell d={c.deals} /> },
   // Contacts: when they stopped being a lead.
@@ -654,7 +654,9 @@ const DEFAULT_COLUMNS_FOR: Record<ListKind, ColumnId[]> = {
 };
 
 function OutreachCell({ o }: { o?: OutreachSummary | null }) {
-  if (!o) return <span className="text-body text-[var(--text-tertiary)]">—</span>;
+  // A new lead has not been put in a campaign yet: say so in a word rather
+  // than a column of dashes.
+  if (!o || (o.state === 'none' && !o.campaign_name)) return <span className="text-caption text-[var(--text-tertiary)]">{LEAD_OUTREACH_LABEL.none}</span>;
   const tone: Record<LeadOutreach, string> = {
     none: 'text-[var(--text-tertiary)] bg-[var(--bg-elevated)]',
     queued: 'text-slate-600 dark:text-slate-300 bg-slate-500/12',
@@ -1490,6 +1492,19 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
     ? (listKind === 'lead' ? lifecycleCounts.prospect : lifecycleCounts.contact + lifecycleCounts.customer)
     : undefined;
   /** People on the other page, for the cross-link at the top. */
+  // The "what this page is" line, folded to just its link once someone has
+  // read it and closed it. Per page, per browser.
+  const explainerKey = `people.explainer.${listKind}`;
+  const [explainerHidden, setExplainerHidden] = useState(() => {
+    try { return localStorage.getItem(`people.explainer.${listKind}`) === '1'; } catch { return false; }
+  });
+  useEffect(() => {
+    try { setExplainerHidden(localStorage.getItem(explainerKey) === '1'); } catch { /* ignore */ }
+  }, [explainerKey]);
+  const hideExplainer = () => {
+    setExplainerHidden(true);
+    try { localStorage.setItem(explainerKey, '1'); } catch { /* ignore */ }
+  };
   const otherTotal = lifecycleCounts
     ? (listKind === 'lead' ? lifecycleCounts.contact + lifecycleCounts.customer : lifecycleCounts.prospect)
     : undefined;
@@ -1854,6 +1869,18 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
           one thing worth saying up top is where the others went, and how
           many there are. A lead who replies moves across on their own.
         */}
+        {explainerHidden ? (
+          otherTotal != null && (
+            <div className="flex justify-end text-caption">
+              <Link to={listKind === 'lead' ? '/contacts' : '/leads'} className="inline-flex items-center gap-1 font-medium text-[var(--indigo-text)] hover:underline">
+                {listKind === 'lead'
+                  ? `${otherTotal.toLocaleString()} contact${otherTotal === 1 ? '' : 's'} in your CRM`
+                  : `${otherTotal.toLocaleString()} lead${otherTotal === 1 ? '' : 's'} in outreach`}
+                <ArrowRight className="h-3 w-3" />
+              </Link>
+            </div>
+          )
+        ) : (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2 text-caption text-[var(--text-secondary)]">
           {listKind === 'lead' ? (
             <>
@@ -1881,7 +1908,11 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
               )}
             </>
           )}
+          <button type="button" onClick={hideExplainer} aria-label="Hide this note" title="Hide this note" className="icon-btn h-6 w-6 flex-shrink-0">
+            <X className="h-3 w-3" />
+          </button>
         </div>
+        )}
 
         {/* Each page's own filter. Leads: where they are in outreach.
             Contacts: which side of the CRM. Neither can show the other page. */}

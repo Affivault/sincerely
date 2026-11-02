@@ -25,6 +25,7 @@ import { useFocusTrap } from '../hooks/useFocusTrap';
 import {
   parseQuickAdd, SEARCH_TYPE_LABEL, MIN_SEARCH_LENGTH, parseCommand, matchesDealQuery, rotOf,
   type SearchHit, type SearchHitType, type QuickAddKind,
+  formatMoney,
 } from '@lemlist/shared';
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -248,9 +249,9 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
       grade: dealHealth?.[d.id]?.grade ?? null,
     }));
     const total = matches.reduce((n, d) => n + (Number(d.value) || 0), 0);
-    const cur = matches[0]?.currency || 'USD';
-    let totalLabel = '';
-    try { totalLabel = new Intl.NumberFormat(undefined, { style: 'currency', currency: cur, maximumFractionDigits: 0 }).format(total); } catch { totalLabel = String(total); }
+    // One currency between them, or the account's when they are mixed.
+    const curs = new Set(matches.map((d) => d.currency).filter(Boolean));
+    const totalLabel = formatMoney(total, curs.size === 1 ? [...curs][0] : undefined);
     const head: CommandItem = {
       id: 'cmd-deals-summary',
       label: `${intent.label}: ${matches.length} deal${matches.length === 1 ? '' : 's'}${matches.length ? `, ${totalLabel}` : ''}`,
@@ -263,7 +264,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
       id: `cmd-deal-${d.id}`,
       label: d.title,
       sublabel: [d.company, d.stage].filter(Boolean).join(' · '),
-      meta: (() => { try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: d.currency || 'USD', maximumFractionDigits: 0 }).format(Number(d.value) || 0); } catch { return String(d.value); } })(),
+      meta: formatMoney(Number(d.value) || 0, d.currency),
       icon: Handshake,
       group: 'Answer',
       peek: { type: 'deal' as const, id: d.id },

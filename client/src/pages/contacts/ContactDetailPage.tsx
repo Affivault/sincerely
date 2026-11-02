@@ -1,3 +1,4 @@
+import { MoreMenu } from '../../components/ui/MoreMenu';
 import { StagePill, OutreachPill } from '../../components/contacts/PersonBadges';
 import { usePipelines } from '../../hooks/usePipelines';
 import { useEffect, useState } from 'react';
@@ -21,7 +22,7 @@ import { Profile360 } from '../../components/contacts/Profile360';
 import { verificationApi } from '../../api/verification.api';
 import {
   DEAL_STAGES, isColdEmailable, LIFECYCLE_LABEL, PROMOTION_LABEL, peoplePageHref,
-  type Deal, type CrmEvent, type Lifecycle, type PromotionTrigger, formatDate } from '@lemlist/shared';
+  type Deal, type CrmEvent, type Lifecycle, type PromotionTrigger, formatDate, formatMoney } from '@lemlist/shared';
 import { PageSkeleton } from '../../components/ui/Skeleton';
 import { InlineEdit } from '../../components/ui/InlineEdit';
 import { Modal } from '../../components/ui/Modal';
@@ -386,15 +387,8 @@ export function ContactDetailPage() {
             a line saying it cannot would make the page argue with itself, and
             the enrolment would be dropped server-side anyway.
           */}
-          <button
-            onClick={() => enrich.mutate()}
-            disabled={enrich.isPending}
-            title={`Fill in their profile and their company, and check their email. Costs ${creditsLabel(CREDIT_PRICES.enrich)}, refunded if nothing is found.`}
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors disabled:opacity-60"
-          >
-            {enrich.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-            {enrich.isPending ? 'Enriching…' : `Enrich · ${creditsLabel(CREDIT_PRICES.enrich)}`}
-          </button>
+          {/* Enrich lives on the 360 profile below, beside what it fills in;
+              a second copy up here read as two different things. */}
           <button
             onClick={() => setShowCampaignModal(true)}
             disabled={!coldEmailable}
@@ -417,26 +411,22 @@ export function ContactDetailPage() {
           >
             <Plus className="h-3.5 w-3.5" /> New deal
           </button>
-          <button
-            onClick={() => confirm(
-              { title: `Suppress ${contact.email}?`, body: 'No campaign will email this address again — including campaigns they are already part of.', confirmLabel: 'Suppress' },
-              () => suppressMutation.mutate(),
-            )}
-            disabled={suppressMutation.isPending}
-            className="icon-btn hover:text-amber-500 hover:bg-amber-500/10 flex-shrink-0"
-            title="Add to suppression list"
-            aria-label="Add to suppression list"
-          >
-            <Ban className="h-3.5 w-3.5" />
-          </button>
-          <button
-            onClick={() => deleteContact(contact.email)}
-            className="icon-btn hover:text-rose-500 hover:bg-rose-500/10 flex-shrink-0"
-            title="Delete contact"
-            aria-label="Delete contact"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
+          <MoreMenu
+            label="More actions for this contact"
+            items={[
+              {
+                label: 'Suppress this address',
+                icon: Ban,
+                disabled: suppressMutation.isPending,
+                hint: 'No campaign will email this address again',
+                onSelect: () => confirm(
+                  { title: `Suppress ${contact.email}?`, body: 'No campaign will email this address again — including campaigns they are already part of.', confirmLabel: 'Suppress' },
+                  () => suppressMutation.mutate(),
+                ),
+              },
+              { label: 'Delete contact', icon: Trash2, danger: true, onSelect: () => deleteContact(contact.email) },
+            ]}
+          />
         </div>
       </div>
 
@@ -751,7 +741,7 @@ export function ContactDetailPage() {
                         )}
                       </span>
                       <span className="text-caption text-[var(--text-tertiary)] flex-shrink-0">{stage?.label}</span>
-                      <span className="text-body font-semibold text-[var(--text-primary)] tabular flex-shrink-0">${Math.round(d.value || 0).toLocaleString()}</span>
+                      <span className="text-body font-semibold text-[var(--text-primary)] tabular flex-shrink-0">{formatMoney(d.value || 0, d.currency)}</span>
                     </Link>
                   );
                 })}

@@ -277,11 +277,44 @@ export const campaignsService = {
       }
     }
 
+    // The outcomes worth leading with: people who said yes, and people who
+    // asked to meet, per campaign. Opens are inflated by Apple Mail's
+    // prefetch, so the list leads with these. Each person once per campaign
+    // (someone who replies twice is one interested lead). Isolated like the
+    // stats: without it the list still shows, just without these two.
+    const outcomes = new Map<string, { interested: Set<string>; meeting: Set<string> }>();
+    if (campaigns && campaigns.length > 0) {
+      try {
+        const { data: rows, error: outErr } = await supabaseAdmin
+          .from('inbox_messages')
+          .select('campaign_id, contact_id, from_email, sara_intent')
+          .eq('user_id', userId)
+          .in('campaign_id', campaigns.map((c: any) => c.id))
+          .in('sara_intent', ['interested', 'meeting'])
+          .limit(20000);
+        if (outErr) throw outErr;
+        for (const r of (rows || []) as Array<{ campaign_id: string; contact_id: string | null; from_email: string | null; sara_intent: string }>) {
+          const o = outcomes.get(r.campaign_id) || { interested: new Set<string>(), meeting: new Set<string>() };
+          const who = r.contact_id || r.from_email || '';
+          if (!who) continue;
+          // A meeting is also a yes: count it in both, so Interested is never
+          // smaller than Meetings.
+          o.interested.add(who);
+          if (r.sara_intent === 'meeting') o.meeting.add(who);
+          outcomes.set(r.campaign_id, o);
+        }
+      } catch (err: any) {
+        console.error('[Campaigns] Outcome lookup failed; listing without it:', err?.message ?? String(err));
+      }
+    }
+
     const withStats = (campaigns || []).map((campaign: any) => {
+      const o = outcomes.get(campaign.id);
+      const outcome = { interested_count: o?.interested.size ?? 0, meeting_count: o?.meeting.size ?? 0 };
       const stats = statsById.get(campaign.id);
-      if (!stats) return statsUnavailable ? { ...campaign, stats_unavailable: true } : campaign;
+      if (!stats) return statsUnavailable ? { ...campaign, ...outcome, stats_unavailable: true } : { ...campaign, ...outcome };
       const { campaign_id, ...rest } = stats;
-      return { ...campaign, ...withRates(rest) };
+      return { ...campaign, ...withRates(rest), ...outcome };
     });
 
     return formatPaginatedResponse(withStats, count || 0, page, limit);

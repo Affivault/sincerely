@@ -2,11 +2,11 @@ import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   DEAL_STAGES, OPEN_STAGES, annualRecurring, dealValue, medianDaysPerStage,
-  outcomesByStage, performanceBySource, reasonBreakdown, plural, sourceLabel } from '@lemlist/shared';
+  outcomesByStage, performanceBySource, reasonBreakdown, plural, sourceLabel, formatMoney } from '@lemlist/shared';
 import type { DealStage } from '@lemlist/shared';
 import { crmApi } from '../../api/crm.api';
 import { SkeletonList } from '../../components/ui/Skeleton';
-import { cn } from '../../lib/utils';
+import { Segmented } from '../../components/ui/Segmented';
 import { keepPrevious } from '../../lib/listQuery';
 import { Refreshing } from '../../components/ui/Refreshing';
 import { PageHeader } from '../../components/shared/PageHeader';
@@ -29,21 +29,15 @@ import {
    ═══════════════════════════════════════════════════════════════════════ */
 
 const WINDOWS = [
-  { days: 90, label: '90 days' },
-  { days: 180, label: '6 months' },
-  { days: 365, label: '12 months' },
-  { days: 3650, label: 'All time' },
+  { value: 90, label: '90 days' },
+  { value: 180, label: '6 months' },
+  { value: 365, label: '12 months' },
+  { value: 3650, label: 'All time' },
 ];
 
-function money(v: number, currency = 'USD'): string {
-  const abs = Math.abs(v);
-  const compact = abs >= 1_000_000
-    ? `${(v / 1_000_000).toFixed(abs >= 10_000_000 ? 0 : 1)}M`
-    : abs >= 10_000
-      ? `${Math.round(v / 1000)}K`
-      : Math.round(v).toLocaleString();
-  const symbol = currency === 'GBP' ? '£' : currency === 'EUR' ? '€' : '$';
-  return `${symbol}${compact}`;
+/** Compact from ten thousand up, in the given currency or the account's. */
+function money(v: number, currency?: string | null): string {
+  return Math.abs(v) >= 10_000 ? formatMoney(v, currency, { compact: true }) : formatMoney(v, currency);
 }
 
 function stageLabel(id: DealStage): string {
@@ -143,23 +137,7 @@ export function DealInsightsPage() {
         title="Win / loss"
         description="Where deals die, why, how long they take, and which sources are worth the effort."
         actions={
-        <div className="flex flex-shrink-0 items-center gap-1 rounded-lg border border-[var(--border-subtle)] p-0.5">
-          {WINDOWS.map((w) => (
-            <button
-              key={w.days}
-              type="button"
-              onClick={() => setDays(w.days)}
-              className={cn(
-                'rounded-md px-2.5 py-1 text-caption font-medium transition-colors',
-                days === w.days
-                  ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)]'
-                  : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]',
-              )}
-            >
-              {w.label}
-            </button>
-          ))}
-        </div>
+          <Segmented label="Period" options={WINDOWS} value={days} onChange={setDays} />
         }
       />
 

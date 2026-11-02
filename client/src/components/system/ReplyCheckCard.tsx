@@ -1,3 +1,4 @@
+import { ForOwner } from '../ui/ForOwner';
 import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -110,7 +111,7 @@ export function ReplyCheckCard({ status, run }: {
           />
           <span>
             Check once a day on its own and tell me if it fails
-            {!status.persisted && ' (needs migration 079)'}
+            {!status.persisted && <> (not switched on for your account yet) <ForOwner>migration 079</ForOwner></>}
           </span>
         </label>
       </div>

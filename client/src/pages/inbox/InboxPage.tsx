@@ -3928,19 +3928,6 @@ export function InboxPage() {
             })()}
           </div>
 
-          <select
-            aria-label="Filter by intent"
-            value={tagFilter}
-            onChange={e => { setTagFilter(e.target.value); setQuickFilter('all'); setSelectedId(null); }}
-            className={cn(
-              'hidden md:block h-8 px-2 rounded-lg border text-body font-medium outline-none focus-visible:shadow-[var(--ring-focus)] cursor-pointer transition-colors flex-shrink-0',
-              tagFilter !== 'all'
-                ? 'border-[rgba(47,63,156,0.4)] bg-[var(--indigo-subtle)] text-[var(--indigo-text)]'
-                : 'border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[var(--text-secondary)]'
-            )}
-          >
-            {TAG_OPTIONS.map(t => <option key={t.value} value={t.value}>{t.value === 'all' ? 'All intents' : t.label}</option>)}
-          </select>
 
           <form onSubmit={handleSearch} className="flex-1 sm:flex-none min-w-0">
             <div className="relative">
@@ -3960,17 +3947,19 @@ export function InboxPage() {
             </div>
           </form>
 
-          <button aria-label="Sync inboxes" onClick={handleRefresh} disabled={isRefreshing || isFetching} title="Sync inboxes" className="icon-btn flex-shrink-0 disabled:opacity-40">
+          <button aria-label="Sync inboxes" onClick={handleRefresh} disabled={isRefreshing || isFetching} title="Sync inboxes" className="icon-btn flex-shrink-0 gap-1.5 xl:w-auto xl:px-2 xl:text-caption xl:font-medium disabled:opacity-40">
             <RefreshCw className={cn('h-3.5 w-3.5', (isRefreshing || isFetching) && 'animate-spin')} />
+            <span className="hidden xl:inline">Sync</span>
           </button>
           {/* Where "why can't I see older mail?" gets answered, next to the
               button people press when they think mail is missing. */}
           <button aria-label="How far back each mailbox is kept"
             onClick={() => setShowHistory((v) => !v)}
             title="How far back each mailbox is kept"
-            className={cn('icon-btn flex-shrink-0 max-sm:!hidden', showHistory && 'text-[var(--indigo-text)]')}
+            className={cn('icon-btn flex-shrink-0 gap-1.5 xl:w-auto xl:px-2 xl:text-caption xl:font-medium max-sm:!hidden', showHistory && 'text-[var(--indigo-text)]')}
           >
             <HistoryIcon className="h-3.5 w-3.5" />
+            <span className="hidden xl:inline">History</span>
           </button>
           <button aria-label="Mark all read (entire mailbox)"
             onClick={() => {
@@ -3991,9 +3980,10 @@ export function InboxPage() {
             }}
             disabled={markAllReadMut.isPending}
             title="Mark all read (entire mailbox)"
-            className="icon-btn flex-shrink-0 max-sm:!hidden"
+            className="icon-btn flex-shrink-0 gap-1.5 xl:w-auto xl:px-2 xl:text-caption xl:font-medium max-sm:!hidden"
           >
             <CheckCheck className="h-4 w-4" />
+            <span className="hidden xl:inline">Mark all read</span>
           </button>
           <button
             onClick={() => { setReplyMode(null); setShowCompose(true); }}
@@ -4001,6 +3991,36 @@ export function InboxPage() {
           >
             <Pencil className="h-3.5 w-3.5" /> Compose
           </button>
+        </div>
+
+        {/* Intent as chips with their counts, like the tabs above, instead
+            of a dropdown you had to open to learn what was in it. An intent
+            with nothing in it stays out of the way unless it is the one on. */}
+        <div role="group" aria-label="Filter by intent" className="hidden md:flex items-center gap-1.5 px-4 py-2 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] flex-shrink-0 overflow-x-auto scrollbar-none">
+          {TAG_OPTIONS
+            .filter((t) => t.value === 'all' || t.value === tagFilter || (viewCounts[t.value] || 0) > 0)
+            .map((t) => {
+              const on = tagFilter === t.value;
+              const n = t.value === 'all' ? null : (viewCounts[t.value] || 0);
+              return (
+                <button
+                  key={t.value}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => { setTagFilter(t.value); setQuickFilter('all'); setSelectedId(null); }}
+                  className={cn(
+                    'inline-flex shrink-0 items-center gap-1.5 h-7 px-2.5 rounded-full border text-caption font-medium transition-colors',
+                    on
+                      ? 'border-[rgba(47,63,156,0.4)] bg-[var(--indigo-subtle)] text-[var(--indigo-text)]'
+                      : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)]',
+                  )}
+                >
+                  {t.value !== 'all' && INTENT_DOTS[t.value] && <span className="h-1.5 w-1.5 rounded-full" style={{ background: INTENT_DOTS[t.value] }} />}
+                  {t.value === 'all' ? 'All intents' : t.label}
+                  {n != null && <span className="tabular text-micro opacity-75">{n > 999 ? '999+' : n}</span>}
+                </button>
+              );
+            })}
         </div>
 
         {showHistory && (

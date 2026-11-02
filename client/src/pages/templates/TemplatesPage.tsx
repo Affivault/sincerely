@@ -902,7 +902,7 @@ export function TemplatesPage() {
 
       <div className="flex flex-col md:flex-row gap-4 md:items-start">
         {/* ── Library rail ── */}
-        <aside aria-label="Template library" className="w-full md:w-[300px] flex-shrink-0 space-y-3">
+        <aside aria-label="Template library" className="w-full md:w-[300px] lg:w-[360px] xl:w-[400px] flex-shrink-0 space-y-3">
           {/* Type tabs */}
           <div className="flex items-center p-0.5 rounded-lg bg-[var(--bg-elevated)]">
             {([
@@ -937,17 +937,37 @@ export function TemplatesPage() {
                 className="input-field pl-8"
               />
             </div>
-            <select
-              aria-label="Filter by category"
-              value={activeCategory}
-              onChange={e => setActiveCategory(e.target.value as TemplateCategory | 'all')}
-              className="input-field cursor-pointer"
-            >
-              <option value="all">All categories</option>
-              {TEMPLATE_CATEGORIES.map(c => (
-                <option key={c.value} value={c.value}>{c.label}</option>
-              ))}
-            </select>
+            {/* Categories as chips with counts, only the ones in use - a
+                browser dropdown hid which categories had anything in them. */}
+            {(() => {
+              const pool = ((tab === 'emails' ? emailTemplates : sequenceTemplates) || []) as Array<{ category: TemplateCategory }>;
+              const count = (c: string) => pool.filter((t) => t.category === c).length;
+              const shown = TEMPLATE_CATEGORIES.filter((c) => count(c.value) > 0 || activeCategory === c.value);
+              if (shown.length === 0) return null;
+              const chip = (value: TemplateCategory | 'all', label: string, n: number) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={activeCategory === value}
+                  onClick={() => setActiveCategory(value)}
+                  className={cn(
+                    'inline-flex items-center gap-1 h-7 px-2.5 rounded-full border text-caption font-medium transition-colors',
+                    activeCategory === value
+                      ? 'border-[rgba(47,63,156,0.4)] bg-[var(--indigo-subtle)] text-[var(--indigo-text)]'
+                      : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)]',
+                  )}
+                >
+                  {label}
+                  <span className="tabular text-micro opacity-75">{n}</span>
+                </button>
+              );
+              return (
+                <div role="group" aria-label="Filter by category" className="flex flex-wrap gap-1.5">
+                  {chip('all', 'All', pool.length)}
+                  {shown.map((c) => chip(c.value, c.label, count(c.value)))}
+                </div>
+              );
+            })()}
           </div>
 
           {/* Rows */}

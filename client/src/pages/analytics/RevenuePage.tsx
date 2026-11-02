@@ -112,7 +112,7 @@ export function RevenuePage() {
         description="What your outreach earned, not just what it sent."
         actions={sorted.length > 0 && (
           <Button variant="secondary" onClick={() => exportRevenueCsv(sorted)} title="Export the table below as a CSV file">
-            <Download className="h-4 w-4" /> Export CSV
+            <Download className="h-4 w-4" /> Export
           </Button>
         )}
       />

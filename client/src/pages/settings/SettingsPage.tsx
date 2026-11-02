@@ -9,7 +9,7 @@ import { Toggle } from '../../components/ui/Toggle';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { cn } from '../../lib/utils';
 import toast from 'react-hot-toast';
-import { PLACEHOLDER } from '@lemlist/shared';
+import { PLACEHOLDER, CURRENCIES, currencySymbol } from '@lemlist/shared';
 import { RelayEngineNote } from '../../components/inbox/PeopleFirstNotices';
 import { NotificationTryOut } from '../../components/settings/NotificationTryOut';
 import { Chip } from '../../components/ui/Chip';
@@ -36,6 +36,7 @@ import {
   Trash2,
   Eye,
   EyeOff,
+  Banknote,
 } from 'lucide-react';
 
 type Tab = 'profile' | 'account' | 'notifications' | 'preferences' | 'ai';
@@ -105,6 +106,7 @@ export function SettingsPage() {
   const [company, setCompany] = useState('');
   const [jobTitle, setJobTitle] = useState('');
   const [timezone, setTimezone] = useState('America/New_York');
+  const [currency, setCurrency] = useState('USD');
 
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [campaignAlerts, setCampaignAlerts] = useState(true);
@@ -180,6 +182,7 @@ export function SettingsPage() {
       setCompany(settings.company || '');
       setJobTitle(settings.job_title || '');
       setTimezone(settings.timezone || 'America/New_York');
+      setCurrency(settings.currency || 'USD');
       setEmailNotifications(settings.email_notifications ?? true);
       setCampaignAlerts(settings.campaign_alerts ?? true);
       setReplyNotifications(settings.reply_notifications ?? true);
@@ -248,6 +251,9 @@ export function SettingsPage() {
       company,
       job_title: jobTitle,
       timezone,
+      // Sent only when changed: an account whose database has not got the
+      // column yet can still save everything else.
+      ...(currency !== (settings?.currency || 'USD') ? { currency } : {}),
       email_notifications: emailNotifications,
       campaign_alerts: campaignAlerts,
       reply_notifications: replyNotifications,
@@ -480,6 +486,26 @@ export function SettingsPage() {
                     <option value="UTC">UTC</option>
                   </select>
                 </div>
+
+                <div>
+                  <label htmlFor="settings-currency" className="block text-strong font-medium text-[var(--text-secondary)] mb-1.5">
+                    <Banknote className="inline h-3.5 w-3.5 mr-1.5 text-[var(--text-tertiary)]" />
+                    Currency
+                  </label>
+                  <select id="settings-currency"
+                    value={currency}
+                    onChange={(e) => { setCurrency(e.target.value); markChanged(); }}
+                    className="input-field"
+                    aria-describedby="settings-currency-hint"
+                  >
+                    {CURRENCIES.map((c) => (
+                      <option key={c.code} value={c.code}>{c.code} - {c.name} ({currencySymbol(c.code)})</option>
+                    ))}
+                  </select>
+                  <p id="settings-currency-hint" className="mt-1.5 text-body text-[var(--text-tertiary)]">
+                    Totals, forecasts and revenue are shown in it, and new deals start in it. A deal you priced in another currency keeps its own.
+                  </p>
+                </div>
               </div>
             )}
 
@@ -628,7 +654,7 @@ export function SettingsPage() {
                       </svg>
                       <span className="text-strong font-medium text-[var(--text-primary)]">Google</span>
                     </div>
-                    <span className="text-body text-[var(--text-tertiary)]">Managed via Supabase Auth</span>
+                    <span className="text-body text-[var(--text-tertiary)]">Sign in with your Google account on the login page</span>
                   </div>
                 </div>
 

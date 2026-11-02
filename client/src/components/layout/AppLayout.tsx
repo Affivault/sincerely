@@ -16,6 +16,7 @@ import { ThemeProvider } from '../../context/ThemeContext';
 import { SidebarProvider, useSidebar } from '../../context/SidebarContext';
 import { CommandPaletteProvider, useCommandPalette } from '../../context/CommandPaletteContext';
 import { useUnreadCount } from '../../hooks/useUnreadCount';
+import { useAccountCurrency } from '../../hooks/useAccountCurrency';
 import { listenForRouteIntent } from '../../lib/prefetch';
 import { holdKeySequence, isModalOpen, isTypingTarget, releaseKeySequence } from '../../lib/keyboard';
 import { warmRichTextEditor } from '../ui/RichTextEditor';
@@ -68,6 +69,7 @@ function AppContent() {
   const { collapsed, narrow } = useSidebar();
   const { open, closePalette, togglePalette } = useCommandPalette();
   const unreadCount = useUnreadCount();
+  const currency = useAccountCurrency();
   const location = useLocation();
   const navigate = useNavigate();
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -346,8 +348,9 @@ function AppContent() {
             : 'px-4 py-5 sm:px-6 lg:px-8 lg:py-7 max-w-[1760px] mx-auto'
         )}>
           {!fullBleed && <UpgradeNag />}
-          {/* key on pathname so the fade-up replays on every route change */}
-          <div key={location.pathname} className="route-fade">
+          {/* key on pathname so the fade-up replays on every route change,
+              and on the account currency so a new one redraws every figure */}
+          <div key={`${location.pathname}|${currency}`} className="route-fade">
             <ErrorBoundary>
               {/* Every settings page shares the settings menu. It was
                   wrapped page by page, so Email accounts, Schedules and

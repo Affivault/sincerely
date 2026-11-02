@@ -109,8 +109,13 @@ export function SaveStandingSearch({ filters, open, onClose }: { filters: Prospe
   );
 }
 
-export function StandingSearches() {
+/**
+ * `folded`: once a search has run, the results are what the page is for, so
+ * the standing searches shrink to one line above them and open on a click.
+ */
+export function StandingSearches({ folded = false }: { folded?: boolean } = {}) {
   const qc = useQueryClient();
+  const [expanded, setExpanded] = useState(false);
   const { data: rules, isError, error } = useQuery({ queryKey: ['prospect-rules'], queryFn: prospectRulesApi.list, retry: false });
   const refresh = () => qc.invalidateQueries({ queryKey: ['prospect-rules'] });
   const toggle = useMutation({
@@ -138,6 +143,23 @@ export function StandingSearches() {
     return msg ? <p className="text-caption text-[var(--text-tertiary)]">{msg}</p> : null;
   }
   if (!rules || rules.length === 0) return null;
+
+  if (folded && !expanded) {
+    const running = rules.filter((r) => r.is_active).length;
+    return (
+      <button
+        type="button"
+        onClick={() => setExpanded(true)}
+        aria-expanded={false}
+        className="flex w-full items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2 text-left text-body text-[var(--text-secondary)] hover:border-[var(--border-default)]"
+      >
+        <Radar className="h-3.5 w-3.5 text-[var(--indigo-text)]" />
+        <span className="font-medium text-[var(--text-primary)]">Standing searches</span>
+        <span className="text-[var(--text-tertiary)]">{rules.length} saved · {running} running</span>
+        <span className="ml-auto text-caption font-medium text-[var(--indigo-text)]">Show</span>
+      </button>
+    );
+  }
 
   return (
     <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4">

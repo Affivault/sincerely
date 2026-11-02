@@ -14,6 +14,7 @@ import { Spinner } from '../../components/ui/Spinner';
 import { PageSkeleton } from '../../components/ui/Skeleton';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
+import { MoreMenu } from '../../components/ui/MoreMenu';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { usePendingRemoval } from '../../components/ui/UndoBar';
 import { PersonalizationPanel, TimezoneCoverageNote } from '../../components/campaigns/PersonalizationPanel';
@@ -223,11 +224,11 @@ export function CampaignDetailPage() {
   // for now" case.
   const confirmCancel = () => confirm(
     {
-      title: 'Cancel this campaign?',
+      title: 'End this campaign?',
       body: 'Nobody else in it will be sent anything, and it cannot be resumed. Pause instead if you only want to stop for now.',
       tone: 'danger',
-      confirmLabel: 'Cancel campaign',
-      // "Cancel" beside "Cancel campaign" reads as two ways to do the same thing.
+      confirmLabel: 'End campaign',
+      // "Cancel" beside "End campaign" reads as two ways to do the same thing.
       cancelLabel: 'Keep it',
     },
     () => cancelMutation.mutate(),
@@ -347,10 +348,7 @@ export function CampaignDetailPage() {
             )}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button title="Clone campaign" aria-label="Clone campaign" onClick={() => cloneMutation.mutate()} disabled={cloneMutation.isPending} className="icon-btn disabled:opacity-50 disabled:pointer-events-none">
-            <Copy className="h-3.5 w-3.5" />
-          </button>
+        <div className="flex flex-wrap items-center gap-2">
           {campaign.status === 'draft' && (
             <>
               <button onClick={() => navigate(`/campaigns/${id}/edit`)} className="btn-secondary">
@@ -365,35 +363,30 @@ export function CampaignDetailPage() {
               it used to show no actions at all, so the only way to stop one
               was to wait for it to send. */}
           {(campaign.status === 'running' || campaign.status === 'scheduled') && (
-            <>
-              <button onClick={() => pauseMutation.mutate()} disabled={pauseMutation.isPending} className="btn-secondary disabled:opacity-50 disabled:pointer-events-none">
-                <Pause className="h-3.5 w-3.5" /> Pause
-              </button>
-              <button onClick={confirmCancel} disabled={cancelMutation.isPending} className="btn-secondary hover:text-rose-500 hover:border-rose-500/30 disabled:opacity-50 disabled:pointer-events-none">
-                <Square className="h-3.5 w-3.5" /> Cancel
-              </button>
-            </>
-          )}
-          {campaign.status === 'paused' && (
-            <>
-              <button onClick={() => resumeMutation.mutate()} disabled={resumeMutation.isPending} className="btn-primary disabled:opacity-50 disabled:pointer-events-none">
-                <Play className="h-3.5 w-3.5" /> Resume
-              </button>
-              <button onClick={confirmCancel} disabled={cancelMutation.isPending} className="btn-secondary hover:text-rose-500 hover:border-rose-500/30 disabled:opacity-50 disabled:pointer-events-none">
-                <Square className="h-3.5 w-3.5" /> Cancel
-              </button>
-            </>
-          )}
-          {(campaign.status === 'draft' || campaign.status === 'completed' || campaign.status === 'cancelled') && (
-            <button
-              onClick={() => deleteCampaign(campaign.name)}
-              className="icon-btn hover:text-rose-500 hover:bg-rose-500/10"
-              title="Delete"
-              aria-label="Delete campaign"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
+            <button onClick={() => pauseMutation.mutate()} disabled={pauseMutation.isPending} className="btn-secondary disabled:opacity-50 disabled:pointer-events-none">
+              <Pause className="h-3.5 w-3.5" /> Pause
             </button>
           )}
+          {campaign.status === 'paused' && (
+            <button onClick={() => resumeMutation.mutate()} disabled={resumeMutation.isPending} className="btn-primary disabled:opacity-50 disabled:pointer-events-none">
+              <Play className="h-3.5 w-3.5" /> Resume
+            </button>
+          )}
+          {/* Ending a campaign is final, so it lives in the menu (still behind
+              its confirm) rather than as an equal beside Pause, and Duplicate
+              is named in words instead of being a bare copy icon. */}
+          <MoreMenu
+            label="Campaign actions"
+            items={[
+              { label: 'Duplicate campaign', icon: Copy, onSelect: () => cloneMutation.mutate(), disabled: cloneMutation.isPending },
+              ...((campaign.status === 'running' || campaign.status === 'scheduled' || campaign.status === 'paused')
+                ? [{ label: 'End campaign', icon: Square, onSelect: confirmCancel, danger: true, disabled: cancelMutation.isPending, hint: 'Stops it for good. Pause if you only want to stop for now.' }]
+                : []),
+              ...((campaign.status === 'draft' || campaign.status === 'completed' || campaign.status === 'cancelled')
+                ? [{ label: 'Delete campaign', icon: Trash2, onSelect: () => deleteCampaign(campaign.name), danger: true }]
+                : []),
+            ]}
+          />
         </div>
       </div>
 

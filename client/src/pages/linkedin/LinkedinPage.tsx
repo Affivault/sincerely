@@ -1,3 +1,4 @@
+import { ForOwner } from '../../components/ui/ForOwner';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -323,7 +324,7 @@ export function LinkedinPage() {
           <Linkedin className="h-6 w-6 mx-auto text-[var(--text-tertiary)] mb-2" />
           <p className="text-heading font-semibold text-[var(--text-primary)]">Not set up yet</p>
           <p className="text-body text-[var(--text-tertiary)] mt-1 max-w-md mx-auto">
-            Run migration <span className="font-mono text-caption">040_linkedin_agent.sql</span> in Supabase, then reload.
+            LinkedIn steps are still being switched on for your account. Check back shortly. <ForOwner>040_linkedin_agent.sql</ForOwner>
           </p>
         </div>
       </div>
@@ -539,7 +540,7 @@ export function LinkedinPage() {
             />
           ) : (
             <p className="text-caption text-[var(--text-tertiary)]">
-              A weekly invite cap arrives with migration <span className="font-mono">093_linkedin_agent_hardening.sql</span>.
+              A weekly invite cap is not switched on for your account yet. <ForOwner>093_linkedin_agent_hardening.sql</ForOwner>
             </p>
           )}
         </div>
@@ -657,7 +658,7 @@ export function LinkedinPage() {
           />
         ) : (
           <p className="text-caption text-[var(--text-tertiary)]">
-            Needs migration <span className="font-mono">093_linkedin_agent_hardening.sql</span>.
+            Not switched on for your account yet. <ForOwner>093_linkedin_agent_hardening.sql</ForOwner>
           </p>
         )}
       </div>
@@ -710,7 +711,7 @@ export function LinkedinPage() {
           </div>
         ) : (
           <p className="text-caption text-[var(--text-tertiary)]">
-            Needs migration <span className="font-mono">095_linkedin_autopilot.sql</span>.
+            Not switched on for your account yet. <ForOwner>095_linkedin_autopilot.sql</ForOwner>
           </p>
         )}
       </div>

@@ -129,7 +129,7 @@ export function NoShowSettingsCard() {
       // returns the old value: say so instead of reporting a save.
       const landed = Object.keys(patch).every((k) => (saved?.[k] ?? '') === (patch[k] ?? ''));
       if (!landed) {
-        toast.error('Not saved: no-show settings need database migration 096.');
+        toast.error('Not saved: no-show settings are not switched on for your account yet.');
         return;
       }
       toast.success('Saved');

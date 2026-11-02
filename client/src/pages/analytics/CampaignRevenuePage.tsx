@@ -17,9 +17,7 @@ import { cn } from '../../lib/utils';
    ═══════════════════════════════════════════════════════════════════════ */
 
 function money(v: number): string {
-  try {
-    return formatMoney(v || 0);
-  } catch { return `$${Math.round(v || 0).toLocaleString()}`; }
+  return formatMoney(v || 0);
 }
 const pct = (v: number | null) => (v === null ? '—' : `${Math.round(v * 100)}%`);
 

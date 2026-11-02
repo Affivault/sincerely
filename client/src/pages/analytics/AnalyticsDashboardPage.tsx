@@ -23,6 +23,7 @@ import { CountUp } from '../../components/ui/CountUp';
 import { Avatar } from '../../components/shared/Avatar';
 import { useTheme } from '../../context/ThemeContext';
 import { Link } from 'react-router-dom';
+import { Segmented } from '../../components/ui/Segmented';
 import { cn } from '../../lib/utils';
 import { SequenceStepsPanel } from '../../components/analytics/SequenceStepsPanel';
 import { CampaignCompare } from '../../components/analytics/CampaignCompare';
@@ -261,7 +262,7 @@ function HeatmapGrid({ grid, maxValue }: { grid: HeatmapDay[]; maxValue: number 
     .map((d) => `${d.day} peaks at ${d.hour}:00 (${d.value})`)
     .join(', ');
   return (
-    <div className="overflow-x-auto">
+    <div className="relative overflow-x-auto">
       <div className="min-w-[640px]" role="img" aria-label={`Engagement by day of week and hour. ${summary || 'No engagement yet'}`}>
         <div className="flex gap-px mb-1 pl-[52px]">
           {hours.map((h) => (
@@ -395,8 +396,11 @@ function CampaignLeaderboard({
     { key: 'bounce_rate', label: 'Bounce' },
   ];
 
+  // relative: the screen-reader labels in the header are positioned, and
+  // without a containing block in here they escaped the scroll box and
+  // pushed the whole page 250px wider than a phone.
   return (
-    <div className="overflow-x-auto">
+    <div className="relative overflow-x-auto">
       <table className="w-full text-strong">
         <thead>
           <tr className="border-b border-[var(--border-subtle)]">
@@ -725,7 +729,7 @@ function ContactsTab({ contacts }: { contacts: CampaignContact[] }) {
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-[var(--border-subtle)]">
+      <div className="relative overflow-x-auto rounded-xl border border-[var(--border-subtle)]">
         <table className="w-full text-strong">
           <thead>
             <tr className="bg-[var(--bg-elevated)] border-b border-[var(--border-subtle)]">
@@ -959,13 +963,21 @@ export function AnalyticsDashboardPage() {
   const trendSpark = (k: 'sent' | 'opened' | 'clicked' | 'replied') =>
     formattedTrend.map((d: any) => Number(d[k] || 0));
 
+  /* Each contact counted once, at the furthest step they reached, so the
+     slices add up to everyone emailed and "Opened" here never disagrees
+     with the open rate above by counting clickers and repliers twice. */
   const pieData = useMemo(() => {
     if (!overview) return [];
+    const base = safeNum(overview.contacts_sent ?? overview.total_sent);
+    const replied = safeNum(overview.total_replied);
+    const clicked = Math.max(0, safeNum(overview.total_clicked) - replied);
+    const opened = Math.max(0, safeNum(overview.total_opened) - clicked - replied);
+    const none = Math.max(0, base - replied - clicked - opened);
     return [
-      { name: 'Opened', value: safeNum(overview.total_opened) },
-      { name: 'Clicked', value: safeNum(overview.total_clicked) },
-      { name: 'Replied', value: safeNum(overview.total_replied) },
-      { name: 'No engagement', value: Math.max(0, safeNum(overview.contacts_sent ?? overview.total_sent) - safeNum(overview.total_opened)) },
+      { name: 'Replied', slot: 0, value: replied },
+      { name: 'Clicked, no reply', slot: 1, value: clicked },
+      { name: 'Opened only', slot: 2, value: opened },
+      { name: 'No engagement', slot: 3, value: none },
     ].filter((d) => d.value > 0);
   }, [overview]);
 
@@ -1018,9 +1030,9 @@ export function AnalyticsDashboardPage() {
   }
 
   const dateRangeOptions = [
-    { value: '7d' as const, label: '7d' },
-    { value: '30d' as const, label: '30d' },
-    { value: '90d' as const, label: '90d' },
+    { value: '7d' as const, label: '7 days' },
+    { value: '30d' as const, label: '30 days' },
+    { value: '90d' as const, label: '90 days' },
   ];
 
   return (
@@ -1037,23 +1049,7 @@ export function AnalyticsDashboardPage() {
         description="How your campaigns are landing: sends, opens, replies and deliverability."
         actions={
           <>
-            <div className="inline-flex items-center rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-0.5">
-              {dateRangeOptions.map((opt) => (
-                <button
-                  key={opt.value}
-                  onClick={() => setDateRange(opt.value)}
-                  aria-pressed={dateRange === opt.value}
-                  className={cn(
-                    'px-2.5 h-7 text-body font-medium rounded-md transition-all',
-                    dateRange === opt.value
-                      ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]'
-                      : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'
-                  )}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
+            <Segmented label="Period" options={dateRangeOptions} value={dateRange} onChange={setDateRange} />
             <Button
               variant="secondary"
               size="sm"
@@ -1140,11 +1136,11 @@ export function AnalyticsDashboardPage() {
               <StatCard inStrip label="Emails sent" value={fmtNum(overview.total_sent)} icon={Send} accent="indigo"
                 delta={overview.sent_change ?? undefined} sparkline={trendSpark('sent')} hint={`${fmtNum(overview.total_sent)} total`} />
               <StatCard inStrip label="Open rate" value={fmtPct(overview.avg_open_rate)} icon={Mail} accent="violet"
-                delta={overview.open_rate_change ?? undefined} sparkline={trendSpark('opened')} hint={`${fmtNum(overview.total_opened)} of ${fmtNum(overview.contacts_sent ?? overview.total_sent)} contacts opened; arrow is the change in the rate`} />
+                delta={overview.open_rate_change ?? undefined} sparkline={trendSpark('opened')} hint={`${fmtNum(overview.total_opened)} of ${fmtNum(overview.contacts_sent ?? overview.total_sent)} contacts opened`} />
               <StatCard inStrip label="Click rate" value={fmtPct(overview.avg_click_rate)} icon={MousePointerClick} accent="cyan"
-                delta={overview.click_rate_change ?? undefined} sparkline={trendSpark('clicked')} hint={`${fmtNum(overview.total_clicked)} of ${fmtNum(overview.contacts_sent ?? overview.total_sent)} contacts clicked; arrow is the change in the rate`} />
+                delta={overview.click_rate_change ?? undefined} sparkline={trendSpark('clicked')} hint={`${fmtNum(overview.total_clicked)} of ${fmtNum(overview.contacts_sent ?? overview.total_sent)} contacts clicked`} />
               <StatCard inStrip label="Reply rate" value={fmtPct(overview.avg_reply_rate)} icon={MessageSquare} accent="emerald"
-                delta={overview.reply_rate_change ?? undefined} sparkline={trendSpark('replied')} hint={`${fmtNum(overview.total_replied)} of ${fmtNum(overview.contacts_sent ?? overview.total_sent)} contacts replied; arrow is the change in the rate`} />
+                delta={overview.reply_rate_change ?? undefined} sparkline={trendSpark('replied')} hint={`${fmtNum(overview.total_replied)} of ${fmtNum(overview.contacts_sent ?? overview.total_sent)} contacts replied`} />
             </div>
           )}
 
@@ -1197,7 +1193,7 @@ export function AnalyticsDashboardPage() {
 
             <div className="p-5 panel">
               <h2 className="text-strong font-semibold text-[var(--text-primary)] mb-1">Engagement mix</h2>
-              <p className="text-caption text-[var(--text-secondary)] mb-3">Distribution across activities</p>
+              <p className="text-caption text-[var(--text-secondary)] mb-3">Share of all contacts emailed, each counted once at the furthest step they reached</p>
               {pieData.length > 0 ? (
                 <>
                   <div
@@ -1215,8 +1211,8 @@ export function AnalyticsDashboardPage() {
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
                           <Pie rootTabIndex={-1} isAnimationActive={!reducedMotion} data={pieData} cx="50%" cy="50%" innerRadius={42} outerRadius={60} paddingAngle={3} dataKey="value" strokeWidth={0}>
-                            {pieData.map((_, i) => (
-                              <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                            {pieData.map((d) => (
+                              <Cell key={d.name} fill={PIE_COLORS[d.slot]} />
                             ))}
                           </Pie>
                           <Tooltip formatter={(v: number) => [fmtNum(v), 'Count']} contentStyle={tooltipStyle} />
@@ -1226,12 +1222,12 @@ export function AnalyticsDashboardPage() {
                     </div>
                   </div>
                   <div className="space-y-2 mt-2">
-                    {pieData.map((item, i) => {
+                    {pieData.map((item) => {
                       const total = pieData.reduce((s, d) => s + d.value, 0);
                       return (
                         <div key={item.name} className="flex items-center justify-between text-caption">
                           <div className="flex items-center gap-1.5">
-                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
+                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: PIE_COLORS[item.slot] }} />
                             <span className="text-[var(--text-secondary)]">{item.name}</span>
                           </div>
                           <span className="font-semibold text-[var(--text-primary)] tabular-nums">
@@ -1262,7 +1258,7 @@ export function AnalyticsDashboardPage() {
                     {campaignList!.length} campaigns
                   </span>
                   <Button variant="secondary" size="sm" onClick={() => leaderboardCsv(campaignList!)}>
-                    <Download className="h-3.5 w-3.5" /> CSV
+                    <Download className="h-3.5 w-3.5" /> Export
                   </Button>
                 </div>
               </div>
@@ -1496,10 +1492,10 @@ export function AnalyticsDashboardPage() {
                       <div className="mb-4 flex items-center justify-between gap-2">
                         <h3 className="text-strong font-semibold text-[var(--text-primary)]">Step-by-step breakdown</h3>
                         <Button variant="secondary" size="sm" onClick={() => stepsCsv(selectedCampaign?.name || 'campaign', funnelData)}>
-                          <Download className="h-3.5 w-3.5" /> CSV
+                          <Download className="h-3.5 w-3.5" /> Export
                         </Button>
                       </div>
-                      <div className="overflow-x-auto">
+                      <div className="relative overflow-x-auto">
                         <table className="w-full text-strong">
                           <thead>
                             <tr className="border-b border-[var(--border-subtle)]">

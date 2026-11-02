@@ -22,7 +22,8 @@
     "vercel-build": "npm run build --workspace=shared && npm run build --workspace=client",
     "typecheck": "tsc --noEmit -p server/tsconfig.json && tsc --noEmit -p client/tsconfig.json",
     "check": "npm run build:shared && npm run typecheck && npm run check --workspace=server",
-    "check:extension": "node extension/tests/run.mjs"
+    "check:extension": "node extension/tests/run.mjs",
+    "package:extension": "node extension/tools/package.mjs"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",

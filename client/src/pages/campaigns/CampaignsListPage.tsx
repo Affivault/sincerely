@@ -17,6 +17,7 @@ import { useLaunchPreflight } from '../../components/campaigns/LaunchPreflight';
 import { EmptyState } from '../../components/shared/EmptyState';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { PageHeader } from '../../components/shared/PageHeader';
+import { SearchInput } from '../../components/shared/SearchInput';
 import { PageTabs } from '../../components/shared/Toolbar';
 import { formatRelativeTime, cn } from '../../lib/utils';
 import {
@@ -41,10 +42,10 @@ import {
 /* Sized to fit beside the folder rail on a 1440px laptop (about 920px
    free). At 1006px it scrolled sideways there, and the name column - the
    one thing people read - was pinned to its minimum and truncated. */
-const ROW_GRID = 'grid grid-cols-[minmax(220px,1fr)_60px_60px_60px_60px_60px_76px_120px_88px] items-center gap-x-2.5';
+const ROW_GRID = 'grid grid-cols-[minmax(192px,1fr)_60px_60px_64px_64px_72px_60px_72px_96px_80px] items-center gap-x-2.5';
 
 /* Sortable columns for the campaigns table */
-type SortKey = 'name' | 'sent' | 'open' | 'click' | 'reply' | 'bounce' | 'earned' | 'created';
+type SortKey = 'name' | 'sent' | 'open' | 'click' | 'reply' | 'interested' | 'meeting' | 'bounce' | 'earned' | 'created';
 /** Compact money, for a 84px column. */
 export function fmtMoney(n: number): string {
   // In the app's currency; this printed pounds beside dollar figures elsewhere.
@@ -71,6 +72,8 @@ function sortValue(c: any, key: SortKey): number | string {
     case 'open':   return reached ? (c.opened_count || 0) / reached : -1;
     case 'click':  return reached ? (c.clicked_count || 0) / reached : -1;
     case 'reply':  return reached ? (c.replied_count || 0) / reached : -1;
+    case 'interested': return c.interested_count || 0;
+    case 'meeting': return c.meeting_count || 0;
     case 'bounce': return attempted ? (c.bounced_count || 0) / attempted : -1;
     /*
      * -1 for a campaign with nothing credited, so "no deals yet" sorts
@@ -248,7 +251,7 @@ export function CampaignsListPage() {
 
   // Aggregate stats for current view
   const aggregateStats = useMemo(() => {
-    const totals = { sent: 0, reached: 0, attempted: 0, opened: 0, clicked: 0, replied: 0, bounced: 0, unavailable: 0 };
+    const totals = { sent: 0, reached: 0, attempted: 0, opened: 0, clicked: 0, replied: 0, bounced: 0, interested: 0, meetings: 0, unavailable: 0 };
     for (const c of visibleCampaigns as any[]) {
       if (c.stats_unavailable) totals.unavailable++;
       totals.reached   += reachedOf(c);
@@ -258,6 +261,8 @@ export function CampaignsListPage() {
       totals.clicked  += c.clicked_count || 0;
       totals.replied  += c.replied_count || 0;
       totals.bounced  += c.bounced_count || 0;
+      totals.interested += c.interested_count || 0;
+      totals.meetings += c.meeting_count || 0;
     }
     return totals;
   }, [visibleCampaigns]);
@@ -295,7 +300,10 @@ export function CampaignsListPage() {
     count: t.value === ''
       ? folderScopedCampaigns.length
       : folderScopedCampaigns.filter((c: any) => c.status === t.value).length,
-  }));
+  }))
+    // An empty status is noise ("Scheduled 0, Cancelled 0"); the one you are
+    // on stays, so the filter never vanishes from under you.
+    .filter((t) => t.value === '' || t.count > 0 || t.value === statusFilter);
 
   return (
     <div onClick={() => setContextMenuFor(null)}>
@@ -332,14 +340,13 @@ export function CampaignsListPage() {
         actions={
           <>
             {activeFolderId && activeFolderId !== 'all' && activeFolderId !== null && (
-              <Button variant="secondary" size="sm" onClick={() => setFolderAnalyticsId(activeFolderId)}>
-                <BarChart3 className="h-3.5 w-3.5" /> Folder analytics
+              <Button variant="secondary" onClick={() => setFolderAnalyticsId(activeFolderId)}>
+                <BarChart3 className="h-4 w-4" /> Folder analytics
               </Button>
             )}
             {visibleCampaigns.length > 0 && (
               <Button
                 variant="secondary"
-                size="sm"
                 title="Download the campaigns shown, with their figures, as a CSV file"
                 onClick={() => downloadCsv(
                   `campaigns-${csvDate()}.csv`,
@@ -354,11 +361,12 @@ export function CampaignsListPage() {
                     ]),
                 )}
               >
-                <Download className="h-3.5 w-3.5" /> CSV
+                <Download className="h-4 w-4" /> Export
               </Button>
             )}
-            <Button size="sm" onClick={() => setShowStartChooser(true)}>
-              <Plus className="h-3.5 w-3.5" /> New campaign
+            {/* Same size as every other list page's header buttons. */}
+            <Button onClick={() => setShowStartChooser(true)}>
+              <Plus className="h-4 w-4" /> New campaign
             </Button>
           </>
         }
@@ -373,13 +381,22 @@ export function CampaignsListPage() {
       {sentTotal > 0 && (
         /* One ledger, not five cards: the figures are one account of the
            same sends, so they share a sheet and a baseline. */
-        <div className="panel mb-5 grid grid-cols-2 sm:grid-cols-5 gap-px overflow-hidden !bg-[var(--border-subtle)] [&>*]:bg-[var(--bg-surface)] max-sm:[&>*:last-child]:col-span-2">
-          <MetricChip icon={Send}              label="Sent"    value={aggregateStats.sent}    tone="indigo" />
-          <MetricChip icon={Mail}              label="Opens"   value={aggregateStats.opened}  tone="violet"  readout={openAgg} />
-          <MetricChip icon={MousePointerClick} label="Clicks"  value={aggregateStats.clicked} tone="cyan"    readout={clickAgg} />
-          <MetricChip icon={MessageSquare}     label="Replies" value={aggregateStats.replied} tone="emerald" readout={replyAgg} />
-          <MetricChip icon={Ban}               label="Bounces" value={aggregateStats.bounced} tone="rose"    readout={bounceAgg} />
+        <>
+        {/* Led by what came of the sends - replies, yeses, meetings - with
+            opens and clicks underneath and marked as estimates, since Apple
+            Mail opens every message it fetches. */}
+        <div className="panel mb-2 grid grid-cols-2 sm:grid-cols-4 gap-px overflow-hidden !bg-[var(--border-subtle)] [&>*]:bg-[var(--bg-surface)]">
+          <MetricChip icon={Send}              label="Sent"       value={aggregateStats.sent}       tone="indigo" />
+          <MetricChip icon={MessageSquare}     label="Replies"    value={aggregateStats.replied}    tone="emerald" readout={replyAgg} />
+          <MetricChip icon={MessageSquare}     label="Interested" value={aggregateStats.interested} tone="emerald" />
+          <MetricChip icon={MessageSquare}     label="Meetings"   value={aggregateStats.meetings}   tone="emerald" />
         </div>
+        <p className="mb-5 flex flex-wrap gap-x-4 gap-y-1 px-1 text-caption text-[var(--text-tertiary)]">
+          <span title={openAgg.hint}>Opens (est.) <span className="tabular font-medium text-[var(--text-secondary)]">{aggregateStats.opened.toLocaleString()}</span>{openAgg.isRate && <> · {openAgg.label}</>}</span>
+          <span title={clickAgg.hint}>Clicks <span className="tabular font-medium text-[var(--text-secondary)]">{aggregateStats.clicked.toLocaleString()}</span>{clickAgg.isRate && <> · {clickAgg.label}</>}</span>
+          <span title={bounceAgg.hint}>Bounces <span className="tabular font-medium text-[var(--text-secondary)]">{aggregateStats.bounced.toLocaleString()}</span>{bounceAgg.isRate && <> · {bounceAgg.label}</>}</span>
+        </p>
+        </>
       )}
 
       {/* ── Two-column body: folder rail + content ── */}
@@ -461,31 +478,15 @@ export function CampaignsListPage() {
 
         {/* Main column */}
         <div className="min-w-0">
-          {/* Status tabs + search row */}
-          <div className="flex flex-wrap-reverse items-center justify-between gap-2 border-b border-[var(--border-subtle)] mb-3 pb-px">
+          {/* Status tabs, then the search in a toolbar above the list - the
+              same place it sits on Leads, Contacts, Deals and Companies. */}
+          <div className="border-b border-[var(--border-subtle)] mb-3 pb-px">
             <div className="min-w-0 max-w-full overflow-x-auto scrollbar-none">
               <PageTabs tabs={statusTabs} value={statusFilter} onChange={setStatusFilter} />
             </div>
-            <div className="relative mb-px">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-tertiary)] pointer-events-none" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search…"
-                aria-label="Search campaigns"
-                className="h-7 pl-8 pr-7 text-body rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[rgba(47,63,156,0.4)] focus-visible:shadow-[var(--ring-focus)] focus:bg-[var(--bg-surface)] transition-colors w-40"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  aria-label="Clear search"
-                  className="absolute right-0.5 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              )}
-            </div>
+          </div>
+          <div className="mb-3 flex items-center gap-2">
+            <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search campaigns…" className="w-full sm:w-64" />
           </div>
 
           {/* List */}
@@ -517,21 +518,52 @@ export function CampaignsListPage() {
                 />
               </div>
             ) : (
-              <div className="panel overflow-hidden">
+              <>
+              {/* On a phone, one card per campaign - name, status, reply rate,
+                  sent - instead of a ten-column table showing two of them. */}
+              <ul className="sm:hidden space-y-2" aria-label="Campaigns">
+                {visibleCampaigns.map((c: any) => {
+                  const reply = rateReadout(c.replied_count, reachedOf(c), 'replies');
+                  return (
+                    <li key={c.id}>
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/campaigns/${c.id}`)}
+                        className="panel w-full p-3.5 text-left hover:bg-[var(--bg-hover)] transition-colors"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className={cn('h-1.5 w-1.5 rounded-full flex-shrink-0', STATUS_DOT[c.status] || 'bg-slate-400')} />
+                          <span className="min-w-0 flex-1 truncate text-strong font-semibold text-[var(--text-primary)]">{c.name}</span>
+                          <StatusBadge status={c.status} type="campaign" />
+                        </div>
+                        <div className="mt-2.5 grid grid-cols-3 gap-2 text-caption text-[var(--text-tertiary)]">
+                          <span>Sent<span className="block text-strong font-semibold tabular text-[var(--text-primary)]">{(c.sent_count || 0).toLocaleString()}</span></span>
+                          <span title={reply.hint}>Replies<span className="block text-strong font-semibold tabular text-[var(--text-primary)]">{c.stats_unavailable ? '—' : reply.label}</span></span>
+                          <span>Interested<span className="block text-strong font-semibold tabular text-[var(--text-primary)]">{(c.interested_count || 0).toLocaleString()}</span></span>
+                        </div>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+              <div className="panel overflow-hidden hidden sm:block">
                 <div className="overflow-x-auto">
-                  {/* The grid's own minimum is 220 + 5x60 + 76 + 120 + 88 plus eight
-                        10px gaps = 884px. Anything smaller here and the columns
-                        overlap instead of scrolling, which is how a table loses a
-                        column silently on a laptop. */}
-                  <div className="min-w-[890px]">
+                  {/* The grid's own minimum is 192 + 60 + 60 + 64 + 64 + 72 + 60 + 72
+                        + 96 + 80 plus nine 10px gaps = 910px. Anything smaller here
+                        and the columns overlap instead of scrolling, which is how a
+                        table loses a column silently on a laptop. */}
+                  <div className="min-w-[910px]">
                     {/* Column header — click to sort */}
                     <div className={cn(ROW_GRID, 'px-4 h-10 border-b border-[var(--border-subtle)] bg-[var(--bg-muted)]/40')}>
                       {([
                         { key: 'name' as SortKey,   label: 'Campaign', right: false },
                         { key: 'sent' as SortKey,   label: 'Sent',     right: true },
-                        { key: 'open' as SortKey,   label: 'Open',     right: true },
-                        { key: 'click' as SortKey,  label: 'Click',    right: true },
+                        // Outcomes first. Opens come last and are marked as an
+                        // estimate: Apple Mail opens every message it fetches.
                         { key: 'reply' as SortKey,  label: 'Reply',    right: true },
+                        { key: 'interested' as SortKey, label: 'Interested', right: true },
+                        { key: 'meeting' as SortKey, label: 'Meetings', right: true },
+                        { key: 'open' as SortKey,   label: 'Open est.', right: true },
                         { key: 'bounce' as SortKey, label: 'Bounce',   right: true },
                         { key: 'earned' as SortKey, label: 'Earned',   right: true },
                       ]).map((col) => (
@@ -539,7 +571,7 @@ export function CampaignsListPage() {
                           key={col.key}
                           onClick={() => toggleSort(col.key)}
                           className={cn(
-                            'group/sort inline-flex min-h-6 items-center gap-1 text-caption font-medium transition-colors select-none',
+                            'group/sort inline-flex min-h-6 items-center gap-1 whitespace-nowrap text-caption font-medium transition-colors select-none',
                             col.right && 'justify-end',
                             sortKey === col.key ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
                           )}
@@ -598,6 +630,7 @@ export function CampaignsListPage() {
                   </div>
                 </div>
               </div>
+              </>
             )}
           </Refreshing>
         </div>
@@ -893,14 +926,15 @@ function CampaignRow({ campaign, revenue, expanded, onToggleSnapshot, onOpen, on
         <>
           {/* A failed lookup, said as one - not five zeros. */}
           <span className="text-caption text-right text-[var(--text-tertiary)]" title="The figures could not be loaded" data-stats-unavailable>Stats unavailable</span>
-          <span /><span /><span /><span />
+          <span /><span /><span /><span /><span />
         </>
       ) : (
         <>
           {metric(sentEmails ? sentEmails.toLocaleString() : '—', true)}
-          {rateCell(openR, 60)}
-          {rateCell(clickR, 15)}
           {rateCell(replyR, 15, true)}
+          {metric(campaign.interested_count ? Number(campaign.interested_count).toLocaleString() : '—', !!campaign.interested_count)}
+          {metric(campaign.meeting_count ? Number(campaign.meeting_count).toLocaleString() : '—', !!campaign.meeting_count)}
+          {rateCell(openR, 60)}
           {rateCell(bounceR, 10, false, 3)}
         </>
       )}

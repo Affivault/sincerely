@@ -20,25 +20,15 @@ import {
    would commit to out loud. Then the things that are wrong with it.
    ═══════════════════════════════════════════════════════════════════════ */
 
-function money(v: number, currency = 'USD'): string {
-  const abs = Math.abs(v);
-  // Thousands and millions, because a pipeline header is read at a glance
-  // and "$1,284,000" takes longer to parse than "$1.28M".
-  const compact = abs >= 1_000_000
-    ? `${(v / 1_000_000).toFixed(abs >= 10_000_000 ? 0 : 1)}M`
-    : abs >= 10_000
-      ? `${Math.round(v / 1000)}K`
-      : Math.round(v).toLocaleString();
-  const symbol = currency === 'GBP' ? '£' : currency === 'EUR' ? '€' : '$';
-  return `${symbol}${compact}`;
+/* Thousands and millions, because a pipeline header is read at a glance
+   and "$1,284,000" takes longer to parse than "$1.3M". In the deals' own
+   currency when given, otherwise the account's (Settings > General). */
+function money(v: number, currency?: string | null): string {
+  return Math.abs(v) >= 10_000 ? formatMoney(v, currency, { compact: true }) : formatMoney(v, currency);
 }
 
-function full(v: number, currency = 'USD'): string {
-  try {
-    return formatMoney(v, currency);
-  } catch {
-    return `$${Math.round(v || 0).toLocaleString()}`;
-  }
+function full(v: number, currency?: string | null): string {
+  return formatMoney(v, currency);
 }
 
 const STAGE_BAR: Record<DealStage, string> = {
@@ -135,7 +125,7 @@ const COLLAPSE_KEY = 'deals.summary.collapsed';
 
 export function PipelineHeader({
   deals,
-  currency = 'USD',
+  currency,
   onShowRotting,
   onShowOverdue,
 }: {

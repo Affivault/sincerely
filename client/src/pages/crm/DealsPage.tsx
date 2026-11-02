@@ -20,6 +20,7 @@ import { usePendingRemoval } from '../../components/ui/UndoBar';
 import { SearchInput } from '../../components/shared/SearchInput';
 import { usePeek } from '../../components/peek/usePeek';
 import { PipelineHeader } from '../../components/crm/PipelineHeader';
+import { PipelinesFailedNotice } from '../../components/crm/PipelinesFailedNotice';
 import { DealTable, type SortKey, type SortDir } from '../../components/crm/DealTable';
 import { OutcomeDialog } from '../../components/crm/OutcomeDialog';
 import {
@@ -52,12 +53,12 @@ import {
   type CrmEvent,
   type ContactWithTags,
   type Pipeline,
-  PLACEHOLDER, formatDayMonth, formatMoney, parseDay } from '@lemlist/shared';
+  PLACEHOLDER, formatDayMonth, formatMoney, parseDay, CURRENCIES, currencySymbol, getAccountCurrency } from '@lemlist/shared';
 // Shared, so every export guards against spreadsheet formulas the same way.
 import { csvCell } from '@lemlist/shared';
 
 /* ─── Helpers ─────────────────────────────────────── */
-function fmtMoney(v: number, currency = 'USD'): string {
+function fmtMoney(v: number, currency?: string | null): string {
   return formatMoney(v, currency);
 }
 /** Best display name for the lead attached to a deal (live contact wins). */
@@ -117,6 +118,9 @@ export function DealModal({ deal, onClose, onDeleted }: { deal: Partial<Deal> | 
     contact_email: deal?.contact_email || deal?.contact?.email || null,
     contact_id: deal?.contact_id || deal?.contact?.id || null,
     value: deal?.value ?? 0,
+    // A deal keeps the currency it was priced in; a new one starts in the
+    // account's (Settings > General).
+    currency: deal?.currency || getAccountCurrency(),
     stage: (deal?.stage as DealStage) || 'lead',
     expected_close_date: toDateInput(deal?.expected_close_date) || '',
     notes: deal?.notes || '',
@@ -296,15 +300,27 @@ export function DealModal({ deal, onClose, onDeleted }: { deal: Partial<Deal> | 
           />
         )}
 
-        {!shaped && (
-          <Input
-            label="Deal value (USD)"
-            type="number"
-            min="0"
-            value={String(form.value ?? 0)}
-            onChange={e => set('value', e.target.value)}
-          />
-        )}
+        <div className="grid grid-cols-3 gap-4">
+          {!shaped && (
+            <div className="col-span-2">
+              <Input
+                label={`Deal value (${currencySymbol((form as any).currency)})`}
+                type="number"
+                min="0"
+                value={String(form.value ?? 0)}
+                onChange={e => set('value', e.target.value)}
+              />
+            </div>
+          )}
+          <div className={shaped ? 'col-span-3' : undefined}>
+            <Select
+              label="Currency"
+              value={(form as any).currency}
+              onChange={(e) => set('currency', e.target.value)}
+              options={CURRENCIES.map((c) => ({ value: c.code, label: `${c.code} (${currencySymbol(c.code)})` }))}
+            />
+          </div>
+        </div>
         <div className="grid grid-cols-3 gap-4">
           <div>
             <Input
@@ -329,6 +345,7 @@ export function DealModal({ deal, onClose, onDeleted }: { deal: Partial<Deal> | 
                     ((form as any).probability === '' || (form as any).probability == null
                       ? stageDefault
                       : Number((form as any).probability) || 0)) / 100,
+                  (form as any).currency,
                 )}
               </span>{' '}
               in the forecast.
@@ -398,7 +415,7 @@ export function DealModal({ deal, onClose, onDeleted }: { deal: Partial<Deal> | 
                 <p className="text-body leading-relaxed text-[var(--text-secondary)]">
                   Worth{' '}
                   <span className="font-semibold tabular-nums text-[var(--text-primary)]">
-                    {fmtMoney(totalContractValue(shape))}
+                    {fmtMoney(totalContractValue(shape), (form as any).currency)}
                   </span>{' '}
                   over {split.months} months
                   {split.termAssumed && <span className="text-[var(--text-tertiary)]"> (assumed)</span>}
@@ -406,7 +423,7 @@ export function DealModal({ deal, onClose, onDeleted }: { deal: Partial<Deal> | 
                     <>
                       {' · '}
                       <span className="font-semibold tabular-nums text-[var(--indigo-text)]">
-                        {fmtMoney(split.arr)}
+                        {fmtMoney(split.arr, (form as any).currency)}
                       </span>{' '}
                       new ARR
                     </>
@@ -775,7 +792,7 @@ function PipelineSwitcher({
             </>
           ) : (
             <p className="px-2 py-1.5 text-caption text-[var(--text-tertiary)]">
-              Your own pipelines and stage names switch on after the latest database update is applied.
+              Your own pipelines and stage names are not switched on for your account yet.
             </p>
           )}
         </div>
@@ -1036,9 +1053,7 @@ export function DealsPage() {
         title="Deals"
         description="Every opportunity, from the first yes to signed."
         actions={
-          // Wraps on a phone: the search takes its own line and the buttons sit under it.
           <>
-            <SearchInput value={query} onChange={setQuery} placeholder="Search deals, companies, contacts…" className="w-full sm:w-72" />
             {deals.length > 0 && (
               <Button variant="secondary" onClick={() => navigate('/deals/insights')} title="Where deals die, why, and which sources are worth working">
                 <BarChart3 className="h-4 w-4" /> Win / loss
@@ -1046,7 +1061,7 @@ export function DealsPage() {
             )}
             {deals.length > 0 && (
               <Button variant="secondary" onClick={() => exportDealsCsv(visibleDeals, pipes.stageLabel, (d) => pipes.pipelineOf(d)?.name || '')} title="Export the deals shown below as a CSV file">
-                <Download className="h-4 w-4" /> Export CSV
+                <Download className="h-4 w-4" /> Export
               </Button>
             )}
             <Button variant="primary" onClick={() => setDealModal(active && pipes.ready ? { pipeline_id: active.id, stage_id: active.stages[0]?.id, stage: active.stages[0]?.phase } : null)}><Plus className="h-4 w-4" /> New deal</Button>
@@ -1070,6 +1085,8 @@ export function DealsPage() {
             <Settings2 className="h-4 w-4" /> <span className="hidden sm:inline">Edit stages</span>
           </Button>
         )}
+        {/* Search sits with the board's own controls, as it does on every list page. */}
+        <SearchInput value={query} onChange={setQuery} placeholder="Search deals, companies, contacts…" className="w-full sm:w-64 order-last sm:order-none" />
         <span className="flex-1" />
         {openDeals.length > 0 && (noNextStep > 0 || lateNextStep > 0) && (
           <div className="flex flex-wrap items-center gap-1.5 text-caption">
@@ -1086,6 +1103,8 @@ export function DealsPage() {
           </div>
         )}
       </div>
+
+      {pipes.failed && <PipelinesFailedNotice onRetry={pipes.retry} className="mb-3" />}
 
       {inPipeline.length > 0 && (
         <PipelineHeader

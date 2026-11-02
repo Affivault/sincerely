@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
-  ArrowUpRight, Briefcase, Building2, CheckCircle2, ChevronLeft, ChevronRight, ExternalLink,
+  ArrowUpRight, Briefcase, CheckCircle2, ChevronLeft, ChevronRight, ExternalLink,
   FolderPlus, GraduationCap, Linkedin, Lock, Unlock, Users, X,
 } from 'lucide-react';
 import { CREDIT_PRICES, creditsLabel } from '@lemlist/shared';
@@ -13,6 +13,7 @@ import { Avatar } from '../shared/Avatar';
 import { Button } from '../ui/Button';
 import { Spinner } from '../ui/Spinner';
 import { cn } from '../../lib/utils';
+import { CompanyLogo } from '../shared/CompanyLogo';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { keepPrevious } from '../../lib/listQuery';
 import { Refreshing } from '../ui/Refreshing';
@@ -170,7 +171,7 @@ export function ProspectDrawer({
             {companyOnly
               ? (company?.logo_url
                 ? <img src={company.logo_url} alt="" className="h-12 w-12 rounded-md object-contain bg-white flex-shrink-0" referrerPolicy="no-referrer" />
-                : <span className="h-12 w-12 rounded-md bg-[var(--bg-elevated)] flex items-center justify-center flex-shrink-0"><Building2 className="h-6 w-6 text-[var(--text-tertiary)]" /></span>)
+                : <CompanyLogo domain={company?.domain || person.company_domain || website} name={companyName} size="lg" className="!h-12 !w-12" />)
               : enriched?.photo_url
               ? <img src={enriched.photo_url} alt="" className="h-12 w-12 rounded-full object-cover flex-shrink-0" referrerPolicy="no-referrer" />
               : <Avatar name={person.full_name} size="xl" />}
@@ -283,9 +284,15 @@ export function ProspectDrawer({
                 </Section>
               )}
               {enriched && enriched.skills.length > 0 && <Section title="Skills"><Chips items={enriched.skills} /></Section>}
+              {nearby.length === 0 && companyKey && (
+                <button onClick={() => setTab('prospects')} className="text-caption font-medium text-[var(--indigo-text)] hover:underline">
+                  See who else works at {companyName}{details?.company_people != null ? ` (${details.company_people.toLocaleString()})` : ''}
+                </button>
+              )}
+              <InCrm people={details?.in_crm || []} />
               {!enriched && (
-                <p className="text-caption text-[var(--text-tertiary)]">
-                  Run the search again to load more about them. Once revealed, Enrich on their contact page pulls their full profile.
+                <p className="rounded-lg bg-[var(--bg-muted)] px-3 py-2 text-caption text-[var(--text-tertiary)]">
+                  Their career, education and skills show here while this search is fresh. Searching again brings them back, and repeating a search within ten minutes is free. Once you save them, Enrich on their contact page fills in the full profile.
                 </p>
               )}
             </div>
@@ -296,7 +303,7 @@ export function ProspectDrawer({
               {!companyOnly && <div className="flex items-center gap-3">
                 {company?.logo_url
                   ? <img src={company.logo_url} alt="" className="h-11 w-11 rounded-md object-contain bg-white flex-shrink-0" referrerPolicy="no-referrer" />
-                  : <span className="h-11 w-11 rounded-md bg-[var(--bg-elevated)] flex items-center justify-center flex-shrink-0"><Building2 className="h-5 w-5 text-[var(--text-tertiary)]" /></span>}
+                  : <CompanyLogo domain={company?.domain || person.company_domain || website} name={companyName} size="lg" />}
                 <div className="min-w-0">
                   <p className="text-strong font-semibold text-[var(--text-primary)] truncate">{companyName || 'Unknown company'}</p>
                   {(company?.location) && <p className="text-caption text-[var(--text-secondary)] truncate">{company.location}</p>}

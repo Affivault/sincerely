@@ -1,3 +1,4 @@
+import { ForOwner } from '../ui/ForOwner';
 import { useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -25,6 +26,7 @@ import {
   type PipelinePhase,
   type StageColor,
   type StageTemplate,
+  formatMoney,
 } from '@lemlist/shared';
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -598,7 +600,7 @@ export function PipelineEditor({
                   className="w-full cursor-pointer accent-[var(--indigo)]"
                 />
                 <p className="mt-1 text-caption text-[var(--text-tertiary)]">
-                  A $10,000 deal here adds <span className="font-semibold tabular-nums text-[var(--text-secondary)]">${(odds(sel) * 100).toLocaleString()}</span> to the forecast.
+                  A {formatMoney(10_000)} deal here adds <span className="font-semibold tabular-nums text-[var(--text-secondary)]">{formatMoney(odds(sel) * 10_000)}</span> to the forecast.
                 </p>
               </div>
 
@@ -685,7 +687,7 @@ export function PipelineEditor({
 
               {!styled && (
                 <p className="rounded-lg bg-[var(--bg-muted)] px-3 py-2 text-caption text-[var(--text-tertiary)]">
-                  Stage colours, notes and checklists switch on after the latest database update (migration 106).
+                  Stage colours, notes and checklists are not switched on for your account yet. <ForOwner>migration 106</ForOwner>
                 </p>
               )}
             </div>

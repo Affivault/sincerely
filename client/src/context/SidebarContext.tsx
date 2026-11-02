@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { useLocation } from 'react-router-dom';
 
 interface SidebarContextType {
   /** The desktop rail's choice: icons only. Ignored on a narrow screen. */
@@ -56,18 +57,25 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
   });
   const narrow = useNarrow();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // Admin has its own section rail, so two full sidebars side by side left
+  // about 1,000px for its tables. There the main one starts as icons; `[`
+  // still opens it, for that visit only, without changing the saved choice.
+  const onAdmin = useLocation().pathname.startsWith('/admin');
+  const [adminOpen, setAdminOpen] = useState(false);
+  useEffect(() => { if (!onAdmin) setAdminOpen(false); }, [onAdmin]);
 
   // Widening past the breakpoint leaves no drawer to be open.
   useEffect(() => { if (!narrow) setDrawerOpen(false); }, [narrow]);
 
   const toggle = useCallback(() => {
     if (narrow) { setDrawerOpen((o) => !o); return; }
+    if (onAdmin) { setAdminOpen((o) => !o); return; }
     setCollapsed((c) => {
       const next = !c;
       try { localStorage.setItem('sidebar.collapsed', next ? '1' : '0'); } catch { /* ignore */ }
       return next;
     });
-  }, [narrow]);
+  }, [narrow, onAdmin]);
 
   // `[` toggles the sidebar (Attio/Linear convention); Escape closes the drawer.
   useEffect(() => {
@@ -85,7 +93,7 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
   }, [toggle, drawerOpen]);
 
   return (
-    <SidebarContext.Provider value={{ collapsed: narrow ? false : collapsed, toggle, narrow, drawerOpen, setDrawerOpen }}>
+    <SidebarContext.Provider value={{ collapsed: narrow ? false : onAdmin ? !adminOpen : collapsed, toggle, narrow, drawerOpen, setDrawerOpen }}>
       {children}
     </SidebarContext.Provider>
   );

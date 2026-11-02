@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { crmApi } from '../api/crm.api';
 import {
+  builtInPipeline,
   dealStageLabel,
   registerStageSettings,
   type Deal,
@@ -27,6 +28,12 @@ export interface PipelinesApi {
   /** False until migration 106 has run: no stage colours, notes or checklists saved. */
   styled: boolean;
   loading: boolean;
+  /**
+   * The pipelines could not be loaded. The built-in three-stage pipeline
+   * stands in so deals still show; screens say so and offer a retry.
+   */
+  failed: boolean;
+  retry: () => void;
   pipelines: Pipeline[];
   defaultPipeline: Pipeline | null;
   stageById: Map<string, PipelineStage>;
@@ -47,7 +54,13 @@ export function usePipelines(): PipelinesApi {
     staleTime: 60_000,
   });
 
-  const pipelines = useMemo(() => q.data?.pipelines ?? [], [q.data]);
+  // A failed load, or an answer without pipelines in it, would otherwise
+  // leave every board and stage bar with nothing to draw.
+  const failed = q.isError || (!!q.data && !Array.isArray(q.data.pipelines));
+  const pipelines = useMemo(
+    () => (Array.isArray(q.data?.pipelines) && q.data!.pipelines.length > 0 ? q.data!.pipelines : (failed ? [builtInPipeline()] : [])),
+    [q.data, failed],
+  );
   const ready = q.data?.ready ?? false;
   const styled = ready && (q.data?.styled ?? false);
 
@@ -56,7 +69,7 @@ export function usePipelines(): PipelinesApi {
   // already drawn totals with the phase defaults.
   useMemo(() => {
     if (!q.data) return;
-    registerStageSettings(q.data.ready ? q.data.pipelines.flatMap((p) => p.stages) : []);
+    registerStageSettings(q.data.ready && Array.isArray(q.data.pipelines) ? q.data.pipelines.flatMap((p) => p.stages) : []);
   }, [q.data]);
 
   return useMemo<PipelinesApi>(() => {
@@ -83,6 +96,6 @@ export function usePipelines(): PipelinesApi {
     const stageIndex: PipelinesApi['stageIndex'] = (stage) =>
       Math.max(0, pipelines.find((p) => p.id === stage.pipeline_id)?.stages.findIndex((s) => s.id === stage.id) ?? 0);
 
-    return { ready, styled, loading: q.isLoading, pipelines, defaultPipeline, stageById, pipelineOf, stageOf, stageLabel, stageIndex };
-  }, [pipelines, ready, styled, q.isLoading]);
+    return { ready, styled, loading: q.isLoading, failed, retry: () => { void q.refetch(); }, pipelines, defaultPipeline, stageById, pipelineOf, stageOf, stageLabel, stageIndex };
+  }, [pipelines, ready, styled, q.isLoading, failed, q.refetch]);
 }

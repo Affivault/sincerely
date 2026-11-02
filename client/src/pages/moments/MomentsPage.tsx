@@ -1,3 +1,4 @@
+import { ForOwner } from '../../components/ui/ForOwner';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -83,7 +84,7 @@ export function MomentsPage() {
           </div>
         ) : !data.settings.ready ? (
           <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-3.5 text-body text-amber-800 shadow-[inset_3px_0_0_theme(colors.amber.500)]" data-moments-migration>
-            Moments need database migration 083 before they can be saved. Once it has run, this page fills in on its own.
+            Moments are still being switched on for your account. This page fills in on its own once they are. <ForOwner>migration 083</ForOwner>
           </div>
         ) : (
           <>

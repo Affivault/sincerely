@@ -81,7 +81,7 @@ console.log('\npolish');
   is('replies one at a time on a phone, swipe to send or for tomorrow', /const SWIPE = 90;/.test(deck) && /if \(dx > SWIPE && text\.trim\(\)\) send\(\);/.test(deck) && /else if \(dx < -SWIPE\) later\(\);/.test(deck));
   is('nothing is sent without words in it', /disabled=\{!text\.trim\(\)\}/.test(deck));
   is('the deck opens from the Today list on a phone', /data-open-deck/.test(cli('components/flow/TodayQueue.tsx')) && /md:hidden/.test(cli('components/flow/TodayQueue.tsx')));
-  for (const page of ['pages/campaigns/CampaignsListPage.tsx', 'pages/sara/SaraQueuePage.tsx', 'pages/assets/AssetBuilderPage.tsx']) {
+  for (const page of ['pages/campaigns/CampaignsListPage.tsx', 'pages/assets/AssetBuilderPage.tsx']) {
     is(`${page.split('/').pop()} loads with skeleton rows, not a spinner`, /<SkeletonList rows=/.test(cli(page)));
   }
   is('the metric strip is two by two on a phone', /grid grid-cols-2 sm:flex sm:divide-x/.test(cli('pages/dashboard/DashboardPage.tsx')));

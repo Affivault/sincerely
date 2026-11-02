@@ -1,3 +1,4 @@
+import { PipelinesFailedNotice } from '../../components/crm/PipelinesFailedNotice';
 import { useDealHealth, DealHealthPanel } from '../../components/crm/DealHealth';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
@@ -47,7 +48,7 @@ import toast from 'react-hot-toast';
    them.
    ═══════════════════════════════════════════════════════════════════════ */
 
-function money(v: number, currency = 'USD'): string {
+function money(v: number, currency?: string | null): string {
   return formatMoney(v, currency);
 }
 
@@ -303,6 +304,8 @@ export function DealDetailPage() {
           </button>
         </div>
       </div>
+
+      {pipes.failed && <PipelinesFailedNotice onRetry={pipes.retry} className="mb-3" />}
 
       <div className="mb-3">
         <DealStageBar deal={deal} history={history} stages={pipeline?.stages || []} currentStageId={currentStage?.id || null} onStage={onStage} busy={move.isPending} />

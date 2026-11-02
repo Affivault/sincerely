@@ -198,7 +198,7 @@ export function sortMoney(list: Money[]): Money[] {
 }
 
 /** "£84k", "£84k + €3k", or "£0". */
-export function moneyText(list: Money[], fallbackCurrency = 'USD'): string {
+export function moneyText(list: Money[], fallbackCurrency?: string): string {
   const sorted = sortMoney(list).filter((m) => m.amount > 0);
   if (!sorted.length) return formatMoney(0, fallbackCurrency, { compact: true });
   return sorted.slice(0, 2).map((m) => formatMoney(m.amount, m.currency, { compact: true })).join(' + ')

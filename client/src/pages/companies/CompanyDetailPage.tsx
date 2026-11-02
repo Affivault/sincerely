@@ -16,6 +16,7 @@ import { QuickCompose } from '../../components/shared/QuickCompose';
 import { usePeek } from '../../components/peek/usePeek';
 import { COMPANY_SIZE_OPTIONS } from '../../lib/constants';
 import { cn } from '../../lib/utils';
+import { CompanyLogo } from '../../components/shared/CompanyLogo';
 import { DEAL_STAGES, type CompanyActivity, formatDate, formatMoney } from '@lemlist/shared';
 import {
   ArrowLeft, Building2, Users, Handshake, Globe, MapPin, Factory, Linkedin,
@@ -236,8 +237,8 @@ export function CompanyDetailPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex flex-1 items-center gap-3.5 min-w-0">
-          {/* The account's monogram, in the same tones as the people in it. */}
-          <Avatar name={company.name} size="xl" className="!rounded-xl" />
+          {/* The account's own logo from its domain, its initials without one. */}
+          <CompanyLogo domain={company.domain || company.website} name={company.name} size="lg" className="!rounded-xl" />
           <div className="min-w-0">
             <h1 className="min-w-0">
               <InlineEdit

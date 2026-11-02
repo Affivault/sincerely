@@ -1,5 +1,5 @@
 import { supabaseAdmin } from '../config/supabase.js';
-import { MIN_SEARCH_LENGTH, type SearchHit, type SearchResults, campaignStatusLabel } from '@lemlist/shared';
+import { MIN_SEARCH_LENGTH, type SearchHit, type SearchResults, campaignStatusLabel, formatMoney } from '@lemlist/shared';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Universal search.
@@ -175,7 +175,7 @@ export const searchService = {
         title: d.title,
         subtitle: [d.company, d.contact_name].filter(Boolean).join(' · ') || null,
         meta: value > 0
-          ? `${value.toLocaleString('en-US', { style: 'currency', currency: d.currency || 'USD', maximumFractionDigits: 0 })} · ${d.stage}`
+          ? `${formatMoney(value, d.currency)} · ${d.stage}`
           : d.stage,
         href: `/deals?deal=${d.id}`,
       });

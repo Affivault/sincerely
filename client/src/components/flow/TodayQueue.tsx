@@ -25,7 +25,7 @@ import {
   MessageSquareReply, RefreshCw, Send, Sparkles, Sun, Video, Waves, Zap, Maximize2,
 } from 'lucide-react';
 import {
-  DEAL_ACTION_LABEL, formatTime, type FlowItem, type FlowKind, replyIntentLabel } from '@lemlist/shared';
+  DEAL_ACTION_LABEL, formatTime, type FlowItem, type FlowKind, replyIntentLabel, formatMoney } from '@lemlist/shared';
 import { flowApi } from '../../api/flow.api';
 import { signalsApi } from '../../api/signals.api';
 import { saraApi } from '../../api/sara.api';
@@ -78,9 +78,8 @@ const KIND_META: Record<FlowKind, { label: string; icon: typeof Inbox; tint: str
 /** How many rows Home shows before "Show all". */
 const HOME_ROWS = 6;
 
-function money(v: number, currency: string): string {
-  try { return new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 0 }).format(v); }
-  catch { return `${currency} ${Math.round(v)}`; }
+function money(v: number, currency?: string | null): string {
+  return formatMoney(v, currency);
 }
 
 function waited(ms: number): string {

@@ -8,7 +8,7 @@ import { resultsApi, sharedResultsUrl } from '../../api/results.api';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { PageSkeleton } from '../../components/ui/Skeleton';
 import { Button } from '../../components/ui/Button';
-import { Chip } from '../../components/ui/Chip';
+import { Segmented } from '../../components/ui/Segmented';
 import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
 import { Toggle } from '../../components/ui/Toggle';
@@ -48,13 +48,12 @@ export function ResultsPage() {
         }
       />
       <div className="space-y-4">
-        <div className="flex flex-wrap gap-2" role="tablist" aria-label="Period">
-          {RESULTS_PERIODS.map((p) => (
-            <Chip key={p} size="md" active={p === period} onClick={() => setParams((prev) => { const next = new URLSearchParams(prev); next.set('period', p); return next; }, { replace: true })}>
-              {RESULTS_PERIOD_LABELS[p]}
-            </Chip>
-          ))}
-        </div>
+        <Segmented
+          label="Period"
+          options={RESULTS_PERIODS.map((p) => ({ value: p, label: RESULTS_PERIOD_LABELS[p] }))}
+          value={period}
+          onChange={(p) => setParams((prev) => { const next = new URLSearchParams(prev); next.set('period', p); return next; }, { replace: true })}
+        />
 
         {isLoading ? (
           <PageSkeleton variant="panels" bleed={false} />

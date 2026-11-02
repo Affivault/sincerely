@@ -10,6 +10,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { formatMoney } from '@lemlist/shared';
 import { X, Coffee } from 'lucide-react';
 import { awayApi } from '../../api/flow.api';
 import { formatRelativeTime } from '../../lib/utils';
@@ -87,7 +88,7 @@ export function AwayCard() {
           ))}
           {data.won_value > 0 && (
             <span className="text-body text-emerald-600 dark:text-emerald-400">
-              {new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(data.won_value)} closed
+              {formatMoney(data.won_value)} closed
             </span>
           )}
         </div>

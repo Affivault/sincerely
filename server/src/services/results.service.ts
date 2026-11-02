@@ -15,6 +15,7 @@
    And the same per campaign, so the report can say which ones did it.
    ═══════════════════════════════════════════════════════════════════════ */
 
+import { accountCurrency } from './settings.service.js';
 import { supabaseAdmin } from '../config/supabase.js';
 import {
   resultsPeriod, previousPeriod, resultsHeadline, emptyNumbers, addMoney, sortMoney, dealValue,
@@ -140,7 +141,7 @@ export const resultsService = {
     const prev = previousPeriod(p, tz);
     const [cur, before] = await Promise.all([gather(userId, p), gather(userId, prev)]);
     const campaigns = opts.campaigns === false ? [] : await byCampaign(userId, p, cur);
-    const currency = cur.numbers.won[0]?.currency || cur.numbers.pipeline[0]?.currency || 'USD';
+    const currency = cur.numbers.won[0]?.currency || cur.numbers.pipeline[0]?.currency || await accountCurrency(userId);
     return {
       period: p,
       previous: prev,

@@ -207,8 +207,10 @@ export function DealFilters({
                 : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]',
             )}
           >
-            <Icon className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">{label}</span>
+            {/* On a phone the word, not the icon: three bare icons read as a
+                puzzle, and the words fit. */}
+            <Icon className="hidden h-3.5 w-3.5 sm:block" />
+            <span>{label}</span>
           </button>
         ))}
       </div>
