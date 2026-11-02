@@ -1,4 +1,4 @@
-import { REPLY_CHECK_CAMPAIGN_NAME } from '@lemlist/shared';
+import { REPLY_CHECK_CAMPAIGN_NAME, normalizeSendLights, DEFAULT_SEND_LIGHTS } from '@lemlist/shared';
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { getPagination, formatPaginatedResponse } from '../utils/pagination.js';
@@ -26,7 +26,7 @@ const UPDATABLE_CAMPAIGN_FIELDS = new Set([
   'dcs_threshold', 'daily_limit',
   'delay_between_emails', 'delay_between_emails_min', 'delay_between_emails_max',
   'stop_on_reply', 'ab_auto_promote', 'send_in_recipient_timezone', 'track_opens', 'track_clicks', 'include_unsubscribe',
-  'blackout_dates',
+  'blackout_dates', 'send_lights',
 ]);
 
 /*
@@ -58,10 +58,20 @@ async function writeCampaign<T>(
   fields: Record<string, any>,
   run: (fields: Record<string, any>) => PromiseLike<{ data: T | null; error: { message: string } | null }>,
 ): Promise<{ data: T | null; error: { message: string } | null }> {
-  const first = await run(fields);
-  if (first.error && 'blackout_dates' in fields && /blackout_dates/.test(first.error.message)) {
-    const { blackout_dates: _dropped, ...rest } = fields;
-    return run(rest);
+  if ('send_lights' in fields) {
+    // Only the three lights, or null for "no gate"; anything else is dropped.
+    const lights = normalizeSendLights(fields.send_lights);
+    fields = { ...fields, send_lights: lights && lights.length ? lights : (fields.send_lights === null ? null : DEFAULT_SEND_LIGHTS) };
+  }
+  let first = await run(fields);
+  // Columns from later migrations (091 blackout_dates, 110 send_lights):
+  // a database without them still saves everything else.
+  for (const col of ['send_lights', 'blackout_dates']) {
+    if (first.error && col in fields && new RegExp(col).test(first.error.message)) {
+      const { [col]: _dropped, ...rest } = fields;
+      fields = rest;
+      first = await run(fields);
+    }
   }
   return first;
 }
@@ -348,7 +358,9 @@ export const campaignsService = {
     }
 
     const { data, error } = await writeCampaign(
-      { ...pickCampaignFields(input, CREATABLE_CAMPAIGN_FIELDS), user_id: userId, status: 'draft' },
+      // Verified addresses only unless the person chose otherwise: what
+      // protects a sending domain should be the default, not an option.
+      { send_lights: DEFAULT_SEND_LIGHTS, ...pickCampaignFields(input, CREATABLE_CAMPAIGN_FIELDS), user_id: userId, status: 'draft' },
       (row) => supabaseAdmin.from('campaigns').insert(row).select().single(),
     );
 
@@ -361,12 +373,25 @@ export const campaignsService = {
     const existing = await this.get(userId, id);
     // A name is a label for the person, not for the recipients: it may change
     // at any stage. Everything else waits for a draft.
-    const renameOnly = input && typeof input === 'object'
-      && Object.keys(input).every((k) => k === 'name') && 'name' in input;
-    if (renameOnly) {
-      const name = String(input.name ?? '').trim();
-      if (!name) throw new AppError('A campaign needs a name', 400);
-      input = { name: name.slice(0, 200) };
+    // Who it emails can be narrowed (or widened) while it runs: the
+    // sender reads send_lights before every email, so a change applies to
+    // the next send rather than needing a new campaign.
+    const anyStage = input && typeof input === 'object'
+      && Object.keys(input).length > 0
+      && Object.keys(input).every((k) => k === 'name' || k === 'send_lights');
+    if (anyStage) {
+      const next: Record<string, any> = {};
+      if ('name' in input) {
+        const name = String(input.name ?? '').trim();
+        if (!name) throw new AppError('A campaign needs a name', 400);
+        next.name = name.slice(0, 200);
+      }
+      if ('send_lights' in input) {
+        const lights = normalizeSendLights(input.send_lights);
+        if (!lights || lights.length === 0) throw new AppError('Choose at least one light to send to', 400);
+        next.send_lights = lights;
+      }
+      input = next;
     } else if (existing.status !== 'draft') {
       throw new AppError('Can only edit campaigns in draft status', 400);
     }
@@ -989,6 +1014,7 @@ export const campaignsService = {
         include_unsubscribe: original.include_unsubscribe,
         stop_on_reply: original.stop_on_reply,
         dcs_threshold: original.dcs_threshold,
+        ...(original.send_lights !== undefined ? { send_lights: original.send_lights } : {}),
         ab_auto_promote: original.ab_auto_promote,
         send_in_recipient_timezone: original.send_in_recipient_timezone,
         // Only when the original has the column (091): naming it against a

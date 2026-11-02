@@ -8,6 +8,7 @@ import type {
   UpdateContactInput,
   PaginatedResponse,
   ContactsListParams,
+  HeldPerson,
   Tag,
   ContactList,
   ListKind,
@@ -53,24 +54,12 @@ export interface ImportPreflight {
   existing: number;
   suppressed: number;
   checked: number;
-  /** Whether a paid email search can run for rows with no email, and its price. */
-  finder: { available: boolean; price: number };
 }
 
-export interface ImportFindPerson {
-  key: string;
-  first_name?: string;
-  last_name?: string;
-  full_name?: string;
-  company?: string;
-  domain?: string;
-  linkedin_url?: string;
-}
-
-export interface ImportFindResponse {
-  results: Array<{ key: string; email: string | null; via: 'pattern' | 'provider' | null; reason: string | null }>;
+export interface BulkEnrichResult {
+  results: Array<{ contact_id: string; ok: boolean; filled: number; error?: string }>;
+  enriched: number;
   out_of_credits: boolean;
-  credits: { remaining: number } | null;
 }
 
 export interface ExportRequest {
@@ -83,6 +72,7 @@ export interface ExportRequest {
   outreach?: string;
   verificationStatus?: string;
   columns?: string[];
+  lights?: string[];
 }
 
 // The duplicates UI reads groups.length and total straight away, so an
@@ -99,7 +89,7 @@ function exportBody(req: ExportRequest, format: 'csv' | 'table') {
     format,
     contact_ids: req.contactIds, list_id: req.listId, segment_id: req.segmentId, lifecycle: req.lifecycle,
     search: req.search, company: req.company, outreach: req.outreach, verification_status: req.verificationStatus,
-    columns: req.columns,
+    columns: req.columns, lights: req.lights,
   };
 }
 
@@ -121,6 +111,8 @@ export const contactsApi = {
   verificationBreakdown: async (listId?: string, lifecycle?: ContactsListParams['lifecycle']) => {
     const { data } = await apiClient.get<{
       total: number; valid: number; risky: number; invalid: number; not_found: number; unverified: number; with_linkedin: number;
+      /** People held without an email (migration 110). */
+      no_email?: number;
     }>('/contacts/verification-breakdown', { params: { ...(listId ? { list_id: listId } : {}), ...(lifecycle ? { lifecycle } : {}) } });
     return data;
   },
@@ -191,9 +183,37 @@ export const contactsApi = {
     return data;
   },
 
-  /** Find addresses for rows that came without one. At most 25 per call. */
-  importFindEmails: async (people: ImportFindPerson[], allowPaid = true) => {
-    const { data } = await apiClient.post<ImportFindResponse>('/contacts/import/find-emails', { people, allow_paid: allowPaid }, { timeout: 180_000 });
+  /** Keep import rows with no usable email, as the "No email" light in their list. */
+  holdPeople: async (people: Array<Record<string, any>>, listId?: string, importSource?: string, kind: 'lead' | 'contact' = 'lead') => {
+    const { data } = await apiClient.post<{ held: number; unavailable?: boolean }>('/contacts/held', { people, list_id: listId, import_source: importSource, kind });
+    return data;
+  },
+
+  heldList: async (params: { list_id?: string; lifecycle?: string; page?: number; limit?: number; search?: string }) => {
+    const { data } = await apiClient.get<{ data: HeldPerson[]; total: number; page: number; limit: number; unavailable?: boolean }>('/contacts/held', { params });
+    return data;
+  },
+
+  /** Give a held person an email: they become a lead/contact in their list. */
+  heldAddEmail: async (id: string, email: string) => {
+    const { data } = await apiClient.post<{ contact_id: string | null }>(`/contacts/held/${id}/email`, { email });
+    return data;
+  },
+
+  heldDelete: async (ids: string[]) => {
+    const { data } = await apiClient.post<{ deleted: number }>('/contacts/held/delete', { ids });
+    return data;
+  },
+
+  /** Enrich up to 25 contacts, stopping when credits run out. */
+  bulkEnrich: async (contactIds: string[]) => {
+    const { data } = await apiClient.post<BulkEnrichResult>('/contacts/bulk-enrich', { contact_ids: contactIds }, { timeout: 600_000 });
+    return data;
+  },
+
+  /** How many of these contacts are each light - for the launch screen. */
+  lightCounts: async (contactIds: string[]) => {
+    const { data } = await apiClient.post<Record<'green' | 'amber' | 'red' | 'unverified', number>>('/contacts/light-counts', { contact_ids: contactIds });
     return data;
   },
 

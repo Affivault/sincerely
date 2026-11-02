@@ -71,7 +71,8 @@ console.log('\npolish');
   is('campaign tabs sit right under the name, before the charts', detail.indexOf('Tabs, right under the name') > -1 && detail.indexOf('Tabs, right under the name') < detail.indexOf('<ForecastPanel'));
   is('a campaign is renamed by clicking its name', /<InlineEdit[\s\S]{0,120}ariaLabel="Campaign name"/.test(detail));
   const svc = src('services/campaigns.service.ts');
-  is('renaming works at any stage; every other edit waits for a draft', /const renameOnly = /.test(svc) && /else if \(existing\.status !== 'draft'\)/.test(svc));
+  is('renaming (and choosing which email lights get sent to) works at any stage; every other edit waits for a draft',
+     /const anyStage = /.test(svc) && /k === 'name' \|\| k === 'send_lights'/.test(svc) && /else if \(existing\.status !== 'draft'\)/.test(svc));
   const forecast = cli('components/campaigns/ForecastPanel.tsx');
   is('the forecast labels each day and says what a gap means', /weekday: 'narrow'/.test(forecast) && /Gaps: days it does not send/.test(forecast));
   const builder = cli('pages/campaigns/CampaignCreatePage.tsx');

@@ -49,6 +49,51 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { CampaignStep } from '@lemlist/shared';
+import { SEND_LIGHTS, LIGHT_LABEL, normalizeSendLights, type SendLight } from '@lemlist/shared';
+import { SendLightsPicker } from '../../components/campaigns/SendLightsPicker';
+import { LightDot } from '../../components/contacts/EmailLights';
+
+/** The campaign's traffic lights, with an edit that saves straight away. */
+function CampaignLightsCard({ campaignId, lights }: { campaignId: string; lights: unknown }) {
+  const qc = useQueryClient();
+  const current = normalizeSendLights(lights);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<SendLight[]>(current ?? [...SEND_LIGHTS]);
+  const save = useMutation({
+    mutationFn: (next: SendLight[]) => campaignsApi.update(campaignId, { send_lights: next } as any),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['campaign'] });
+      setEditing(false);
+      toast.success('Saved - applies from the next email');
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.error || 'Could not save'),
+  });
+  return (
+    <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4" data-campaign-lights>
+      <div className="flex items-center gap-3">
+        <h2 className="text-strong font-semibold text-[var(--text-primary)]">Who gets emails</h2>
+        {!editing && (
+          <span className="flex items-center gap-2 text-body text-[var(--text-secondary)]">
+            {current
+              ? current.map((l) => <span key={l} className="inline-flex items-center gap-1.5"><LightDot light={l} />{LIGHT_LABEL[l]}</span>)
+              : <span>Every address (set before traffic lights existed)</span>}
+          </span>
+        )}
+        <button type="button" onClick={() => { setDraft(current ?? [...SEND_LIGHTS]); setEditing((v) => !v); }} className="ml-auto btn-secondary h-8">
+          {editing ? 'Cancel' : 'Change'}
+        </button>
+      </div>
+      {editing && (
+        <div className="mt-3 space-y-3">
+          <SendLightsPicker value={draft} onChange={setDraft} compact />
+          <div className="flex justify-end">
+            <Button onClick={() => save.mutate(draft)} disabled={save.isPending}>{save.isPending ? 'Saving...' : 'Save'}</Button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
 
 type TabId = 'overview' | 'sequence' | 'contacts';
 
@@ -487,6 +532,10 @@ export function CampaignDetailPage() {
           {/* Relay testing and keeping what gets more replies. */}
           {id && <ImproveCard campaignId={id} />}
           <ContactProgressCard campaign={campaign} />
+
+          {/* Who it emails, by traffic light. Changeable while it runs: the
+              sender reads it before every email. */}
+          <CampaignLightsCard campaignId={id!} lights={(campaign as any).send_lights} />
 
           {/* How it sends, as a record rather than a nine-row table. */}
           <section>

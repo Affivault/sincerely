@@ -37,6 +37,8 @@ export interface Campaign {
    * YYYY-MM-DD for one day, MM-DD for that day every year - see shared/blackout.
    */
   blackout_dates?: string[];
+  /** Which email traffic lights this campaign sends to (migration 110). Null: no light gate. */
+  send_lights?: Array<'green' | 'amber' | 'red'> | null;
   track_opens: boolean;
   track_clicks: boolean;
   include_unsubscribe: boolean;
@@ -140,6 +142,8 @@ export interface CreateCampaignInput {
   track_clicks?: boolean;
   include_unsubscribe?: boolean;
   blackout_dates?: string[];
+  /** Which email traffic lights this campaign sends to (migration 110). Null: no light gate. */
+  send_lights?: Array<'green' | 'amber' | 'red'> | null;
 }
 
 export interface CreateStepInput {

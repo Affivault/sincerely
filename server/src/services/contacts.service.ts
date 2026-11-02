@@ -1,8 +1,9 @@
 import {
   REPLY_CHECK_CONTACT_DOMAIN, normalizeLinkedinUrl, summariseOutreach, summariseDeals,
   LEAD_OUTREACH_STATES, IMPORT_FIELDS, IMPORT_MODES, type ImportMode,
-  buildContactExport, resolveExportColumns, toCsv,
+  buildContactExport, resolveExportColumns, toCsv, emailState, heldMatchKey,
 } from '@lemlist/shared';
+import { heldPeopleService } from './held-people.service.js';
 import { enrichmentService } from './enrichment.service.js';
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
@@ -53,6 +54,8 @@ export interface ExportOptions {
   outreach?: string;
   verificationStatus?: string;
   tagIds?: string[];
+  /** Traffic lights, as on the list (green/amber/red). */
+  lights?: string[];
   /** Export column keys (shared/contact-export); all when omitted. */
   columns?: string[];
 }
@@ -69,6 +72,8 @@ interface ListParams {
   dcs_min?: number;
   dcs_max?: number;
   verification_status?: string;
+  /** Traffic lights to show, any of green/amber/red (shared/email-light). */
+  lights?: string[] | string;
   /**
    * Which population to show.
    *
@@ -337,6 +342,28 @@ function applyContactFilters(query: any, params: ListParams, ctx: { listScoped: 
 
   if (params.dcs_max !== undefined) {
     query = query.lte('dcs_score', params.dcs_max);
+  }
+
+  // Traffic lights: the union of the chosen ones, in the same buckets as
+  // shared/email-light emailState(), so the chip counts and rows agree.
+  const lights = (Array.isArray(params.lights) ? params.lights : String(params.lights || '').split(','))
+    .map((l) => String(l).trim()).filter((l) => l === 'green' || l === 'amber' || l === 'red');
+  if (lights.length > 0 && lights.length < 3) {
+    const clauses: string[] = [];
+    const checked = 'dcs_verified_at.not.is.null,is_bounced.is.false,dcs_syntax_ok.not.is.false,dcs_domain_ok.not.is.false';
+    if (lights.includes('green')) clauses.push(`and(${checked},dcs_score.gte.80)`);
+    if (lights.includes('amber')) {
+      clauses.push(`and(${checked},dcs_score.gte.50,dcs_score.lt.80)`);
+      clauses.push('and(dcs_verified_at.is.null,is_bounced.is.false)');
+    }
+    if (lights.includes('red')) {
+      clauses.push('is_bounced.is.true');
+      clauses.push('and(dcs_verified_at.not.is.null,dcs_syntax_ok.is.false)');
+      clauses.push('and(dcs_verified_at.not.is.null,dcs_domain_ok.is.false)');
+      clauses.push(`and(${checked},dcs_score.lt.50)`);
+      clauses.push(`and(${checked},dcs_score.is.null)`);
+    }
+    query = query.or(clauses.join(','));
   }
 
   // Verification status — mirrors the client's derived states so the summary
@@ -968,6 +995,9 @@ export const contactsService = {
       }
     }
 
+    // Anyone held without an email who has now arrived with one is released.
+    if (importedRows.length > 0) await heldPeopleService.releaseMatches(userId, uniqueValid);
+
     // Tags: the ones picked for the whole import, and any from a Tags column.
     if (importedRows.length > 0 && (tagNamesByEmail.size > 0 || (options.tagIds || []).length > 0)) {
       try {
@@ -998,6 +1028,26 @@ export const contactsService = {
       created_ids: importedRows.filter((r) => r.inserted === true).map((r) => r.id),
       error_details: errorDetails.slice(0, 200),
     };
+  },
+
+  /**
+   * How many of these contacts are each light, for the launch screen.
+   * Unverified is counted on its own as well, because "verify them first"
+   * is the thing to offer when amber is mostly unchecked.
+   */
+  async lightCounts(userId: string, contactIds: string[]): Promise<{ green: number; amber: number; red: number; unverified: number }> {
+    const ids = [...new Set((contactIds || []).filter((x) => typeof x === 'string'))].slice(0, 100_000);
+    const out = { green: 0, amber: 0, red: 0, unverified: 0 };
+    if (ids.length === 0) return out;
+    const rows = await selectInChunks(ids, (slice) =>
+      supabaseAdmin.from('contacts').select('email, is_bounced, dcs_verified_at, dcs_score, dcs_syntax_ok, dcs_domain_ok').eq('user_id', userId).in('id', slice));
+    for (const r of rows) {
+      const state = emailState(r);
+      if (state === 'unverified') out.unverified++;
+      const light = state === 'valid' ? 'green' : state === 'risky' || state === 'unverified' ? 'amber' : state === 'no_email' ? null : 'red';
+      if (light) out[light]++;
+    }
+    return out;
   },
 
   /**
@@ -1217,7 +1267,7 @@ export const contactsService = {
       }
       const params: ListParams = {
         list_id: opts.listId, lifecycle: opts.lifecycle, search: opts.search, company: opts.company,
-        outreach: opts.outreach, verification_status: opts.verificationStatus,
+        outreach: opts.outreach, verification_status: opts.verificationStatus, lights: opts.lights,
         tag_ids: Array.isArray(opts.tagIds) ? opts.tagIds : undefined,
       };
       const tagIds = (params.tag_ids || []).filter(Boolean);
@@ -1271,7 +1321,9 @@ export const contactsService = {
   // Verification-status breakdown for the summary pills. Scoped to a list when
   // given. Buckets mirror the client's derived states so the counts line up.
   async verificationBreakdown(userId: string, listId?: string, lifecycle?: string) {
-    const empty = { total: 0, valid: 0, risky: 0, invalid: 0, not_found: 0, unverified: 0, with_linkedin: 0 };
+    const empty = { total: 0, valid: 0, risky: 0, invalid: 0, not_found: 0, unverified: 0, with_linkedin: 0, no_email: 0 };
+    // People held without an email (migration 110), on the same scope.
+    const noEmail = await heldPeopleService.count(userId, listId, lifecycle);
     const listScoped = !!listId && !isUnlisted(listId);
     const COLUMNS = 'dcs_verified_at, dcs_score, dcs_syntax_ok, dcs_domain_ok, is_bounced, linkedin_url';
 
@@ -1293,20 +1345,15 @@ export const contactsService = {
       assertListCountColumn(err);
       throw new AppError(err?.message || 'Could not count verification status', 500);
     }
-    if (rows.length === 0) return empty;
+    if (rows.length === 0) return { ...empty, no_email: noEmail };
 
-    const out = { ...empty, total: rows.length };
+    const out = { ...empty, total: rows.length, no_email: noEmail };
     for (const r of rows as any[]) {
       if (r.linkedin_url) out.with_linkedin++;
-      // Same ordered logic as the client's emailStatus()
-      if (r.is_bounced) { out.invalid++; continue; }
-      if (r.dcs_verified_at == null) { out.unverified++; continue; }
-      if (r.dcs_syntax_ok === false) { out.invalid++; continue; }
-      if (r.dcs_domain_ok === false) { out.not_found++; continue; }
-      const score = r.dcs_score ?? 0;
-      if (score >= 80) out.valid++;
-      else if (score >= 50) out.risky++;
-      else out.invalid++;
+      // shared/email-light: the one definition the dots, chips and sender use.
+      const state = emailState({ ...r, email: 'counted' });
+      if (state === 'bounced') out.invalid++;
+      else out[state as 'valid' | 'risky' | 'unverified' | 'invalid' | 'not_found']++;
     }
     return out;
   },

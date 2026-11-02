@@ -48,7 +48,11 @@ export type EnrolSkipReason =
    * kind of mistake a CRM bolted onto an email tool cannot even see. This
    * one owns both, so it can.
    */
-  | 'on_open_deal';
+  | 'on_open_deal'
+  /** A bad address (invalid, no mail server, bounced) and the campaign does not send to red. */
+  | 'light_red'
+  /** A risky / catch-all address and the campaign does not send to amber. */
+  | 'light_amber';
 
 export interface EnrolSkip {
   contact_id: string;
@@ -89,6 +93,8 @@ export const ENROL_SKIP_LABEL: Record<EnrolSkipReason, string> = {
   no_email: 'no email address',
   not_yours: 'not in this account',
   on_open_deal: 'already on an open deal',
+  light_red: 'bad email address (this campaign does not send to red)',
+  light_amber: 'risky email address (this campaign does not send to amber)',
   crm_contact_only: 'a CRM contact, not on any lead list',
 };
 

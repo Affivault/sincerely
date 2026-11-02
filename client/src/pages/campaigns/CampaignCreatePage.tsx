@@ -27,6 +27,8 @@ import type { FlowStep } from '../../components/campaigns/FlowBuilder';
 import { ContactPreviewPanel } from '../../components/campaigns/ContactPreviewPanel';
 import { BlackoutDatesEditor } from '../../components/shared/BlackoutDatesEditor';
 import { PreflightDialog, type Refusal } from '../../components/campaigns/LaunchPreflight';
+import { SendLightsPicker } from '../../components/campaigns/SendLightsPicker';
+import { DEFAULT_SEND_LIGHTS, SEND_LIGHTS, type SendLight } from '@lemlist/shared';
 import { cn } from '../../lib/utils';
 import { parseDatetimeLocalInTimezone, formatDatetimeLocalInTimezone } from '../../lib/timezone';
 import {
@@ -223,6 +225,8 @@ export function CampaignCreatePage() {
     // and a visible way out costs fewer spam complaints than it saves.
     include_unsubscribe: true,
     scheduled_at: null,
+    // Verified addresses only, until the person launching chooses more.
+    send_lights: [...DEFAULT_SEND_LIGHTS],
   });
 
   const [steps, setSteps] = useState<FlowStep[]>([]);
@@ -571,6 +575,8 @@ export function CampaignCreatePage() {
         track_clicks: existingCampaign.track_clicks ?? true,
         include_unsubscribe: existingCampaign.include_unsubscribe ?? false,
         blackout_dates: existingCampaign.blackout_dates ?? [],
+        // A campaign from before the lights keeps "no gate" until someone picks.
+        send_lights: existingCampaign.send_lights ?? undefined,
       });
       if (existingCampaign.steps) {
         setSteps(
@@ -2617,6 +2623,13 @@ export function CampaignCreatePage() {
                     {/* The last thing seen before the emails start going out.
                         Renders nothing when everything checks out, so it only
                         ever appears when there is genuinely something to say. */}
+                    <div className="rounded-lg border border-[var(--border-subtle)] p-3.5">
+                      <SendLightsPicker
+                        value={(campaignForm.send_lights as SendLight[] | undefined) ?? [...SEND_LIGHTS]}
+                        onChange={(next) => setCampaignForm({ ...campaignForm, send_lights: next })}
+                        contactIds={selectedContactIds}
+                      />
+                    </div>
                     <ReadinessSummary />
                     <div className="flex justify-end gap-2 pt-2">
                       <Button variant="secondary" onClick={() => setShowLaunchConfirm(false)}>Cancel</Button>

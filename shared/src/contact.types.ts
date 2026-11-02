@@ -329,6 +329,8 @@ export interface ContactsListParams {
   dcs_min?: number;
   dcs_max?: number;
   verification_status?: 'valid' | 'risky' | 'invalid' | 'not_found' | 'unverified';
+  /** Traffic lights, comma-separated: green,amber,red (shared/email-light). */
+  lights?: string;
   /**
    * Which population to list.
    *

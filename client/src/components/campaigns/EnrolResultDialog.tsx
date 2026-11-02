@@ -33,6 +33,8 @@ const REASON_TONE: Record<EnrolSkipReason, string> = {
      with, or somebody who only exists in your CRM. */
   crm_contact_only: 'text-[var(--indigo-text)]',
   on_open_deal: 'text-[var(--indigo-text)]',
+  light_red: 'text-rose-600 dark:text-rose-400',
+  light_amber: 'text-amber-600 dark:text-amber-400',
 };
 
 export function EnrolResultDialog({

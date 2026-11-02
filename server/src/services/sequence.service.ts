@@ -15,7 +15,8 @@ import * as domainThrottle from './domain-throttle.service.js';
 import { providerHeldUntil } from './autopilot.service.js';
 import { isLinkedinStep, inferTimezone, isBlackoutDay, normalizeLinkedinUrl, isLinkedinProfileUrl, LINKEDIN_NOTE_MAX } from '@lemlist/shared';
 import { campaignBlackoutDates } from './blackout.service.js';
-import { stepHasVariantB, assignVariant, classifyRejection } from '@lemlist/shared';
+import { stepHasVariantB, assignVariant, classifyRejection, normalizeSendLights, lightGate, emailState } from '@lemlist/shared';
+import { verifyContact } from './verification.service.js';
 import { classifySendFailure, stallReasonFor } from '../utils/send-failure.js';
 import { isDraining } from '../utils/heartbeat.js';
 
@@ -456,6 +457,43 @@ async function _processNextStepInner(campaignContactId: string): Promise<void> {
     // No more steps - campaign complete for this contact
     await markCompleted(campaignContactId);
     return;
+  }
+
+  /*
+   * The campaign's traffic lights (migration 110), checked before every
+   * email rather than only at enrolment: an address can be verified, go
+   * risky, or bounce between steps. An unchecked address waits for its
+   * (free) check instead of going out unverified; anything else the
+   * campaign does not send to is skipped, and says why.
+   */
+  if (nextStep.step_type === 'email') {
+    const allowed = normalizeSendLights(cc.campaigns.send_lights);
+    const hours = (Date.now() - new Date(cc.created_at || Date.now()).getTime()) / 3_600_000;
+    const action = lightGate(cc.contacts || {}, allowed, hours);
+    if (action === 'wait') {
+      verifyContact(cc.contact_id, cc.campaigns.user_id).catch(() => {});
+      await supabaseAdmin
+        .from('campaign_contacts')
+        .update({
+          next_send_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+          error_message: 'Waiting for the email address to be verified',
+        })
+        .eq('id', campaignContactId);
+      return;
+    }
+    if (action === 'skip') {
+      const state = emailState(cc.contacts || {});
+      await supabaseAdmin
+        .from('campaign_contacts')
+        .update({
+          status: 'suppressed',
+          completed_at: new Date().toISOString(),
+          error_message: `Not sent: the address is ${state.replace('_', ' ')} and this campaign only emails ${(allowed || []).join(', ')} addresses`.slice(0, 500),
+        })
+        .eq('id', campaignContactId);
+      checkAndAutoCompleteCampaign(cc.campaign_id).catch(() => {});
+      return;
+    }
   }
 
   // DCS threshold check (suppress low-score contacts)

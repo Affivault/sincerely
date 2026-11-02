@@ -10,7 +10,8 @@ import {
   UNLISTED_LIST_ID, UNLISTED_LIST_NAME, LIFECYCLE_LABEL, LEAD_OUTREACH_LABEL, LEAD_OUTREACH_HINT, LEAD_OUTREACH_STATES,
   deepCheckSkipped, formatDate, formatMoney, plural, websiteFromEmail, sourceLabel,
 } from '@lemlist/shared';
-import type { Lifecycle, ListKind, LeadOutreach, OutreachSummary, ContactDealSummary, ContactsListParams } from '@lemlist/shared';
+import type { Lifecycle, ListKind, LeadOutreach, OutreachSummary, ContactDealSummary, ContactsListParams, EmailLight } from '@lemlist/shared';
+import { lightCounts, emailState as sharedEmailState, CREDIT_PRICES } from '@lemlist/shared';
 import { usePeek } from '../../components/peek/usePeek';
 import { useFillViewport } from '../../hooks/useFillViewport';
 import { useGridKeys } from '../../hooks/useGridKeys';
@@ -143,6 +144,8 @@ import { Notice } from '../../components/ui/Notice';
 import { EngagementCell } from '../../components/contacts/Engagement';
 import { DuplicatesBanner } from '../../components/contacts/Duplicates';
 import { ExportDialog } from '../../components/contacts/ExportDialog';
+import { LightChips } from '../../components/contacts/EmailLights';
+import { HeldPeoplePanel } from '../../components/contacts/HeldPeoplePanel';
 import { ListsRail, LIST_COLORS } from '../../components/contacts/ListsRail';
 import { SavedViewsBar } from '../../components/contacts/SavedViews';
 import { BulkEditModal } from '../../components/contacts/BulkEditModal';
@@ -296,11 +299,13 @@ const LinkCell = ({ href, label }: { href?: string | null; label?: string | null
    whether an address is good, risky, bad, or not yet checked. */
 type EmailState = 'valid' | 'risky' | 'invalid' | 'not_found' | 'unverified';
 function emailStatus(c: any): { state: EmailState; label: string; tip: string } {
-  if (c.is_bounced) return { state: 'invalid', label: 'Bounced', tip: 'This address previously bounced' };
-  const verified = !!c.dcs_verified_at || c.dcs_score != null;
-  if (!verified) return { state: 'unverified', label: 'Unverified', tip: 'Not checked yet — click to verify' };
-  if (c.dcs_syntax_ok === false) return { state: 'invalid', label: 'Invalid', tip: 'Malformed email address' };
-  if (c.dcs_domain_ok === false) return { state: 'not_found', label: 'Not found', tip: c.dcs_fail_reason || 'No mail server (MX) for this domain — mailbox not found' };
+  // The bucket comes from shared/email-light, the one definition the
+  // light chips, the launch counts and the sender all use.
+  const shared = sharedEmailState(c);
+  if (shared === 'bounced') return { state: 'invalid', label: 'Bounced', tip: 'This address previously bounced' };
+  if (shared === 'unverified' || shared === 'no_email') return { state: 'unverified', label: 'Unverified', tip: 'Not checked yet — click to verify' };
+  if (shared === 'invalid' && c.dcs_syntax_ok === false) return { state: 'invalid', label: 'Invalid', tip: 'Malformed email address' };
+  if (shared === 'not_found') return { state: 'not_found', label: 'Not found', tip: c.dcs_fail_reason || 'No mail server (MX) for this domain — mailbox not found' };
   const score = c.dcs_score ?? 0;
   const by = VERIFIED_BY[c.email_verified_by as string] || '';
   // The score alone decides, as it does for the summary pills. dcs_smtp_ok
@@ -319,8 +324,10 @@ const STATE_STYLE: Record<EmailState, { dot: string; badge: string }> = {
   valid:      { dot: 'bg-emerald-500',                 badge: 'text-emerald-700 dark:text-emerald-400 bg-emerald-500/10' },
   risky:      { dot: 'bg-amber-500',                   badge: 'text-amber-700 dark:text-amber-400 bg-amber-500/10' },
   invalid:    { dot: 'bg-rose-500',                    badge: 'text-rose-700 dark:text-rose-400 bg-rose-500/10' },
-  not_found:  { dot: 'bg-slate-400 dark:bg-slate-500', badge: 'text-slate-600 dark:text-slate-300 bg-slate-500/12' },
-  unverified: { dot: 'bg-slate-300 dark:bg-slate-600', badge: 'text-[var(--text-tertiary)] bg-[var(--bg-elevated)]' },
+  // Red and amber, like their traffic lights: not found is a bad address,
+  // unverified is "unsure" until it is checked.
+  not_found:  { dot: 'bg-rose-500',                    badge: 'text-rose-700 dark:text-rose-400 bg-rose-500/10' },
+  unverified: { dot: 'bg-amber-300 dark:bg-amber-600/70', badge: 'text-amber-700/80 dark:text-amber-400/80 bg-amber-500/5' },
 };
 
 function EmailStatusDot({ c }: { c: any }) {
@@ -789,6 +796,12 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
   const [sortBy, setSortBy] = useState<ContactSortKey>('created_at');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('');
+  /** Traffic lights shown; none on means everyone. 'none' is people held without an email. */
+  const [lights, setLightsState] = useState<EmailLight[]>([]);
+  const setLights = (v: EmailLight[]) => { setLightsState(v); setPage(1); };
+  const emailLights = lights.filter((l) => l !== 'none');
+  /** Only "No email" picked: the held people are the whole view. */
+  const onlyHeld = lights.length === 1 && lights[0] === 'none';
   const [companyFilter, setCompanyFilter] = useState<string | null>(null);
 
   const handleSort = (key: ContactSortKey) => {
@@ -842,6 +855,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
   if (activeListId !== prevActiveListId) {
     setPrevActiveListId(activeListId);
     setStatusFilter('');
+    setLightsState([]);
   }
 
   // Distinct companies (with counts) for the "view by company" filter
@@ -871,8 +885,8 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
   // Verification is outbound work, so the pills are a Leads page thing.
   const { data: breakdown } = useQuery({
     queryKey: ['verification-breakdown', activeListId, listKind],
-    queryFn: () => contactsApi.verificationBreakdown(activeListId || undefined, 'prospect'),
-    enabled: listKind === 'lead',
+    // Both pages now: the lights are how either one shows who can be emailed.
+    queryFn: () => contactsApi.verificationBreakdown(activeListId || undefined, listKind === 'lead' ? 'prospect' : 'engaged'),
     refetchInterval: (q) => {
       const d = q.state.data as any;
       return autoVerifyOn && d && d.unverified > 0 ? 12000 : false;
@@ -906,7 +920,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
   });
 
   const { data: contactsData, isLoading, isPlaceholderData: stale } = useQuery({
-    queryKey: ['contacts', listKind, page, pageSize, debouncedSearch, activeListId, sortBy, sortDir, statusFilter, companyFilter, lifecycle, outreach],
+    queryKey: ['contacts', listKind, page, pageSize, debouncedSearch, activeListId, sortBy, sortDir, statusFilter, companyFilter, lifecycle, outreach, emailLights.join(',')],
     queryFn: () => contactsApi.list({
       page,
       limit: pageSize,
@@ -916,6 +930,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
       sort_by: sortBy,
       sort_order: sortDir,
       verification_status: (listKind === 'lead' && statusFilter) || undefined,
+      lights: emailLights.length ? emailLights.join(',') : undefined,
       /*
        * Inside a list too. A lead who replied is a contact now, and shows
        * on the Contacts page even though they are still a member of the
@@ -1191,6 +1206,33 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
     },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Verification failed'),
   });
+  /* Enrich several at once - the same Enrich as on a contact's page (Icypeas:
+     LinkedIn profile, role, company details, email check), 25 per call,
+     stopping when credits run out. */
+  const [enriching, setEnriching] = useState<{ done: number; total: number } | null>(null);
+  const enrichSelected = async () => {
+    const ids = Array.from(selectedContacts);
+    if (ids.length === 0 || enriching) return;
+    setEnriching({ done: 0, total: ids.length });
+    let enriched = 0;
+    let stopped = false;
+    try {
+      for (let i = 0; i < ids.length; i += 25) {
+        const r = await contactsApi.bulkEnrich(ids.slice(i, i + 25));
+        enriched += r.enriched;
+        setEnriching({ done: Math.min(i + 25, ids.length), total: ids.length });
+        if (r.out_of_credits) { stopped = true; break; }
+      }
+      if (stopped) toast.error(`Out of credits - enriched ${enriched.toLocaleString()} of ${ids.length.toLocaleString()}.`);
+      else toast.success(`Enriched ${enriched.toLocaleString()} of ${ids.length.toLocaleString()}`);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || `Enrich stopped after ${enriched.toLocaleString()}`);
+    } finally {
+      setEnriching(null);
+      for (const k of ['contacts', 'verification-breakdown', 'contact-companies', 'companies']) queryClient.invalidateQueries({ queryKey: [k] });
+    }
+  };
+
   const batchVerifyMutation = useMutation({
     mutationFn: (ids: string[]) => verificationApi.batchVerify(ids),
     onSuccess: (res, ids) => {
@@ -1369,6 +1411,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
   const clearAllFilters = () => {
     setSearch('');
     setStatusFilter('');
+    setLightsState([]);
     setCompanyFilter(null);
     setOutreach('');
     if (listKind === 'contact') setStage('engaged');
@@ -1903,19 +1946,22 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
           </Notice>
         )}
 
-        {/* Verification summary pills — counts per deliverability state, click to filter */}
-        {listKind === 'lead' && breakdown && (
+        {/* Traffic lights - who can be emailed. Click to filter; several at
+            once is fine. "No email" shows the people held without one. */}
+        {breakdown && (
           <div className="flex items-center gap-2 flex-wrap">
-            <StatusPill label="All"        count={breakdown.total}      dot="bg-[var(--text-tertiary)]"            active={statusFilter === ''}           onClick={() => { setStatusFilter(''); setPage(1); }} />
-            <StatusPill label="Valid"      count={breakdown.valid}      dot="bg-emerald-500"                       active={statusFilter === 'valid'}      onClick={() => { setStatusFilter((s) => s === 'valid' ? '' : 'valid'); setPage(1); }} />
-            <StatusPill label="Risky"      count={breakdown.risky}      dot="bg-amber-500"                         active={statusFilter === 'risky'}      onClick={() => { setStatusFilter((s) => s === 'risky' ? '' : 'risky'); setPage(1); }} />
-            <StatusPill label="Invalid"    count={breakdown.invalid}    dot="bg-rose-500"                          active={statusFilter === 'invalid'}    onClick={() => { setStatusFilter((s) => s === 'invalid' ? '' : 'invalid'); setPage(1); }} />
-            <StatusPill label="Not found"  count={breakdown.not_found}  dot="bg-slate-400 dark:bg-slate-500"       active={statusFilter === 'not_found'}  onClick={() => { setStatusFilter((s) => s === 'not_found' ? '' : 'not_found'); setPage(1); }} />
-            <StatusPill label="Unverified" count={breakdown.unverified} dot="bg-slate-300 dark:bg-slate-600"       active={statusFilter === 'unverified'} onClick={() => { setStatusFilter((s) => s === 'unverified' ? '' : 'unverified'); setPage(1); }} />
-            <span className="ml-auto inline-flex items-center gap-1.5 h-7 px-3 rounded-full text-body font-medium bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-secondary)]" title="Contacts with a LinkedIn profile on file">
-              <Linkedin className="h-3 w-3 text-[#0A66C2]" />
-              {breakdown.with_linkedin.toLocaleString()} on LinkedIn
-            </span>
+            <LightChips
+              counts={lightCounts(breakdown)}
+              total={breakdown.total + (breakdown.no_email || 0)}
+              active={lights}
+              onChange={setLights}
+            />
+            {listKind === 'lead' && (
+              <span className="ml-auto inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-body font-medium bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-secondary)]" title="Leads with a LinkedIn profile on file">
+                <Linkedin className="h-3 w-3 text-[#0A66C2]" />
+                {breakdown.with_linkedin.toLocaleString()} on LinkedIn
+              </span>
+            )}
           </div>
         )}
 
@@ -2137,6 +2183,16 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                   </button>
                 </>
               )}
+              <button
+                onClick={enrichSelected}
+                disabled={!!enriching}
+                title={`Fill in LinkedIn profile, role and company details, and check the email - ${CREDIT_PRICES.enrich} credits each, refunded when nothing is found`}
+                className="btn-secondary text-strong h-8 rounded-lg disabled:opacity-50"
+                data-bulk-enrich
+              >
+                {enriching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                {enriching ? `Enriching ${enriching.done}/${enriching.total}` : 'Enrich'}
+              </button>
               {listKind === 'contact' && (
                 <>
                   {stage !== 'customer' && (
@@ -2214,7 +2270,20 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
           </div>
         )}
 
+        {lights.includes('none') && (
+          <div className="mb-5">
+            <HeldPeoplePanel
+              listId={activeListId || undefined}
+              lifecycle={listKind === 'lead' ? 'prospect' : 'engaged'}
+              search={debouncedSearch.trim() || undefined}
+              noun={noun}
+              kind={listKind === 'lead' ? 'lead' : 'contact'}
+            />
+          </div>
+        )}
+
         {/* Table */}
+        {!onlyHeld && (
         <Refreshing active={stale}>
           {isLoading ? (
             <div className="card divide-y divide-[var(--border-subtle)] overflow-hidden">
@@ -2492,10 +2561,12 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
             </div>
           )}
         </Refreshing>
+        )}
 
         {/* Pagination — the rows-per-page picker shows even on a single page,
-            so it's discoverable before the list grows past one screen. */}
-        {totalContacts > 0 && (
+            so it's discoverable before the list grows past one screen.
+            Not under "No email" alone: that panel pages itself. */}
+        {totalContacts > 0 && !onlyHeld && (
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mt-5 px-1">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
               <p className="text-strong text-[var(--text-tertiary)] whitespace-nowrap">
@@ -2758,6 +2829,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
           company: companyFilter || undefined,
           outreach: (listKind === 'lead' && outreach) || undefined,
           verificationStatus: (listKind === 'lead' && statusFilter) || undefined,
+          lights: emailLights.length ? emailLights : undefined,
         }}
         viewCount={totalContacts}
         viewLabel={activeListId ? currentListName : undefined}
@@ -2766,6 +2838,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
           companyFilter ? `company ${companyFilter}` : null,
           listKind === 'lead' && outreach ? `outreach: ${outreach.replace(/_/g, ' ')}` : null,
           listKind === 'lead' && statusFilter ? `email: ${statusFilter.replace(/_/g, ' ')}` : null,
+          emailLights.length ? `lights: ${emailLights.join(', ')}` : null,
           listKind !== 'lead' && lifecycle !== pageScope ? `stage: ${lifecycle}` : null,
         ].filter(Boolean).join(' · ') || undefined}
       />
