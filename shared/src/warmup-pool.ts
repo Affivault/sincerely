@@ -140,3 +140,156 @@ export const POOL_QUALITY_NOTE: Record<PoolQuality, string> = {
     'Mail is going to more than one provider, which is what builds a reputation worth having. '
     + 'The volume ramp and real replies still matter more than this does.',
 };
+
+/* ─── The shared network ──────────────────────────────────────────────── */
+
+/**
+ * Whether a Message-ID is one of ours.
+ *
+ * Every warm-up email and every warm-up reply is sent as <wu-TOKEN@domain>.
+ * Once mailboxes from different accounts warm each other, that mail lands
+ * in somebody else's inbox, and the inbox sync must never put it in their
+ * Unibox or treat it as a prospect replying.
+ */
+export function isWarmupMessageId(messageId: string | null | undefined): boolean {
+  return /^<?wu-[0-9a-f]{8,}@/i.test(String(messageId || '').trim());
+}
+
+/** The most warm-up mail one mailbox takes from the network in a day. */
+export const NETWORK_DAILY_RECEIVE_CAP = 15;
+
+/** A network peer that is bouncing this much is left out until it recovers. */
+export const NETWORK_MAX_BOUNCE_RATE = 0.05;
+
+export interface NetworkCandidate extends WarmupPeer {
+  user_id: string;
+  warmup_network?: boolean | null;
+  autopilot_state?: string | null;
+  bounce_rate_7d?: number | string | null;
+}
+
+/**
+ * Whether a mailbox from another account may receive network warm-up mail.
+ *
+ * It has to have joined, and it has to be in a state where mail arriving
+ * from strangers does it no harm and tells the sender something true: not
+ * resting after receivers refused it, and not bouncing.
+ */
+export function networkEligible(peer: NetworkCandidate): boolean {
+  if (!peer.warmup_network) return false;
+  if ((peer.autopilot_state || 'active') === 'resting') return false;
+  const rate = Number(peer.bounce_rate_7d);
+  // Stored either as a fraction or as a percentage, depending on its age.
+  const fraction = Number.isFinite(rate) ? (rate > 1 ? rate / 100 : rate) : 0;
+  return fraction <= NETWORK_MAX_BOUNCE_RATE;
+}
+
+/**
+ * A rotation seed that moves day to day and mailbox to mailbox.
+ *
+ * The send count alone restarts at zero every morning, so in a large network
+ * every mailbox would mail the same handful of peers each day: exactly the
+ * "same accounts engaging with each other forever" pattern providers detect.
+ */
+export function rotationSeed(senderId: string, sentToday: number, now = new Date()): number {
+  const day = Math.floor(now.getTime() / 86_400_000);
+  let h = 2166136261;
+  for (const ch of `${senderId}:${day}`) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
+  return (h % 100_000) + sentToday;
+}
+
+/* ─── What warm-up mail says ──────────────────────────────────────────── */
+
+const W_SUBJECTS = [
+  'Quick question', 'Following up', 'Thoughts on this?', 'The plan for next week',
+  'Coffee sometime?', 'Loved your update', 'Checking in', 'An idea', 'Free on Thursday?',
+  'Notes from earlier', 'One more thing', 'Great catching up', 'Small favour',
+  'That article', 'Next steps', 'Before Friday', 'Re-sending this', 'Weekend plans',
+  'Your recommendation', 'Did this come through?', 'Timing', 'Book suggestion',
+];
+const W_OPENERS = [
+  'Hi {first},', 'Hey {first},', 'Hello {first},', 'Morning {first},', '{first},',
+];
+const W_OPENERS_NO_NAME = ['Hi,', 'Hey,', 'Hello,', 'Hi there,', 'Morning,'];
+const W_MIDDLES = [
+  'Hope the week is treating you well so far.',
+  'Thanks again for the note earlier, it was useful.',
+  'Just circling back on what we talked about.',
+  'I had a think about your suggestion and I like it.',
+  'Quick one while I remember.',
+  'I finally got round to reading the piece you mentioned.',
+  'It was good to catch up the other day.',
+  'Sorry this took me a while to get to.',
+  'I spoke to the team and everyone is on board.',
+  'I have been meaning to ask you about this for a few days.',
+];
+const W_ASKS = [
+  'Could you send over the details when you have a minute?',
+  'Does next Tuesday or Wednesday work better for you?',
+  'Let me know what you think, no rush at all.',
+  'Happy to jump on a short call if that is easier.',
+  'Shall I pencil something in for later this month?',
+  'Would you be up for grabbing a coffee soon?',
+  'Any chance you could take a look before the weekend?',
+  'I will put a draft together and share it shortly.',
+  'Keen to hear how it went on your side.',
+];
+const W_SIGNOFFS = ['Thanks,', 'Cheers,', 'Best,', 'Speak soon,', 'Thanks again,', 'All the best,', 'Talk soon,'];
+const W_REPLIES = [
+  'Thanks for this, makes sense. I will take a look and come back to you.',
+  'Appreciate the note. All good on my end, speak soon.',
+  'Got it, thank you. Let us catch up properly next week.',
+  'Sounds great, count me in.',
+  'Perfect, that works for me. Thanks for following up.',
+  'Good shout. Tuesday suits me, I will send an invite.',
+  'Thanks, that is really helpful. I will share it with the others.',
+  'Yes, happy to. Give me a day or two.',
+  'Just seen this, thanks. I will get back to you tomorrow.',
+  'Love it. Let us do it.',
+];
+
+export interface WarmupMessage { subject: string; body: string }
+
+// Shared inboxes, not people: "Hi Info," reads as exactly what it is.
+const ROLE_NAMES = new Set([
+  'info', 'hello', 'hi', 'contact', 'sales', 'support', 'admin', 'team', 'office', 'mail',
+  'enquiries', 'inquiries', 'noreply', 'no', 'help', 'accounts', 'billing', 'marketing', 'invest',
+  'partners', 'press', 'jobs', 'careers', 'hr', 'ops', 'outreach', 'founders',
+]);
+const firstNameOf = (name: string | null | undefined, email: string): string => {
+  const fromName = String(name || '').trim().split(/\s+/)[0];
+  if (fromName && /^[A-Za-z][A-Za-z'-]{1,20}$/.test(fromName) && !ROLE_NAMES.has(fromName.toLowerCase())) return fromName;
+  const local = (email.split('@')[0] || '').split(/[._-]/)[0].toLowerCase();
+  return /^[a-z]{2,20}$/.test(local) && !ROLE_NAMES.has(local) ? local[0].toUpperCase() + local.slice(1) : 'there';
+};
+
+/**
+ * A warm-up email put together from parts.
+ *
+ * Six fixed bodies sent across a whole network are the most recognisable
+ * thing a warm-up can do. Pieced together, there are thousands of
+ * combinations, each addressed to the person and signed by the sender.
+ */
+export function composeWarmupMessage(
+  sender: { from_name?: string | null; label?: string | null; email_address: string },
+  recipient: { from_name?: string | null; email_address: string },
+  rand: () => number = Math.random,
+): WarmupMessage {
+  const pickOne = <T>(arr: T[]): T => arr[Math.floor(rand() * arr.length) % arr.length];
+  const first = firstNameOf(recipient.from_name, recipient.email_address);
+  const me = firstNameOf(sender.from_name, sender.email_address);
+  const opener = first === 'there' ? pickOne(W_OPENERS_NO_NAME) : pickOne(W_OPENERS).replace('{first}', first);
+  const lines = [opener, '', pickOne(W_MIDDLES) + ' ' + pickOne(W_ASKS), '', pickOne(W_SIGNOFFS)];
+  if (me !== 'there') lines.push(me);
+  return { subject: pickOne(W_SUBJECTS), body: lines.join('\n') };
+}
+
+/** A short warm-up reply, signed by whoever is replying. */
+export function composeWarmupReply(
+  replier: { from_name?: string | null; label?: string | null; email_address: string },
+  rand: () => number = Math.random,
+): string {
+  const me = firstNameOf(replier.from_name, replier.email_address);
+  const text = W_REPLIES[Math.floor(rand() * W_REPLIES.length) % W_REPLIES.length];
+  return me === 'there' ? text : `${text}\n\n${me}`;
+}
