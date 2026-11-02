@@ -1,3 +1,4 @@
+import type { BlacklistStatus } from './blacklists.js';
 /* ═══════════════════════════════════════════════════════════════════════
    Sending health: one verdict per mailbox.
 
@@ -35,11 +36,14 @@ export type SendingHealthStepKind =
   | 'slow_pace'
   | 'run_placement'
   | 'start_warmup'
+  | 'delist'
   | 'none';
 
 export interface SendingHealthStep {
   kind: SendingHealthStepKind;
   label: string;
+  /** Where the step goes, when it leaves the app (a blacklist's removal page). */
+  url?: string;
 }
 
 export interface SendingHealthDay {
@@ -88,6 +92,8 @@ export interface SendingHealthFacts {
   complained_14d: number;
   domain: SendingHealthDomain;
   placement: SendingHealthPlacement | null;
+  /** Blacklist lookups for its domain and own mail server; null when not run. */
+  blacklists?: BlacklistStatus | null;
 }
 
 export interface SendingHealthVerdict {
@@ -118,6 +124,7 @@ export interface MailboxHealth {
   trend: SendingHealthDay[];
   domain: SendingHealthDomain;
   placement: SendingHealthPlacement | null;
+  blacklists: BlacklistStatus | null;
   health: SendingHealthVerdict;
 }
 
@@ -171,6 +178,14 @@ export function judgeSendingHealth(f: SendingHealthFacts, now: Date = new Date()
     const missing = [!d.spf && 'SPF', !d.dkim && 'DKIM'].filter(Boolean) as string[];
     if (missing.length) add('at_risk', `${d.domain} is missing ${missing.join(' and ')}, which most providers now require.`, fixDomain);
     else if (!d.dmarc) add('watch', `${d.domain} has no DMARC record. Gmail and Yahoo expect one from bulk senders.`, fixDomain);
+  }
+
+  // On a blacklist: the quickest way for mail to stop arriving at all.
+  for (const hit of f.blacklists?.listed || []) {
+    add('at_risk', hit.kind === 'domain'
+      ? `${hit.target} is on the ${hit.list} blacklist, so many providers will refuse or junk its mail.`
+      : `Its mail server (${hit.target}) is on the ${hit.list} blacklist, so many providers will refuse its mail.`,
+    { kind: 'delist', label: `Ask ${hit.list} to remove it`, url: hit.delist_url });
   }
 
   // Where its mail actually landed.

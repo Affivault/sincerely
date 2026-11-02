@@ -86,6 +86,7 @@ export * from './blackout.js';
 export * from './signal-guard.js';
 export * from './csv.js';
 export * from './sending-health.js';
+export * from './blacklists.js';
 export * from './sender-results.js';
 export * from './contact-hygiene.js';
 export * from './engagement.js';
