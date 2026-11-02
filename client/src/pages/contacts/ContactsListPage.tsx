@@ -144,8 +144,9 @@ import { Notice } from '../../components/ui/Notice';
 import { EngagementCell } from '../../components/contacts/Engagement';
 import { DuplicatesBanner } from '../../components/contacts/Duplicates';
 import { ExportDialog } from '../../components/contacts/ExportDialog';
-import { LightChips } from '../../components/contacts/EmailLights';
+import { EmailHealth } from '../../components/contacts/EmailLights';
 import { HeldPeoplePanel } from '../../components/contacts/HeldPeoplePanel';
+import { SelectionBar, type BarAction } from '../../components/contacts/SelectionBar';
 import { ListsRail, LIST_COLORS } from '../../components/contacts/ListsRail';
 import { SavedViewsBar } from '../../components/contacts/SavedViews';
 import { BulkEditModal } from '../../components/contacts/BulkEditModal';
@@ -1949,20 +1950,17 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
         {/* Traffic lights - who can be emailed. Click to filter; several at
             once is fine. "No email" shows the people held without one. */}
         {breakdown && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <LightChips
-              counts={lightCounts(breakdown)}
-              total={breakdown.total + (breakdown.no_email || 0)}
-              active={lights}
-              onChange={setLights}
-            />
-            {listKind === 'lead' && (
-              <span className="ml-auto inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-body font-medium bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-secondary)]" title="Leads with a LinkedIn profile on file">
+          <EmailHealth
+            counts={lightCounts(breakdown)}
+            active={lights}
+            onChange={setLights}
+            aside={listKind === 'lead' ? (
+              <span className="inline-flex items-center gap-1.5 h-6 px-2 rounded-md text-caption font-medium text-[var(--text-secondary)] bg-[var(--bg-elevated)]" title="Leads with a LinkedIn profile on file">
                 <Linkedin className="h-3 w-3 text-[#0A66C2]" />
                 {breakdown.with_linkedin.toLocaleString()} on LinkedIn
               </span>
-            )}
-          </div>
+            ) : undefined}
+          />
         )}
 
         {/* Search and filters bar */}
@@ -2137,138 +2135,70 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
           </div>
         </div>
 
-        {/* Bulk actions bar */}
-        {someSelected && (
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-5 px-4 py-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-default)] animate-fade-in">
-            <div className="flex items-center gap-2.5 flex-shrink-0">
-              <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-[var(--indigo)] text-white text-caption font-bold">
-                {selectedContacts.size}
-              </span>
-              <span className="text-strong font-medium text-[var(--text-primary)] whitespace-nowrap">
-                {noun}{selectedContacts.size !== 1 ? 's' : ''} selected
-              </span>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 ml-auto">
-              {/*
-                Outbound actions only on Leads. Contacts are never put into a
-                cold campaign from here; the server would refuse a contact
-                filed only in contact lists anyway.
-              */}
-              {listKind === 'lead' && (
-                <>
-                  <button
-                    onClick={() => setShowCampaignModal(true)}
-                    className="inline-flex items-center gap-1.5 text-strong h-8 px-3 rounded-lg font-semibold text-white transition-opacity hover:opacity-90"
-                    style={{ background: 'var(--indigo-grad)' }}
-                  >
-                    <Megaphone className="h-3.5 w-3.5" />
-                    Add to campaign
-                  </button>
-                  <button
-                    onClick={() => batchVerifyMutation.mutate(Array.from(selectedContacts))}
-                    disabled={batchVerifyMutation.isPending}
-                    className="btn-secondary text-strong h-8 rounded-lg disabled:opacity-50"
-                  >
-                    {batchVerifyMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
-                    Verify emails
-                  </button>
-                  <button
-                    onClick={() => lifecycleMutation.mutate({ ids: Array.from(selectedContacts), to: 'contact' })}
-                    disabled={lifecycleMutation.isPending}
-                    title="They have a relationship with you now: they move to the Contacts page and its lists"
-                    className="btn-secondary text-strong h-8 rounded-lg disabled:opacity-50"
-                  >
-                    <Contact2 className="h-3.5 w-3.5" />
-                    Convert to contact
-                  </button>
-                </>
-              )}
-              <button
-                onClick={enrichSelected}
-                disabled={!!enriching}
-                title={`Fill in LinkedIn profile, role and company details, and check the email - ${CREDIT_PRICES.enrich} credits each, refunded when nothing is found`}
-                className="btn-secondary text-strong h-8 rounded-lg disabled:opacity-50"
-                data-bulk-enrich
-              >
-                {enriching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                {enriching ? `Enriching ${enriching.done}/${enriching.total}` : 'Enrich'}
-              </button>
-              {listKind === 'contact' && (
-                <>
-                  {stage !== 'customer' && (
-                    <button
-                      onClick={() => lifecycleMutation.mutate({ ids: Array.from(selectedContacts), to: 'customer' })}
-                      disabled={lifecycleMutation.isPending}
-                      title="They bought from you. Customers stay out of cold outreach."
-                      className="btn-secondary text-strong h-8 rounded-lg disabled:opacity-50"
-                    >
-                      <BadgeCheck className="h-3.5 w-3.5" />
-                      Mark as customer
-                    </button>
-                  )}
-                  {stage === 'customer' && (
-                    <button
-                      onClick={() => lifecycleMutation.mutate({ ids: Array.from(selectedContacts), to: 'contact' })}
-                      disabled={lifecycleMutation.isPending}
-                      className="btn-secondary text-strong h-8 rounded-lg disabled:opacity-50"
-                    >
-                      <Contact2 className="h-3.5 w-3.5" />
-                      Not a customer
-                    </button>
-                  )}
-                  <button
-                    onClick={() => lifecycleMutation.mutate({ ids: Array.from(selectedContacts), to: 'prospect' })}
-                    disabled={lifecycleMutation.isPending}
-                    title="Back to the Leads page, as people to prospect. Replies will not move them back on their own."
-                    className="btn-secondary text-strong h-8 rounded-lg disabled:opacity-50"
-                  >
-                    <Undo2 className="h-3.5 w-3.5" />
-                    Move back to leads
-                  </button>
-                </>
-              )}
-              <button onClick={() => { setTagMode('add'); setTagSel(new Set()); setShowTagModal(true); }} className="btn-secondary text-strong h-8 rounded-lg">
-                <TagIcon className="h-3.5 w-3.5" />
-                Add tags
-              </button>
-              <button onClick={() => { setTagMode('remove'); setTagSel(new Set()); setShowTagModal(true); }} className="btn-secondary text-strong h-8 rounded-lg">
-                <TagIcon className="h-3.5 w-3.5" />
-                Remove tags
-              </button>
-              <button onClick={() => setShowBulkEdit(true)} className="btn-secondary text-strong h-8 rounded-lg" title="Set or clear a field, a custom field or tags on everyone selected">
-                <PenLine className="h-3.5 w-3.5" />
-                Edit fields
-              </button>
-              <button onClick={() => setShowAddToListModal(true)} className="btn-secondary text-strong h-8 rounded-lg">
-                <FolderOpen className="h-3.5 w-3.5" />
-                Add to list
-              </button>
-              {activeListId && (
-                <button onClick={() => { setMoveTargetId(null); setShowMoveModal(true); }} className="btn-secondary text-strong h-8 rounded-lg">
-                  <ArrowRightLeft className="h-3.5 w-3.5" />
-                  Move
-                </button>
-              )}
-              <button
-                onClick={() => {
-                  const ids = Array.from(selectedContacts);
+        {/* Bulk actions - a floating bar at the foot of the screen. Outbound
+            actions (campaign, verify) only on Leads; Contacts are never put
+            into a cold campaign from here. */}
+        {someSelected && (() => {
+          const ids = () => Array.from(selectedContacts);
+          const busyLifecycle = lifecycleMutation.isPending;
+          const enrichAction: BarAction = {
+            label: 'Enrich', icon: Sparkles, onSelect: enrichSelected, busy: !!enriching, testId: 'bulk-enrich',
+            busyLabel: enriching ? `Enriching ${enriching.done}/${enriching.total}` : undefined,
+            hint: `LinkedIn profile, role and company details, plus an email check - ${CREDIT_PRICES.enrich} credits each, refunded when nothing is found`,
+          };
+          return (
+            <SelectionBar
+              count={selectedContacts.size}
+              noun={noun}
+              onClear={() => setSelectedContacts(new Set())}
+              primary={listKind === 'lead'
+                ? { label: 'Add to campaign', icon: Megaphone, onSelect: () => setShowCampaignModal(true) }
+                : undefined}
+              actions={listKind === 'lead'
+                ? [
+                    { label: 'Verify emails', icon: ShieldCheck, onSelect: () => batchVerifyMutation.mutate(ids()), busy: batchVerifyMutation.isPending, busyLabel: 'Verifying', hint: 'Check each address - free checks first, the deep check only when they cannot settle it' },
+                    enrichAction,
+                  ]
+                : [enrichAction]}
+              menus={[
+                {
+                  label: 'Tags', icon: TagIcon, items: [
+                    { label: 'Add tags', icon: TagIcon, onSelect: () => { setTagMode('add'); setTagSel(new Set()); setShowTagModal(true); }, hint: 'Pick tags to put on everyone selected' },
+                    { label: 'Remove tags', icon: TagIcon, onSelect: () => { setTagMode('remove'); setTagSel(new Set()); setShowTagModal(true); }, hint: 'Take tags off everyone selected' },
+                  ],
+                },
+                {
+                  label: 'List', icon: FolderOpen, items: [
+                    { label: 'Add to list', icon: FolderOpen, onSelect: () => setShowAddToListModal(true), hint: 'Also put them in another list' },
+                    ...(activeListId ? [{ label: 'Move to another list', icon: ArrowRightLeft, onSelect: () => { setMoveTargetId(null); setShowMoveModal(true); }, hint: 'Take them out of this list and into another' }] : []),
+                  ],
+                },
+                {
+                  label: 'More', icon: PenLine, items: [
+                    { label: 'Edit fields', icon: PenLine, onSelect: () => setShowBulkEdit(true), hint: 'Set or clear a field, a custom field or tags on everyone selected' },
+                    ...(listKind === 'lead'
+                      ? [{ label: 'Convert to contact', icon: Contact2, disabled: busyLifecycle, onSelect: () => lifecycleMutation.mutate({ ids: ids(), to: 'contact' }), hint: 'They have a relationship with you now: they move to the Contacts page' }]
+                      : [
+                          stage === 'customer'
+                            ? { label: 'Not a customer', icon: Contact2, disabled: busyLifecycle, onSelect: () => lifecycleMutation.mutate({ ids: ids(), to: 'contact' }), hint: 'Back to an ordinary contact' }
+                            : { label: 'Mark as customer', icon: BadgeCheck, disabled: busyLifecycle, onSelect: () => lifecycleMutation.mutate({ ids: ids(), to: 'customer' }), hint: 'They bought from you. Customers stay out of cold outreach.' },
+                          { label: 'Move back to leads', icon: Undo2, disabled: busyLifecycle, onSelect: () => lifecycleMutation.mutate({ ids: ids(), to: 'prospect' }), hint: 'Back to the Leads page, as people to prospect' },
+                        ]),
+                  ],
+                },
+              ]}
+              danger={{
+                label: 'Delete', icon: Trash2,
+                onSelect: () => {
+                  const picked = ids();
                   setSelectedContacts(new Set());
-                  gone.removeMany(ids, `Deleted ${plural(ids.length, noun)}`, () => bulkDeleteMutation.mutateAsync(ids));
-                }}
-                className="btn-danger text-strong h-8 rounded-lg"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                Delete
-              </button>
-              <button aria-label="Clear selection"
-                onClick={() => setSelectedContacts(new Set())}
-                className="p-1.5 ml-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] rounded-lg transition-all duration-200"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-        )}
+                  gone.removeMany(picked, `Deleted ${plural(picked.length, noun)}`, () => bulkDeleteMutation.mutateAsync(picked));
+                },
+                hint: 'Delete them - you can undo for a few seconds',
+              }}
+            />
+          );
+        })()}
 
         {lights.includes('none') && (
           <div className="mb-5">
@@ -2620,6 +2550,9 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
             </div>
           </div>
         )}
+
+        {/* Room at the foot of the page while the selection bar floats over it. */}
+        {someSelected && <div aria-hidden="true" className="h-20" />}
       </div>
       </div>
 

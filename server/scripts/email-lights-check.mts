@@ -110,9 +110,9 @@ console.log('\nthe screens');
   const imp = client('pages/contacts/BulkImportPage.tsx');
   is('import keeps people without an email', /contactsApi\.holdPeople\(/.test(imp) && !/importFindEmails/.test(imp));
   const list = client('pages/contacts/ContactsListPage.tsx');
-  is('both pages show the light chips', /<LightChips/.test(list) && !/enabled: listKind === 'lead',\n\s+refetchInterval/.test(list));
+  is('both pages show email health', /<EmailHealth/.test(list) && !/enabled: listKind === 'lead',\n\s+refetchInterval/.test(list));
   is('"No email" shows the held people', /lights\.includes\('none'\)[\s\S]{0,80}<HeldPeoplePanel/.test(list));
-  is('selected people can be enriched in bulk', /data-bulk-enrich/.test(list));
+  is('selected people can be enriched in bulk', /testId: 'bulk-enrich'/.test(list) && /enrichSelected/.test(list));
   is('launch shows who gets emails', /<SendLightsPicker/.test(client('pages/campaigns/CampaignCreatePage.tsx')));
   is('and a running campaign can change it', /<CampaignLightsCard/.test(client('pages/campaigns/CampaignDetailPage.tsx')));
 }

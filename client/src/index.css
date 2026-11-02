@@ -32,6 +32,8 @@
      */
     --bg-app: #F6F6F3;
     --bg-surface: #FFFFFF;
+    /* Floating action bars (the selection bar): dark in both themes. */
+    --bg-floating: #17181C;
     --bg-elevated: #F1F1ED;
     --bg-hover: #EDEDE9;
     --bg-active: #E5E5E0;
@@ -165,6 +167,7 @@
     /* The same desk after dark: graphite with a trace of the ink in it. */
     --bg-app: #131417;
     --bg-surface: #1A1B1F;
+    --bg-floating: #2A2B31;
     --bg-elevated: #212226;
     --bg-hover: #25262B;
     --bg-active: #2D2E34;

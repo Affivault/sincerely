@@ -43,6 +43,25 @@ export function isModalOpen(): boolean {
   return overlayRequested || document.querySelector('[role="dialog"]') !== null;
 }
 
+/**
+ * Was this Escape for a dialog or menu that was open when it was pressed?
+ *
+ * A dialog closes on Escape from a document listener, and by the time a
+ * page's window listener runs it is gone - so a page shortcut checking
+ * isModalOpen() saw nothing open and did its own Escape too. Pressing Esc
+ * to close "Add to campaign" also threw away the selection it was for.
+ * This is decided in the capture phase, before anything has closed.
+ */
+let overlayEscape: Event | null = null;
+if (typeof window !== 'undefined') {
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') overlayEscape = isModalOpen() || document.querySelector('[role="menu"]') ? e : null;
+  }, true);
+}
+export function escapeWasForOverlay(e: Event): boolean {
+  return e === overlayEscape;
+}
+
 /* ── Multi-stroke sequences ───────────────────────────────────────────── */
 
 /**
