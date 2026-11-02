@@ -201,6 +201,8 @@ export interface WarmupSummary {
   network_peers: number;
   /** How many of this account's mailboxes have joined. */
   network_joined: number;
+  /** False until migration 108 has been run; the network is then hidden. */
+  network_available?: boolean;
 }
 
 export interface SetWarmupInput {

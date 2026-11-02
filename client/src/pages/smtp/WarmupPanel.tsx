@@ -90,7 +90,9 @@ function SetupGuide({ summary, onAddMailbox, onEnable }: {
       done: connected >= 2 || summary.network_joined > 0,
       title: 'Connect at least 2 mailboxes',
       status: `${connected}/2`,
-      desc: 'Warm-up works by having inboxes send friendly emails to each other. Connect a second mailbox, or join the Sincerely warm-up network below to warm up with other accounts.',
+      desc: summary.network_available === false
+        ? 'Warm-up works by having your inboxes send friendly emails to each other, so you need at least two. Most senders run 2–4 mailboxes across one or two domains.'
+        : 'Warm-up works by having inboxes send friendly emails to each other. Connect a second mailbox, or join the Sincerely warm-up network below to warm up with other accounts.',
       tip: 'No second inbox yet? Create another address at your email provider (e.g. a second name@yourdomain mailbox) — each one is a real inbox you log into — then connect it here.',
       action: onAddMailbox ? { label: 'Add a mailbox', icon: Plus, onClick: onAddMailbox } : undefined,
     },
@@ -190,7 +192,8 @@ function NetworkCard({ summary }: { summary: WarmupSummary }) {
     },
   });
 
-  if (eligible.length === 0) return null;
+  // Not switched on yet (migration 108), so there is nothing to join.
+  if (eligible.length === 0 || summary.network_available === false) return null;
 
   return (
     <Card padding="md" className="mb-3" data-warmup-network={joined.length > 0 ? 'joined' : 'off'}>
