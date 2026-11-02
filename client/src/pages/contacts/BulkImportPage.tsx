@@ -9,7 +9,7 @@ import {
   ArrowRight, Users, Loader2, CheckCircle2, XCircle, Eye,
   FolderOpen, RotateCcw, Download, AlertCircle, MailCheck, Plus,
   SlidersHorizontal, ChevronDown, Sparkles, Send, ClipboardPaste, Search,
-  Building2, User, Tag as TagIcon, Undo2, Bookmark,
+  Building2, User, Tag as TagIcon, Undo2, Bookmark, MailX,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { blockedProps, BLOCKED_CLASS } from '../../lib/blockedAction';
@@ -948,16 +948,22 @@ export function BulkImportPage() {
 
           {/* People with no usable email: kept in the list, not dropped. */}
           {mappingValid && holdable.length > 0 && (
-            <label className="flex items-start gap-3 rounded-xl border border-[var(--border-subtle)] border-l-4 border-l-slate-400 bg-[var(--bg-surface)] p-4 cursor-pointer" data-import-hold>
-              <input type="checkbox" checked={keepHeld} onChange={(e) => setKeepHeld(e.target.checked)} className="mt-1 accent-[var(--indigo)]" />
+            <label className={cn('card flex items-start gap-3 p-4 cursor-pointer transition-colors', keepHeld ? 'border-[var(--border-default)]' : 'opacity-80')} data-import-hold>
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--bg-elevated)] text-[var(--text-secondary)] flex-shrink-0">
+                <MailX className="h-4 w-4" />
+              </span>
               <span className="flex-1 min-w-0">
-                <span className="flex items-center gap-2 text-body font-semibold text-[var(--text-primary)]">
-                  <span className="h-2.5 w-2.5 rounded-full bg-slate-400 ring-2 ring-slate-400/25" />
-                  Keep the {holdable.length.toLocaleString()} {holdable.length === 1 ? 'person' : 'people'} without an email
+                <span className="block text-body font-semibold text-[var(--text-primary)]">
+                  Keep {holdable.length.toLocaleString()} {holdable.length === 1 ? 'person' : 'people'} who {holdable.length === 1 ? 'has' : 'have'} no email
                 </span>
                 <span className="block text-caption text-[var(--text-tertiary)] mt-0.5">
-                  They are held in the list as <strong className="font-semibold text-[var(--text-secondary)]">No email</strong> - never emailed. Add an address, or re-import the fixed file, and they become ordinary {pageWord}.
+                  They wait in the list under <span className="font-medium text-[var(--text-secondary)]">Missing an email</span> and are never emailed. Add an address later, or re-import the file once you have them.
                 </span>
+              </span>
+              <span className="relative inline-flex items-center flex-shrink-0 mt-0.5">
+                <input type="checkbox" checked={keepHeld} onChange={(e) => setKeepHeld(e.target.checked)} className="peer sr-only" aria-label="Keep people without an email" />
+                <span className="h-5 w-9 rounded-full bg-[var(--border-strong)] transition-colors peer-checked:bg-[var(--indigo)] peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--indigo)]/30" />
+                <span className="absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-4" />
               </span>
             </label>
           )}

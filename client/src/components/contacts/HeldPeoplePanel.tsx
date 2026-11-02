@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { Check, Download, Linkedin, Loader2, Trash2, Upload } from 'lucide-react';
+import { AtSign, Check, Download, Linkedin, Loader2, MailX, Trash2, Upload } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { HeldPerson } from '@lemlist/shared';
 import { contactsApi } from '../../api/contacts.api';
 import { useConfirm } from '../ui/ConfirmDialog';
 import { downloadCsv, csvDate } from '../../lib/csv';
-import { LightDot } from './EmailLights';
+import { Avatar } from '../shared/Avatar';
+import { cn } from '../../lib/utils';
 import { keepPrevious } from '../../lib/listQuery';
 import { Refreshing } from '../ui/Refreshing';
 
@@ -98,83 +99,103 @@ export function HeldPeoplePanel({ listId, lifecycle, search, noun, kind }: {
 
   if (data?.unavailable) {
     return (
-      <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4 text-body text-[var(--text-secondary)]">
+      <div className="card p-4 text-body text-[var(--text-secondary)]">
         Keeping people without an email needs the latest database update (migration 110).
       </div>
     );
   }
 
   return (
-    <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden" data-held-panel>
-      <div className="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)]">
-        <LightDot light="none" />
-        <div className="flex-1 min-w-0">
-          <p className="text-body font-semibold text-[var(--text-primary)]">
-            {total.toLocaleString()} without an email
-          </p>
-          <p className="text-caption text-[var(--text-tertiary)]">Never emailed. Add an address and they move into your {noun}s - or download them, find the emails, and re-import the file.</p>
+    <section className="card overflow-hidden" data-held-panel aria-label="Missing an email">
+      <header className="flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3.5 border-b border-[var(--border-subtle)]">
+        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--bg-elevated)] text-[var(--text-secondary)] flex-shrink-0">
+          <MailX className="h-4 w-4" />
+        </span>
+        <div className="flex-1 min-w-[220px]">
+          <h2 className="flex items-center gap-2 text-strong font-semibold text-[var(--text-primary)]">
+            Missing an email
+            <span className="inline-flex items-center h-5 px-1.5 rounded-md bg-[var(--bg-elevated)] text-micro font-semibold tabular text-[var(--text-secondary)]">{total.toLocaleString()}</span>
+          </h2>
+          <p className="text-caption text-[var(--text-tertiary)]">Never emailed. Add an address and they join your {noun}s straight away.</p>
         </div>
-        <div className="flex items-center gap-2">
-          <button type="button" onClick={downloadAll} disabled={total === 0} className="btn-secondary h-8">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button type="button" onClick={downloadAll} disabled={total === 0} className="btn-ghost" title="Download everyone here as a CSV to find their emails">
             <Download className="h-3.5 w-3.5" />
-            Download
+            Download<span className="hidden sm:inline"> to research</span>
           </button>
-          <button type="button" onClick={() => navigate(`/contacts/import?as=${kind}`)} className="btn-secondary h-8">
+          <button type="button" onClick={() => navigate(`/contacts/import?as=${kind}`)} className="btn-secondary" title="Re-import the file with emails added - they move in automatically">
             <Upload className="h-3.5 w-3.5" />
-            Re-import
+            Re-import<span className="hidden sm:inline"> with emails</span>
           </button>
-          {rows.length > 0 && (
-            <button type="button" onClick={() => remove(rows.map((r) => r.id), `these ${rows.length.toLocaleString()}`)} className="icon-btn" aria-label="Delete everyone shown" title="Delete everyone shown">
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          )}
         </div>
-      </div>
+      </header>
 
       <Refreshing active={isPlaceholderData}>
       {isLoading ? (
-        <div className="p-6 flex justify-center"><Loader2 className="h-4 w-4 animate-spin text-[var(--text-tertiary)]" /></div>
+        <div className="p-8 flex justify-center"><Loader2 className="h-4 w-4 animate-spin text-[var(--text-tertiary)]" /></div>
       ) : rows.length === 0 ? (
-        <p className="p-6 text-center text-body text-[var(--text-tertiary)]">Nobody without an email here.</p>
+        <div className="px-6 py-10 text-center">
+          <span className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+            <Check className="h-5 w-5" />
+          </span>
+          <p className="text-body font-medium text-[var(--text-primary)]">Everyone here has an email</p>
+          <p className="text-caption text-[var(--text-tertiary)] mt-0.5">People imported without one will wait here until they have.</p>
+        </div>
       ) : (
         <ul className="divide-y divide-[var(--border-subtle)]">
           {rows.map((p) => {
             const name = [p.first_name, p.last_name].filter(Boolean).join(' ') || 'Unnamed';
+            const draft = drafts[p.id] || '';
             return (
-              <li key={p.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5">
-                <div className="flex items-center gap-2.5 min-w-0 flex-1 basis-56">
-                  <LightDot light="none" />
+              <li key={p.id} className="group grid grid-cols-1 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] items-center gap-x-6 gap-y-2 px-4 py-3 hover:bg-[var(--bg-hover)]/50 transition-colors">
+                <div className="flex items-center gap-3 min-w-0">
+                  <Avatar name={name} size="sm" />
                   <div className="min-w-0">
-                    <p className="text-body font-medium text-[var(--text-primary)] truncate flex items-center gap-1.5">
-                      {name}
+                    <p className="flex items-center gap-1.5 text-body font-semibold text-[var(--text-primary)] truncate">
+                      <span className="truncate">{name}</span>
                       {p.linkedin_url && (
-                        <a href={p.linkedin_url} target="_blank" rel="noreferrer" aria-label={`${name} on LinkedIn`} className="text-[#0A66C2] hover:opacity-80">
-                          <Linkedin className="h-3 w-3" />
+                        <a href={p.linkedin_url} target="_blank" rel="noreferrer" aria-label={`${name} on LinkedIn`} className="text-[#0A66C2] hover:opacity-75 flex-shrink-0">
+                          <Linkedin className="h-3.5 w-3.5" />
                         </a>
                       )}
                     </p>
                     <p className="text-caption text-[var(--text-tertiary)] truncate">
-                      {[p.job_title, p.company].filter(Boolean).join(' · ') || '—'}
-                      {p.reason === 'invalid_email' && p.raw_email ? ` · had "${p.raw_email}"` : ''}
+                      {[p.job_title, p.company].filter(Boolean).join(' at ') || 'No title or company'}
                     </p>
                   </div>
+                  {p.reason === 'invalid_email' && p.raw_email && (
+                    <span className="ml-auto hidden lg:inline-flex items-center h-5 px-1.5 rounded-md bg-rose-500/10 text-micro font-medium text-rose-700 dark:text-rose-400 flex-shrink-0" title="What the file had in the email column">
+                      was "{p.raw_email.slice(0, 24)}"
+                    </span>
+                  )}
                 </div>
-                <form
-                  className="flex items-center gap-1.5 flex-1 basis-64 min-w-0"
-                  onSubmit={(e) => { e.preventDefault(); save(p); }}
-                >
-                  <input
-                    type="email"
-                    aria-label={`Email for ${name}`}
-                    placeholder="Add their email"
-                    value={drafts[p.id] || ''}
-                    onChange={(e) => setDrafts((d) => ({ ...d, [p.id]: e.target.value }))}
-                    className="flex-1 min-w-0 h-8 px-2.5 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-body text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)] focus:ring-2 focus:ring-[var(--indigo)]/15"
-                  />
-                  <button type="submit" disabled={!drafts[p.id]?.trim() || saving === p.id} className="btn-primary h-8 px-2.5" aria-label={`Save email for ${name}`}>
-                    {saving === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                <form className="flex items-center gap-1.5 min-w-0" onSubmit={(e) => { e.preventDefault(); save(p); }}>
+                  <div className="relative flex-1 min-w-0">
+                    <AtSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-tertiary)] pointer-events-none" />
+                    <input
+                      type="email"
+                      aria-label={`Email for ${name}`}
+                      placeholder="name@company.com"
+                      value={draft}
+                      onChange={(e) => setDrafts((d) => ({ ...d, [p.id]: e.target.value }))}
+                      className="w-full h-8 pl-8 pr-2.5 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-body text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none transition-colors focus:border-[var(--indigo)] focus:ring-2 focus:ring-[var(--indigo)]/15"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={!draft.trim() || saving === p.id}
+                    className={cn('flex-shrink-0 min-w-[52px]', draft.trim() ? 'btn-primary' : 'btn-secondary')}
+                    aria-label={`Save email for ${name}`}
+                  >
+                    {saving === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Add'}
                   </button>
-                  <button type="button" onClick={() => remove([p.id], name)} className="icon-btn" aria-label={`Delete ${name}`}>
+                  <button
+                    type="button"
+                    onClick={() => remove([p.id], name)}
+                    className="icon-btn flex-shrink-0 opacity-60 hover:opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100"
+                    aria-label={`Delete ${name}`}
+                    title="Delete"
+                  >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </form>
@@ -185,15 +206,21 @@ export function HeldPeoplePanel({ listId, lifecycle, search, noun, kind }: {
       )}
       </Refreshing>
 
-      {pages > 1 && (
-        <div className="flex items-center justify-between px-4 py-2 border-t border-[var(--border-subtle)] text-caption text-[var(--text-tertiary)]">
-          <span>Page {page} of {pages}</span>
-          <div className="flex gap-1.5">
-            <button type="button" className="btn-secondary h-7" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Previous</button>
-            <button type="button" className="btn-secondary h-7" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>Next</button>
-          </div>
-        </div>
+      {(pages > 1 || rows.length > 1) && (
+        <footer className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 border-t border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50 text-caption text-[var(--text-tertiary)]">
+          <button type="button" onClick={() => remove(rows.map((r) => r.id), `these ${rows.length.toLocaleString()} people`)} className="inline-flex items-center gap-1.5 hover:text-rose-600">
+            <Trash2 className="h-3 w-3" />
+            Delete the {rows.length.toLocaleString()} shown
+          </button>
+          {pages > 1 && (
+            <div className="flex items-center gap-2">
+              <span className="tabular">Page {page} of {pages}</span>
+              <button type="button" className="btn-secondary h-7" disabled={page <= 1} onClick={() => setPage((x) => x - 1)}>Previous</button>
+              <button type="button" className="btn-secondary h-7" disabled={page >= pages} onClick={() => setPage((x) => x + 1)}>Next</button>
+            </div>
+          )}
+        </footer>
       )}
-    </div>
+    </section>
   );
 }

@@ -82,7 +82,7 @@ console.log('\nthe pages');
   is('no Contacts / Prospects / Everyone toggle', !/label: 'Everyone'/.test(page) && !/setLifecyclePersisted/.test(page));
   is('the lifecycle filter is fixed by the page, inside lists too', /const lifecycle: NonNullable<ContactsListParams\['lifecycle'\]> = listKind === 'lead' \? 'prospect' : stage;/.test(page) && !/activeListId \? 'all' : lifecycle/.test(page));
   is('each page has its own columns', /PAGE_COLUMNS: Record<ListKind, ColumnId\[\]>/.test(page) && /`\$\{listKind\}s\.columns`/.test(page));
-  is('Add to campaign is a Leads action only', /listKind === 'lead' && \(\s*<>\s*<button\s*onClick=\{\(\) => setShowCampaignModal\(true\)\}/.test(page));
+  is('Add to campaign is a Leads action only', /primary=\{listKind === 'lead'\s*\? \{ label: 'Add to campaign', icon: Megaphone, onSelect: \(\) => setShowCampaignModal\(true\) \}\s*: undefined\}/.test(page));
   is('Convert to contact and Move back to leads exist', /Convert to contact/.test(page) && /Move back to leads/.test(page));
   is('a lead added on Leads stays a lead', /lifecycle: listKind === 'lead' \? 'prospect' : 'contact'/.test(page) && /input\?\.lifecycle === 'prospect'/.test(src('services/contacts.service.ts')));
   is('export and counts follow the page', /applyLifecycle\(q, lifecycle\)/.test(src('services/contacts.service.ts')));

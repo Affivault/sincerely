@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { acceptsShortcut, isControlActivation } from '../lib/keyboard';
+import { acceptsShortcut, isControlActivation, escapeWasForOverlay } from '../lib/keyboard';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Moving through a table without the mouse.
@@ -106,6 +106,8 @@ export function useGridKeys({
 
       // Escape works from inside the search box too: it is how you get out.
       if (e.key === 'Escape') {
+        // It closed a dialog; it was not a request to drop the selection.
+        if (escapeWasForOverlay(e)) return;
         const el = s.searchRef?.current;
         if (el && document.activeElement === el) { el.blur(); return; }
         if (!acceptsShortcut(e.target)) return;

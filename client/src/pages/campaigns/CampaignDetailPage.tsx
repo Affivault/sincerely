@@ -69,17 +69,34 @@ function CampaignLightsCard({ campaignId, lights }: { campaignId: string; lights
     onError: (e: any) => toast.error(e?.response?.data?.error || 'Could not save'),
   });
   return (
-    <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4" data-campaign-lights>
-      <div className="flex items-center gap-3">
-        <h2 className="text-strong font-semibold text-[var(--text-primary)]">Who gets emails</h2>
+    <section className="card p-4" data-campaign-lights>
+      <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
+        <div className="flex-1 min-w-[200px]">
+          <h2 className="text-strong font-semibold text-[var(--text-primary)]">Who gets emails</h2>
+          <p className="text-caption text-[var(--text-tertiary)]">
+            {current ? 'Checked before every email, so a change applies from the next send.' : 'Set before email health existed: every address is emailed.'}
+          </p>
+        </div>
         {!editing && (
-          <span className="flex items-center gap-2 text-body text-[var(--text-secondary)]">
-            {current
-              ? current.map((l) => <span key={l} className="inline-flex items-center gap-1.5"><LightDot light={l} />{LIGHT_LABEL[l]}</span>)
-              : <span>Every address (set before traffic lights existed)</span>}
-          </span>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {SEND_LIGHTS.map((l) => {
+              const on = !current || current.includes(l);
+              return (
+                <span
+                  key={l}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-caption font-medium border',
+                    on ? 'border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-primary)]' : 'border-dashed border-[var(--border-default)] text-[var(--text-tertiary)] line-through decoration-[var(--text-tertiary)]/60',
+                  )}
+                >
+                  <LightDot light={l} className={on ? '' : 'opacity-40'} />
+                  {LIGHT_LABEL[l]}
+                </span>
+              );
+            })}
+          </div>
         )}
-        <button type="button" onClick={() => { setDraft(current ?? [...SEND_LIGHTS]); setEditing((v) => !v); }} className="ml-auto btn-secondary h-8">
+        <button type="button" onClick={() => { setDraft(current ?? [...SEND_LIGHTS]); setEditing((v) => !v); }} className={editing ? 'btn-ghost' : 'btn-secondary'}>
           {editing ? 'Cancel' : 'Change'}
         </button>
       </div>
@@ -94,6 +111,7 @@ function CampaignLightsCard({ campaignId, lights }: { campaignId: string; lights
     </section>
   );
 }
+
 
 type TabId = 'overview' | 'sequence' | 'contacts';
 
