@@ -30,6 +30,8 @@ const here = dirname(fileURLToPath(import.meta.url));
 
 /* ─── A small in-memory table store ─────────────────────────────────── */
 const tables: Record<string, any[]> = { smtp_accounts: [], warmup_emails: [] };
+// Stands in for a database where migration 108 has not been run.
+let noNetworkColumn = false;
 
 function from(name: string): any {
   const preds: Array<(r: any) => boolean> = [];
@@ -37,14 +39,16 @@ function from(name: string): any {
   let patch: any = null;
   let single = false;
   const rows = () => (tables[name] || []).filter((r) => preds.every((p) => p(r)));
+  let touchesNetwork = false;
   const run = () => {
+    if (noNetworkColumn && touchesNetwork) return { data: null, error: { message: 'column smtp_accounts.warmup_network does not exist' } };
     if (mode === 'update') { const hit = rows(); for (const r of hit) Object.assign(r, patch); return { data: single ? (hit[0] ?? null) : hit, error: null }; }
     const out = rows();
     return { data: single ? (out[0] ?? null) : out, error: null };
   };
   const chain: any = {
     select: () => chain,
-    eq: (c: string, v: any) => { preds.push((r) => (r[c] ?? (typeof v === 'boolean' ? false : null)) === v); return chain; },
+    eq: (c: string, v: any) => { if (c === 'warmup_network') touchesNetwork = true; preds.push((r) => (r[c] ?? (typeof v === 'boolean' ? false : null)) === v); return chain; },
     in: (c: string, vs: any[]) => { preds.push((r) => vs.includes(r[c])); return chain; },
     is: (c: string, v: any) => { preds.push((r) => (r[c] ?? null) === v); return chain; },
     gte: (c: string, v: any) => { preds.push((r) => String(r[c]) >= String(v)); return chain; },
@@ -204,6 +208,24 @@ console.log('\nWhat the summary reports');
   is('the sender sees its sent mail', sa.sent_7d === 1 && sa.accounts[0].sent_7d === 1, JSON.stringify(sa.accounts[0]));
   is('and the reply it earned', sa.replied_7d === 1);
   is('a lone Spacemail mailbox in the network reads as reaching other providers', sa.pool_quality === 'mixed', sa.pool_quality);
+}
+
+console.log('\nBefore migration 108 is run');
+{
+  const a1 = mailbox('A', 'scott@acme.com', 'localhost', { warmup_mode: true });
+  const a2 = mailbox('A', 'invest@acme.com', 'localhost');
+  reset([a1, a2]);
+  noNetworkColumn = true;
+  const sm = await warmupService.summary('A');
+  is('the panel is told the network is not switched on', sm.network_available === false);
+  is('and the summary still works', sm.accounts.length === 2 && sm.network_peers === 0);
+  const picks = await tickChoices();
+  is('own-account warm-up carries on', picks.length === 1 && picks[0][1] === a2.email_address, JSON.stringify(picks));
+  noNetworkColumn = false;
+  const after = await warmupService.summary('A');
+  is('once it is run, the network shows', after.network_available === true);
+  const panel = readFileSync(join(here, '../../client/src/pages/smtp/WarmupPanel.tsx'), 'utf8');
+  is('the panel hides the network card until then', /summary\.network_available === false\) return null;/.test(panel));
 }
 
 console.log('\nJoining and leaving');

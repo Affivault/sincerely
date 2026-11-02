@@ -28,7 +28,7 @@ import { selectInChunks } from '../utils/batch.js';
  * now. Only what ranking needs: no passwords, and nothing of it is ever
  * shown to another account beyond a count.
  */
-async function networkPool(): Promise<any[]> {
+async function networkPool(): Promise<any[] | null> {
   const { data, error } = await supabaseAdmin
     .from('smtp_accounts')
     .select('id, user_id, email_address, from_name, smtp_host, warmup_network, autopilot_state, bounce_rate_7d')
@@ -37,8 +37,9 @@ async function networkPool(): Promise<any[]> {
     .eq('is_verified', true)
     .eq('is_seed', false)
     .limit(5000);
-  // Before migration 108 the column does not exist; the network is simply empty.
-  if (error) return [];
+  // Before migration 108 the column does not exist: null, so the panel can
+  // keep the network hidden rather than offer a button that cannot work.
+  if (error) return null;
   return ((data || []) as any[]).filter(networkEligible);
 }
 
@@ -108,8 +109,10 @@ async function summary(userId: string): Promise<WarmupSummary> {
    * provider, the pool can do that much.
    */
   const joined = usable.filter((a) => a.warmup_network);
-  const network = joined.length > 0 ? await networkPool() : [];
-  const networkPeers = network.filter((p) => p.user_id !== userId);
+  // Asked even when nobody here has joined: it is also how the panel knows
+  // whether the network is switched on at all (migration 108).
+  const network = usable.length > 0 ? await networkPool() : [];
+  const networkPeers = (network || []).filter((p) => p.user_id !== userId);
 
   const warming = usable.filter((a) => a.warmup_mode);
   // A mailbox in the network is graded against the network as well as its
@@ -179,6 +182,7 @@ async function summary(userId: string): Promise<WarmupSummary> {
     replied_7d: events.filter((e) => e.replied_at && mine.has(e.from_account_id)).length,
     network_peers: networkPeers.length,
     network_joined: joined.length,
+    network_available: network !== null,
   };
 }
 
@@ -219,7 +223,7 @@ async function runWarmupTick(maxGlobalSends = 60): Promise<number> {
     peersByUser.get(p.user_id)!.push(p);
   }
 
-  const network = senders.some((s) => s.warmup_network) ? await networkPool() : [];
+  const network = (senders.some((s) => s.warmup_network) ? await networkPool() : null) || [];
 
   /*
    * What each network mailbox has already been sent today.
