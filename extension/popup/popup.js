@@ -13,7 +13,7 @@
 import { initTheme } from '../lib/theme.js';
 import { classifyEmail, rankResults } from '../lib/harvest.js';
 import { initialsFor, paintAvatar, clearAvatar } from '../lib/avatar.js';
-import { companyTarget } from '../lib/company.js';
+import { companyTarget, isFreeMail } from '../lib/company.js';
 
 const EMAIL_PATTERN = /^[a-z0-9._%+'-]+@[a-z0-9.-]+\.[a-z]{2,}$/i;
 
@@ -51,6 +51,9 @@ const el = {
   setupGrant: document.getElementById('setup-grant'),
 
   avatar: document.getElementById('avatar'),
+  quickActions: document.getElementById('quick-actions'),
+  creditPill: document.getElementById('credit-pill'),
+  creditCount: document.getElementById('credit-count'),
   personName: document.getElementById('person-name'),
   personSub: document.getElementById('person-sub'),
   verification: document.getElementById('verification'),
@@ -261,6 +264,12 @@ function setStatus(message, opts = {}) {
   el.status.className = `status${opts.variant ? ` ${opts.variant}` : ''}`;
   el.status.classList.remove('hidden');
 
+  if (opts.variant === 'success' || opts.variant === 'error') {
+    el.status.insertAdjacentHTML('beforeend', opts.variant === 'success'
+      ? '<svg class="status-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11"/><path d="M7 12.5l3.2 3.2L17 9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+      : '<svg class="status-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 7.5v5.5M12 16.5h.01"/></svg>');
+  }
+
   const line = document.createElement('div');
   line.textContent = message;
   el.status.appendChild(line);
@@ -337,6 +346,77 @@ function verificationFor(contact) {
  * @param {string} [title]
  * @returns {HTMLElement}
  */
+/** A company's icon from its domain; null for a missing or free-mail one. */
+function logoUrl(domain) {
+  const host = String(domain || '').trim().toLowerCase().replace(/^www\./, '');
+  if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(host) || isFreeMail(host)) return null;
+  return `https://icons.duckduckgo.com/ip3/${host}.ico`;
+}
+
+/** An <img> that quietly removes itself when there is no icon to show. */
+function logoImg(src, className) {
+  const img = document.createElement('img');
+  img.className = className;
+  img.alt = '';
+  img.referrerPolicy = 'no-referrer';
+  img.decoding = 'async';
+  img.addEventListener('error', () => img.remove());
+  // A 1x1 "no icon" answer is as good as none.
+  img.addEventListener('load', () => { if ((img.naturalWidth || 0) < 8) img.remove(); });
+  img.src = src;
+  return img;
+}
+
+/** The prospect credit balance in the header, whenever an answer carries it. */
+function showCredits(remaining) {
+  if (!Number.isFinite(remaining)) return;
+  el.creditCount.textContent = `${remaining.toLocaleString()} credits`;
+  el.creditPill.classList.toggle('is-low', remaining <= 10);
+  el.creditPill.classList.remove('hidden');
+}
+
+const ICON_COPY = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+const ICON_CHECK = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+const ICON_OPEN = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>';
+
+function quickAction(iconHtml, label, onClick) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'quick-action';
+  button.innerHTML = iconHtml;
+  const text = document.createElement('span');
+  text.textContent = label;
+  button.appendChild(text);
+  button.addEventListener('click', onClick);
+  return button;
+}
+
+/** Copy the address, open the record: the two things done most with a person. */
+function renderQuickActions(form) {
+  el.quickActions.textContent = '';
+  if (form.email) {
+    const copy = quickAction(ICON_COPY, 'Copy email', async () => {
+      try {
+        await navigator.clipboard.writeText(form.email);
+        copy.classList.add('is-done');
+        copy.innerHTML = ICON_CHECK;
+        const done = document.createElement('span');
+        done.textContent = 'Copied';
+        copy.appendChild(done);
+      } catch {
+        /* Clipboard refused (no focus); the address is in the form anyway. */
+      }
+    });
+    el.quickActions.appendChild(copy);
+  }
+  if (state.contact && state.appUrl) {
+    el.quickActions.appendChild(quickAction(ICON_OPEN, 'Open in Sincerely', () => {
+      chrome.tabs.create({ url: `${state.appUrl}/contacts/${state.contact.id}` });
+    }));
+  }
+  el.quickActions.classList.toggle('hidden', el.quickActions.childElementCount === 0);
+}
+
 function openInAppLink(path, label, title) {
   if (!state.appUrl) {
     const span = document.createElement('span');
@@ -388,6 +468,10 @@ function renderIdentity() {
     paintAvatar(el.avatar, seed);
     el.avatar.textContent = initials;
   }
+  // Their employer's logo on the corner of the avatar, from the address.
+  const logo = !empty && logoUrl(String(form.email || '').split('@')[1]);
+  if (logo) el.avatar.appendChild(logoImg(logo, 'avatar-logo'));
+  renderQuickActions(form);
 
   const bits = [];
   if (form.job_title) bits.push(form.job_title);
@@ -1830,6 +1914,8 @@ function renderCompanyHead() {
   // One letter for a one-word name: "NO" for Northwind reads as a word.
   const words = String(target.name || target.domain || '?').trim().split(/\s+/);
   el.companyMark.textContent = words.length > 1 ? initialsFor(target.name) : words[0].slice(0, 1).toUpperCase();
+  const companyLogo = logoUrl(target.domain);
+  if (companyLogo) el.companyMark.appendChild(logoImg(companyLogo, ''));
   el.companyTitle.textContent = target.kind === 'colleagues' ? `More people at ${target.name}` : `People at ${target.name}`;
   el.companyTitle.title = el.companyTitle.textContent;
 
@@ -1889,6 +1975,7 @@ async function searchCompany({ more = false } = {}) {
   company.page = page;
   company.total = total;
   company.credits = credits;
+  showCredits(credits?.remaining);
   company.filters = filters;
   renderCompanyHead();
   renderCompanyResults();
@@ -2115,6 +2202,7 @@ async function saveCompanyPeople() {
   }
   if (Number.isFinite(data.creditsRemaining)) {
     company.credits = { ...(company.credits || {}), remaining: data.creditsRemaining };
+    showCredits(data.creditsRemaining);
   }
   renderCompanyResults();
 
@@ -2236,6 +2324,7 @@ function renderProspect(data, person) {
   const cost = document.createElement('span');
   cost.className = 'prospect-cost';
   const remaining = data.credits?.remaining;
+  showCredits(remaining);
   cost.textContent = match.already_revealed
     ? 'Already revealed — no credit'
     : `1 credit${Number.isFinite(remaining) ? ` · ${remaining} left` : ''}, refunded if no email is found`;
@@ -2262,6 +2351,7 @@ async function prospectReveal(match, button) {
   }
 
   const { found, email, credits } = response.data;
+  showCredits(credits?.remaining);
 
   if (!found || !email) {
     button.disabled = true;

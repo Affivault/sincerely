@@ -68,10 +68,27 @@
         border: 1px solid #DBDAD4; border-right: 0; border-radius: 10px 0 0 10px;
         background: #FFFFFF; color: #18191D; cursor: pointer;
         font-size: 13px; font-weight: 500; letter-spacing: -0.01em;
-        box-shadow: -2px 0 12px -4px rgba(24,25,29,.22);
-        transition: padding 140ms cubic-bezier(.22,1,.36,1), background 140ms;
+        box-shadow: 0 0 0 1px rgba(24,25,29,.02), -6px 6px 22px -10px rgba(24,25,29,.30), -1px 1px 3px rgba(24,25,29,.06);
+        transition: padding 180ms cubic-bezier(.22,1,.36,1), background 140ms, box-shadow 180ms;
+        animation: launch-in 420ms 300ms cubic-bezier(.22,1,.36,1) both;
       }
-      .launch:hover { background: #FAFAF8; }
+      /* A thread of ink down the leading edge: the brand, without a badge. */
+      .launch::before {
+        content: ''; position: absolute; left: -1px; top: 9px; bottom: 9px; width: 2px;
+        border-radius: 2px; background: #2F3F9C; opacity: .85;
+      }
+      /* It leans out when pointed at, so it reads as something to pull. */
+      .launch:hover {
+        background: #FAFAF8; padding-right: 16px;
+        box-shadow: 0 0 0 1px rgba(24,25,29,.02), -10px 8px 28px -10px rgba(24,25,29,.36), -1px 1px 3px rgba(24,25,29,.08);
+      }
+      @keyframes launch-in {
+        from { transform: translate(100%, -50%); opacity: 0; }
+        to { transform: translate(0, -50%); opacity: 1; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .launch { animation: none; transition: none; }
+      }
       .launch:focus-visible { outline: 2px solid #2F3F9C; outline-offset: -2px; }
       .launch img { width: 20px; height: 20px; border-radius: 5px; }
 
@@ -88,6 +105,7 @@
 
       @media (prefers-color-scheme: dark) {
         .launch { background: #1A1B1F; color: #EDEDEA; border-color: #303136; }
+        .launch::before { background: #5A6BD4; }
         .launch:hover { background: #212226; }
         .dismiss:hover { background: #25262B; color: #EDEDEA; }
       }

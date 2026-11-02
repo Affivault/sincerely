@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Sincerely - Find leads",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Find the people at any company, from its website or LinkedIn page, and save them to your Sincerely lead lists and campaigns.",
   "minimum_chrome_version": "116",
   "permissions": [
