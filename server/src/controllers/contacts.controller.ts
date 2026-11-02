@@ -2,8 +2,8 @@ import fs from 'node:fs';
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware.js';
 import { contactsService } from '../services/contacts.service.js';
-import { importEmailFinder } from '../services/import-email-finder.service.js';
-import { creditsService } from '../services/credits.service.js';
+import { heldPeopleService } from '../services/held-people.service.js';
+import { OutOfCreditsError } from '../services/credits.service.js';
 import { contactHygieneService } from '../services/contact-hygiene.service.js';
 import { engagementService } from '../services/engagement.service.js';
 import { contactEnrichmentService } from '../services/contact-enrichment.service.js';
@@ -125,7 +125,7 @@ export const contactsController = {
     } catch (err) { next(err); }
   },
 
-  /** Before an import: how many of these addresses exist, how many are suppressed, and can missing emails be searched for. */
+  /** Before an import: how many of these addresses exist, and how many are suppressed. */
   async importPreflight(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const emails = Array.isArray(req.body?.emails) ? req.body.emails : [];
@@ -134,29 +134,77 @@ export const contactsController = {
         return;
       }
       const counts = await contactsService.importPreflight(req.userId!, emails);
-      res.json({ ...counts, finder: importEmailFinder.paidAvailable() });
+      res.json(counts);
     } catch (err) { next(err); }
   },
 
-  /** Find addresses for imported rows that have a name and a company but no email. */
-  async importFindEmails(req: AuthRequest, res: Response, next: NextFunction) {
+  async lightCounts(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const people = Array.isArray(req.body?.people) ? req.body.people : [];
-      if (people.length > 25) {
-        res.status(413).json({ error: 'At most 25 people per request' });
-        return;
+      const ids = Array.isArray(req.body?.contact_ids) ? req.body.contact_ids : [];
+      if (ids.length > 100_000) { res.status(413).json({ error: 'Too many contacts' }); return; }
+      res.json(await contactsService.lightCounts(req.userId!, ids));
+    } catch (err) { next(err); }
+  },
+
+  /* ── People held without an email (migration 110) ─────────────── */
+
+  async heldList(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const q = req.query as Record<string, string>;
+      res.json(await heldPeopleService.list(req.userId!, { listId: q.list_id || undefined, lifecycle: q.lifecycle || undefined, page: Number(q.page) || 1, limit: Number(q.limit) || 50, search: q.search || undefined }));
+    } catch (err) { next(err); }
+  },
+
+  async heldCreate(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const b = req.body || {};
+      if (!Array.isArray(b.people)) { res.status(400).json({ error: 'people must be an array' }); return; }
+      if (b.people.length > 5000) { res.status(413).json({ error: 'At most 5,000 people per request' }); return; }
+      res.json(await heldPeopleService.hold(req.userId!, b.people, {
+        listId: typeof b.list_id === 'string' ? b.list_id : undefined,
+        importSource: typeof b.import_source === 'string' ? b.import_source : undefined,
+        kind: b.kind === 'contact' ? 'contact' : 'lead',
+      }));
+    } catch (err) { next(err); }
+  },
+
+  async heldAddEmail(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      if (badId(req, res)) return;
+      res.json(await heldPeopleService.addEmail(req.userId!, req.params.id, String(req.body?.email || '')));
+    } catch (err) { next(err); }
+  },
+
+  async heldDelete(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      res.json(await heldPeopleService.remove(req.userId!, Array.isArray(req.body?.ids) ? req.body.ids : []));
+    } catch (err) { next(err); }
+  },
+
+  /**
+   * Enrich several contacts, one after another, stopping at the first
+   * "out of credits". Each costs what Enrich on a contact's page costs and
+   * is refunded the same way when nothing is found.
+   */
+  async bulkEnrich(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const ids: string[] = (Array.isArray(req.body?.contact_ids) ? req.body.contact_ids : []).filter((x: unknown) => typeof x === 'string');
+      if (ids.length === 0) { res.json({ results: [], enriched: 0, out_of_credits: false }); return; }
+      if (ids.length > 25) { res.status(413).json({ error: 'At most 25 contacts per request' }); return; }
+      const results: Array<{ contact_id: string; ok: boolean; filled: number; error?: string }> = [];
+      let outOfCredits = false;
+      for (const id of ids) {
+        if (outOfCredits) { results.push({ contact_id: id, ok: false, filled: 0, error: 'Out of credits' }); continue; }
+        try {
+          const r = await contactEnrichmentService.enrich(req.userId!, id);
+          results.push({ contact_id: id, ok: true, filled: r.filled.length + r.company_filled.length });
+        } catch (e: any) {
+          if (e instanceof OutOfCreditsError) outOfCredits = true;
+          if (e?.statusCode === 503) { res.status(503).json({ error: e.message }); return; }
+          results.push({ contact_id: id, ok: false, filled: 0, error: e?.message || 'Enrich failed' });
+        }
       }
-      const clean = people
-        .filter((p: any) => p && typeof p === 'object' && (typeof p.key === 'string' || typeof p.key === 'number'))
-        .map((p: any) => {
-          const str = (v: unknown) => (typeof v === 'string' ? v.slice(0, 300) : undefined);
-          return {
-            key: String(p.key), first_name: str(p.first_name), last_name: str(p.last_name), full_name: str(p.full_name),
-            company: str(p.company), domain: str(p.domain), linkedin_url: str(p.linkedin_url),
-          };
-        });
-      const result = await importEmailFinder.find(req.userId!, clean, req.body?.allow_paid !== false);
-      res.json({ ...result, credits: await creditsService.summary(req.userId!).catch(() => null) });
+      res.json({ results, enriched: results.filter((r) => r.ok).length, out_of_credits: outOfCredits });
     } catch (err) { next(err); }
   },
 
@@ -202,6 +250,7 @@ export const contactsController = {
         outreach: str(b.outreach),
         verificationStatus: str(b.verification_status),
         tagIds: Array.isArray(b.tag_ids) ? b.tag_ids : undefined,
+        lights: Array.isArray(b.lights) ? b.lights : undefined,
         columns: Array.isArray(b.columns) ? b.columns : undefined,
       });
 

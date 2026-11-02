@@ -466,7 +466,7 @@ export function splitFullName(full: string): { first: string; last: string } {
  */
 export function sourceSaysInvalid(status: string): boolean {
   const s = status.trim().toLowerCase().replace(/[\s_-]+/g, ' ');
-  return /^(invalid|undeliverable|not deliverable|bounced?|hard bounce|bad|failed|fail|disposable|spam ?trap|do not mail|unverifiable|rejected|syntax error|no mx|mailbox not found)$/.test(s);
+  return /^(invalid|undeliverable|not deliverable|bounced?|hard bounce|bad|failed|fail|disposable|spam ?trap|do not mail|unverifiable|rejected|syntax error|no mx|mailbox not found|not found)$/.test(s);
 }
 
 /** "Yes", "TRUE", "1", "x", "unsubscribed": the flag is set. */

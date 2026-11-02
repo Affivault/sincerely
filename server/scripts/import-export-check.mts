@@ -126,7 +126,7 @@ console.log('\nexport');
   is('plain labels, not column names', sheet.header[0] === 'Email' && sheet.header.includes('First name') && !sheet.header.includes('first_name'));
   is('a custom field named like a real column is prefixed, not lost', sheet.header.includes('Custom: Email') && sheet.header.includes('Notes'));
   is('tags, lists and company details are in it', sheet.rows[0].includes('VIP') && sheet.rows[0].includes('Q3') && sheet.rows[0].includes('11-50'));
-  is('verification in words', sheet.rows[0].includes('Valid') && verificationLabel({ is_bounced: true }) === 'Invalid' && verificationLabel({}) === 'Unverified');
+  is('verification in words', sheet.rows[0].includes('Valid') && verificationLabel({ is_bounced: true }) === 'Bounced' && verificationLabel({}) === 'Unverified');
   is('the CSV neutralises formulas', toCsv(sheet.header, sheet.rows).includes(`"'=HYPERLINK(""x"")"`));
   is('unknown column keys are ignored', resolveExportColumns(['email', 'user_id']).join() === 'email');
 

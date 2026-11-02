@@ -2,7 +2,7 @@ import { PageHeader } from '../../components/shared/PageHeader';
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { contactsApi, listsApi, tagsApi, type BulkImportResult, type ImportPreflight, type ImportFindPerson } from '../../api/contacts.api';
+import { contactsApi, listsApi, tagsApi, type BulkImportResult, type ImportPreflight } from '../../api/contacts.api';
 import { cn } from '../../lib/utils';
 import {
   ArrowLeft, Upload, FileText, X, Check, AlertTriangle,
@@ -35,7 +35,6 @@ interface ImportProgress {
 
 const BATCH_SIZE = 100;
 const MAX_PREVIEW_ROWS = 5;
-const FIND_BATCH = 10;
 
 function bytes(n: number): string {
   if (n < 1024) return `${n} B`;
@@ -118,10 +117,10 @@ export function BulkImportPage() {
   const [mode, setMode] = useState<ImportMode>('fill');
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [newTag, setNewTag] = useState('');
-  /** Emails found for rows that had none, by row index. */
-  const [found, setFound] = useState<Map<number, string>>(new Map());
-  const [finding, setFinding] = useState<{ done: number; total: number; found: number } | null>(null);
-  const [findTried, setFindTried] = useState<Set<number>>(new Set());
+  /** Keep people with no usable email in the list, as the "No email" light. */
+  const [keepHeld, setKeepHeld] = useState(true);
+  /** How many were kept that way, for the summary. */
+  const [heldCount, setHeldCount] = useState(0);
   const [preflight, setPreflight] = useState<ImportPreflight | null>(null);
   const [targetListId, setTargetListId] = useState<string>('');
   const [listMode, setListMode] = useState<'none' | 'existing' | 'new'>('none');
@@ -216,8 +215,6 @@ export function BulkImportPage() {
     setNotes(plan.notes);
     setMapping(initial);
     setShowMapping(!plan.confident && mappingProblems(initial).length > 0);
-    setFound(new Map());
-    setFindTried(new Set());
     setPreflight(null);
     setStep('map');
   }, []);
@@ -275,13 +272,7 @@ export function BulkImportPage() {
   const mappingValid = problems.length === 0;
   const emailColumn = useMemo(() => Object.keys(mapping).find((h) => mapping[h] === 'email') ?? null, [mapping]);
 
-  /* Rows with any found emails written into the email column - the rest of
-     the pipeline does not need to know an address was found, not given. */
-  const effectiveRows = useMemo(() => {
-    if (!emailColumn || found.size === 0) return allRows;
-    return allRows.map((r, i) => (found.has(i) ? { ...r, [emailColumn]: found.get(i)! } : r));
-  }, [allRows, found, emailColumn]);
-  const rowIndex = useMemo(() => new Map(effectiveRows.map((r, i) => [r, i])), [effectiveRows]);
+  const effectiveRows = allRows;
 
   /* The rows exactly as they will be sent: cleaned, deduplicated, and with
      anything that cannot be imported set aside. The counts on the page and
@@ -298,29 +289,12 @@ export function BulkImportPage() {
     return col ? String(row[col] ?? '').trim() : '';
   }, [mapping]);
 
-  /* People with no email who can still be searched for: a name, and a
-     company or its website. */
-  const findable = useMemo(() => {
-    if (!prepared) return [] as Array<{ idx: number; person: ImportFindPerson }>;
-    const out: Array<{ idx: number; person: ImportFindPerson }> = [];
-    for (const s of prepared.setAside) {
-      if (s.reason !== 'no_email') continue;
-      const idx = rowIndex.get(s.row);
-      if (idx == null || findTried.has(idx)) continue;
-      const person: ImportFindPerson = {
-        key: String(idx),
-        first_name: valueFor(s.row, 'first_name') || undefined,
-        last_name: valueFor(s.row, 'last_name') || undefined,
-        full_name: valueFor(s.row, 'full_name') || undefined,
-        company: valueFor(s.row, 'company') || undefined,
-        domain: valueFor(s.row, 'company_website') || valueFor(s.row, 'website') || undefined,
-        linkedin_url: valueFor(s.row, 'linkedin_url') || undefined,
-      };
-      const hasName = !!(person.first_name || person.last_name || person.full_name);
-      if (hasName && (person.company || person.domain)) out.push({ idx, person });
-    }
-    return out;
-  }, [prepared, rowIndex, findTried, valueFor]);
+  /* People with no usable email who can still be kept: anyone with a
+     name or a LinkedIn profile to recognise them by later. */
+  const holdable = useMemo(() => (prepared?.setAside || []).filter((s) =>
+    (s.reason === 'no_email' || s.reason === 'invalid_email')
+    && !!(valueFor(s.row, 'linkedin_url') || valueFor(s.row, 'first_name') || valueFor(s.row, 'last_name') || valueFor(s.row, 'full_name'))),
+  [prepared, valueFor]);
 
   // Before the import: how many are already here, and suppressed.
   const preparedEmails = useMemo(() => (prepared?.contacts || []).map((c) => c.email), [prepared]);
@@ -331,53 +305,18 @@ export function BulkImportPage() {
       try {
         let existing = 0;
         let suppressed = 0;
-        let finder: ImportPreflight['finder'] = { available: false, price: 1 };
         for (let i = 0; i < preparedEmails.length; i += 10_000) {
           const r = await contactsApi.importPreflight(preparedEmails.slice(i, i + 10_000));
           existing += r.existing;
           suppressed += r.suppressed;
-          finder = r.finder;
         }
-        if (live) setPreflight({ existing, suppressed, checked: preparedEmails.length, finder });
+        if (live) setPreflight({ existing, suppressed, checked: preparedEmails.length });
       } catch {
         if (live) setPreflight(null); // a nice-to-have; the import does not depend on it
       }
     }, 400);
     return () => { live = false; clearTimeout(t); };
   }, [preparedEmails, step]);
-
-  const findEmails = async () => {
-    if (findable.length === 0 || finding) return;
-    const todo = findable.slice();
-    setFinding({ done: 0, total: todo.length, found: 0 });
-    let foundCount = 0;
-    let outOfCredits = false;
-    for (let i = 0; i < todo.length; i += FIND_BATCH) {
-      if (cancelRef.current) break;
-      const slice = todo.slice(i, i + FIND_BATCH);
-      try {
-        const res = await contactsApi.importFindEmails(slice.map((t) => t.person));
-        const hits = res.results.filter((r) => r.email);
-        foundCount += hits.length;
-        setFound((prev) => {
-          const next = new Map(prev);
-          for (const h of hits) next.set(Number(h.key), h.email!);
-          return next;
-        });
-        if (res.out_of_credits) outOfCredits = true;
-      } catch (err: any) {
-        toast.error(err?.response?.data?.error || 'Email search stopped - the people found so far are kept.');
-        break;
-      } finally {
-        setFindTried((prev) => new Set([...prev, ...slice.map((t) => t.idx)]));
-        setFinding({ done: Math.min(i + FIND_BATCH, todo.length), total: todo.length, found: foundCount });
-      }
-      if (outOfCredits) break;
-    }
-    setFinding(null);
-    if (outOfCredits) toast.error('Out of credits - the search stopped. Emails found so far are kept.');
-    else toast.success(foundCount ? `Found ${foundCount.toLocaleString()} email${foundCount === 1 ? '' : 's'} - they are in the import now` : 'No confident emails found for these people');
-  };
 
   // Everything that will not be imported, whole, with why - to fix and re-upload.
   const downloadSetAside = () => {
@@ -471,15 +410,8 @@ export function BulkImportPage() {
       errorDetails: [], currentBatch: 0, totalBatches,
     });
 
-    if (total === 0) {
-      setCompletedResult({
-        total: 0, attempted: 0, imported: 0, errors: 0, created: 0, updated: 0, suppressed: 0, createdIds: [],
-        errorDetails: [], durationMs: 0, cancelled: false,
-      });
-      setStep('complete');
-      return;
-    }
-
+    // A file of nobody with an email still runs: the loop below does
+    // nothing and the people are held.
     let imported = 0;
     let errors = 0;
     let createdCount = 0;
@@ -536,6 +468,33 @@ export function BulkImportPage() {
       await new Promise((r) => setTimeout(r, 0));
     }
 
+    // People with no usable email: held in the same list as "No email".
+    let held = 0;
+    if (!cancelled && keepHeld && holdable.length > 0 && emailColumn) {
+      const people = holdable.map((sa) => {
+        // The row's fields in the shape a contact takes, via the same
+        // cleaner - with a stand-in address, dropped again below.
+        const c: Record<string, any> = prepareImport([{ ...sa.row, [emailColumn]: 'held@example.invalid' }], mapping, { skipFlagged: false }).contacts[0] || {};
+        const { email: _e, first_name, last_name, company, job_title, linkedin_url, ...rest } = c;
+        return {
+          first_name, last_name, company, job_title, linkedin_url,
+          raw_email: String(sa.row[emailColumn] ?? '').trim() || undefined,
+          reason: sa.reason === 'invalid_email' ? 'invalid_email' : 'no_email',
+          data: rest,
+        };
+      });
+      try {
+        for (let i = 0; i < people.length; i += 1000) {
+          const r = await contactsApi.holdPeople(people.slice(i, i + 1000), listId || undefined, sourceName || undefined, asContacts ? 'contact' : 'lead');
+          if (r.unavailable) { toast.error('People without an email could not be kept yet - they are in the "not imported" download.'); break; }
+          held += r.held;
+        }
+      } catch (err: any) {
+        toast.error(err?.response?.data?.error || 'People without an email could not be kept - they are in the "not imported" download.');
+      }
+    }
+    setHeldCount(held);
+
     setCompletedResult({
       total,
       attempted,
@@ -554,7 +513,7 @@ export function BulkImportPage() {
     for (const key of ['contacts', 'contact-stats', 'contact-companies', 'verification-breakdown', 'companies', 'tags']) {
       queryClient.invalidateQueries({ queryKey: [key] });
     }
-  }, [prepared, mappingValid, listChoiceValid, listMode, targetListId, newListName, newListKind, importAs, lists, queryClient, sourceName, mode, tagIds, headers, mapping]);
+  }, [prepared, mappingValid, listChoiceValid, listMode, targetListId, newListName, newListKind, importAs, lists, queryClient, sourceName, mode, tagIds, headers, mapping, keepHeld, holdable, emailColumn]);
 
   const cancel = () => {
     cancelRef.current = true;
@@ -605,9 +564,8 @@ export function BulkImportPage() {
     setNotes({});
     setUsingTemplate(false);
     setShowMapping(false);
-    setFound(new Map());
-    setFindTried(new Set());
     setPreflight(null);
+    setHeldCount(0);
     setTargetListId('');
     setListMode('none');
     setNewListName('');
@@ -898,14 +856,8 @@ export function BulkImportPage() {
                       {preflight.suppressed.toLocaleString()} {preflight.suppressed === 1 ? 'is' : 'are'} on your suppression list - imported, but never emailed.
                     </p>
                   )}
-                  {(prepared.duplicates > 0 || prepared.invalid > 0 || prepared.blank > 0 || prepared.flaggedTotal > 0 || found.size > 0) && (
+                  {(prepared.duplicates > 0 || prepared.invalid > 0 || prepared.blank > 0 || prepared.flaggedTotal > 0) && (
                     <ul className="mt-2.5 space-y-1 text-caption text-[var(--text-secondary)]">
-                      {found.size > 0 && (
-                        <li className="flex items-center gap-1.5">
-                          <Check className="h-3 w-3 text-emerald-500" strokeWidth={3} />
-                          {found.size.toLocaleString()} email{found.size === 1 ? '' : 's'} found for people who came without one
-                        </li>
-                      )}
                       {prepared.duplicates > 0 && (
                         <li className="flex items-center gap-1.5">
                           <Check className="h-3 w-3 text-emerald-500" strokeWidth={3} />
@@ -926,7 +878,7 @@ export function BulkImportPage() {
                       {prepared.blank > 0 && (
                         <li className="flex items-center gap-1.5">
                           <AlertTriangle className="h-3 w-3 text-amber-500" />
-                          {prepared.blank.toLocaleString()} with no email yet{findable.length > 0 ? ` - ${findable.length.toLocaleString()} can be searched for below` : ', left out'}
+                          {prepared.blank.toLocaleString()} with no email{holdable.length > 0 && keepHeld ? ' - kept in the list as No email (see below)' : ', left out'}
                         </li>
                       )}
                       {prepared.flaggedTotal > 0 && (
@@ -994,36 +946,20 @@ export function BulkImportPage() {
             </div>
           )}
 
-          {/* Find emails for people who came without one. */}
-          {mappingValid && (findable.length > 0 || finding) && (
-            <div className="rounded-xl border border-[var(--border-subtle)] border-l-4 border-l-[var(--indigo)] bg-[var(--bg-surface)] p-4" data-import-find-emails>
-              <div className="flex items-start gap-3">
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--indigo)]/10 text-[var(--indigo-text)] flex-shrink-0">
-                  <Search className="h-4 w-4" />
+          {/* People with no usable email: kept in the list, not dropped. */}
+          {mappingValid && holdable.length > 0 && (
+            <label className="flex items-start gap-3 rounded-xl border border-[var(--border-subtle)] border-l-4 border-l-slate-400 bg-[var(--bg-surface)] p-4 cursor-pointer" data-import-hold>
+              <input type="checkbox" checked={keepHeld} onChange={(e) => setKeepHeld(e.target.checked)} className="mt-1 accent-[var(--indigo)]" />
+              <span className="flex-1 min-w-0">
+                <span className="flex items-center gap-2 text-body font-semibold text-[var(--text-primary)]">
+                  <span className="h-2.5 w-2.5 rounded-full bg-slate-400 ring-2 ring-slate-400/25" />
+                  Keep the {holdable.length.toLocaleString()} {holdable.length === 1 ? 'person' : 'people'} without an email
                 </span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-body font-semibold text-[var(--text-primary)]">
-                    {finding
-                      ? `Finding emails... ${finding.done.toLocaleString()} of ${finding.total.toLocaleString()} · ${finding.found.toLocaleString()} found`
-                      : `Find emails for ${findable.length.toLocaleString()} ${findable.length === 1 ? 'person' : 'people'} who came without one`}
-                  </p>
-                  <p className="text-caption text-[var(--text-tertiary)] mt-0.5">
-                    {preflight?.finder.available
-                      ? `Worked out free from company email conventions where possible; otherwise a search costs ${preflight.finder.price} credit, charged only when an email is found.`
-                      : 'Worked out from company email conventions and checked with the mail server - free. Only confident addresses are used.'}
-                  </p>
-                  {finding && (
-                    <div className="mt-2 h-1.5 bg-[var(--bg-elevated)] rounded-full overflow-hidden">
-                      <div className="h-full bg-[var(--indigo)] rounded-full transition-all" style={{ width: `${(finding.done / Math.max(1, finding.total)) * 100}%` }} />
-                    </div>
-                  )}
-                </div>
-                <button type="button" onClick={findEmails} disabled={!!finding} className="btn-primary flex-shrink-0">
-                  {finding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
-                  {finding ? 'Searching' : 'Find emails'}
-                </button>
-              </div>
-            </div>
+                <span className="block text-caption text-[var(--text-tertiary)] mt-0.5">
+                  They are held in the list as <strong className="font-semibold text-[var(--text-secondary)]">No email</strong> - never emailed. Add an address, or re-import the fixed file, and they become ordinary {pageWord}.
+                </span>
+              </span>
+            </label>
           )}
 
           {/* Field mapping */}
@@ -1334,16 +1270,18 @@ export function BulkImportPage() {
             <button
               {...blockedProps(firstBlocker([
                 [!mappingValid, 'Map the columns you want to import first'],
-                [importableCount === 0, 'Nothing in this file can be imported yet'],
+                [importableCount === 0 && !(keepHeld && holdable.length > 0), 'Nothing in this file can be imported yet'],
                 [!listChoiceValid, 'Choose a list, name a new one, or switch to "No list"'],
               ]), startImport)}
               className={cn(
                 'inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold hover:bg-[var(--indigo-hover)] transition-all shadow-[var(--glow-indigo)]',
-                (!mappingValid || importableCount === 0 || !listChoiceValid) && BLOCKED_CLASS,
+                (!mappingValid || (importableCount === 0 && !(keepHeld && holdable.length > 0)) || !listChoiceValid) && BLOCKED_CLASS,
               )}
             >
               <Users className="h-3.5 w-3.5" />
-              Import {importableCount.toLocaleString()} {importableCount === 1 ? pageWord.slice(0, -1) : pageWord}
+              {importableCount === 0 && keepHeld && holdable.length > 0
+                ? `Keep ${holdable.length.toLocaleString()} without an email`
+                : `Import ${importableCount.toLocaleString()} ${importableCount === 1 ? pageWord.slice(0, -1) : pageWord}`}
             </button>
           </div>
         </div>
@@ -1559,6 +1497,15 @@ export function BulkImportPage() {
                   {completedResult.suppressed.toLocaleString()} {completedResult.suppressed === 1 ? 'address is' : 'addresses are'} on your suppression list, so no campaign will email {completedResult.suppressed === 1 ? 'it' : 'them'}.
                 </p>
               )}
+            </div>
+          )}
+
+          {heldCount > 0 && (
+            <div className="flex items-center gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-3" data-import-held>
+              <span className="h-2.5 w-2.5 rounded-full bg-slate-400 ring-2 ring-slate-400/25 flex-shrink-0" />
+              <p className="flex-1 text-body text-[var(--text-secondary)]">
+                {heldCount.toLocaleString()} {heldCount === 1 ? 'person' : 'people'} without an email {heldCount === 1 ? 'is' : 'are'} kept in the list as <strong className="font-semibold text-[var(--text-primary)]">No email</strong>. Add their address there, or re-import the fixed file.
+              </p>
             </div>
           )}
 

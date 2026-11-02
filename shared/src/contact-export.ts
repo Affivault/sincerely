@@ -1,3 +1,5 @@
+import { emailState, type EmailState, type LightFields } from './email-light.js';
+
 /* ═══════════════════════════════════════════════════════════════════════
    What a contact export contains, in one place.
 
@@ -100,19 +102,14 @@ export function resolveExportColumns(requested?: unknown): ExportColumnKey[] {
  * The address's state in words - the same buckets the contacts page uses
  * for its pills, so the file says what the screen said.
  */
-export function verificationLabel(c: {
-  dcs_verified_at?: string | null; dcs_score?: number | null; dcs_syntax_ok?: boolean | null;
-  dcs_domain_ok?: boolean | null; is_bounced?: boolean | null;
-}): string {
-  if (c.is_bounced) return 'Invalid';
-  if (!c.dcs_verified_at) return 'Unverified';
-  if (c.dcs_syntax_ok === false) return 'Invalid';
-  if (c.dcs_domain_ok === false) return 'Not found';
-  const s = typeof c.dcs_score === 'number' ? c.dcs_score : 0;
-  if (s >= 80) return 'Valid';
-  if (s >= 50) return 'Risky';
-  return 'Invalid';
+export function verificationLabel(c: LightFields): string {
+  return STATE_WORD[emailState({ email: 'x', ...c })];
 }
+
+const STATE_WORD: Record<EmailState, string> = {
+  valid: 'Valid', risky: 'Risky', unverified: 'Unverified', invalid: 'Invalid',
+  not_found: 'Not found', bounced: 'Bounced', no_email: 'No email',
+};
 
 const LIFECYCLE_LABEL: Record<string, string> = { prospect: 'Lead', contact: 'Contact', customer: 'Customer' };
 

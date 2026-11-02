@@ -1,6 +1,6 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
-import { inferTimezone, emptyEnrolResult, ENROL_SKIP_SAMPLE } from '@lemlist/shared';
+import { inferTimezone, emptyEnrolResult, ENROL_SKIP_SAMPLE, normalizeSendLights, emailState, STATE_LIGHT } from '@lemlist/shared';
 import type { EnrolResult, EnrolSkip, EnrolSkipReason } from '@lemlist/shared';
 import { getPagination, formatPaginatedResponse } from '../utils/pagination.js';
 import { contactsOnOpenDeals } from './lifecycle.service.js';
@@ -51,10 +51,13 @@ export const campaignContactsService = {
     // 1. Look up the campaign's bound lead list
     const { data: campaign } = await supabaseAdmin
       .from('campaigns')
-      .select('id, user_id, list_id, status, scheduled_at')
+      // '*', so send_lights (migration 110) is read when it exists and its
+      // absence is not an error.
+      .select('*')
       .eq('id', campaignId)
       .maybeSingle();
     if (!campaign) throw new AppError('Campaign not found', 404);
+    const sendLights = normalizeSendLights((campaign as any).send_lights);
 
     const requested = Array.from(new Set(contactIds));
     const skips: EnrolSkip[] = [];
@@ -79,7 +82,7 @@ export const campaignContactsService = {
     const ownedContacts = await selectInChunks(requested, (slice) =>
       supabaseAdmin
         .from('contacts')
-        .select('id, email, first_name, last_name, is_unsubscribed, is_bounced')
+        .select('id, email, first_name, last_name, is_unsubscribed, is_bounced, dcs_verified_at, dcs_score, dcs_syntax_ok, dcs_domain_ok')
         .eq('user_id', campaign.user_id)
         .in('id', slice)).catch((e: Error) => { throw new AppError(e.message, 500); });
 
@@ -105,6 +108,19 @@ export const campaignContactsService = {
       if (!c.email || !String(c.email).trim()) { drop(id, 'no_email'); return false; }
       if (c.is_unsubscribed) { drop(id, 'unsubscribed'); return false; }
       if (c.is_bounced) { drop(id, 'bounced'); return false; }
+      /*
+       * The campaign's traffic lights. A bad address is never enrolled
+       * unless red was chosen, and a checked-and-risky one only when amber
+       * was. An unchecked address is let in: it waits at send time for its
+       * check, and goes out only if it comes back a light this campaign
+       * sends to.
+       */
+      if (sendLights) {
+        const state = emailState(c);
+        const light = STATE_LIGHT[state];
+        if (light === 'red' && !sendLights.includes('red')) { drop(id, 'light_red', state.replace('_', ' ')); return false; }
+        if (state === 'risky' && !sendLights.includes('amber')) { drop(id, 'light_amber', 'risky'); return false; }
+      }
       return true;
     });
 

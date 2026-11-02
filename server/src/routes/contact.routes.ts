@@ -20,6 +20,11 @@ contactRoutes.post('/duplicates/dismiss', contactsController.dismissDuplicate);
 contactRoutes.post('/merge', contactsController.merge);
 // Saved filters on the contacts and leads pages (096).
 contactRoutes.get('/views', contactsController.listViews);
+// People held without an email (migration 110). Before '/:id'.
+contactRoutes.get('/held', contactsController.heldList);
+contactRoutes.post('/held', contactsController.heldCreate);
+contactRoutes.post('/held/delete', contactsController.heldDelete);
+contactRoutes.post('/held/:id/email', contactsController.heldAddEmail);
 contactRoutes.post('/views', contactsController.createView);
 contactRoutes.put('/views/:id', contactsController.updateView);
 contactRoutes.delete('/views/:id', contactsController.deleteView);
@@ -37,7 +42,8 @@ contactRoutes.delete('/:id', contactsController.delete);
 contactRoutes.post('/import', upload.single('file'), contactsController.importCsv);
 contactRoutes.post('/bulk', contactsController.bulkCreate);
 contactRoutes.post('/import/preflight', contactsController.importPreflight);
-contactRoutes.post('/import/find-emails', contactsController.importFindEmails);
+contactRoutes.post('/bulk-enrich', contactsController.bulkEnrich);
+contactRoutes.post('/light-counts', contactsController.lightCounts);
 contactRoutes.post('/export', contactsController.export);
 contactRoutes.post('/bulk-tag', contactsController.bulkTag);
 contactRoutes.delete('/bulk-tag', contactsController.bulkUntag);
