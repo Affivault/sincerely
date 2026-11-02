@@ -1,6 +1,7 @@
 import {
   REPLY_CHECK_CONTACT_DOMAIN, normalizeLinkedinUrl, summariseOutreach, summariseDeals,
-  LEAD_OUTREACH_STATES,
+  LEAD_OUTREACH_STATES, IMPORT_FIELDS, IMPORT_MODES, type ImportMode,
+  buildContactExport, resolveExportColumns, toCsv,
 } from '@lemlist/shared';
 import { enrichmentService } from './enrichment.service.js';
 import { supabaseAdmin } from '../config/supabase.js';
@@ -25,8 +26,8 @@ import fs from 'node:fs';
  */
 const UPDATABLE_CONTACT_FIELDS = [
   'email', 'first_name', 'last_name', 'company', 'company_id', 'job_title',
-  'phone', 'linkedin_url', 'website', 'location', 'custom_fields',
-  'is_unsubscribed', 'is_bounced',
+  'phone', 'linkedin_url', 'website', 'location', 'country', 'city', 'state', 'industry',
+  'custom_fields', 'is_unsubscribed', 'is_bounced',
 ] as const;
 
 function pickUpdatable(input: any): Record<string, any> {
@@ -39,6 +40,21 @@ function pickUpdatable(input: any): Record<string, any> {
   // page that renders it, and the LinkedIn agent cannot open it at all.
   if (out.linkedin_url !== undefined) out.linkedin_url = normalizeLinkedinUrl(out.linkedin_url);
   return out;
+}
+
+export interface ExportOptions {
+  contactIds?: string[];
+  format?: 'csv' | 'json' | 'table';
+  listId?: string;
+  segmentId?: string;
+  lifecycle?: string;
+  search?: string;
+  company?: string;
+  outreach?: string;
+  verificationStatus?: string;
+  tagIds?: string[];
+  /** Export column keys (shared/contact-export); all when omitted. */
+  columns?: string[];
 }
 
 interface ListParams {
@@ -188,11 +204,162 @@ async function suppressedEmails(userId: string, emails: string[]): Promise<Set<s
   }
 }
 
+/**
+ * Put tags on freshly imported contacts: the ones chosen for the whole
+ * import, plus any named in a Tags column - found by name, or created.
+ */
+async function tagImported(
+  userId: string,
+  rows: Array<{ id: string; email: string }>,
+  namesByEmail: Map<string, string[]>,
+  batchTagIds: string[],
+): Promise<void> {
+  const tagIdByName = new Map<string, string>();
+  const wantedNames = [...new Set([...namesByEmail.values()].flat())];
+  if (wantedNames.length > 0) {
+    const { data: existing, error } = await supabaseAdmin.from('tags').select('id, name').eq('user_id', userId);
+    if (error) throw new Error(error.message);
+    for (const t of existing || []) tagIdByName.set(String((t as any).name).toLowerCase(), (t as any).id);
+    const missing = wantedNames.filter((n) => !tagIdByName.has(n.toLowerCase()));
+    // Unique by lower-case name, so "VIP" and "vip" in one file are one tag.
+    const toCreate = [...new Map(missing.map((n) => [n.toLowerCase(), n])).values()];
+    if (toCreate.length > 0) {
+      const { data: created, error: cErr } = await supabaseAdmin
+        .from('tags')
+        .upsert(toCreate.map((name) => ({ user_id: userId, name, color: '#6B7280' })), { onConflict: 'user_id,name', ignoreDuplicates: true })
+        .select('id, name');
+      if (cErr) throw new Error(cErr.message);
+      for (const t of created || []) tagIdByName.set(String((t as any).name).toLowerCase(), (t as any).id);
+    }
+  }
+  let validBatch: string[] = [];
+  if (batchTagIds.length > 0) {
+    const { data } = await supabaseAdmin.from('tags').select('id').eq('user_id', userId).in('id', batchTagIds.slice(0, 50));
+    validBatch = (data || []).map((t: any) => t.id);
+  }
+  const links: Array<{ contact_id: string; tag_id: string }> = [];
+  for (const r of rows) {
+    const ids = new Set(validBatch);
+    for (const n of namesByEmail.get(String(r.email).toLowerCase()) || []) {
+      const id = tagIdByName.get(n.toLowerCase());
+      if (id) ids.add(id);
+    }
+    for (const tag_id of ids) links.push({ contact_id: r.id, tag_id });
+  }
+  for (const slice of chunk(links, 500)) {
+    const { error } = await supabaseAdmin.from('contact_tags').upsert(slice, { onConflict: 'contact_id,tag_id', ignoreDuplicates: true });
+    if (error) throw new Error(error.message);
+  }
+}
+
 /** Which of these ids are this user's contacts, asked a slice at a time. */
 async function ownedContactIds(userId: string, contactIds: string[]): Promise<string[]> {
   const rows = await selectInChunks([...new Set(contactIds)], (slice) =>
     supabaseAdmin.from('contacts').select('id').eq('user_id', userId).in('id', slice));
   return rows.map((c: any) => c.id as string);
+}
+
+/**
+ * The filters a contacts list applies - list, tags, outreach, search,
+ * lifecycle, company, status - shared by the list and its export, so
+ * "Export this view" is exactly the rows on screen. The joins the list
+ * and tag filters need (in_list, has_tag) are the caller's select.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function applyContactFilters(query: any, params: ListParams, ctx: { listScoped: boolean; tagIds: string[]; outreach: string | null }): any {
+  const { listScoped, tagIds, outreach } = ctx;
+  if (listScoped) {
+    query = query.eq('in_list.list_id', params.list_id!);
+  }
+
+  // "Not in Lists" — everyone with no live list membership.
+  if (isUnlisted(params.list_id)) {
+    query = query.eq('list_count', 0);
+  }
+
+  if (tagIds.length > 0) {
+    query = query.in('has_tag.tag_id', tagIds);
+  }
+
+  if (outreach) {
+    query = query.eq('outreach_state', outreach);
+  }
+
+  if (params.search) {
+    // Strip PostgREST filter-syntax characters (comma separates .or()
+    // conditions, parens group them, quotes delimit values) so user input
+    // can't break out of the ilike value and inject extra clauses. LIKE
+    // wildcards are escaped rather than stripped: removing "_" meant
+    // "john_doe" searched for "johndoe" and never found john_doe@x.com.
+    const cleaned = String(params.search).replace(/[,()"]/g, ' ').replace(/\s+/g, ' ').trim();
+    if (cleaned) {
+      const t = likeEscape(cleaned);
+      const clauses = [
+        `email.ilike.%${t}%`, `first_name.ilike.%${t}%`, `last_name.ilike.%${t}%`, `company.ilike.%${t}%`,
+      ];
+      // "Ada Lovelace" is a first name and a last name, which no single
+      // column contains.
+      const cut = cleaned.indexOf(' ');
+      if (cut > 0) {
+        const first = likeEscape(cleaned.slice(0, cut));
+        const last = likeEscape(cleaned.slice(cut + 1));
+        clauses.push(`and(first_name.ilike.%${first}%,last_name.ilike.%${last}%)`);
+      }
+      query = query.or(clauses.join(','));
+    }
+  }
+
+  /*
+   * Prospects are excluded unless asked for. Sourcing produces thousands
+   * of people nobody has spoken to, and mixing them into the CRM list is
+   * what made search useless and a contact count meaningless. Campaign
+   * audiences pass no filter at all, because reaching strangers is their
+   * job — which is also why the default here is to include everybody.
+   */
+  query = applyLifecycle(query, params.lifecycle);
+
+  // Exact-company filter (chosen from the distinct-companies picker)
+  if (params.company) {
+    query = query.eq('company', params.company);
+  }
+
+  if (params.is_unsubscribed !== undefined) {
+    query = query.eq('is_unsubscribed', params.is_unsubscribed);
+  }
+
+  if (params.is_bounced !== undefined) {
+    query = query.eq('is_bounced', params.is_bounced);
+  }
+
+  if (params.dcs_min !== undefined) {
+    query = query.gte('dcs_score', params.dcs_min);
+  }
+
+  if (params.dcs_max !== undefined) {
+    query = query.lte('dcs_score', params.dcs_max);
+  }
+
+  // Verification status — mirrors the client's derived states so the summary
+  // pills filter the whole list (not just the current page).
+  switch (params.verification_status) {
+    case 'valid':
+      query = query.not('dcs_verified_at', 'is', null).eq('is_bounced', false).gte('dcs_score', 80);
+      break;
+    case 'risky':
+      query = query.not('dcs_verified_at', 'is', null).eq('is_bounced', false).gte('dcs_score', 50).lt('dcs_score', 80);
+      break;
+    case 'not_found':
+      // Verified, but the domain has no mail server (MX) — "email not found"
+      query = query.not('dcs_verified_at', 'is', null).eq('is_bounced', false).eq('dcs_domain_ok', false).not('dcs_syntax_ok', 'is', false);
+      break;
+    case 'invalid':
+      query = query.or('is_bounced.eq.true,and(dcs_verified_at.not.is.null,dcs_syntax_ok.is.false),and(dcs_verified_at.not.is.null,dcs_domain_ok.not.is.false,dcs_score.lt.50)');
+      break;
+    case 'unverified':
+      query = query.is('dcs_verified_at', null).eq('is_bounced', false);
+      break;
+  }
+  return query;
 }
 
 export const contactsService = {
@@ -238,97 +405,7 @@ export const contactsService = {
       // A running reply check's placeholder (shared/reply-check).
       .not('email', 'like', `%@${REPLY_CHECK_CONTACT_DOMAIN}`);
 
-    if (listScoped) {
-      query = query.eq('in_list.list_id', params.list_id!);
-    }
-
-    // "Not in Lists" — everyone with no live list membership.
-    if (isUnlisted(params.list_id)) {
-      query = query.eq('list_count', 0);
-    }
-
-    if (tagIds.length > 0) {
-      query = query.in('has_tag.tag_id', tagIds);
-    }
-
-    if (outreach) {
-      query = query.eq('outreach_state', outreach);
-    }
-
-    if (params.search) {
-      // Strip PostgREST filter-syntax characters (comma separates .or()
-      // conditions, parens group them, quotes delimit values) so user input
-      // can't break out of the ilike value and inject extra clauses. LIKE
-      // wildcards are escaped rather than stripped: removing "_" meant
-      // "john_doe" searched for "johndoe" and never found john_doe@x.com.
-      const cleaned = String(params.search).replace(/[,()"]/g, ' ').replace(/\s+/g, ' ').trim();
-      if (cleaned) {
-        const t = likeEscape(cleaned);
-        const clauses = [
-          `email.ilike.%${t}%`, `first_name.ilike.%${t}%`, `last_name.ilike.%${t}%`, `company.ilike.%${t}%`,
-        ];
-        // "Ada Lovelace" is a first name and a last name, which no single
-        // column contains.
-        const cut = cleaned.indexOf(' ');
-        if (cut > 0) {
-          const first = likeEscape(cleaned.slice(0, cut));
-          const last = likeEscape(cleaned.slice(cut + 1));
-          clauses.push(`and(first_name.ilike.%${first}%,last_name.ilike.%${last}%)`);
-        }
-        query = query.or(clauses.join(','));
-      }
-    }
-
-    /*
-     * Prospects are excluded unless asked for. Sourcing produces thousands
-     * of people nobody has spoken to, and mixing them into the CRM list is
-     * what made search useless and a contact count meaningless. Campaign
-     * audiences pass no filter at all, because reaching strangers is their
-     * job — which is also why the default here is to include everybody.
-     */
-    query = applyLifecycle(query, params.lifecycle);
-
-    // Exact-company filter (chosen from the distinct-companies picker)
-    if (params.company) {
-      query = query.eq('company', params.company);
-    }
-
-    if (params.is_unsubscribed !== undefined) {
-      query = query.eq('is_unsubscribed', params.is_unsubscribed);
-    }
-
-    if (params.is_bounced !== undefined) {
-      query = query.eq('is_bounced', params.is_bounced);
-    }
-
-    if (params.dcs_min !== undefined) {
-      query = query.gte('dcs_score', params.dcs_min);
-    }
-
-    if (params.dcs_max !== undefined) {
-      query = query.lte('dcs_score', params.dcs_max);
-    }
-
-    // Verification status — mirrors the client's derived states so the summary
-    // pills filter the whole list (not just the current page).
-    switch (params.verification_status) {
-      case 'valid':
-        query = query.not('dcs_verified_at', 'is', null).eq('is_bounced', false).gte('dcs_score', 80);
-        break;
-      case 'risky':
-        query = query.not('dcs_verified_at', 'is', null).eq('is_bounced', false).gte('dcs_score', 50).lt('dcs_score', 80);
-        break;
-      case 'not_found':
-        // Verified, but the domain has no mail server (MX) — "email not found"
-        query = query.not('dcs_verified_at', 'is', null).eq('is_bounced', false).eq('dcs_domain_ok', false).not('dcs_syntax_ok', 'is', false);
-        break;
-      case 'invalid':
-        query = query.or('is_bounced.eq.true,and(dcs_verified_at.not.is.null,dcs_syntax_ok.is.false),and(dcs_verified_at.not.is.null,dcs_domain_ok.not.is.false,dcs_score.lt.50)');
-        break;
-      case 'unverified':
-        query = query.is('dcs_verified_at', null).eq('is_bounced', false);
-        break;
-    }
+    query = applyContactFilters(query, params, { listScoped, tagIds, outreach });
 
     const ALLOWED_SORT = new Set(['email', 'first_name', 'last_name', 'company', 'dcs_score', 'created_at', 'engagement_score']);
     const sortBy = ALLOWED_SORT.has(params.sort_by || '') ? params.sort_by! : 'created_at';
@@ -691,6 +768,12 @@ export const contactsService = {
     /** 'contacts' when the import was started from the CRM side: everyone
      *  in it is a deliberate relationship, not a sourced prospect. */
     context?: string,
+    options: {
+      /** What happens to people already here: see migration 109. */
+      mode?: ImportMode;
+      /** Existing tags to put on everyone in the batch. */
+      tagIds?: string[];
+    } = {},
   ): Promise<{
     total: number;
     imported: number;
@@ -702,16 +785,18 @@ export const contactsService = {
     suppressed?: number;
     errors: number;
     duplicates_collapsed?: number;
+    /** Ids of the contacts this batch created, so the import can be undone. */
+    created_ids?: string[];
     error_details: { email: string; reason: string }[];
   }> {
     const total = contacts.length;
+    const mode: ImportMode = IMPORT_MODES.includes(options.mode as ImportMode) ? options.mode as ImportMode : 'fill';
     const cleanSource = (importSource || '').trim().slice(0, 200) || null;
     const errorDetails: { email: string; reason: string }[] = [];
     const valid: any[] = [];
-    const ALLOWED_FIELDS = new Set([
-      'email', 'first_name', 'last_name', 'company',
-      'job_title', 'phone', 'linkedin_url', 'website', 'location',
-    ]);
+    const ALLOWED_FIELDS = new Set<string>(IMPORT_FIELDS);
+    /** Tag names per address, from a Tags column. */
+    const tagNamesByEmail = new Map<string, string[]>();
 
     for (const c of contacts) {
       if (!c || typeof c !== 'object') {
@@ -752,6 +837,13 @@ export const contactsService = {
         }
         if (Object.keys(cf).length > 0) row.custom_fields = cf;
       }
+      if (Array.isArray(c.tags)) {
+        const names = c.tags
+          .map((t: unknown) => (typeof t === 'string' ? t.trim().replace(/\s+/g, ' ').slice(0, 50) : ''))
+          .filter(Boolean)
+          .slice(0, 20);
+        if (names.length) tagNamesByEmail.set(email, [...new Set([...(tagNamesByEmail.get(email) || []), ...names])]);
+      }
       valid.push(row);
     }
 
@@ -783,8 +875,18 @@ export const contactsService = {
      * says which rows were new.
      */
     let importedRows: Array<{ id: string; email: string; inserted?: boolean }> = [];
-    const { data: merged, error: mergeError } = await supabaseAdmin
-      .rpc('import_contacts_merge', { p_user_id: userId, p_rows: uniqueValid });
+    let { data: merged, error: mergeError } = await supabaseAdmin
+      .rpc('import_contacts_merge', { p_user_id: userId, p_rows: uniqueValid, p_mode: mode });
+    if (mergeError && /p_mode|schema cache|PGRST202/i.test(`${mergeError.message} ${(mergeError as any).code}`)) {
+      /*
+       * Migration 109 not run yet: the two-argument function fills blanks
+       * only and does not know the new columns, which it ignores rather
+       * than failing on. Say so once in the log; the import still works.
+       */
+      console.warn('[Contacts] import_contacts_merge(p_mode) missing - run migration 109_import_export_fields.sql. Importing with fill-blanks only; country, city, state, industry and company details are not saved.');
+      ({ data: merged, error: mergeError } = await supabaseAdmin
+        .rpc('import_contacts_merge', { p_user_id: userId, p_rows: uniqueValid }));
+    }
 
     if (!mergeError) {
       importedRows = Array.isArray(merged) ? (merged as any[]) : [];
@@ -796,8 +898,9 @@ export const contactsService = {
        */
       console.warn('[Contacts] import_contacts_merge missing - run migration 086_contact_import_merge.sql. Existing contacts are left unchanged.');
       const now = new Date().toISOString();
+      const LEGACY = new Set(['email', 'first_name', 'last_name', 'company', 'job_title', 'phone', 'linkedin_url', 'website', 'location', 'custom_fields', 'import_source']);
       const inserts = uniqueValid.map((r) => ({
-        ...r,
+        ...Object.fromEntries(Object.entries(r).filter(([k]) => LEGACY.has(k))),
         user_id: userId,
         source: 'csv_import',
         ...(r.import_source ? { imported_at: now } : {}),
@@ -865,6 +968,15 @@ export const contactsService = {
       }
     }
 
+    // Tags: the ones picked for the whole import, and any from a Tags column.
+    if (importedRows.length > 0 && (tagNamesByEmail.size > 0 || (options.tagIds || []).length > 0)) {
+      try {
+        await tagImported(userId, importedRows, tagNamesByEmail, options.tagIds || []);
+      } catch (e: any) {
+        errorDetails.push({ email: '(tags)', reason: e?.message || 'Tags could not be added' });
+      }
+    }
+
     // How many of these addresses no campaign will email, said up front
     // rather than discovered as skips later.
     const suppressed = (await suppressedEmails(userId, uniqueValid.map((r) => r.email))).size;
@@ -883,8 +995,23 @@ export const contactsService = {
       suppressed,
       errors: errorDetails.length + upsertFailures,
       duplicates_collapsed: duplicatesCollapsed,
+      created_ids: importedRows.filter((r) => r.inserted === true).map((r) => r.id),
       error_details: errorDetails.slice(0, 200),
     };
+  },
+
+  /**
+   * Before an import starts: of these addresses, how many are already
+   * here and how many are suppressed. The review screen shows the answer,
+   * so "Import 4,000" is not followed by "3,100 already existed".
+   */
+  async importPreflight(userId: string, emails: string[]): Promise<{ existing: number; suppressed: number; checked: number }> {
+    const wanted = [...new Set((emails || []).filter((e) => typeof e === 'string').map((e) => e.trim().toLowerCase()).filter(Boolean))].slice(0, 50_000);
+    if (wanted.length === 0) return { existing: 0, suppressed: 0, checked: 0 };
+    const rows = await selectInChunks(wanted, (slice) =>
+      supabaseAdmin.from('contacts').select('email').eq('user_id', userId).in('email', slice));
+    const suppressed = await suppressedEmails(userId, wanted);
+    return { existing: new Set(rows.map((r: any) => String(r.email).toLowerCase())).size, suppressed: suppressed.size, checked: wanted.length };
   },
 
   /**
@@ -919,10 +1046,7 @@ export const contactsService = {
     // columnMapping is client-supplied, so it only ever picks among the
     // columns bulkCreate allows - mapping a CSV column to "user_id" or "id"
     // lands nowhere.
-    const IMPORT_ALLOWED_FIELDS = new Set([
-      'email', 'first_name', 'last_name', 'company',
-      'job_title', 'phone', 'linkedin_url', 'website', 'location',
-    ]);
+    const IMPORT_ALLOWED_FIELDS = new Set<string>(IMPORT_FIELDS);
 
     const mapped = rows.map((row) => {
       const contact: Record<string, any> = {};
@@ -1061,8 +1185,15 @@ export const contactsService = {
     return { deleted: validIds.length };
   },
 
-  async export(userId: string, contactIds?: string[], format: 'csv' | 'json' = 'csv', listId?: string, segmentId?: string, lifecycle?: string) {
-    const COLUMNS = 'email, first_name, last_name, company, job_title, phone, linkedin_url, website, location, source, is_unsubscribed, is_bounced, dcs_score, custom_fields, created_at';
+  /**
+   * Export contacts: the selection, a segment, or a view (list, lifecycle
+   * and the page's filters), as CSV, as a table for an Excel file, or as
+   * raw JSON for API callers.
+   */
+  async export(userId: string, opts: ExportOptions = {}) {
+    const format = opts.format === 'json' || opts.format === 'table' ? opts.format : 'csv';
+    const columns = resolveExportColumns(opts.columns);
+    const contactIds = Array.isArray(opts.contactIds) ? opts.contactIds.filter((x) => typeof x === 'string') : [];
 
     /*
      * Paged, or chunked, but never one bare select.
@@ -1072,57 +1203,69 @@ export const contactsService = {
      * and said nothing about the rest - the kind of loss nobody notices
      * until the other system is missing people.
      */
+    const fetchWith = async (companyCols: string): Promise<any[]> => {
+      const withJoins = `*, contact_tags(tags(name)), list_contacts(contact_lists(name)), company_rec:companies(${companyCols})`;
+      if (contactIds.length > 0) {
+        return selectInChunks(contactIds, (slice) =>
+          supabaseAdmin.from('contacts').select(withJoins).eq('user_id', userId).in('id', slice));
+      }
+      if (opts.segmentId) {
+        const segment = await segmentsService.get(userId, opts.segmentId);
+        const ids = await segmentsService.getMatchingContactIds(userId, segment.filter_config);
+        return selectInChunks(ids, (slice) =>
+          supabaseAdmin.from('contacts').select(withJoins).eq('user_id', userId).in('id', slice));
+      }
+      const params: ListParams = {
+        list_id: opts.listId, lifecycle: opts.lifecycle, search: opts.search, company: opts.company,
+        outreach: opts.outreach, verification_status: opts.verificationStatus,
+        tag_ids: Array.isArray(opts.tagIds) ? opts.tagIds : undefined,
+      };
+      const tagIds = (params.tag_ids || []).filter(Boolean);
+      const listScoped = !!params.list_id && !isUnlisted(params.list_id);
+      const outreach = (LEAD_OUTREACH_STATES as string[]).includes(params.outreach || '') ? params.outreach! : null;
+      const select = [
+        withJoins,
+        listScoped ? 'in_list:list_contacts!inner(list_id)' : null,
+        tagIds.length > 0 ? 'has_tag:contact_tags!inner(tag_id)' : null,
+      ].filter(Boolean).join(', ');
+      return fetchAllPages((from, to) => {
+        let q = supabaseAdmin
+          .from('contacts')
+          .select(select)
+          .eq('user_id', userId)
+          .not('email', 'like', `%@${REPLY_CHECK_CONTACT_DOMAIN}`);
+        q = applyContactFilters(q, params, { listScoped, tagIds, outreach });
+        return q.order('created_at', { ascending: true }).order('id').range(from, to);
+      });
+    };
+
     let data: any[];
     try {
-      if (contactIds && contactIds.length > 0) {
-        data = await selectInChunks(contactIds, (slice) =>
-          supabaseAdmin.from('contacts').select(COLUMNS).eq('user_id', userId).in('id', slice));
-      } else if (segmentId) {
-        const segment = await segmentsService.get(userId, segmentId);
-        const ids = await segmentsService.getMatchingContactIds(userId, segment.filter_config);
-        data = await selectInChunks(ids, (slice) =>
-          supabaseAdmin.from('contacts').select(COLUMNS).eq('user_id', userId).in('id', slice));
-      } else {
-        // The whole account, the "Not in Lists" view, or one list - which
-        // is an inner join rather than an id list, for the same reason as
-        // in list() above.
-        const listScoped = !!listId && !isUnlisted(listId);
-        data = await fetchAllPages((from, to) => {
-          let q = supabaseAdmin
-            .from('contacts')
-            .select(listScoped ? `${COLUMNS}, in_list:list_contacts!inner(list_id)` : COLUMNS)
-            .eq('user_id', userId);
-          if (listScoped) q = q.eq('in_list.list_id', listId!);
-          if (isUnlisted(listId)) q = q.eq('list_count', 0);
-          // Exporting from Leads gives leads, from Contacts gives contacts.
-          q = applyLifecycle(q, lifecycle);
-          return q.order('created_at', { ascending: true }).order('id').range(from, to);
-        });
-        if (listScoped) data = data.map(({ in_list, ...rest }: any) => rest);
+      try {
+        data = await fetchWith('website, linkedin_url, size, industry, location, phone');
+      } catch (err: any) {
+        // companies.phone arrives with migration 109; export without it until then.
+        if (!/phone/.test(err?.message || '')) throw err;
+        data = await fetchWith('website, linkedin_url, size, industry, location');
       }
     } catch (err: any) {
       assertListCountColumn(err);
       throw new AppError(err?.message || 'Could not export contacts', 500);
     }
 
-    if (format === 'json') {
-      return { data, format: 'json' };
-    }
-
-    // CSV format — flatten custom_fields JSON into top-level columns
-    const flat = (data || []).map((r: any) => {
-      const { custom_fields, ...rest } = r;
-      return (custom_fields && typeof custom_fields === 'object' && !Array.isArray(custom_fields))
-        ? { ...custom_fields, ...rest } // real columns win over same-named custom fields
-        : rest;
+    const rows = (data || []).map((r: any) => {
+      const { contact_tags, list_contacts, in_list: _l, has_tag: _t, enrichment: _e, engagement_factors: _f, ...rest } = r;
+      return {
+        ...rest,
+        tag_names: (contact_tags || []).map((ct: any) => ct?.tags?.name).filter(Boolean),
+        list_names: (list_contacts || []).map((lc: any) => lc?.contact_lists?.name).filter(Boolean),
+      };
     });
-    // Papa.unparse(objects) takes its columns from the first row only; use the
-    // union so custom fields missing on the first contact aren't dropped.
-    const fields: string[] = [];
-    const seen = new Set<string>();
-    for (const row of flat) for (const k of Object.keys(row)) if (!seen.has(k)) { seen.add(k); fields.push(k); }
-    const csv = Papa.unparse({ fields, data: flat.map((row: any) => fields.map((f) => row[f])) });
-    return { data: csv, format: 'csv' };
+
+    if (format === 'json') return { data: rows, format: 'json' as const };
+    const sheet = buildContactExport(rows, columns);
+    if (format === 'table') return { data: sheet, format: 'table' as const };
+    return { data: toCsv(sheet.header, sheet.rows), format: 'csv' as const };
   },
 
   // Verification-status breakdown for the summary pills. Scoped to a list when

@@ -95,7 +95,7 @@ console.log('\nnames');
   is('"Lovelace, Ada" splits the other way', splitFullName('Lovelace, Ada').first === 'Ada');
   is('"Jean Claude Van Damme" keeps the rest as the surname', splitFullName('Jean Claude Van Damme').last === 'Claude Van Damme');
   const plan = planImport(['Name', 'First name', 'Last name', 'Email'], [{ Name: 'A B', 'First name': 'A', 'Last name': 'B', Email: 'a@b.co' }]);
-  is('a Name column next to first and last is not split over them', plan.mapping.Name === '__custom__');
+  is('a Name column next to first and last is not split over them', plan.mapping.Name === '' && !!plan.notes.Name);
 }
 
 console.log('\nrows are cleaned on the way in');

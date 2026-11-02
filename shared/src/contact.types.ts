@@ -15,6 +15,11 @@ export interface Contact {
   linkedin_url: string | null;
   website: string | null;
   location: string | null;
+  /** Migration 109. Undefined until it is run. */
+  country?: string | null;
+  city?: string | null;
+  state?: string | null;
+  industry?: string | null;
   custom_fields: Record<string, string>;
   source: string;
   /** Stranger, relationship, or customer. See lifecycle.types.ts. */
@@ -118,6 +123,10 @@ export interface CreateContactInput {
   linkedin_url?: string;
   website?: string;
   location?: string;
+  country?: string;
+  city?: string;
+  state?: string;
+  industry?: string;
   custom_fields?: Record<string, string>;
   tag_ids?: string[];
   /**

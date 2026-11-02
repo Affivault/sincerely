@@ -2,19 +2,23 @@ import { PageHeader } from '../../components/shared/PageHeader';
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import Papa from 'papaparse';
-import { contactsApi, listsApi, type BulkImportResult } from '../../api/contacts.api';
+import { contactsApi, listsApi, tagsApi, type BulkImportResult, type ImportPreflight, type ImportFindPerson } from '../../api/contacts.api';
 import { cn } from '../../lib/utils';
 import {
   ArrowLeft, Upload, FileText, X, Check, AlertTriangle,
   ArrowRight, Users, Loader2, CheckCircle2, XCircle, Eye,
   FolderOpen, RotateCcw, Download, AlertCircle, MailCheck, Plus,
-  SlidersHorizontal, ChevronDown, Sparkles, Send,
+  SlidersHorizontal, ChevronDown, Sparkles, Send, ClipboardPaste, Search,
+  Building2, User, Tag as TagIcon, Undo2, Bookmark,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { blockedProps, BLOCKED_CLASS } from '../../lib/blockedAction';
+import { downloadCsv, csvDate } from '../../lib/csv';
+import { parseSpreadsheetFile, parseText, isSupportedFile, type ParsedSheet } from '../../lib/spreadsheet';
+import { useConfirm } from '../../components/ui/ConfirmDialog';
 import {
-  firstBlocker, planImport, prepareImport, mappingProblems, IMPORT_TARGET_LABELS, type ImportTarget,
+  firstBlocker, planImport, prepareImport, mappingProblems, headerSignature,
+  IMPORT_TARGET_LABELS, IMPORT_TARGET_GROUPS, COMPANY_TARGETS, type ImportTarget, type ImportMode,
 } from '@lemlist/shared';
 
 type Step = 'upload' | 'map' | 'importing' | 'complete';
@@ -29,19 +33,9 @@ interface ImportProgress {
   totalBatches: number;
 }
 
-/* The order the mapping dropdown lists them in. Labels come from shared,
-   where the planner that fills the dropdowns in lives. */
-const TARGET_ORDER: ImportTarget[] = [
-  '', 'email', 'first_name', 'last_name', 'full_name', 'company', 'job_title',
-  'phone', 'linkedin_url', 'website', 'location', '__custom__',
-];
-const DB_FIELDS = TARGET_ORDER.map((value) => ({
-  value,
-  label: value === '' ? '— Skip this column —' : value === 'email' ? 'Email (required)' : IMPORT_TARGET_LABELS[value],
-}));
-
 const BATCH_SIZE = 100;
 const MAX_PREVIEW_ROWS = 5;
+const FIND_BATCH = 10;
 
 function bytes(n: number): string {
   if (n < 1024) return `${n} B`;
@@ -49,23 +43,86 @@ function bytes(n: number): string {
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 
+/* ---- saved mappings ----------------------------------------------------
+   The same tool exports the same columns every time. Once a layout has
+   been imported, the mapping used is remembered under its header
+   signature and applied to the next file with that layout - so a
+   correction is made once, not every Monday. Per browser, which is what a
+   convenience like this should be. */
+const TEMPLATE_KEY = 'sincerely.import.templates.v1';
+
+function loadTemplate(sig: string): Record<string, string> | null {
+  try {
+    const all = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '{}');
+    const t = all?.[sig];
+    return t && typeof t === 'object' ? t : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveTemplate(sig: string, mapping: Record<string, string>) {
+  try {
+    const all = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '{}') || {};
+    all[sig] = mapping;
+    // Keep the twenty most recent layouts.
+    const keys = Object.keys(all);
+    for (const k of keys.slice(0, Math.max(0, keys.length - 20))) delete all[k];
+    localStorage.setItem(TEMPLATE_KEY, JSON.stringify(all));
+  } catch { /* private window: nothing remembered, nothing broken */ }
+}
+
+const MODE_OPTIONS: Array<{ id: ImportMode; label: string; hint: string }> = [
+  { id: 'fill', label: 'Fill in blanks', hint: 'Keep what you have; only empty fields are filled from the file.' },
+  { id: 'overwrite', label: 'Update with the file', hint: 'Values in the file replace what you have. Empty cells never erase anything.' },
+  { id: 'skip', label: 'Leave them alone', hint: 'People already here are not changed at all (they still join the list).' },
+];
+
+/** Which group a target belongs to, for the review chips. */
+function groupOf(t: string): 'person' | 'company' | 'custom' | 'skip' | 'other' {
+  if (!t) return 'skip';
+  if (t === '__custom__') return 'custom';
+  if (t === 'company' || COMPANY_TARGETS.has(t as ImportTarget)) return 'company';
+  if (t === 'tags' || t === 'email_status' || t === 'do_not_contact') return 'other';
+  return 'person';
+}
+
 export function BulkImportPage() {
   const navigate = useNavigate();
+  const confirm = useConfirm();
   /* Which page sent you: ?as=lead from Leads, ?as=contact from Contacts. */
   const [searchParams] = useSearchParams();
   const arrivedAs: 'prospect' | 'contact' = searchParams.get('as') === 'contact' ? 'contact' : 'prospect';
   const queryClient = useQueryClient();
   const [step, setStep] = useState<Step>('upload');
   const [file, setFile] = useState<File | null>(null);
+  /** Where the rows came from when there is no file: pasted text. */
+  const [sourceName, setSourceName] = useState<string>('');
   const [parseError, setParseError] = useState<string | null>(null);
+  const [parsing, setParsing] = useState(false);
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [pasteText, setPasteText] = useState('');
   const [headers, setHeaders] = useState<string[]>([]);
   const [previewRows, setPreviewRows] = useState<Record<string, string>[]>([]);
   const [allRows, setAllRows] = useState<Record<string, string>[]>([]);
   const [mapping, setMapping] = useState<Record<string, string>>({});
+  /** The planner's own answer, to go back to after a saved mapping. */
+  const [autoMapping, setAutoMapping] = useState<Record<string, string>>({});
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [usingTemplate, setUsingTemplate] = useState(false);
   /* Open when the planner was not sure of the email column - the one thing
      an import cannot guess wrong. Otherwise the table waits behind
-     "Adjust columns", because every dropdown in it is already right. */
+     "Adjust columns"; the review card above it already says what went where. */
   const [showMapping, setShowMapping] = useState(false);
+  const [skipFlagged, setSkipFlagged] = useState(true);
+  const [mode, setMode] = useState<ImportMode>('fill');
+  const [tagIds, setTagIds] = useState<string[]>([]);
+  const [newTag, setNewTag] = useState('');
+  /** Emails found for rows that had none, by row index. */
+  const [found, setFound] = useState<Map<number, string>>(new Map());
+  const [finding, setFinding] = useState<{ done: number; total: number; found: number } | null>(null);
+  const [findTried, setFindTried] = useState<Set<number>>(new Set());
+  const [preflight, setPreflight] = useState<ImportPreflight | null>(null);
   const [targetListId, setTargetListId] = useState<string>('');
   const [listMode, setListMode] = useState<'none' | 'existing' | 'new'>('none');
   const [newListName, setNewListName] = useState('');
@@ -92,16 +149,22 @@ export function BulkImportPage() {
     /** New addresses, existing ones that only had blanks filled, and how
      *  many are on the suppression list. */
     created: number; updated: number; suppressed: number;
+    /** Ids of the contacts this import created, for undo. */
+    createdIds: string[];
     errorDetails: { email: string; reason: string }[];
     durationMs: number;
     cancelled: boolean;
   } | null>(null);
+  const [undone, setUndone] = useState(false);
   const cancelRef = useRef(false);
   const [cancelRequested, setCancelRequested] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
 
-  // Stop the import loop if the user navigates away mid-import
+  // Stop the import loop (and an email search) if the user navigates away.
+  // Re-armed on mount: React mounts twice in development, and a flag left
+  // set by the first unmount stopped every search before it started.
   useEffect(() => {
+    cancelRef.current = false;
     return () => { cancelRef.current = true; };
   }, []);
 
@@ -115,63 +178,86 @@ export function BulkImportPage() {
     () => ((lists || []) as any[]).filter((l) => (l.kind === 'contact' ? 'contact' : 'lead') === newListKind),
     [lists, newListKind],
   );
+  const { data: allTags } = useQuery({ queryKey: ['tags'], queryFn: () => tagsApi.list() });
 
-  // Parse CSV file the moment a file is selected
-  const handleFile = useCallback((f: File) => {
+  /** One way in for files and pastes alike. */
+  const loadSheet = useCallback((sheet: ParsedSheet, name: string) => {
+    const rows = sheet.rows.filter((r) => r && Object.values(r).some((v) => v && String(v).trim()));
+    if (sheet.headers.length === 0) {
+      setParseError('Could not find any columns. Make sure the first row holds the column names.');
+      return;
+    }
+    if (rows.length === 0) {
+      setParseError('There are column names but no rows of people under them.');
+      return;
+    }
+    if (rows.length > 50_000) {
+      setParseError(`This has ${rows.length.toLocaleString()} rows; the most one import takes is 50,000. Split it into smaller files.`);
+      return;
+    }
+    // Headers and values both, so a column called "Col 3" that is full
+    // of addresses is still found as the email.
+    const plan = planImport(sheet.headers, rows);
+    const sig = headerSignature(sheet.headers);
+    const saved = loadTemplate(sig);
+    let initial: Record<string, string> = plan.mapping;
+    if (saved && sheet.headers.every((h) => h in saved) && mappingProblems(saved).length === 0) {
+      initial = Object.fromEntries(sheet.headers.map((h) => [h, saved[h]]));
+      setUsingTemplate(true);
+    } else {
+      setUsingTemplate(false);
+    }
+
+    setSourceName(name);
+    setHeaders(sheet.headers);
+    setPreviewRows(rows.slice(0, MAX_PREVIEW_ROWS));
+    setAllRows(rows);
+    setAutoMapping(plan.mapping);
+    setNotes(plan.notes);
+    setMapping(initial);
+    setShowMapping(!plan.confident && mappingProblems(initial).length > 0);
+    setFound(new Map());
+    setFindTried(new Set());
+    setPreflight(null);
+    setStep('map');
+  }, []);
+
+  // Parse the file the moment it is chosen: CSV, TSV, TXT or Excel.
+  const handleFile = useCallback(async (f: File) => {
     setParseError(null);
     setFile(f);
-
-    if (!/\.(csv|tsv|txt)$/i.test(f.name)) {
-      setParseError('Please upload a .csv file.');
+    if (!isSupportedFile(f.name)) {
+      setParseError('Upload a .csv, .tsv, .txt or Excel (.xlsx) file. From Google Sheets: File > Download > CSV.');
       return;
     }
     if (f.size > 50 * 1024 * 1024) {
       setParseError('File too large — maximum 50 MB.');
       return;
     }
+    setParsing(true);
+    try {
+      loadSheet(await parseSpreadsheetFile(f), f.name);
+    } catch (err: any) {
+      setParseError(`Could not read this file: ${err?.message || 'unknown error'}`);
+    } finally {
+      setParsing(false);
+    }
+  }, [loadSheet]);
 
-    Papa.parse<Record<string, string>>(f, {
-      header: true,
-      skipEmptyLines: 'greedy',
-      transformHeader: (h) => h.trim().replace(/^﻿/, ''),
-      complete: (result) => {
-        if (result.errors.length > 0 && result.data.length === 0) {
-          setParseError(`Could not parse this file: ${result.errors[0].message}`);
-          return;
-        }
-        const rows = (result.data || []).filter(
-          (r) => r && Object.values(r).some((v) => v && String(v).trim())
-        );
-        if (rows.length === 0) {
-          setParseError('The CSV file has no data rows.');
-          return;
-        }
-        const detected = (result.meta.fields || []).map((h) => h.trim());
-        if (detected.length === 0) {
-          setParseError('Could not detect any columns in the file. Make sure it has a header row.');
-          return;
-        }
-
-        // Headers and values both, so a column called "Col 3" that is full
-        // of addresses is still found as the email.
-        const plan = planImport(detected, rows);
-
-        setHeaders(detected);
-        setPreviewRows(rows.slice(0, MAX_PREVIEW_ROWS));
-        setAllRows(rows);
-        setMapping(plan.mapping);
-        setShowMapping(!plan.confident);
-        setStep('map');
-      },
-      error: (err) => {
-        setParseError(`Failed to parse file: ${err.message}`);
-      },
-    });
-  }, []);
+  const handlePaste = () => {
+    setParseError(null);
+    setFile(null);
+    try {
+      loadSheet(parseText(pasteText), `Pasted ${csvDate()}`);
+    } catch (err: any) {
+      setParseError(`Could not read what was pasted: ${err?.message || 'unknown error'}`);
+    }
+  };
 
   const onFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (f) handleFile(f);
+    e.target.value = '';
   };
 
   const onDrop = (e: React.DragEvent) => {
@@ -187,33 +273,136 @@ export function BulkImportPage() {
   const problems = mappingProblems(mapping);
   const hasEmail = mappedFields.includes('email');
   const mappingValid = problems.length === 0;
+  const emailColumn = useMemo(() => Object.keys(mapping).find((h) => mapping[h] === 'email') ?? null, [mapping]);
+
+  /* Rows with any found emails written into the email column - the rest of
+     the pipeline does not need to know an address was found, not given. */
+  const effectiveRows = useMemo(() => {
+    if (!emailColumn || found.size === 0) return allRows;
+    return allRows.map((r, i) => (found.has(i) ? { ...r, [emailColumn]: found.get(i)! } : r));
+  }, [allRows, found, emailColumn]);
+  const rowIndex = useMemo(() => new Map(effectiveRows.map((r, i) => [r, i])), [effectiveRows]);
 
   /* The rows exactly as they will be sent: cleaned, deduplicated, and with
-     anything that is not an address set aside. The counts on the page and
+     anything that cannot be imported set aside. The counts on the page and
      the import itself read this one result, so they cannot disagree. */
   const prepared = useMemo(
-    () => (mappingValid ? prepareImport(allRows, mapping) : null),
-    [allRows, mapping, mappingValid],
+    () => (mappingValid ? prepareImport(effectiveRows, mapping, { skipFlagged }) : null),
+    [effectiveRows, mapping, mappingValid, skipFlagged],
   );
   const importableCount = prepared?.contacts.length ?? 0;
 
-  // What was recognised, for the one-line summary above the button.
-  const recognised = useMemo(() => {
-    const named = new Set<string>();
-    let custom = 0;
-    for (const t of Object.values(mapping)) {
-      if (t === '__custom__') custom++;
-      else if (t) named.add(IMPORT_TARGET_LABELS[t as ImportTarget].replace(/ \(.*\)$/, ''));
-    }
-    return { named: [...named], custom };
+  /** A row's value for a target, through the mapping. */
+  const valueFor = useCallback((row: Record<string, string>, target: string) => {
+    const col = Object.keys(mapping).find((h) => mapping[h] === target);
+    return col ? String(row[col] ?? '').trim() : '';
   }, [mapping]);
+
+  /* People with no email who can still be searched for: a name, and a
+     company or its website. */
+  const findable = useMemo(() => {
+    if (!prepared) return [] as Array<{ idx: number; person: ImportFindPerson }>;
+    const out: Array<{ idx: number; person: ImportFindPerson }> = [];
+    for (const s of prepared.setAside) {
+      if (s.reason !== 'no_email') continue;
+      const idx = rowIndex.get(s.row);
+      if (idx == null || findTried.has(idx)) continue;
+      const person: ImportFindPerson = {
+        key: String(idx),
+        first_name: valueFor(s.row, 'first_name') || undefined,
+        last_name: valueFor(s.row, 'last_name') || undefined,
+        full_name: valueFor(s.row, 'full_name') || undefined,
+        company: valueFor(s.row, 'company') || undefined,
+        domain: valueFor(s.row, 'company_website') || valueFor(s.row, 'website') || undefined,
+        linkedin_url: valueFor(s.row, 'linkedin_url') || undefined,
+      };
+      const hasName = !!(person.first_name || person.last_name || person.full_name);
+      if (hasName && (person.company || person.domain)) out.push({ idx, person });
+    }
+    return out;
+  }, [prepared, rowIndex, findTried, valueFor]);
+
+  // Before the import: how many are already here, and suppressed.
+  const preparedEmails = useMemo(() => (prepared?.contacts || []).map((c) => c.email), [prepared]);
+  useEffect(() => {
+    if (step !== 'map' || preparedEmails.length === 0) { setPreflight(null); return; }
+    let live = true;
+    const t = setTimeout(async () => {
+      try {
+        let existing = 0;
+        let suppressed = 0;
+        let finder: ImportPreflight['finder'] = { available: false, price: 1 };
+        for (let i = 0; i < preparedEmails.length; i += 10_000) {
+          const r = await contactsApi.importPreflight(preparedEmails.slice(i, i + 10_000));
+          existing += r.existing;
+          suppressed += r.suppressed;
+          finder = r.finder;
+        }
+        if (live) setPreflight({ existing, suppressed, checked: preparedEmails.length, finder });
+      } catch {
+        if (live) setPreflight(null); // a nice-to-have; the import does not depend on it
+      }
+    }, 400);
+    return () => { live = false; clearTimeout(t); };
+  }, [preparedEmails, step]);
+
+  const findEmails = async () => {
+    if (findable.length === 0 || finding) return;
+    const todo = findable.slice();
+    setFinding({ done: 0, total: todo.length, found: 0 });
+    let foundCount = 0;
+    let outOfCredits = false;
+    for (let i = 0; i < todo.length; i += FIND_BATCH) {
+      if (cancelRef.current) break;
+      const slice = todo.slice(i, i + FIND_BATCH);
+      try {
+        const res = await contactsApi.importFindEmails(slice.map((t) => t.person));
+        const hits = res.results.filter((r) => r.email);
+        foundCount += hits.length;
+        setFound((prev) => {
+          const next = new Map(prev);
+          for (const h of hits) next.set(Number(h.key), h.email!);
+          return next;
+        });
+        if (res.out_of_credits) outOfCredits = true;
+      } catch (err: any) {
+        toast.error(err?.response?.data?.error || 'Email search stopped - the people found so far are kept.');
+        break;
+      } finally {
+        setFindTried((prev) => new Set([...prev, ...slice.map((t) => t.idx)]));
+        setFinding({ done: Math.min(i + FIND_BATCH, todo.length), total: todo.length, found: foundCount });
+      }
+      if (outOfCredits) break;
+    }
+    setFinding(null);
+    if (outOfCredits) toast.error('Out of credits - the search stopped. Emails found so far are kept.');
+    else toast.success(foundCount ? `Found ${foundCount.toLocaleString()} email${foundCount === 1 ? '' : 's'} - they are in the import now` : 'No confident emails found for these people');
+  };
+
+  // Everything that will not be imported, whole, with why - to fix and re-upload.
+  const downloadSetAside = () => {
+    const rows = prepared?.setAside || [];
+    if (rows.length === 0) return;
+    downloadCsv(
+      `not-imported-${csvDate()}.csv`,
+      [...headers, 'Why it was not imported'],
+      rows.map((s) => [...headers.map((h) => s.row[h] ?? ''), s.detail]),
+    );
+  };
+
+  /** What went where, grouped, for the review card. */
+  const review = useMemo(() => {
+    const g = { person: [] as string[], company: [] as string[], other: [] as string[], custom: [] as string[], skip: [] as string[] };
+    for (const h of headers) g[groupOf(mapping[h] || '')].push(h);
+    return g;
+  }, [headers, mapping]);
 
   /** Default name for a new list: the CSV's own filename, tidied up. */
   const suggestedListName = useMemo(() => {
-    const base = (file?.name || '').replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();
+    const base = (sourceName || '').replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();
     if (!base) return '';
     return base.charAt(0).toUpperCase() + base.slice(1);
-  }, [file]);
+  }, [sourceName]);
 
   const duplicateListName = useMemo(() => {
     const name = newListName.trim().toLowerCase();
@@ -226,11 +415,33 @@ export function BulkImportPage() {
     (listMode === 'existing' && !!targetListId) ||
     (listMode === 'new' && !!newListName.trim() && !duplicateListName);
 
+  const addNewTag = async () => {
+    const name = newTag.trim();
+    if (!name) return;
+    const existing = (allTags || []).find((t) => t.name.toLowerCase() === name.toLowerCase());
+    if (existing) {
+      setTagIds((prev) => (prev.includes(existing.id) ? prev : [...prev, existing.id]));
+      setNewTag('');
+      return;
+    }
+    try {
+      const created = await tagsApi.create({ name });
+      queryClient.invalidateQueries({ queryKey: ['tags'] });
+      setTagIds((prev) => [...prev, created.id]);
+      setNewTag('');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || 'Could not create that tag');
+    }
+  };
+
   // Kick off the import
   const startImport = useCallback(async () => {
     if (!mappingValid || !listChoiceValid || !prepared) return;
     cancelRef.current = false;
     setCancelRequested(false);
+    setUndone(false);
+    // Remembered for the next file with these columns.
+    if (headers.length) saveTemplate(headerSignature(headers), mapping);
 
     // Create the list first — if this fails there's nothing to undo yet, which
     // is much kinder than importing thousands of contacts into nowhere.
@@ -262,7 +473,7 @@ export function BulkImportPage() {
 
     if (total === 0) {
       setCompletedResult({
-        total: 0, attempted: 0, imported: 0, errors: 0, created: 0, updated: 0, suppressed: 0,
+        total: 0, attempted: 0, imported: 0, errors: 0, created: 0, updated: 0, suppressed: 0, createdIds: [],
         errorDetails: [], durationMs: 0, cancelled: false,
       });
       setStep('complete');
@@ -276,6 +487,7 @@ export function BulkImportPage() {
     let suppressedCount = 0;
     let attempted = 0;
     let cancelled = false;
+    const createdIds: string[] = [];
     const errorDetails: { email: string; reason: string }[] = [];
     const chosenList = listMode === 'existing' ? (lists || []).find((l: any) => l.id === targetListId) : null;
     const asContacts = importAs === 'contact'
@@ -290,12 +502,15 @@ export function BulkImportPage() {
       try {
         // The filename travels with every batch so each contact remembers
         // which import it arrived in.
-        const result: BulkImportResult = await contactsApi.bulkCreate(batch, listId || undefined, file?.name, asContacts ? 'contacts' : undefined);
+        const result: BulkImportResult = await contactsApi.bulkCreate(
+          batch, listId || undefined, sourceName || undefined, asContacts ? 'contacts' : undefined, { mode, tagIds },
+        );
         imported += result.imported;
         errors += result.errors;
         createdCount += result.created ?? 0;
         updatedCount += result.updated ?? 0;
         suppressedCount += result.suppressed ?? 0;
+        if (result.created_ids) createdIds.push(...result.created_ids);
         if (result.error_details && errorDetails.length < 200) {
           errorDetails.push(...result.error_details.slice(0, 200 - errorDetails.length));
         }
@@ -329,16 +544,17 @@ export function BulkImportPage() {
       created: createdCount,
       updated: updatedCount,
       suppressed: suppressedCount,
+      createdIds,
       errorDetails,
       durationMs: Date.now() - startedAt,
       cancelled,
     });
     setStep('complete');
     queryClient.invalidateQueries({ queryKey: ['lists'] });
-    for (const key of ['contacts', 'contact-stats', 'contact-companies', 'verification-breakdown']) {
+    for (const key of ['contacts', 'contact-stats', 'contact-companies', 'verification-breakdown', 'companies', 'tags']) {
       queryClient.invalidateQueries({ queryKey: [key] });
     }
-  }, [prepared, mappingValid, listChoiceValid, listMode, targetListId, newListName, newListKind, importAs, lists, queryClient, file]);
+  }, [prepared, mappingValid, listChoiceValid, listMode, targetListId, newListName, newListKind, importAs, lists, queryClient, sourceName, mode, tagIds, headers, mapping]);
 
   const cancel = () => {
     cancelRef.current = true;
@@ -346,20 +562,58 @@ export function BulkImportPage() {
     toast('Cancelling after current batch…', { icon: '⏸' });
   };
 
+  /** Take back the people this import added. Existing people are not touched. */
+  const undoImport = () => {
+    const ids = completedResult?.createdIds || [];
+    if (ids.length === 0) return;
+    confirm({
+      title: `Remove the ${ids.length.toLocaleString()} ${ids.length === 1 ? 'person' : 'people'} this import added?`,
+      body: completedResult && completedResult.updated > 0
+        ? `They are deleted. The ${completedResult.updated.toLocaleString()} who were already here stay, and any fields this import filled on them are kept.`
+        : 'They are deleted, along with their list memberships and tags.',
+      confirmLabel: 'Undo import',
+      tone: 'danger',
+    }, async () => {
+      try {
+        let deleted = 0;
+        for (let i = 0; i < ids.length; i += 1000) {
+          deleted += (await contactsApi.bulkDelete(ids.slice(i, i + 1000))).deleted;
+        }
+        setUndone(true);
+        for (const key of ['contacts', 'contact-stats', 'lists', 'contact-companies', 'verification-breakdown']) {
+          queryClient.invalidateQueries({ queryKey: [key] });
+        }
+        toast.success(`Removed ${deleted.toLocaleString()} ${deleted === 1 ? 'person' : 'people'}`);
+      } catch (err: any) {
+        toast.error(err?.response?.data?.error || 'Could not undo the import');
+      }
+    });
+  };
+
   // Reset to start over
   const reset = () => {
     cancelRef.current = false;
     setCancelRequested(false);
     setFile(null);
+    setSourceName('');
     setParseError(null);
     setHeaders([]);
     setPreviewRows([]);
     setAllRows([]);
     setMapping({});
+    setAutoMapping({});
+    setNotes({});
+    setUsingTemplate(false);
     setShowMapping(false);
+    setFound(new Map());
+    setFindTried(new Set());
+    setPreflight(null);
     setTargetListId('');
     setListMode('none');
     setNewListName('');
+    setPasteText('');
+    setPasteOpen(false);
+    setUndone(false);
 
     setCreatedListName(null);
     setCompletedResult(null);
@@ -371,16 +625,7 @@ export function BulkImportPage() {
   const downloadErrors = () => {
     const details = completedResult?.errorDetails || [];
     if (details.length === 0) return;
-    const csv = 'email,reason\n' + details.map(
-      (e) => `"${(e.email || '').replace(/"/g, '""')}","${(e.reason || '').replace(/"/g, '""')}"`
-    ).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `import-errors-${Date.now()}.csv`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 100);
+    downloadCsv(`import-errors-${csvDate()}.csv`, ['email', 'reason'], details.map((e) => [e.email || '', e.reason || '']));
   };
 
   // Steps strip
@@ -391,6 +636,21 @@ export function BulkImportPage() {
     { id: 'complete',  label: 'Done',      icon: CheckCircle2 },
   ];
   const currentStepIdx = stepConfig.findIndex((s) => s.id === step);
+  const setAsideCount = prepared?.setAside.length ?? 0;
+  const existingCount = preflight?.existing ?? null;
+
+  /** One chip in the review card: column -> where it goes. */
+  const Chip = ({ h }: { h: string }) => {
+    const t = mapping[h] || '';
+    const label = t ? IMPORT_TARGET_LABELS[t as ImportTarget]?.replace(/ \(.*\)$/, '') : 'Skipped';
+    const same = label.toLowerCase() === h.toLowerCase();
+    return (
+      <span title={notes[h] || undefined} className="inline-flex items-center gap-1 max-w-full px-2 h-6 rounded-md bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-caption text-[var(--text-secondary)]">
+        <span className="truncate font-medium text-[var(--text-primary)]">{h}</span>
+        {!same && t && t !== '__custom__' && (<><ArrowRight className="h-2.5 w-2.5 flex-shrink-0 text-[var(--text-tertiary)]" /><span className="truncate">{label}</span></>)}
+      </span>
+    );
+  };
 
   return (
     <>
@@ -403,7 +663,7 @@ export function BulkImportPage() {
         ]}
         title={importAs === 'contact' ? 'Import contacts' : 'Import leads'}
         description={
-          step === 'upload' ? `Upload a CSV of your ${pageWord} - columns are detected automatically.`
+          step === 'upload' ? `Upload a CSV or Excel file of your ${pageWord}, or paste from a spreadsheet - columns are matched for you.`
             : step === 'map'
               ? (showMapping ? 'Tell us which column is which, then start the import.' : 'Everything is matched up. Check the numbers and start the import.')
               : step === 'importing' ? `Your ${pageWord} are being added in batches.`
@@ -461,7 +721,7 @@ export function BulkImportPage() {
             onDragLeave={() => setIsDragging(false)}
             onDrop={onDrop}
             className={cn(
-              'relative flex flex-col items-center justify-center min-h-[280px] rounded-2xl border-2 border-dashed cursor-pointer transition-all p-8 text-center',
+              'relative flex flex-col items-center justify-center min-h-[260px] rounded-2xl border-2 border-dashed cursor-pointer transition-all p-8 text-center',
               isDragging
                 ? 'border-[var(--indigo)] bg-[var(--indigo)]/5 scale-[1.005]'
                 : 'border-[var(--border-default)] bg-[var(--bg-surface)] hover:border-[var(--indigo)]/40 hover:bg-[var(--bg-hover)]'
@@ -469,9 +729,10 @@ export function BulkImportPage() {
           >
             <input
               type="file"
-              accept=".csv,.tsv,.txt"
+              accept=".csv,.tsv,.txt,.xlsx,.xlsm,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
               onChange={onFileInput}
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              aria-label="Choose a CSV or Excel file"
             />
             <span className={cn(
               'flex h-14 w-14 items-center justify-center rounded-2xl mb-4 transition-all',
@@ -479,15 +740,53 @@ export function BulkImportPage() {
                 ? 'bg-[var(--indigo)] text-white scale-110'
                 : 'bg-[var(--indigo)]/10 text-[var(--indigo-text)]'
             )}>
-              <Upload className="h-6 w-6" strokeWidth={1.5} />
+              {parsing ? <Loader2 className="h-6 w-6 animate-spin" /> : <Upload className="h-6 w-6" strokeWidth={1.5} />}
             </span>
             <p className="text-heading font-semibold text-[var(--text-primary)] mb-1">
-              {isDragging ? 'Drop your CSV here' : 'Drop a CSV file here or click to browse'}
+              {parsing ? 'Reading your file...' : isDragging ? 'Drop it here' : 'Drop a CSV or Excel file here, or click to browse'}
             </p>
             <p className="text-body text-[var(--text-secondary)]">
-              We support .csv, .tsv, and .txt files up to 50 MB
+              .csv, .tsv, .txt or .xlsx, up to 50 MB and 50,000 rows
             </p>
+            <div className="mt-4 flex flex-wrap justify-center gap-1.5" aria-label="Exports recognised automatically">
+              {['Apollo', 'Lemlist', 'HubSpot', 'Sales Navigator', 'ZoomInfo', 'Hunter', 'Google Sheets', 'Excel'].map((t) => (
+                <span key={t} className="px-2 h-6 inline-flex items-center rounded-full bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-caption text-[var(--text-secondary)]">{t}</span>
+              ))}
+            </div>
           </label>
+
+          {/* Paste: for the list that lives in a Google Sheet. */}
+          <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
+            <button
+              type="button"
+              onClick={() => setPasteOpen((v) => !v)}
+              aria-expanded={pasteOpen}
+              className="w-full flex items-center gap-2 px-4 py-3 text-left text-body font-medium text-[var(--text-primary)]"
+            >
+              <ClipboardPaste className="h-4 w-4 text-[var(--indigo-text)]" />
+              Paste from a spreadsheet instead
+              <ChevronDown className={cn('h-3.5 w-3.5 ml-auto text-[var(--text-tertiary)] transition-transform', pasteOpen && 'rotate-180')} />
+            </button>
+            {pasteOpen && (
+              <div className="px-4 pb-4 space-y-2">
+                <p className="text-caption text-[var(--text-tertiary)]">Select the cells in Google Sheets or Excel - including the header row - copy, and paste them here.</p>
+                <textarea
+                  aria-label="Pasted rows"
+                  value={pasteText}
+                  onChange={(e) => setPasteText(e.target.value)}
+                  rows={6}
+                  placeholder={'Email\tFirst name\tCompany\nada@analytical.io\tAda\tAnalytical'}
+                  className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-2.5 font-mono text-caption text-[var(--text-primary)] outline-none focus:border-[var(--indigo)] focus:ring-2 focus:ring-[var(--indigo)]/15"
+                />
+                <div className="flex justify-end">
+                  <button type="button" onClick={handlePaste} disabled={!pasteText.trim()} className="btn-primary">
+                    <ArrowRight className="h-3.5 w-3.5" />
+                    Use these rows
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
 
           {parseError && (
             <div className="flex items-start gap-2.5 px-3.5 py-2.5 rounded-lg bg-rose-500/10 border border-rose-500/25">
@@ -502,27 +801,27 @@ export function BulkImportPage() {
             </div>
           )}
 
-          {/* Requirements box */}
+          {/* What happens, so nobody tidies a file by hand first. */}
           <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4">
             <p className="text-caption font-bold text-[var(--text-tertiary)] mb-2.5">
-              Tips for a smooth import
+              No need to tidy the file first
             </p>
             <ul className="space-y-1.5 text-body text-[var(--text-secondary)]">
               <li className="flex items-start gap-2">
                 <Check className="h-3.5 w-3.5 text-emerald-500 mt-0.5 flex-shrink-0" />
-                <span>Your CSV must include a header row in the first line.</span>
+                <span>Columns are matched by name and by what is in them - person, company, LinkedIn, location, tags.</span>
               </li>
               <li className="flex items-start gap-2">
                 <Check className="h-3.5 w-3.5 text-emerald-500 mt-0.5 flex-shrink-0" />
-                <span>An <span className="font-mono text-caption px-1 py-0.5 rounded bg-[var(--bg-elevated)]">email</span> column is required — other fields are optional.</span>
+                <span>Anything unrecognised is kept as a custom field, never dropped. Repeated and bookkeeping columns are skipped.</span>
               </li>
               <li className="flex items-start gap-2">
                 <Check className="h-3.5 w-3.5 text-emerald-500 mt-0.5 flex-shrink-0" />
-                <span>Existing contacts are updated automatically (matched by email).</span>
+                <span>People without an email can be searched for, and anyone left out comes back as a file you can fix and re-upload.</span>
               </li>
               <li className="flex items-start gap-2">
                 <Check className="h-3.5 w-3.5 text-emerald-500 mt-0.5 flex-shrink-0" />
-                <span>Common column names like "First Name", "Company", or "LinkedIn" are detected for you.</span>
+                <span>People already here are matched by email - you choose whether the file fills blanks, updates them, or leaves them alone.</span>
               </li>
             </ul>
           </div>
@@ -530,7 +829,7 @@ export function BulkImportPage() {
       )}
 
       {/* ════════════════════════════════════════════════════════ */}
-      {/* STEP 2 — Map fields                                      */}
+      {/* STEP 2 — Review                                          */}
       {/* ════════════════════════════════════════════════════════ */}
       {step === 'map' && (
         <div className="space-y-4">
@@ -540,15 +839,29 @@ export function BulkImportPage() {
               <FileText className="h-4 w-4" />
             </span>
             <div className="flex-1 min-w-0">
-              <p className="text-strong font-semibold text-[var(--text-primary)] truncate">{file?.name}</p>
+              <p className="text-strong font-semibold text-[var(--text-primary)] truncate">{sourceName}</p>
               <p className="text-caption text-[var(--text-tertiary)]">
-                {bytes(file?.size || 0)} · {allRows.length.toLocaleString()} rows · {headers.length} columns
+                {file ? `${bytes(file.size)} · ` : ''}{allRows.length.toLocaleString()} rows · {headers.length} columns
               </p>
             </div>
             <button onClick={reset} className="icon-btn flex-shrink-0" title="Pick a different file" aria-label="Pick a different file">
               <RotateCcw className="h-3.5 w-3.5" />
             </button>
           </div>
+
+          {usingTemplate && (
+            <div className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg border border-[var(--indigo)]/25 bg-[var(--indigo-subtle)]" data-import-template>
+              <Bookmark className="h-4 w-4 text-[var(--indigo-text)] flex-shrink-0" />
+              <p className="flex-1 text-body text-[var(--text-primary)]">Using the column choices from the last time you imported a file like this.</p>
+              <button
+                type="button"
+                onClick={() => { setMapping(autoMapping); setUsingTemplate(false); }}
+                className="text-caption font-semibold text-[var(--indigo-text)] hover:underline flex-shrink-0"
+              >
+                Match automatically instead
+              </button>
+            </div>
+          )}
 
           {/* What will happen, in one card. For most files this is the whole
               review: the columns were matched, the rows were cleaned, and
@@ -563,12 +876,36 @@ export function BulkImportPage() {
                   <p className="text-body font-semibold text-[var(--text-primary)]">
                     {importableCount.toLocaleString()} {importableCount === 1 ? 'person' : 'people'} ready to import
                   </p>
-                  <p className="text-caption text-[var(--text-tertiary)] mt-0.5">
-                    Matched {recognised.named.join(', ')}
-                    {recognised.custom > 0 && ` · ${recognised.custom} more kept as custom field${recognised.custom === 1 ? '' : 's'}`}
-                  </p>
-                  {(prepared.duplicates > 0 || prepared.invalid > 0 || prepared.blank > 0) && (
+                  {/* The four numbers that decide whether to go, at a glance. */}
+                  <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2" data-import-preflight>
+                    {([
+                      { label: 'Ready', value: importableCount, tone: 'text-[var(--indigo-text)]', hint: 'Will be imported' },
+                      { label: 'New', value: preflight ? Math.max(0, importableCount - (existingCount || 0)) : null, tone: 'text-emerald-600 dark:text-emerald-400', hint: 'Not in Sincerely yet' },
+                      { label: 'Already here', value: preflight ? existingCount || 0 : null, tone: 'text-[var(--text-primary)]', hint: MODE_OPTIONS.find((m) => m.id === mode)!.label },
+                      { label: 'Not importing', value: setAsideCount, tone: setAsideCount ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--text-tertiary)]', hint: setAsideCount ? 'Download below' : 'Nothing left out' },
+                    ]).map((t) => (
+                      <div key={t.label} className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-3 py-2">
+                        <p className="text-micro font-bold text-[var(--text-tertiary)]">{t.label}</p>
+                        <p className={cn('text-title font-semibold tabular leading-tight', t.tone)}>
+                          {t.value == null ? <Loader2 className="h-4 w-4 animate-spin text-[var(--text-tertiary)] my-1" /> : t.value.toLocaleString()}
+                        </p>
+                        <p className="hidden sm:block text-caption text-[var(--text-tertiary)] truncate">{t.hint}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {!!preflight?.suppressed && (
+                    <p className="text-caption text-amber-700 dark:text-amber-400 mt-2">
+                      {preflight.suppressed.toLocaleString()} {preflight.suppressed === 1 ? 'is' : 'are'} on your suppression list - imported, but never emailed.
+                    </p>
+                  )}
+                  {(prepared.duplicates > 0 || prepared.invalid > 0 || prepared.blank > 0 || prepared.flaggedTotal > 0 || found.size > 0) && (
                     <ul className="mt-2.5 space-y-1 text-caption text-[var(--text-secondary)]">
+                      {found.size > 0 && (
+                        <li className="flex items-center gap-1.5">
+                          <Check className="h-3 w-3 text-emerald-500" strokeWidth={3} />
+                          {found.size.toLocaleString()} email{found.size === 1 ? '' : 's'} found for people who came without one
+                        </li>
+                      )}
                       {prepared.duplicates > 0 && (
                         <li className="flex items-center gap-1.5">
                           <Check className="h-3 w-3 text-emerald-500" strokeWidth={3} />
@@ -589,10 +926,25 @@ export function BulkImportPage() {
                       {prepared.blank > 0 && (
                         <li className="flex items-center gap-1.5">
                           <AlertTriangle className="h-3 w-3 text-amber-500" />
-                          {prepared.blank.toLocaleString()} with no email, left out
+                          {prepared.blank.toLocaleString()} with no email yet{findable.length > 0 ? ` - ${findable.length.toLocaleString()} can be searched for below` : ', left out'}
+                        </li>
+                      )}
+                      {prepared.flaggedTotal > 0 && (
+                        <li className="flex items-center gap-1.5">
+                          <AlertTriangle className="h-3 w-3 text-amber-500" />
+                          <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                            <input type="checkbox" checked={skipFlagged} onChange={(e) => setSkipFlagged(e.target.checked)} className="accent-[var(--indigo)]" />
+                            Leave out the {prepared.flaggedTotal.toLocaleString()} your old tool marked invalid, unsubscribed or bounced
+                          </label>
                         </li>
                       )}
                     </ul>
+                  )}
+                  {setAsideCount > 0 && (
+                    <button type="button" onClick={downloadSetAside} className="mt-2.5 inline-flex items-center gap-1.5 text-caption font-semibold text-[var(--indigo-text)] hover:underline" data-download-set-aside>
+                      <Download className="h-3 w-3" />
+                      Download the {setAsideCount.toLocaleString()} {setAsideCount === 1 ? 'row' : 'rows'} not being imported, with the reason for each
+                    </button>
                   )}
                 </div>
                 <button
@@ -606,6 +958,71 @@ export function BulkImportPage() {
                   <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', showMapping && 'rotate-180')} />
                 </button>
               </div>
+
+              {/* What went where, in plain groups: a wrong guess shows here
+                  without opening the table. */}
+              <div className="mt-4 grid gap-3 sm:grid-cols-2" data-import-review>
+                {([
+                  ['person', 'Person', User],
+                  ['company', 'Company', Building2],
+                  ['other', 'Tags and flags', TagIcon],
+                  ['custom', 'Kept as custom fields', Bookmark],
+                  ['skip', 'Skipped', X],
+                ] as const).filter(([k]) => review[k].length > 0).map(([k, title, Icon]) => (
+                  <div key={k} className="min-w-0">
+                    <p className="text-micro font-bold text-[var(--text-tertiary)] mb-1.5 flex items-center gap-1">
+                      <Icon className="h-3 w-3" />
+                      {title} <span className="font-normal">({review[k].length})</span>
+                    </p>
+                    {k === 'skip' ? (
+                      <ul className="space-y-0.5">
+                        {review.skip.map((h) => (
+                          <li key={h} className="text-caption text-[var(--text-secondary)] truncate">
+                            <span className="font-medium text-[var(--text-primary)]">{h}</span>
+                            {notes[h] && mapping[h] === autoMapping[h] ? <span className="text-[var(--text-tertiary)]"> - {notes[h]}</span> : null}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <div className="flex flex-wrap gap-1">
+                        {review[k].map((h) => <Chip key={h} h={h} />)}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Find emails for people who came without one. */}
+          {mappingValid && (findable.length > 0 || finding) && (
+            <div className="rounded-xl border border-[var(--border-subtle)] border-l-4 border-l-[var(--indigo)] bg-[var(--bg-surface)] p-4" data-import-find-emails>
+              <div className="flex items-start gap-3">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--indigo)]/10 text-[var(--indigo-text)] flex-shrink-0">
+                  <Search className="h-4 w-4" />
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-body font-semibold text-[var(--text-primary)]">
+                    {finding
+                      ? `Finding emails... ${finding.done.toLocaleString()} of ${finding.total.toLocaleString()} · ${finding.found.toLocaleString()} found`
+                      : `Find emails for ${findable.length.toLocaleString()} ${findable.length === 1 ? 'person' : 'people'} who came without one`}
+                  </p>
+                  <p className="text-caption text-[var(--text-tertiary)] mt-0.5">
+                    {preflight?.finder.available
+                      ? `Worked out free from company email conventions where possible; otherwise a search costs ${preflight.finder.price} credit, charged only when an email is found.`
+                      : 'Worked out from company email conventions and checked with the mail server - free. Only confident addresses are used.'}
+                  </p>
+                  {finding && (
+                    <div className="mt-2 h-1.5 bg-[var(--bg-elevated)] rounded-full overflow-hidden">
+                      <div className="h-full bg-[var(--indigo)] rounded-full transition-all" style={{ width: `${(finding.done / Math.max(1, finding.total)) * 100}%` }} />
+                    </div>
+                  )}
+                </div>
+                <button type="button" onClick={findEmails} disabled={!!finding} className="btn-primary flex-shrink-0">
+                  {finding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+                  {finding ? 'Searching' : 'Find emails'}
+                </button>
+              </div>
             </div>
           )}
 
@@ -615,7 +1032,7 @@ export function BulkImportPage() {
             <div className="px-4 py-3 border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)] flex items-center justify-between">
               <div>
                 <p className="text-body font-semibold text-[var(--text-primary)]">Column mapping</p>
-                <p className="text-caption text-[var(--text-tertiary)]">Match your CSV columns to contact fields. Skip any you don't need.</p>
+                <p className="text-caption text-[var(--text-tertiary)]">Match your columns to person or company fields. Skip any you don't need.</p>
               </div>
               <div className="flex items-center gap-1.5 text-caption text-[var(--text-tertiary)]">
                 <Eye className="h-3 w-3" />
@@ -628,44 +1045,58 @@ export function BulkImportPage() {
                   .map((r) => r[h])
                   .filter((v) => v && String(v).trim())
                   .slice(0, 3);
-                const isDuplicate = !!mapping[h] && mapping[h] !== '__custom__' && mappedFields.filter((f) => f === mapping[h]).length > 1;
+                const isDuplicate = !!mapping[h] && mapping[h] !== '__custom__' && mapping[h] !== 'do_not_contact'
+                  && mappedFields.filter((f) => f === mapping[h]).length > 1;
                 const isEmail = mapping[h] === 'email';
                 return (
                   <div key={`${h}-${i}`} className="grid grid-cols-[1fr,auto,1fr] gap-3 items-center px-4 py-2.5">
                     <div className="min-w-0">
                       <p className="text-body font-mono font-semibold text-[var(--text-primary)] truncate">{h}</p>
-                      {samples.length > 0 && (
+                      {samples.length > 0 ? (
                         <p className="text-caption text-[var(--text-tertiary)] truncate">
                           {samples.map((s) => `"${s}"`).join('  ·  ')}
                         </p>
+                      ) : (
+                        <p className="text-caption text-[var(--text-tertiary)] italic">empty in the first rows</p>
                       )}
                     </div>
                     <ArrowRight className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
-                    <div className="flex items-center gap-2">
-                      <select aria-label={`Map column ${h} to`}
-                        value={mapping[h] || ''}
-                        onChange={(e) => setMapping({ ...mapping, [h]: e.target.value })}
-                        className={cn(
-                          'flex-1 h-8 px-2.5 rounded-md border bg-[var(--bg-elevated)] text-body text-[var(--text-primary)] outline-none transition-all',
-                          isDuplicate ? 'border-rose-500/50 focus:ring-2 focus:ring-rose-500/20'
-                            : isEmail   ? 'border-emerald-500/40 focus:ring-2 focus:ring-emerald-500/20'
-                                        : 'border-[var(--border-subtle)] focus:border-[var(--indigo)] focus:ring-2 focus:ring-[var(--indigo)]/15'
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <select aria-label={`Map column ${h} to`}
+                          value={mapping[h] || ''}
+                          onChange={(e) => { setMapping({ ...mapping, [h]: e.target.value }); setUsingTemplate(false); }}
+                          className={cn(
+                            'flex-1 min-w-0 h-8 px-2.5 rounded-md border bg-[var(--bg-elevated)] text-body text-[var(--text-primary)] outline-none transition-all',
+                            isDuplicate ? 'border-rose-500/50 focus:ring-2 focus:ring-rose-500/20'
+                              : isEmail   ? 'border-emerald-500/40 focus:ring-2 focus:ring-emerald-500/20'
+                                          : 'border-[var(--border-subtle)] focus:border-[var(--indigo)] focus:ring-2 focus:ring-[var(--indigo)]/15'
+                          )}
+                        >
+                          {IMPORT_TARGET_GROUPS.map((g) => (
+                            <optgroup key={g.label} label={g.label}>
+                              {g.targets.map((t) => (
+                                <option key={t || 'skip'} value={t}>
+                                  {t === '' ? '— Skip this column —' : t === 'email' ? 'Email (required)' : IMPORT_TARGET_LABELS[t]}
+                                </option>
+                              ))}
+                            </optgroup>
+                          ))}
+                        </select>
+                        {isEmail && (
+                          <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-micro font-bold flex-shrink-0">
+                            <MailCheck className="h-2.5 w-2.5" />
+                            KEY
+                          </span>
                         )}
-                      >
-                        {DB_FIELDS.map((f) => (
-                          <option key={f.value} value={f.value}>{f.label}</option>
-                        ))}
-                      </select>
-                      {isEmail && (
-                        <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-micro font-bold flex-shrink-0">
-                          <MailCheck className="h-2.5 w-2.5" />
-                          KEY
-                        </span>
-                      )}
-                      {isDuplicate && (
-                        <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded bg-rose-500/10 text-rose-700 dark:text-rose-400 text-micro font-bold flex-shrink-0">
-                          DUP
-                        </span>
+                        {isDuplicate && (
+                          <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded bg-rose-500/10 text-rose-700 dark:text-rose-400 text-micro font-bold flex-shrink-0">
+                            DUP
+                          </span>
+                        )}
+                      </div>
+                      {notes[h] && mapping[h] === autoMapping[h] && (
+                        <p className="text-caption text-[var(--text-tertiary)] mt-0.5 truncate" title={notes[h]}>{notes[h]}</p>
                       )}
                     </div>
                   </div>
@@ -674,6 +1105,74 @@ export function BulkImportPage() {
             </div>
           </div>
           )}
+
+          {/* People already here, and tags. */}
+          <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4 space-y-4">
+            <div>
+              <p className="text-body font-semibold text-[var(--text-primary)]">
+                People already in Sincerely{existingCount ? ` (${existingCount.toLocaleString()} in this file)` : ''}
+              </p>
+              <div role="radiogroup" aria-label="People already in Sincerely" className="mt-2 grid gap-2 sm:grid-cols-3">
+                {MODE_OPTIONS.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={mode === m.id}
+                    onClick={() => setMode(m.id)}
+                    className={cn(
+                      'text-left rounded-lg border px-3 py-2 transition-colors',
+                      mode === m.id ? 'border-[var(--indigo)] bg-[var(--indigo-subtle)]' : 'border-[var(--border-subtle)] hover:bg-[var(--bg-hover)]',
+                    )}
+                  >
+                    <span className="block text-body font-semibold text-[var(--text-primary)]">{m.label}</span>
+                    <span className="block text-caption text-[var(--text-tertiary)]">{m.hint}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-body font-semibold text-[var(--text-primary)]">Tag everyone in this import <span className="font-normal text-[var(--text-tertiary)]">(optional)</span></p>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                {(allTags || []).map((t) => {
+                  const on = tagIds.includes(t.id);
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => setTagIds((prev) => (on ? prev.filter((x) => x !== t.id) : [...prev, t.id]))}
+                      className={cn(
+                        'inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full border text-caption font-medium transition-colors',
+                        on ? 'border-[var(--indigo)] bg-[var(--indigo-subtle)] text-[var(--indigo-text)]' : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]',
+                      )}
+                    >
+                      <span className="h-2 w-2 rounded-full" style={{ background: t.color }} />
+                      {t.name}
+                      {on && <Check className="h-3 w-3" strokeWidth={3} />}
+                    </button>
+                  );
+                })}
+                <form onSubmit={(e) => { e.preventDefault(); addNewTag(); }} className="inline-flex items-center gap-1">
+                  <input
+                    aria-label="New tag"
+                    value={newTag}
+                    onChange={(e) => setNewTag(e.target.value)}
+                    placeholder="New tag"
+                    maxLength={50}
+                    className="h-7 w-28 px-2 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-caption text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+                  />
+                  {newTag.trim() && (
+                    <button type="submit" className="icon-btn" aria-label="Add tag"><Plus className="h-3.5 w-3.5" /></button>
+                  )}
+                </form>
+              </div>
+              {review.other.some((h) => mapping[h] === 'tags') && (
+                <p className="text-caption text-[var(--text-tertiary)] mt-1">Tags in your file's "{review.other.find((h) => mapping[h] === 'tags')}" column are added too.</p>
+              )}
+            </div>
+          </div>
 
           {/* List assignment */}
           <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4">
@@ -810,15 +1309,24 @@ export function BulkImportPage() {
             </div>
           )}
 
-          {/* Action bar */}
-          <div className="flex items-center justify-between pt-2">
+          {/* Action bar - stays in view, so the button is never a scroll away. */}
+          <div className="sticky bottom-0 z-10 -mx-1 px-1 py-3 flex items-center justify-between gap-3 border-t border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-[0_-8px_16px_-12px_rgba(0,0,0,0.25)]" data-import-actions>
             <button
               onClick={reset}
-              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all"
+              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all flex-shrink-0"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
-              Pick a different file
+              <span className="hidden sm:inline">Pick a different file</span>
+              <span className="sm:hidden">Back</span>
             </button>
+            <p className="hidden md:block flex-1 min-w-0 text-caption text-[var(--text-tertiary)] truncate text-center">
+              {[
+                importAs === 'contact' ? 'As contacts' : 'As leads',
+                listMode === 'existing' && targetListId ? `into "${(lists || []).find((l) => l.id === targetListId)?.name ?? 'list'}"` : listMode === 'new' && newListName.trim() ? `into new list "${newListName.trim()}"` : 'no list',
+                tagIds.length ? `${tagIds.length} tag${tagIds.length === 1 ? '' : 's'}` : null,
+                `existing: ${MODE_OPTIONS.find((m) => m.id === mode)!.label.toLowerCase()}`,
+              ].filter(Boolean).join(' · ')}
+            </p>
             {/* Three conditions used to share one grey rectangle, and the
                 explanation that WAS written here never appeared: a disabled
                 control dispatches no pointer events, so its title is not
@@ -835,8 +1343,7 @@ export function BulkImportPage() {
               )}
             >
               <Users className="h-3.5 w-3.5" />
-              Import {importableCount.toLocaleString()} contact{importableCount === 1 ? '' : 's'}
-              {listMode === 'new' && newListName.trim() && !duplicateListName && ` into "${newListName.trim()}"`}
+              Import {importableCount.toLocaleString()} {importableCount === 1 ? pageWord.slice(0, -1) : pageWord}
             </button>
           </div>
         </div>
@@ -1040,7 +1547,11 @@ export function BulkImportPage() {
             <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-3 space-y-1">
               {completedResult.updated > 0 && (
                 <p className="text-body text-[var(--text-secondary)]">
-                  {completedResult.created.toLocaleString()} new, {completedResult.updated.toLocaleString()} already in your contacts - for those, only empty fields were filled in.
+                  {completedResult.created.toLocaleString()} new, {completedResult.updated.toLocaleString()} already in Sincerely - {mode === 'overwrite'
+                    ? 'for those, the values in your file replaced what was there (empty cells changed nothing).'
+                    : mode === 'skip'
+                      ? 'those were left exactly as they were.'
+                      : 'for those, only empty fields were filled in.'}
                 </p>
               )}
               {completedResult.suppressed > 0 && (
@@ -1048,6 +1559,20 @@ export function BulkImportPage() {
                   {completedResult.suppressed.toLocaleString()} {completedResult.suppressed === 1 ? 'address is' : 'addresses are'} on your suppression list, so no campaign will email {completedResult.suppressed === 1 ? 'it' : 'them'}.
                 </p>
               )}
+            </div>
+          )}
+
+          {/* The rows that never went in, to fix and re-upload. */}
+          {setAsideCount > 0 && (
+            <div className="flex items-center gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-3">
+              <AlertTriangle className="h-4 w-4 text-amber-500 flex-shrink-0" />
+              <p className="flex-1 text-body text-[var(--text-secondary)]">
+                {setAsideCount.toLocaleString()} {setAsideCount === 1 ? 'row was' : 'rows were'} not imported (no email, not an address, or marked by your old tool).
+              </p>
+              <button type="button" onClick={downloadSetAside} className="btn-secondary flex-shrink-0">
+                <Download className="h-3.5 w-3.5" />
+                Download them
+              </button>
             </div>
           )}
 
@@ -1082,13 +1607,27 @@ export function BulkImportPage() {
 
           {/* Action bar */}
           <div className="flex items-center justify-between pt-2">
-            <button
-              onClick={reset}
-              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all"
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-              Import another file
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={reset}
+                className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                Import another file
+              </button>
+              {/* A wrong file is one click to take back, not an afternoon. */}
+              {completedResult.createdIds.length > 0 && !undone && (
+                <button
+                  onClick={undoImport}
+                  className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-body font-medium text-[var(--text-secondary)] hover:text-rose-600 hover:bg-rose-500/10 transition-all"
+                  data-undo-import
+                >
+                  <Undo2 className="h-3.5 w-3.5" />
+                  Undo import
+                </button>
+              )}
+              {undone && <span className="text-caption text-[var(--text-tertiary)]">Import undone</span>}
+            </div>
             <div className="flex items-center gap-2">
               {/* The next thing almost everyone does with a fresh list, one
                   click away instead of three pages. */}

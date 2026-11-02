@@ -44,7 +44,45 @@ export interface BulkImportResult {
   suppressed?: number;
   errors: number;
   duplicates_collapsed?: number;
+  /** Contacts this batch created (not ones that already existed), for undo. */
+  created_ids?: string[];
   error_details: { email: string; reason: string }[];
+}
+
+export interface ImportPreflight {
+  existing: number;
+  suppressed: number;
+  checked: number;
+  /** Whether a paid email search can run for rows with no email, and its price. */
+  finder: { available: boolean; price: number };
+}
+
+export interface ImportFindPerson {
+  key: string;
+  first_name?: string;
+  last_name?: string;
+  full_name?: string;
+  company?: string;
+  domain?: string;
+  linkedin_url?: string;
+}
+
+export interface ImportFindResponse {
+  results: Array<{ key: string; email: string | null; via: 'pattern' | 'provider' | null; reason: string | null }>;
+  out_of_credits: boolean;
+  credits: { remaining: number } | null;
+}
+
+export interface ExportRequest {
+  contactIds?: string[];
+  listId?: string;
+  segmentId?: string;
+  lifecycle?: ContactsListParams['lifecycle'];
+  search?: string;
+  company?: string;
+  outreach?: string;
+  verificationStatus?: string;
+  columns?: string[];
 }
 
 // The duplicates UI reads groups.length and total straight away, so an
@@ -54,6 +92,15 @@ function duplicateGroups(data: unknown): { groups: DuplicateGroup[]; total: numb
   const body = data as { groups?: unknown; total?: unknown } | null;
   if (!body || !Array.isArray(body.groups)) throw new Error('Duplicates could not be loaded');
   return { groups: body.groups as DuplicateGroup[], total: typeof body.total === 'number' ? body.total : body.groups.length };
+}
+
+function exportBody(req: ExportRequest, format: 'csv' | 'table') {
+  return {
+    format,
+    contact_ids: req.contactIds, list_id: req.listId, segment_id: req.segmentId, lifecycle: req.lifecycle,
+    search: req.search, company: req.company, outreach: req.outreach, verification_status: req.verificationStatus,
+    columns: req.columns,
+  };
 }
 
 export const contactsApi = {
@@ -129,18 +176,37 @@ export const contactsApi = {
     importSource?: string,
     /** 'contacts' files everyone in the batch as a contact, not a prospect. */
     context?: 'contacts',
+    options: { mode?: 'fill' | 'overwrite' | 'skip'; tagIds?: string[] } = {},
   ) => {
     const { data } = await apiClient.post<BulkImportResult>(
       '/contacts/bulk',
-      { contacts, list_id: listId, import_source: importSource, context }
+      { contacts, list_id: listId, import_source: importSource, context, mode: options.mode, tag_ids: options.tagIds }
     );
     return data;
   },
 
-  export: async (contactIds?: string[], format: 'csv' | 'json' = 'csv', listId?: string, segmentId?: string, lifecycle?: ContactsListParams['lifecycle']) => {
-    const { data } = await apiClient.post('/contacts/export', { contact_ids: contactIds, format, list_id: listId, segment_id: segmentId, lifecycle }, {
-      responseType: format === 'csv' ? 'blob' : 'json',
-    });
+  /** Before an import: how many of these are already here, and how many suppressed. */
+  importPreflight: async (emails: string[]) => {
+    const { data } = await apiClient.post<ImportPreflight>('/contacts/import/preflight', { emails });
+    return data;
+  },
+
+  /** Find addresses for rows that came without one. At most 25 per call. */
+  importFindEmails: async (people: ImportFindPerson[], allowPaid = true) => {
+    const { data } = await apiClient.post<ImportFindResponse>('/contacts/import/find-emails', { people, allow_paid: allowPaid }, { timeout: 180_000 });
+    return data;
+  },
+
+  /** A CSV file (as a Blob). */
+  exportCsv: async (req: ExportRequest) => {
+    const { data } = await apiClient.post('/contacts/export', exportBody(req, 'csv'), { responseType: 'blob', timeout: 180_000 });
+    return data as Blob;
+  },
+
+  /** The same sheet as rows, for building an Excel file in the browser. */
+  exportTable: async (req: ExportRequest) => {
+    const { data } = await apiClient.post<{ header: string[]; rows: Array<Array<string | number | boolean | null>> }>(
+      '/contacts/export', exportBody(req, 'table'), { timeout: 180_000 });
     return data;
   },
 
