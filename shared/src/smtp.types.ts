@@ -161,6 +161,8 @@ export interface WarmupAccountStatus {
   from_name: string | null;
   label: string;
   warmup_mode: boolean;
+  /** In the shared warm-up network (migration 108). */
+  warmup_network: boolean;
   is_verified: boolean;
   health_score: number;
   /** Ramp progress */
@@ -192,10 +194,20 @@ export interface WarmupSummary {
   total_warming: number;
   sent_7d: number;
   replied_7d: number;
+  /**
+   * The shared network: how many mailboxes belonging to other Sincerely
+   * accounts are in it and able to receive. A count only, never addresses.
+   */
+  network_peers: number;
+  /** How many of this account's mailboxes have joined. */
+  network_joined: number;
 }
 
 export interface SetWarmupInput {
-  enabled: boolean;
+  /** Left out to change only the settings below. */
+  enabled?: boolean;
+  /** Join or leave the shared warm-up network. */
+  warmup_network?: boolean;
   warmup_daily_target?: number;
   warmup_start_volume?: number;
   warmup_ramp_days?: number;

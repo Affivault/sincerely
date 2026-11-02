@@ -6,7 +6,7 @@ import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
 import { Card } from '../../components/shared/Card';
 import { cn } from '../../lib/utils';
-import { Flame, TrendingUp, Send, Reply, ShieldCheck, Play, Pause, Settings2, MailCheck, CheckCircle2, Plus, ArrowUp, Sparkles } from 'lucide-react';
+import { Flame, TrendingUp, Send, Reply, ShieldCheck, Play, Pause, Settings2, MailCheck, CheckCircle2, Plus, ArrowUp, Sparkles, Users } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { WarmupAccountStatus, WarmupSummary } from '@lemlist/shared';
 
@@ -87,15 +87,15 @@ function SetupGuide({ summary, onAddMailbox, onEnable }: {
 
   const steps = [
     {
-      done: connected >= 2,
+      done: connected >= 2 || summary.network_joined > 0,
       title: 'Connect at least 2 mailboxes',
       status: `${connected}/2`,
-      desc: 'Warm-up works by having your inboxes send friendly emails to each other, so you need at least two. Most senders run 2–4 mailboxes across one or two domains.',
+      desc: 'Warm-up works by having inboxes send friendly emails to each other. Connect a second mailbox, or join the Sincerely warm-up network below to warm up with other accounts.',
       tip: 'No second inbox yet? Create another address at your email provider (e.g. a second name@yourdomain mailbox) — each one is a real inbox you log into — then connect it here.',
       action: onAddMailbox ? { label: 'Add a mailbox', icon: Plus, onClick: onAddMailbox } : undefined,
     },
     {
-      done: verified >= 2,
+      done: verified >= 2 || (verified >= 1 && summary.network_joined > 0),
       title: 'Verify each mailbox',
       status: `${verified}/${connected || 0} verified`,
       desc: 'Warm-up only uses verified inboxes. Hit “Test” on each mailbox in the list above to confirm it can send.',
@@ -104,7 +104,7 @@ function SetupGuide({ summary, onAddMailbox, onEnable }: {
       hintUp: true,
     },
     {
-      done: warming >= 2,
+      done: warming >= 2 || (warming >= 1 && summary.network_joined > 0),
       title: 'Turn on warm-up',
       status: `${warming} on`,
       desc: 'Enable warm-up on each verified mailbox and pick a ramp. From there it runs itself — we trickle emails between them, open and reply, and rescue anything that lands in spam.',
@@ -164,6 +164,76 @@ function SetupGuide({ summary, onAddMailbox, onEnable }: {
   );
 }
 
+/* ── The shared warm-up network ───────────────────────────────────────
+   Mailboxes that join warm each other across Sincerely accounts, so an
+   account whose mailboxes are all at one provider still reaches Gmail,
+   Outlook and the rest. Opt-in, per mailbox, and reversible. */
+function NetworkCard({ summary }: { summary: WarmupSummary }) {
+  const qc = useQueryClient();
+  const eligible = summary.accounts.filter((a) => a.is_verified);
+  const joined = eligible.filter((a) => a.warmup_network);
+  const allIn = eligible.length > 0 && joined.length === eligible.length;
+
+  const toggle = useMutation({
+    mutationFn: async (join: boolean) => {
+      const targets = eligible.filter((a) => a.warmup_network !== join);
+      for (const a of targets) await smtpApi.setWarmup(a.id, { warmup_network: join });
+      return targets.length;
+    },
+    onSuccess: (_n, join) => {
+      qc.invalidateQueries({ queryKey: ['warmup'] });
+      toast.success(join ? 'Joined the warm-up network' : 'Left the warm-up network');
+    },
+    onError: (e: any) => {
+      qc.invalidateQueries({ queryKey: ['warmup'] });
+      toast.error(e.response?.data?.error || 'Could not change the network setting');
+    },
+  });
+
+  if (eligible.length === 0) return null;
+
+  return (
+    <Card padding="md" className="mb-3" data-warmup-network={joined.length > 0 ? 'joined' : 'off'}>
+      <div className="flex flex-col sm:flex-row sm:items-start gap-3">
+        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--indigo)]/10 flex-shrink-0">
+          <Users className="h-4 w-4 text-[var(--indigo)]" />
+        </span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-strong font-semibold text-[var(--text-primary)]">Sincerely warm-up network</p>
+            {joined.length > 0 && (
+              <span className="text-micro font-medium px-1.5 h-[18px] inline-flex items-center rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 tabular">
+                {joined.length} of {eligible.length} joined
+              </span>
+            )}
+          </div>
+          <p className="text-body text-[var(--text-secondary)] mt-1 leading-relaxed">
+            Warm up with other Sincerely mailboxes as well as your own, so your mail reaches
+            different providers. Warm-up mail you receive is opened, answered and filed in a
+            “Sincerely Warm-up” folder automatically. It never shows in your inbox or Unibox.
+          </p>
+          <p className="text-caption text-[var(--text-tertiary)] mt-1.5">
+            {summary.network_peers > 0
+              ? `${summary.network_peers} mailbox${summary.network_peers === 1 ? '' : 'es'} from other accounts in the network right now.`
+              : 'No other accounts have joined yet. Your mailboxes will start warming with them as they do.'}
+            {' '}Each mailbox receives at most 15 network emails a day.
+          </p>
+        </div>
+        <div className="flex-shrink-0">
+          <Button
+            variant={allIn ? 'secondary' : 'primary'}
+            size="sm"
+            onClick={() => toggle.mutate(!allIn)}
+            disabled={toggle.isPending}
+          >
+            {toggle.isPending ? 'Saving…' : allIn ? 'Leave network' : joined.length > 0 ? 'Add all mailboxes' : 'Join network'}
+          </Button>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 function Metric({ icon: Icon, value, label }: { icon: typeof Send; value: number; label: string }) {
   return (
     <div className="flex items-center gap-1.5" title={label}>
@@ -188,7 +258,9 @@ export function WarmupPanel({ onAddMailbox }: { onAddMailbox?: () => void }) {
   if (!data) return null;
 
   const eligible = data.accounts.filter((a) => a.is_verified);
-  const ready = eligible.length >= 2 && data.total_warming >= 2;
+  const ready = data.network_joined > 0
+    ? data.total_warming >= 1
+    : eligible.length >= 2 && data.total_warming >= 2;
 
   return (
     <>
@@ -229,6 +301,8 @@ export function WarmupPanel({ onAddMailbox }: { onAddMailbox?: () => void }) {
         </div>
       )}
 
+      <NetworkCard summary={data} />
+
       {!ready && <SetupGuide summary={data} onAddMailbox={onAddMailbox} onEnable={(a) => setConfig(a)} />}
 
       {eligible.length > 0 && (
@@ -244,6 +318,7 @@ export function WarmupPanel({ onAddMailbox }: { onAddMailbox?: () => void }) {
                 <div className="min-w-0">
                   <p className="text-strong font-medium text-[var(--text-primary)] truncate">{a.from_name || a.label}</p>
                   <p className="text-caption text-[var(--text-tertiary)] truncate">{a.email_address}</p>
+                  {a.warmup_network && <p className="text-micro text-[var(--indigo)] mt-0.5 inline-flex items-center gap-1"><Users className="h-3 w-3" /> In the network</p>}
                 </div>
               </div>
 

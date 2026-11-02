@@ -111,11 +111,12 @@ console.log('\nthe send path uses the ranking, and the panel says what the pool 
   const svc = readFileSync(join(here, '../src/services/warmup.service.ts'), 'utf8');
   const panel = readFileSync(join(here, '../../client/src/pages/smtp/WarmupPanel.tsx'), 'utf8');
 
-  is('the recipient comes from the ranking', /const ranked = rankPeers\(sender, all/.test(svc),
+  is('the recipient comes from the ranking', /const ranked = rankPeers\(sender, \[\.\.\.own, \.\.\.strangers\]/.test(svc),
      'peers are still being picked at random');
   is('and not from pick()', !/const recipient = pick\(peers\)/.test(svc));
   is('peers carry their SMTP host, or the provider cannot be told',
-     /select\('id, user_id, email_address, smtp_host'\)/.test(svc));
+     /select\('id, user_id, email_address, from_name, smtp_host'\)/.test(svc)
+     && /select\('id, user_id, email_address, from_name, smtp_host, warmup_network/.test(svc));
 
   is('the summary grades the pool, not just counts it', /pool_quality: best/.test(svc));
   is('the panel says so when the pool cannot help',

@@ -20,7 +20,7 @@ import {
   planForward,
   windowStart,
 } from '../utils/imap-window.js';
-import { DEFAULT_SYNC_WINDOW_MONTHS, isSyncWindow } from '@lemlist/shared';
+import { DEFAULT_SYNC_WINDOW_MONTHS, isSyncWindow, isWarmupMessageId } from '@lemlist/shared';
 import type { InboxSyncResult, SyncFolderRole, SyncWindowMonths } from '@lemlist/shared';
 import { repairImapHost } from './mailbox-repair.service.js';
 import { isSenderMismatch } from '@lemlist/shared';
@@ -380,6 +380,8 @@ async function ingest(msg: any, ctx: IngestContext): Promise<boolean> {
   const subject = envelope.subject || '';
   const messageId = envelope.messageId || '';
   const inReplyTo = envelope.inReplyTo || '';
+  // Belt and braces for any path that reaches here without ingestRange.
+  if (isWarmupMessageId(messageId)) return false;
 
   let bodyText = '';
   let bodyHtml: string | undefined;
@@ -740,7 +742,14 @@ async function ingestRange(
   // second pass to make for it. Servers that answer a uid: true fetch
   // without one do not exist in practice; this is only so that one could not
   // wedge the loop.
-  const wanted = heads.filter((h) => h.uid > 0 && !(h.messageId && held.has(h.messageId)));
+  /*
+   * Warm-up mail is never ingested. With the shared warm-up network it
+   * arrives from other people's mailboxes, and it would otherwise sit in the
+   * Unibox as a stranger writing in, or be read as a prospect replying.
+   * Skipped here, before its body is ever downloaded; the warm-up engine
+   * reads and files it on its own.
+   */
+  const wanted = heads.filter((h) => h.uid > 0 && !isWarmupMessageId(h.messageId) && !(h.messageId && held.has(h.messageId)));
   if (wanted.length === 0) return { stored: 0, highestUid };
 
   let stored = 0;
