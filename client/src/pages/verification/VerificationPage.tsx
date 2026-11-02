@@ -208,8 +208,9 @@ export function VerificationPage() {
             <span className="font-medium text-[var(--text-primary)]">
               Mailbox checks are not running on this server.
             </span>{' '}
-            {stats.smtp.last_reason} Scores above 60 are only possible once a mail server can be
-            reached, so anything recorded at 100 before this was measured, not proven.{' '}
+            {stats.smtp.last_reason} The free check stops at 60 until a mail server can be reached.
+            The Verify buttons still check mailboxes through Icypeas (0.1 Icypeas credit each)
+            {stats.smtp.via !== 'proxy' && ', and an SMTP proxy would let the free check run too'}.{' '}
             {stats.smtp.retry_after_seconds != null && (
               <span className="text-[var(--text-tertiary)]">
                 Rechecking automatically in {formatRetryEta(stats.smtp.retry_after_seconds)} — this banner
