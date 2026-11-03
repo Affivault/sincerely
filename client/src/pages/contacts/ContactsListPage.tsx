@@ -144,7 +144,7 @@ import { Notice } from '../../components/ui/Notice';
 import { EngagementCell } from '../../components/contacts/Engagement';
 import { DuplicatesBanner } from '../../components/contacts/Duplicates';
 import { ExportDialog } from '../../components/contacts/ExportDialog';
-import { EmailHealth } from '../../components/contacts/EmailLights';
+import { LightChips } from '../../components/contacts/EmailLights';
 import { HeldPeoplePanel } from '../../components/contacts/HeldPeoplePanel';
 import { SelectionBar, type BarAction } from '../../components/contacts/SelectionBar';
 import { ListsRail, LIST_COLORS } from '../../components/contacts/ListsRail';
@@ -1950,17 +1950,20 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
         {/* Traffic lights - who can be emailed. Click to filter; several at
             once is fine. "No email" shows the people held without one. */}
         {breakdown && (
-          <EmailHealth
-            counts={lightCounts(breakdown)}
-            active={lights}
-            onChange={setLights}
-            aside={listKind === 'lead' ? (
-              <span className="inline-flex items-center gap-1.5 h-6 px-2 rounded-md text-caption font-medium text-[var(--text-secondary)] bg-[var(--bg-elevated)]" title="Leads with a LinkedIn profile on file">
+          <div className="flex items-center gap-2 flex-wrap">
+            <LightChips
+              counts={lightCounts(breakdown)}
+              total={breakdown.total + (breakdown.no_email || 0)}
+              active={lights}
+              onChange={setLights}
+            />
+            {listKind === 'lead' && (
+              <span className="ml-auto inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-body font-medium bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-secondary)]" title="Leads with a LinkedIn profile on file">
                 <Linkedin className="h-3 w-3 text-[#0A66C2]" />
                 {breakdown.with_linkedin.toLocaleString()} on LinkedIn
               </span>
-            ) : undefined}
-          />
+            )}
+          </div>
         )}
 
         {/* Search and filters bar */}
