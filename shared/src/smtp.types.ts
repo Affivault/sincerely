@@ -2,6 +2,8 @@ import type { PoolQuality } from './warmup-pool.js';
 
 export interface SmtpAccount {
   id: string;
+  /** 'microsoft': signs in with Microsoft (migration 114), no password. */
+  auth_kind?: 'password' | 'microsoft';
   user_id: string;
   label: string;
   /** Human display name shown to recipients in the From header (e.g. "Thomas Vance"). Falls back to label when unset. */

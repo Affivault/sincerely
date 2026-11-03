@@ -13,6 +13,7 @@ import { personaliseBookingLinks } from '../utils/booking-token.js';
 import { settingsService } from './settings.service.js';
 import { trackingBaseUrl } from './tracking-domain.service.js';
 import { isLinkedinStep } from '@lemlist/shared';
+import { mailboxSecret, smtpAuth, describeMicrosoftSmtpError } from './mailbox-oauth.service.js';
 
 /**
  * Email Sender Service
@@ -70,6 +71,11 @@ interface SmtpSendParams {
  */
 export function describeSmtpError(err: any, opts?: { withRelayHint?: boolean }): string {
   const raw = String(err?.message || err || '').toLowerCase();
+  // Microsoft 365's own refusals (SMTP sign-in switched off, token refused).
+  const microsoft = describeMicrosoftSmtpError(raw);
+  if (microsoft) return microsoft;
+  // A Microsoft mailbox whose sign-in could not be renewed says so itself.
+  if (/microsoft sign-in/.test(raw)) return String(err?.message || err);
   const wantHint = opts?.withRelayHint !== false;
   const relayActive = !!(env.SMTP_RELAY_URL && env.SMTP_RELAY_SECRET);
   // A timeout with no relay configured almost always means the hosting
@@ -106,7 +112,7 @@ export function describeSmtpError(err: any, opts?: { withRelayHint?: boolean }):
   }
 
   if (raw.includes('invalid login') || raw.includes('auth') || raw.includes('535') || raw.includes('credentials') || raw.includes('username and password'))
-    return 'Authentication failed — check the username/password. Gmail & Outlook need an app password, not your normal login.';
+    return 'Authentication failed — check the username/password. Gmail needs an app password, not your normal login. For Outlook, Hotmail or Microsoft 365, use "Connect with Microsoft" instead: Microsoft no longer accepts passwords.';
   if (raw.includes('etimedout') || raw.includes('timeout') || raw.includes('timed out'))
     // Suggesting a different port is actively misleading once a relay is in
     // play — the port isn't the thing that's broken.
@@ -407,7 +413,8 @@ async function sendDirect(params: SmtpSendParams): Promise<SmtpSendResult> {
     host: connectHost,
     port: params.smtpPort,
     secure: params.smtpSecure,
-    auth: { user: params.smtpUser, pass: params.smtpPass },
+    // A password, or for a Microsoft mailbox a sign-in token (mailbox-oauth).
+    auth: smtpAuth(params.smtpUser, params.smtpPass),
     // Validate the certificate against the real hostname even when we dialed an IP.
     tls: { servername: params.smtpHost },
     connectionTimeout: budget ?? 15000,
@@ -773,7 +780,7 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
   // 3. Decrypt SMTP password
   let smtpPassword: string;
   try {
-    smtpPassword = decrypt(smtpAccount.smtp_pass_encrypted);
+    smtpPassword = await mailboxSecret(smtpAccount.smtp_pass_encrypted);
   } catch (err: any) {
     // Selection above already reserved a warm-up/ramp slot on smtpAccount —
     // annotate so the caller can refund it, same as a failed SMTP send does.

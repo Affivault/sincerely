@@ -11,6 +11,7 @@ import {
   type ProbePlacement, type MailProvider,
 } from '@lemlist/shared';
 import { guardImap } from '../utils/imap-guard.js';
+import { mailboxSecret, imapAuth } from './mailbox-oauth.service.js';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Finding out where the mail actually landed.
@@ -220,7 +221,7 @@ export const placementService = {
     // written; mark it failed rather than leave it "sending" forever.
     let password: string;
     try {
-      password = decrypt(sender.smtp_pass_encrypted);
+      password = await mailboxSecret(sender.smtp_pass_encrypted);
     } catch {
       await supabaseAdmin.from('placement_tests')
         .update({ status: 'failed', error: 'The mailbox password could not be read. Re-enter it and try again.', completed_at: new Date().toISOString() })
@@ -446,10 +447,7 @@ async function findProbe(
     port: seed.imap_port || 993,
     secure: seed.imap_secure !== false,
     servername: host,
-    auth: {
-      user: seed.imap_user || seed.smtp_user || seed.email_address,
-      pass: decrypt(seed.smtp_pass_encrypted),
-    },
+    auth: imapAuth(seed.imap_user || seed.smtp_user || seed.email_address, await mailboxSecret(seed.smtp_pass_encrypted)),
     logger: false,
     emitLogs: false,
   }), 'placement');

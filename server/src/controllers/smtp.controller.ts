@@ -15,6 +15,7 @@ import { detectProvider } from '../services/domain.service.js';
 import { discoverMailHosts, type MailHostDiscovery } from '../services/mail-discovery.service.js';
 import { repairMailboxes } from '../services/mailbox-repair.service.js';
 import { warmupService } from '../services/warmup.service.js';
+import { mailboxSecret } from '../services/mailbox-oauth.service.js';
 
 const resolveTxt = promisify(dns.resolveTxt);
 const resolveMx = promisify(dns.resolveMx);
@@ -139,7 +140,7 @@ export const smtpController = {
 
       let password: string;
       try {
-        password = decrypt(account.smtp_pass_encrypted);
+        password = await mailboxSecret(account.smtp_pass_encrypted);
       } catch (decryptErr: any) {
         console.error('[TestEmail] Decrypt error:', decryptErr.message);
         return res.status(500).json({ error: `Failed to decrypt SMTP password: ${decryptErr.message}` });
@@ -231,7 +232,7 @@ export const smtpController = {
           .maybeSingle();
         saved = account || null;
         if (account && !password) {
-          try { password = decrypt(account.smtp_pass_encrypted); } catch { /* probe without auth */ }
+          try { password = await mailboxSecret(account.smtp_pass_encrypted); } catch { /* probe without auth */ }
         }
       }
 

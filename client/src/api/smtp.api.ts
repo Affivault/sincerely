@@ -141,3 +141,12 @@ export const smtpApi = {
     return data;
   },
 };
+
+/** "Connect with Microsoft" for Outlook and Microsoft 365 mailboxes (migration 114). */
+export const microsoftMailApi = {
+  status: async () =>
+    (await apiClient.get<{ microsoft: boolean; states: Record<string, { broken_reason: string | null; account_email: string | null }> }>('/smtp-accounts/microsoft')).data,
+  /** With credentials, so the browser keeps the cookie that finishes the sign-in. */
+  authorize: async (email?: string) =>
+    (await apiClient.get<{ url: string }>('/smtp-accounts/microsoft/authorize', { params: email ? { email } : undefined, withCredentials: true })).data,
+};

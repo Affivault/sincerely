@@ -9,6 +9,7 @@ import { ProviderLogo } from '../mailbox/ProviderLogo';
 
 /** Which provider a saved mailbox is, from its address or its server. */
 function providerOf(a: SmtpAccount): string | null {
+  if (a.auth_kind === 'microsoft') return 'Outlook / Microsoft 365';
   return detectPresetFromEmail(a.email_address)?.name
     ?? SMTP_PRESETS.find((p) => p.smtp_host && p.smtp_host === a.smtp_host)?.name
     ?? null;

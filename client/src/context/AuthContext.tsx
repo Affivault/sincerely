@@ -111,7 +111,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         redirectTo: `${window.location.origin}/dashboard`,
         queryParams: provider === 'google'
           ? { access_type: 'offline', prompt: 'consent' }
-          : undefined,
+          : provider === 'azure'
+            ? { prompt: 'select_account' }
+            : undefined,
+        // Microsoft only includes the address when asked; Supabase needs it.
+        ...(provider === 'azure' ? { scopes: 'openid email profile' } : {}),
       },
     });
     return { error: error ? new Error(error.message) : null };

@@ -8,6 +8,7 @@ import { sendViaSmtp, formatFromHeader, describeSmtpError } from './email-sender
 import { resolveHostIp } from '../utils/dns-doh.js';
 import { billingService } from './billing.service.js';
 import { guardImap } from '../utils/imap-guard.js';
+import { mailboxSecret, imapAuth } from './mailbox-oauth.service.js';
 
 /** Log into IMAP to prove replies can be read. Bounded, never throws. */
 async function verifyImapLogin(opts: { host: string; port: number; secure: boolean; user: string; pass: string }):
@@ -26,7 +27,7 @@ async function verifyImapLogin(opts: { host: string; port: number; secure: boole
     port: opts.port,
     secure: opts.secure,
     servername: opts.host, // correct TLS SNI/cert validation when dialing an IP
-    auth: { user: opts.user, pass: opts.pass },
+    auth: imapAuth(opts.user, opts.pass),
     logger: false,
     // Keep the whole check snappy so the HTTP request replies well under 30s.
     connectionTimeout: 10000,
@@ -236,6 +237,8 @@ export const smtpService = {
     // encrypted column is set here or not at all.
     if (input.smtp_pass) {
       updateData.smtp_pass_encrypted = encrypt(input.smtp_pass);
+      // A typed password replaces a Microsoft sign-in (migration 114).
+      updateData.auth_kind = 'password';
     }
 
     /*
@@ -431,13 +434,11 @@ export const smtpService = {
         .maybeSingle();
       if (!account) throw new AppError('SMTP account not found', 404);
       try {
-        input.smtp_pass = decrypt(account.smtp_pass_encrypted);
-      } catch {
-        return {
-          success: false,
-          message: 'Stored password could not be decrypted — re-enter it and save.',
-          smtp: { ok: false, status: 'fail' as const, message: 'Stored password could not be decrypted — re-enter it and save.' },
-        };
+        input.smtp_pass = await mailboxSecret(account.smtp_pass_encrypted);
+      } catch (err: any) {
+        // A Microsoft mailbox explains itself (e.g. "reconnect it"); a password one could not be decrypted.
+        const message = /microsoft/i.test(String(err?.message)) ? String(err.message) : 'Stored password could not be decrypted — re-enter it and save.';
+        return { success: false, message, smtp: { ok: false, status: 'fail' as const, message } };
       }
     }
 

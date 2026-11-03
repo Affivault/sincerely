@@ -92,8 +92,8 @@ export function newOAuthNonce(): string {
  * through this same callback, so it needs no second redirect address in
  * the Google Cloud console; the purpose travels in the signed state.
  */
-export type OAuthPurpose = 'calendar' | 'backup' | 'backup_onedrive' | 'backup_dropbox';
-const PURPOSES: OAuthPurpose[] = ['calendar', 'backup', 'backup_onedrive', 'backup_dropbox'];
+export type OAuthPurpose = 'calendar' | 'backup' | 'backup_onedrive' | 'backup_dropbox' | 'mailbox_microsoft';
+const PURPOSES: OAuthPurpose[] = ['calendar', 'backup', 'backup_onedrive', 'backup_dropbox', 'mailbox_microsoft'];
 const purposeOf = (p: unknown): OAuthPurpose => (PURPOSES.includes(p as OAuthPurpose) ? p as OAuthPurpose : 'calendar');
 
 export function signState(userId: string, nonce: string = newOAuthNonce(), purpose: OAuthPurpose = 'calendar'): string {

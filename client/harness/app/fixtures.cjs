@@ -129,6 +129,7 @@ const events = [
 const mailboxes = ['alex@affivault.com', 'alex@affivault.io', 'partners@affivault.com'].map((e, i) => ({
   ...base, id: `m${i + 1}`, label: e, from_name: 'Alex Morgan', reply_to: null, email_address: e, smtp_host: 'smtp.gmail.com', smtp_port: 465, smtp_secure: true,
   smtp_user: e, imap_host: 'imap.gmail.com', imap_port: 993, imap_secure: true, imap_user: e, daily_send_limit: 50, sends_today: 12 + i * 7,
+  auth_kind: i === 1 ? 'microsoft' : 'password',
   is_active: true, is_verified: true, is_seed: false, last_tested_at: ago(1), warmup_enabled: i === 2, last_inbox_sync_at: ago(0.01), last_inbox_sync_error: null,
   health_score: 92 - i * 4, signature_html: null, signature_auto: true, total_sent: 1200 - i * 300, warmup_mode: i === 2,
   // CALM=1: every mailbox at full speed, for the quiet-state screenshots.
@@ -387,6 +388,7 @@ function answer(method, path, q) {
         ],
       };
     }
+    case '/smtp-accounts/microsoft': return { microsoft: true, states: {} };
     case '/backup': return { configured: true, connected: true, account_email: 'alex@affivault.com', enabled: true, spreadsheet_url: 'https://docs.google.com/spreadsheets/d/x', broken_reason: null, last_error: null, last_flush_at: iso(now - 90 * 1000), last_full_at: iso(now - 6 * 3600 * 1000), pending: 0, needs_full: false, rows: { people: 4812, companies: 1290, held: 214, lists: 18 } };
     case '/backup/files': {
       const snaps = Array.from({ length: 23 }, (_, i) => ({ day: new Date(now - i * 86400000).toISOString().slice(0, 10), folder: 'daily/x', files: 6, bytes: 3_400_000 + i * 9000, people: 4812 - i * 11, created_at: iso(now - i * 86400000) })).filter((_, i) => i !== 9 && i !== 10);

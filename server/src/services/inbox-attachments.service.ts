@@ -9,6 +9,7 @@ import {
   attachmentProblem, base64Bytes,
   type AttachmentMeta, type OutgoingAttachment,
 } from '@lemlist/shared';
+import { mailboxSecret, imapAuth } from './mailbox-oauth.service.js';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Attachments: opening the ones that came, and sending your own.
@@ -109,7 +110,7 @@ export const inboxAttachmentsService = {
 
     let password: string;
     try {
-      password = decrypt(account.smtp_pass_encrypted);
+      password = await mailboxSecret(account.smtp_pass_encrypted);
     } catch {
       throw new AppError('Could not read this mailbox\'s saved password. Re-enter it in Mailboxes, then try again.', 409);
     }
@@ -132,7 +133,7 @@ export const inboxAttachmentsService = {
       port: account.imap_port || 993,
       secure: account.imap_secure !== false,
       servername: host,
-      auth: { user: account.imap_user || account.smtp_user || account.email_address, pass: password },
+      auth: imapAuth(account.imap_user || account.smtp_user || account.email_address, password),
       logger: false,
       emitLogs: false,
     }), 'attachment');

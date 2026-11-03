@@ -5,6 +5,7 @@ import { resolveHostIp } from '../utils/dns-doh.js';
 import { describeSmtpError, postToRelay } from './email-sender.service.js';
 import type { DiagStage, SmtpDiagnostics, ImapDiagnostics, MailboxDiagnostics } from '@lemlist/shared';
 import { guardImap } from '../utils/imap-guard.js';
+import { imapAuth, smtpAuth } from './mailbox-oauth.service.js';
 
 /**
  * Staged SMTP connection diagnostics.
@@ -216,7 +217,7 @@ async function diagnoseImap(input: {
   t0 = Date.now();
   const client = guardImap(new ImapFlow({
     host: ip, port, secure: input.secure, servername: host,
-    auth: { user: input.user || '', pass: input.pass },
+    auth: imapAuth(input.user || '', input.pass),
     logger: false,
     connectionTimeout: 9000, greetingTimeout: 7000, socketTimeout: 10000,
   }), 'diagnostics');
@@ -445,7 +446,7 @@ export const smtpDiagnosticsService = {
       port,
       secure,
       tls: { servername: host },
-      auth: canAuth ? { user: input.smtp_user!, pass: input.smtp_pass! } : undefined,
+      auth: canAuth ? smtpAuth(input.smtp_user!, input.smtp_pass!) : undefined,
       connectionTimeout: 7000,
       greetingTimeout: 7000,
       socketTimeout: 9000,

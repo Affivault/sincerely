@@ -33,6 +33,7 @@ import { inboxApi } from '../../api/inbox.api';
 import { openModals } from '../ui/Modal';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { ProviderLogo } from './ProviderLogo';
+import { useConnectMicrosoft } from './MicrosoftConnect';
 import { cn, formatRelativeTime } from '../../lib/utils';
 
 const TONE = {
@@ -44,6 +45,7 @@ const TONE = {
 
 /** Which preset a saved mailbox most likely is, from its address and server. */
 function providerOf(a: SmtpAccount): string | null {
+  if (a.auth_kind === 'microsoft') return 'Outlook / Microsoft 365';
   const byAddress = detectPresetFromEmail(a.email_address);
   if (byAddress) return byAddress.name;
   const byHost = SMTP_PRESETS.find((p) => p.smtp_host && p.smtp_host === a.smtp_host);
@@ -163,6 +165,7 @@ export function MailboxDrawer({
     onError: (err: any) => toast.error(err.response?.data?.error || 'Could not change the history window'),
   });
 
+  const reconnectMicrosoft = useConnectMicrosoft();
   if (!account) return null;
 
   const state = resolveMailboxState({
@@ -181,8 +184,12 @@ export function MailboxDrawer({
   const provider = providerOf(account);
   const signature = (account.signature_html || '').replace(/<[^>]*>/g, '').trim();
 
-  const remedy = state.action === 'reconnect'
-    ? { label: 'Update password', run: () => onEdit(account), busy: false }
+  // A Microsoft mailbox has no password to update: it signs in again instead.
+  const microsoft = account.auth_kind === 'microsoft';
+  const remedy = state.action === 'reconnect' || (microsoft && /microsoft/i.test(account.last_send_error || ''))
+    ? microsoft
+      ? { label: reconnectMicrosoft.isPending ? 'Opening Microsoft…' : 'Reconnect with Microsoft', run: () => reconnectMicrosoft.mutate(account.email_address), busy: reconnectMicrosoft.isPending }
+      : { label: 'Update password', run: () => onEdit(account), busy: false }
     : state.action === 'fix-connection'
     ? { label: repairing ? 'Fixing…' : 'Fix this for me', run: onRepair, busy: repairing }
     : state.action === 'set-imap'
@@ -213,7 +220,7 @@ export function MailboxDrawer({
           <div className="min-w-0 flex-1">
             <h2 className="truncate text-heading font-semibold text-[var(--text-primary)]">{account.email_address}</h2>
             <p className="truncate text-caption text-[var(--text-tertiary)]">
-              {[account.from_name, provider].filter(Boolean).join(' · ') || 'Custom mail server'}
+              {[account.from_name, account.auth_kind === 'microsoft' ? 'Signed in with Microsoft, no password stored' : provider].filter(Boolean).join(' · ') || 'Custom mail server'}
             </p>
           </div>
           <button onClick={onClose} className="icon-btn h-8 w-8 flex-shrink-0" title="Close (esc)" aria-label="Close (esc)"><X className="h-4 w-4" /></button>

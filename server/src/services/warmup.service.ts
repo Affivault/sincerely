@@ -13,6 +13,7 @@ import {
 } from '@lemlist/shared';
 import { guardImap } from '../utils/imap-guard.js';
 import { selectInChunks } from '../utils/batch.js';
+import { mailboxSecret, imapAuth } from './mailbox-oauth.service.js';
 
 /* ─── Warm-up Engine ──────────────────────────────────────────────────
    Real warm-up has two jobs: (1) ramp a new mailbox's real-campaign volume
@@ -279,7 +280,7 @@ async function runWarmupTick(maxGlobalSends = 60): Promise<number> {
     const recipient = ranked[0];
 
     let password: string;
-    try { password = decrypt(sender.smtp_pass_encrypted); } catch { continue; }
+    try { password = await mailboxSecret(sender.smtp_pass_encrypted); } catch { continue; }
 
     const token = crypto.randomBytes(12).toString('hex');
     const { subject, body } = composeWarmupMessage(sender, recipient);
@@ -372,12 +373,12 @@ async function connectImap(account: any): Promise<any | null> {
   const host = warmupImapHost(account);
   if (!host) return null;
   let password: string;
-  try { password = decrypt(account.smtp_pass_encrypted); } catch { return null; }
+  try { password = await mailboxSecret(account.smtp_pass_encrypted); } catch { return null; }
   const client = guardImap(new ImapFlow({
     host,
     port: account.imap_port || 993,
     secure: account.imap_secure !== false,
-    auth: { user: account.imap_user || account.smtp_user || account.email_address, pass: password },
+    auth: imapAuth(account.imap_user || account.smtp_user || account.email_address, password),
     logger: false,
   }), 'warmup');
   let connectTimeoutId: ReturnType<typeof setTimeout>;
@@ -508,7 +509,7 @@ async function runEngagementTick(maxAccounts = 15): Promise<{ opened: number; re
         const sender = acctById.get(row.from_account_id);
         if (!sender) continue;
         let password: string;
-        try { password = decrypt(account.smtp_pass_encrypted); } catch { continue; }
+        try { password = await mailboxSecret(account.smtp_pass_encrypted); } catch { continue; }
         const token = crypto.randomBytes(12).toString('hex');
         const domain = (account.email_address.split('@')[1]) || 'usesincerely.com';
         const messageId = `<wu-${token}@${domain}>`;

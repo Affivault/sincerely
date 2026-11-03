@@ -138,7 +138,11 @@ export default async function handler(req: VercelReq, res: VercelRes) {
       host: smtp_host,
       port,
       secure: smtp_secure ?? false,
-      auth: { user: smtp_user, pass: smtp_pass },
+      // Microsoft mailboxes (migration 114) send a sign-in token as
+      // "oauth2:<token>" in place of a password: XOAUTH2, not a password login.
+      auth: String(smtp_pass).startsWith('oauth2:')
+        ? { type: 'OAuth2', user: smtp_user, accessToken: String(smtp_pass).slice(7) }
+        : { user: smtp_user, pass: smtp_pass },
       connectionTimeout: budget,
       // Without greetingTimeout a wrong port/SSL combo waits the full socket
       // timeout for a banner that never comes — fail fast instead.

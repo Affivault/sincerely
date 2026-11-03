@@ -32,6 +32,7 @@ import { MailboxDrawer } from '../../components/mailbox/MailboxDrawer';
 import { ProviderLogo } from '../../components/mailbox/ProviderLogo';
 import { EmptyState } from '../../components/shared/EmptyState';
 import { BulkConnect } from '../../components/mailbox/BulkConnect';
+import { useMicrosoftMail, useConnectMicrosoft } from '../../components/mailbox/MicrosoftConnect';
 import { BulkPace } from '../../components/mailbox/BulkPace';
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -238,7 +239,40 @@ export function EmailAccountsPage() {
   }, [searchParams, setSearchParams]);
 
   const openAdd = () => { setEditAccount(null); setInitialPreset(null); setModalOpen(true); };
-  const openQuick = (preset: SmtpPreset | null) => { setEditAccount(null); setInitialPreset(preset); setModalOpen(true); };
+  /* "Connect with Microsoft" (migration 114): Outlook and Microsoft 365 sign in
+     with Microsoft rather than a password, when this deployment has the app. */
+  const microsoftMail = useMicrosoftMail();
+  const connectMicrosoft = useConnectMicrosoft();
+  const openQuick = (preset: SmtpPreset | null) => {
+    if (preset?.name === 'Outlook / Microsoft 365' && microsoftMail.data?.microsoft) { connectMicrosoft.mutate(undefined); return; }
+    setEditAccount(null); setInitialPreset(preset); setModalOpen(true);
+  };
+
+  /* Back from Microsoft: say what happened, open the mailbox, clear the URL. */
+  useEffect(() => {
+    const outcome = searchParams.get('microsoft');
+    if (!outcome) return;
+    const email = searchParams.get('email') || 'the mailbox';
+    const message = searchParams.get('message');
+    if (outcome === 'connected') {
+      toast.success(searchParams.get('moved') ? `${email} now signs in with Microsoft - tested and working` : `Connected ${email} with Microsoft - tested and working`);
+    } else if (outcome === 'connected_unverified') {
+      toast(`${email} is connected, but the test send failed: ${message || 'open it to see why'}`, { icon: '\u26A0\uFE0F', duration: 15000 });
+    } else if (outcome === 'cancelled') {
+      toast(message || 'Cancelled - nothing was connected.');
+    } else {
+      toast.error(message || 'Could not connect with Microsoft', { duration: 12000 });
+    }
+    queryClient.invalidateQueries({ queryKey: ['smtp-accounts'] });
+    queryClient.invalidateQueries({ queryKey: ['mailbox-oauth'] });
+    const account = searchParams.get('account');
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      ['microsoft', 'email', 'message', 'moved', 'account'].forEach((k) => next.delete(k));
+      if (account && outcome.startsWith('connected')) next.set('mailbox', account);
+      return next;
+    }, { replace: true });
+  }, [searchParams, setSearchParams, queryClient]);
   const openEdit = (a: SmtpAccount) => { setEditAccount(a); setInitialPreset(null); setModalOpen(true); };
 
   const deleteMutation = useMutation({

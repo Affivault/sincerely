@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { smtpController } from '../controllers/smtp.controller.js';
+import { mailboxOAuthController } from '../controllers/mailbox-oauth.controller.js';
 
 export const smtpRoutes = Router();
 
@@ -10,6 +11,9 @@ smtpRoutes.get('/warmup', smtpController.warmupSummary);
 smtpRoutes.get('/health', smtpController.health);
 // One sending pace on many mailboxes; a POST so '/:id' never sees it.
 smtpRoutes.post('/pace', smtpController.applyPace);
+// "Connect with Microsoft" (migration 114). Before '/:id'.
+smtpRoutes.get('/microsoft', mailboxOAuthController.status);
+smtpRoutes.get('/microsoft/authorize', mailboxOAuthController.authorize);
 smtpRoutes.post('/verify', smtpController.verify);
 smtpRoutes.post('/check-domain', smtpController.checkDomain);
 smtpRoutes.post('/diagnose', smtpController.diagnose);
