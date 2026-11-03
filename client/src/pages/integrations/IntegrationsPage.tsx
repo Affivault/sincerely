@@ -35,6 +35,7 @@ import { cn } from '../../lib/utils';
 import { useOverlayStack } from '../../hooks/useOverlayStack';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { PageHeader } from '../../components/shared/PageHeader';
+import { BackupDestinations } from '../../components/integrations/BackupDestinations';
 import toast from 'react-hot-toast';
 
 /* ─── Brand tiles ─────────────────────────────────────────────────
@@ -320,6 +321,9 @@ export function IntegrationsPage() {
           </div>
         </section>
       ))}
+
+      {/* Backups are connections too; they are managed in Settings > Backup. */}
+      <BackupDestinations />
 
       {isLoading && (
         <p className="text-body text-[var(--text-tertiary)]">Loading your connections…</p>

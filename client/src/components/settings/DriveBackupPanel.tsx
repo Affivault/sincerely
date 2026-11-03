@@ -37,7 +37,11 @@ function ago(iso: string | null): string {
   return formatDayMonthTime(iso);
 }
 
-export function DriveBackupPanel() {
+/**
+ * `embedded`: inside the Backup hub, which has its own heading, handles
+ * every provider's return from sign-in, and says what is in a backup once.
+ */
+export function DriveBackupPanel({ embedded = false }: { embedded?: boolean } = {}) {
   const qc = useQueryClient();
   const confirm = useConfirm();
   const [params, setParams] = useSearchParams();
@@ -50,6 +54,7 @@ export function DriveBackupPanel() {
 
   // Back from Google's consent screen.
   useEffect(() => {
+    if (embedded) return;
     const outcome = params.get('backup');
     if (!outcome) return;
     if (outcome === 'connected') toast.success(`Connected ${params.get('account') || 'Google Drive'} - the first backup is being written now`);
@@ -59,7 +64,7 @@ export function DriveBackupPanel() {
     const next = new URLSearchParams(params);
     ['backup', 'account', 'message'].forEach((k) => next.delete(k));
     setParams(next, { replace: true });
-  }, [params, qc, setParams]);
+  }, [params, qc, setParams, embedded]);
 
   const connect = useMutation({
     mutationFn: backupApi.authorize,
@@ -99,12 +104,14 @@ export function DriveBackupPanel() {
 
   return (
     <div className="space-y-4" data-drive-backup>
-      <div>
-        <h2 className="text-heading font-semibold text-[var(--text-primary)]">Backup</h2>
-        <p className="text-strong text-[var(--text-secondary)] mt-1">
-          Your leads, contacts, companies and lists, kept in a spreadsheet in your own Google Drive, about a minute behind.
-        </p>
-      </div>
+      {!embedded && (
+        <div>
+          <h2 className="text-heading font-semibold text-[var(--text-primary)]">Backup</h2>
+          <p className="text-strong text-[var(--text-secondary)] mt-1">
+            Your leads, contacts, companies and lists, kept in a spreadsheet in your own Google Drive, about a minute behind.
+          </p>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="flex justify-center p-8"><Loader2 className="h-4 w-4 animate-spin text-[var(--text-tertiary)]" /></div>
@@ -137,7 +144,7 @@ export function DriveBackupPanel() {
               Connect Google Drive
             </button>
           </div>
-          <TabList />
+          {!embedded && <TabList />}
         </section>
       ) : (
         <>
@@ -204,13 +211,15 @@ export function DriveBackupPanel() {
               </button>
             </div>
           </section>
-          <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden">
-            <TabList />
-          </section>
+          {!embedded && (
+            <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden">
+              <TabList />
+            </section>
+          )}
         </>
       )}
 
-      <p className="flex items-start gap-1.5 text-caption text-[var(--text-tertiary)] leading-relaxed">
+      <p className={cn('flex items-start gap-1.5 text-caption text-[var(--text-tertiary)] leading-relaxed', embedded && 'px-1')}>
         <History className="h-3.5 w-3.5 flex-shrink-0 mt-px" />
         The spreadsheet is a copy: edits made in it are not sent back to Sincerely, and the next refresh puts it right. Deleted people stay in it, marked Deleted. To restore, download the People tab as a CSV and import it.
       </p>

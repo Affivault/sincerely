@@ -1,4 +1,5 @@
 import { driveBackupService } from '../../services/drive-backup.service.js';
+import { fileBackupService } from '../../services/file-backup.service.js';
 import { beat } from '../../utils/heartbeat.js';
 
 /**
@@ -22,6 +23,9 @@ export function startDriveBackupScheduler() {
     try {
       const { flushed, full } = await driveBackupService.sweep();
       if (full > 0) console.log(`[DriveBackup] ${full} full refresh(es), ${flushed} update(s)`);
+      // OneDrive, Dropbox and S3 (migration 113) on the same beat.
+      const files = await fileBackupService.sweep();
+      if (files > 0) console.log(`[FileBackup] wrote ${files} backup(s)`);
     } finally {
       running = false;
     }

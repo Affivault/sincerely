@@ -127,10 +127,36 @@ async function patchConnection(userId: string, patch: Record<string, any>) {
   await supabaseAdmin.from('backup_connections').update(patch).eq('user_id', userId);
 }
 
+/*
+ * The change queue has several readers since migration 113 (this, and the
+ * OneDrive / Dropbox / S3 file backups), each with a cursor. A change is
+ * dropped once every reader has passed it (backup_prune). Before 113 there
+ * is no cursor column, and this reader deletes what it has read, as it did.
+ */
+const hasCursor = (conn: any) => conn && Object.prototype.hasOwnProperty.call(conn, 'cursor');
+const cursorOf = (conn: any): number => (hasCursor(conn) ? Number(conn.cursor) || 0 : 0);
+
+export async function pruneQueue(userId: string): Promise<void> {
+  const { error } = await supabaseAdmin.rpc('backup_prune', { p_user: userId });
+  if (error && !missing(error)) console.warn('[Backup] prune:', error.message);
+}
+
+/** This reader has read up to `upto`. */
+async function advance(conn: any, upto: number) {
+  if (upto <= 0) return;
+  if (!hasCursor(conn)) {
+    await supabaseAdmin.from('backup_outbox').delete().eq('user_id', conn.user_id).lte('id', upto);
+    return;
+  }
+  if (upto > cursorOf(conn)) await patchConnection(conn.user_id, { cursor: upto });
+  conn.cursor = Math.max(cursorOf(conn), upto);
+  await pruneQueue(conn.user_id);
+}
+
 async function markBroken(userId: string, reason: string) {
   await patchConnection(userId, { broken_at: new Date().toISOString(), broken_reason: reason.slice(0, 200), busy_until: null });
-  // Nothing more is queued while it is broken; reconnecting rebuilds it all.
-  await supabaseAdmin.from('backup_outbox').delete().eq('user_id', userId);
+  // Not a reader while broken; reconnecting rebuilds it all.
+  await pruneQueue(userId);
 }
 
 async function accessToken(conn: any): Promise<string | null> {
@@ -290,7 +316,7 @@ async function peopleByIds(userId: string, ids: string[]): Promise<any[]> {
   return rows.map(shapePerson);
 }
 
-async function allPeople(userId: string): Promise<any[]> {
+export async function allPeople(userId: string): Promise<any[]> {
   const run = (sel: string) => fetchAllPages((from, to) => supabaseAdmin.from('contacts').select(sel).eq('user_id', userId)
     .order('created_at', { ascending: true }).order('id').range(from, to));
   let rows: any[];
@@ -301,7 +327,7 @@ async function allPeople(userId: string): Promise<any[]> {
   return rows.map(shapePerson);
 }
 
-async function allRows(table: string, userId: string, select = '*'): Promise<any[]> {
+export async function allRows(table: string, userId: string, select = '*'): Promise<any[]> {
   try {
     return await fetchAllPages((from, to) => supabaseAdmin.from(table).select(select).eq('user_id', userId)
       .order('created_at', { ascending: true }).order('id').range(from, to));
@@ -311,19 +337,19 @@ async function allRows(table: string, userId: string, select = '*'): Promise<any
   }
 }
 
-async function listNames(userId: string): Promise<Map<string, string>> {
+export async function listNames(userId: string): Promise<Map<string, string>> {
   const { data } = await supabaseAdmin.from('contact_lists').select('id, name').eq('user_id', userId);
   return new Map((data || []).map((l: any) => [l.id, l.name]));
 }
 
-async function listsForTab(userId: string): Promise<Cell[][]> {
+export async function listsForTab(userId: string): Promise<Cell[][]> {
   const { data, error } = await supabaseAdmin.from('contact_lists')
     .select('id, name, kind, description, created_at, list_contacts(count)').eq('user_id', userId).order('created_at').limit(5000);
   if (error) throw new AppError(error.message, 500);
   return (data || []).map((l: any) => listRow({ ...l, contact_count: l.list_contacts?.[0]?.count ?? 0 }));
 }
 
-async function tombstones(userId: string, entity: string): Promise<any[]> {
+export async function tombstones(userId: string, entity: string): Promise<any[]> {
   const { data } = await supabaseAdmin.from('backup_tombstones').select('entity_id, data, deleted_at')
     .eq('user_id', userId).eq('entity', entity).order('deleted_at', { ascending: false }).limit(50_000);
   return data || [];
@@ -376,9 +402,10 @@ async function fullBackup(conn: any, token: string): Promise<void> {
   const { id: sid, meta } = await ensureSpreadsheet(conn, token);
   const sheetIds = meta.sheetIds || {};
 
-  const { data: last } = await supabaseAdmin.from('backup_outbox').select('id').eq('user_id', userId).order('id', { ascending: false }).limit(1);
+  const from = cursorOf(conn);
+  const { data: last } = await supabaseAdmin.from('backup_outbox').select('id').eq('user_id', userId).gt('id', from).order('id', { ascending: false }).limit(1);
   const upto = last?.[0]?.id ?? 0;
-  const { count: queued } = await supabaseAdmin.from('backup_outbox').select('id', { count: 'exact', head: true }).eq('user_id', userId).lte('id', upto);
+  const { count: queued } = upto ? await supabaseAdmin.from('backup_outbox').select('id', { count: 'exact', head: true }).eq('user_id', userId).gt('id', from).lte('id', upto) : { count: 0 };
 
   const [people, companies, held, lists, deadPeople, deadCompanies, deadHeld, names] = await Promise.all([
     allPeople(userId),
@@ -432,7 +459,7 @@ async function fullBackup(conn: any, token: string): Promise<void> {
       logged = 1;
       await appendRows(token, sid, 'Change log', [[backupTime(new Date().toISOString()), 'Large change', `${(queued || 0).toLocaleString('en-GB')} changes at once`, '', 'For example a big import or bulk edit. The whole backup was refreshed.']]);
     } else {
-      logged = await writeLogFor(userId, token, sid, upto);
+      logged = await writeLogFor(userId, token, sid, from, upto);
     }
   }
 
@@ -477,14 +504,14 @@ async function fullBackup(conn: any, token: string): Promise<void> {
     nextMeta.formatted = true;
   }
   await writeValues(token, sid, [{ range: a1('About', 'A1:B15'), values: await aboutValues(conn, nextMeta, now) }]);
-  if (upto > 0) await supabaseAdmin.from('backup_outbox').delete().eq('user_id', userId).lte('id', upto);
+  await advance(conn, upto);
   await patchConnection(userId, { meta: nextMeta, needs_full: false, last_full_at: now, last_flush_at: now, last_error: warning });
 }
 
 /** Change-log lines for queued events up to `upto` (used before a full rewrite). */
-async function writeLogFor(userId: string, token: string, sid: string, upto: number): Promise<number> {
+async function writeLogFor(userId: string, token: string, sid: string, from: number, upto: number): Promise<number> {
   let written = 0;
-  for (let after = 0; ;) {
+  for (let after = from; ;) {
     const { data: events } = await supabaseAdmin.from('backup_outbox').select('*').eq('user_id', userId)
       .gt('id', after).lte('id', upto).order('id').limit(BATCH_EVENTS);
     if (!events || events.length === 0) break;
@@ -497,7 +524,7 @@ async function writeLogFor(userId: string, token: string, sid: string, upto: num
   return written;
 }
 
-async function logLines(userId: string, events: OutboxEvent[]): Promise<Cell[][]> {
+export async function logLines(userId: string, events: OutboxEvent[]): Promise<Cell[][]> {
   const want = (entity: string) => [...new Set(events.filter((e) => e.entity === entity && e.action !== 'deleted').map((e) => e.entity_id))];
   const [people, companies, held, lists] = await Promise.all([
     selectInChunks(want('person'), (s) => supabaseAdmin.from('contacts').select('id, email, first_name, last_name, lifecycle, is_bounced, dcs_verified_at, dcs_score, dcs_syntax_ok, dcs_domain_ok').eq('user_id', userId).in('id', s)),
@@ -525,13 +552,14 @@ async function logLines(userId: string, events: OutboxEvent[]): Promise<Cell[][]
  */
 async function flushChanges(conn: any, token: string): Promise<boolean> {
   const userId = conn.user_id;
-  const { count } = await supabaseAdmin.from('backup_outbox').select('id', { count: 'exact', head: true }).eq('user_id', userId);
+  const from = cursorOf(conn);
+  const { count } = await supabaseAdmin.from('backup_outbox').select('id', { count: 'exact', head: true }).eq('user_id', userId).gt('id', from);
   if (!count) return true;
   if (count > FULL_INSTEAD_OVER) return false;
 
   const { id: sid, meta, recreated } = await ensureSpreadsheet(conn, token);
   if (recreated) return false;
-  const { data: rawEvents, error } = await supabaseAdmin.from('backup_outbox').select('*').eq('user_id', userId).order('id').limit(BATCH_EVENTS);
+  const { data: rawEvents, error } = await supabaseAdmin.from('backup_outbox').select('*').eq('user_id', userId).gt('id', from).order('id').limit(BATCH_EVENTS);
   if (error) throw new AppError(error.message, 500);
   const events = (rawEvents || []) as OutboxEvent[];
   if (events.length === 0) return true;
@@ -686,7 +714,7 @@ async function flushChanges(conn: any, token: string): Promise<boolean> {
 
   const nextMeta: Meta = { ...meta, rows, warning };
   await writeValues(token, sid, [{ range: a1('About', 'A1:B15'), values: await aboutValues(conn, nextMeta, conn.last_full_at) }]);
-  await supabaseAdmin.from('backup_outbox').delete().eq('user_id', userId).lte('id', upto);
+  await advance(conn, upto);
   await patchConnection(userId, { meta: nextMeta, last_flush_at: new Date().toISOString(), last_error: warning });
   return true;
 }
@@ -728,14 +756,14 @@ export const driveBackupService = {
       rows: { people: 0, companies: 0, held: 0, lists: 0 },
     };
     const { data, error } = await supabaseAdmin.from('backup_connections')
-      .select('account_email, enabled, spreadsheet_url, broken_reason, last_error, last_flush_at, last_full_at, needs_full, meta')
+      .select('*')
       .eq('user_id', userId).maybeSingle();
     if (error) {
       if (missing(error)) return { ...empty, unavailable: true };
       throw new AppError(error.message, 500);
     }
     if (!data) return empty;
-    const { count } = await supabaseAdmin.from('backup_outbox').select('id', { count: 'exact', head: true }).eq('user_id', userId);
+    const { count } = await supabaseAdmin.from('backup_outbox').select('id', { count: 'exact', head: true }).eq('user_id', userId).gt('id', cursorOf(data));
     const r = (data.meta as Meta)?.rows;
     return {
       ...empty,
@@ -819,7 +847,7 @@ export const driveBackupService = {
     if (!conn) throw new AppError('Connect Google Drive first.', 400);
     // Turned back on: anything that changed while it was off is caught up by a full refresh.
     await patchConnection(userId, enabled ? { enabled: true, needs_full: true } : { enabled: false });
-    if (!enabled) await supabaseAdmin.from('backup_outbox').delete().eq('user_id', userId);
+    if (!enabled) await pruneQueue(userId);
     else setTimeout(() => { runFor(userId, { forceFull: true }).catch(() => {}); }, 100);
     return this.status(userId);
   },
@@ -845,10 +873,12 @@ export const driveBackupService = {
         await fetch(`${GOOGLE_REVOKE}?token=${encodeURIComponent(decrypt(t))}`, { method: 'POST', signal: AbortSignal.timeout(10_000) });
       } catch { /* revoking is a courtesy; forgetting the token is what matters */ }
     }
-    await supabaseAdmin.from('backup_outbox').delete().eq('user_id', userId);
     await supabaseAdmin.from('backup_rows').delete().eq('user_id', userId);
-    await supabaseAdmin.from('backup_tombstones').delete().eq('user_id', userId);
     await supabaseAdmin.from('backup_connections').delete().eq('user_id', userId);
+    // Deleted-record copies are shared with the file backups; kept while one is connected.
+    const { count: others } = await supabaseAdmin.from('backup_destinations').select('id', { count: 'exact', head: true }).eq('user_id', userId);
+    if (!others) await supabaseAdmin.from('backup_tombstones').delete().eq('user_id', userId);
+    await pruneQueue(userId);
     return { disconnected: true };
   },
 

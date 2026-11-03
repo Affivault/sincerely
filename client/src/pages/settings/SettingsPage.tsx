@@ -14,7 +14,7 @@ import { RelayEngineNote } from '../../components/inbox/PeopleFirstNotices';
 import { NotificationTryOut } from '../../components/settings/NotificationTryOut';
 import { Chip } from '../../components/ui/Chip';
 import { BlackoutDatesEditor } from '../../components/shared/BlackoutDatesEditor';
-import { DriveBackupPanel } from '../../components/settings/DriveBackupPanel';
+import { BackupHub } from '../../components/settings/BackupHub';
 import {
   User,
   Mail,
@@ -904,7 +904,7 @@ export function SettingsPage() {
             )}
 
             {/* ═══ Backup Tab (migration 112) ═══ */}
-            {activeTab === 'backup' && <DriveBackupPanel />}
+            {activeTab === 'backup' && <BackupHub />}
 
             {/* ═══ AI Features Tab ═══ */}
             {activeTab === 'ai' && (
@@ -1161,8 +1161,8 @@ export function SettingsPage() {
               </div>
             )}
 
-            {/* ═══ Save button ═══ */}
-            <div className="mt-8 pt-6 border-t border-[var(--border-subtle)] flex items-center justify-between">
+            {/* ═══ Save button ═══ (Backup saves as it goes; nothing to save there) */}
+            <div className={cn('mt-8 pt-6 border-t border-[var(--border-subtle)] flex items-center justify-between', activeTab === 'backup' && 'hidden')}>
               {hasChanges && (
                 <p className="text-body text-[var(--warning)] flex items-center gap-1.5">
                   <AlertCircle className="h-3.5 w-3.5" />
