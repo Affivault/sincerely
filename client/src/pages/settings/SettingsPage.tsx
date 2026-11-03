@@ -14,6 +14,7 @@ import { RelayEngineNote } from '../../components/inbox/PeopleFirstNotices';
 import { NotificationTryOut } from '../../components/settings/NotificationTryOut';
 import { Chip } from '../../components/ui/Chip';
 import { BlackoutDatesEditor } from '../../components/shared/BlackoutDatesEditor';
+import { DriveBackupPanel } from '../../components/settings/DriveBackupPanel';
 import {
   User,
   Mail,
@@ -37,9 +38,10 @@ import {
   Eye,
   EyeOff,
   Banknote,
+  HardDrive,
 } from 'lucide-react';
 
-type Tab = 'profile' | 'account' | 'notifications' | 'preferences' | 'ai';
+type Tab = 'profile' | 'account' | 'notifications' | 'preferences' | 'ai' | 'backup';
 
 interface TabConfig {
   id: Tab;
@@ -73,6 +75,7 @@ const tabs: TabConfig[] = [
   { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'preferences', label: 'Preferences', icon: Palette },
   { id: 'ai', label: 'AI features', icon: Sparkles },
+  { id: 'backup', label: 'Backup', icon: HardDrive },
 ];
 
 const TAB_IDS = tabs.map((t) => t.id);
@@ -364,7 +367,7 @@ export function SettingsPage() {
       <PageHeader
         icon={SettingsIcon}
         title="General"
-        description="Your profile, account, notifications and AI preferences."
+        description="Your profile, account, notifications, AI preferences and backup."
       />
 
       {/* Section tabs — horizontal; the settings categories live in the shell rail */}
@@ -899,6 +902,9 @@ export function SettingsPage() {
                 </div>
               </div>
             )}
+
+            {/* ═══ Backup Tab (migration 112) ═══ */}
+            {activeTab === 'backup' && <DriveBackupPanel />}
 
             {/* ═══ AI Features Tab ═══ */}
             {activeTab === 'ai' && (

@@ -3,6 +3,7 @@ import { authMiddleware } from '../middleware/auth.middleware.js';
 import { apiKeyMiddleware, enforceApiKeyScope } from '../middleware/apikey.middleware.js';
 import { contactRoutes } from './contact.routes.js';
 import { importsRoutes } from './imports.routes.js';
+import { backupRoutes } from './backup.routes.js';
 import { tagRoutes } from './tag.routes.js';
 import { listsRoutes } from './lists.routes.js';
 import { segmentsRoutes } from './segments.routes.js';
@@ -59,6 +60,7 @@ routes.use(enforceApiKeyScope);
 
 routes.use('/contacts', contactRoutes);
 routes.use('/imports', importsRoutes);
+routes.use('/backup', backupRoutes);
 routes.use('/tags', tagRoutes);
 routes.use('/lists', listsRoutes);
 routes.use('/segments', segmentsRoutes);

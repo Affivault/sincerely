@@ -19,6 +19,7 @@ import { startCampaignGuardScheduler } from './jobs/schedulers/campaign-guard.sc
 import { startBookingReminderScheduler } from './jobs/schedulers/booking-reminder.scheduler.js';
 import { startDomainReverifyScheduler } from './jobs/schedulers/domain-reverify.scheduler.js';
 import { startSheetSyncScheduler } from './jobs/schedulers/sheet-sync.scheduler.js';
+import { startDriveBackupScheduler } from './jobs/schedulers/drive-backup.scheduler.js';
 import { startEngagementScheduler } from './jobs/schedulers/engagement.scheduler.js';
 
 const port = parseInt(env.PORT, 10);
@@ -210,6 +211,15 @@ const server = app.listen(port, () => {
     console.log('Sheet sync scheduler started');
   } catch (err: any) {
     console.warn('Sheet sync scheduler failed to start:', err.message);
+  }
+
+  // Google Drive backups, about a minute behind (migration 112).
+  try {
+    const driveBackup = startDriveBackupScheduler();
+    if (driveBackup) disposers.push(() => driveBackup.stop());
+    console.log('Drive backup scheduler started');
+  } catch (err: any) {
+    console.warn('Drive backup scheduler failed to start:', err.message);
   }
 });
 

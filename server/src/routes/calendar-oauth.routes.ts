@@ -1,7 +1,8 @@
 import { Router, Request, Response } from 'express';
 import {
-  calendarSync, CALENDAR_OAUTH_COOKIE, CALENDAR_OAUTH_COOKIE_PATH,
+  calendarSync, statePurpose, CALENDAR_OAUTH_COOKIE, CALENDAR_OAUTH_COOKIE_PATH,
 } from '../services/calendar-sync.service.js';
+import { driveBackupService } from '../services/drive-backup.service.js';
 import { env } from '../config/env.js';
 
 /**
@@ -34,17 +35,42 @@ function nonceCookie(req: Request): string | undefined {
   return undefined;
 }
 
-function back(res: Response, params: Record<string, string>) {
+function back(res: Response, params: Record<string, string>, to = '/calendar/availability') {
   // Used once, whatever the outcome: a nonce left behind is one more thing
   // a later, unrelated callback could be matched against.
   res.clearCookie(CALENDAR_OAUTH_COOKIE, { path: CALENDAR_OAUTH_COOKIE_PATH });
   const base = (env.CLIENT_URL || '').replace(/\/+$/, '');
   const query = new URLSearchParams(params).toString();
-  res.redirect(`${base}/calendar/availability?${query}`);
+  res.redirect(`${base}${to}?${query}`);
+}
+
+/**
+ * Google Drive backup (migration 112) signs in through this same callback,
+ * so no second redirect address is needed. The signed state says which.
+ */
+async function backupCallback(req: Request, res: Response) {
+  const { code, state, error } = req.query as Record<string, string>;
+  const to = '/settings';
+  if (error) {
+    return back(res, {
+      tab: 'backup',
+      backup: error === 'access_denied' ? 'denied' : 'error',
+      message: error === 'access_denied'
+        ? 'Cancelled, or Google blocked it. If you did not press cancel, add this address as a test user on the OAuth consent screen.'
+        : String(error).slice(0, 200),
+    }, to);
+  }
+  try {
+    const { email } = await driveBackupService.completeConnection(code, state, nonceCookie(req));
+    return back(res, { tab: 'backup', backup: 'connected', account: email }, to);
+  } catch (err: any) {
+    return back(res, { tab: 'backup', backup: 'error', message: String(err?.message || 'Could not connect').slice(0, 200) }, to);
+  }
 }
 
 calendarOAuthRoutes.get('/google/callback', async (req: Request, res: Response) => {
   const { code, state, error, error_description: description } = req.query as Record<string, string>;
+  if (state && statePurpose(state) === 'backup') return backupCallback(req, res);
 
   if (error) {
     /*
