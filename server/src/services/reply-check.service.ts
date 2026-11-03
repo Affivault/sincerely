@@ -31,6 +31,7 @@ import { decrypt } from '../utils/encryption.js';
 import { sendViaSmtp, formatFromHeader, describeSmtpError } from './email-sender.service.js';
 import { inboxSyncService } from './inbox-sync.service.js';
 import { readReplyCheckNotes, forgetReplyCheck } from '../utils/reply-check-notes.js';
+import { mailboxSecret } from './mailbox-oauth.service.js';
 
 const POLL_MS = 8_000;
 const running = new Set<string>();
@@ -79,7 +80,7 @@ async function send(box: Box, to: string, subject: string, text: string, message
     smtpPort: box.smtp_port,
     smtpSecure: box.smtp_secure,
     smtpUser: box.smtp_user,
-    smtpPass: decrypt(box.smtp_pass_encrypted),
+    smtpPass: await mailboxSecret(box.smtp_pass_encrypted),
     from: formatFromHeader(box.from_name || box.label, box.email_address),
     to,
     subject,

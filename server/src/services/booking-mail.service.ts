@@ -3,6 +3,7 @@ import { decrypt } from '../utils/encryption.js';
 import { sendViaSmtp, formatFromHeader } from './email-sender.service.js';
 import { buildIcs } from '@lemlist/shared';
 import { env } from '../config/env.js';
+import { mailboxSecret } from './mailbox-oauth.service.js';
 
 /* ═══════════════════════════════════════════════════════════════════════
    The emails a booking sends.
@@ -120,7 +121,7 @@ export async function senderFor(userId: string): Promise<{
 
   let pass: string;
   try {
-    pass = decrypt(data.smtp_pass_encrypted);
+    pass = await mailboxSecret(data.smtp_pass_encrypted);
   } catch {
     // An undecryptable password is a configuration problem, not a booking
     // problem. Say so in the log and let the booking stand.

@@ -26,6 +26,7 @@ import { repairImapHost } from './mailbox-repair.service.js';
 import { isSenderMismatch } from '@lemlist/shared';
 import { guardImap } from '../utils/imap-guard.js';
 import { inboxRemindersService } from './inbox-reminders.service.js';
+import { mailboxSecret, imapAuth } from './mailbox-oauth.service.js';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Reading a mailbox.
@@ -892,7 +893,7 @@ export const inboxSyncService = {
         continue;
       }
       try {
-        const password = decrypt(raw.smtp_pass_encrypted);
+        const password = await mailboxSecret(raw.smtp_pass_encrypted);
 
         /*
          * Never read a mailbox that is not this one.
@@ -942,7 +943,7 @@ export const inboxSyncService = {
           port: raw.imap_port || 993,
           secure: raw.imap_secure !== false,
           servername: host,
-          auth: { user: raw.imap_user || raw.smtp_user || raw.email_address, pass: password },
+          auth: imapAuth(raw.imap_user || raw.smtp_user || raw.email_address, password),
           logger: false,
           emitLogs: false,
         }), 'sync');

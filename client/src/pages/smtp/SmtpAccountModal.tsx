@@ -8,6 +8,7 @@ import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Modal } from '../../components/ui/Modal';
 import { RichTextEditor } from '../../components/ui/RichTextEditor';
+import { MicrosoftConnectCard, looksMicrosoft } from '../../components/mailbox/MicrosoftConnect';
 import { ProviderLogo } from '../../components/mailbox/ProviderLogo';
 import { cn } from '../../lib/utils';
 import {
@@ -1348,6 +1349,9 @@ export function SmtpAccountModal({
         </div>
       </div>
 
+      {/* Outlook and Microsoft 365: sign in with Microsoft (migration 114). */}
+      <MicrosoftConnectCard email={form.email_address} highlighted={looksMicrosoft(form.email_address, activePreset?.name)} />
+
       <div>
         <p className="mb-2 text-caption font-medium text-[var(--text-tertiary)]">Or pick your provider</p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -1421,6 +1425,7 @@ export function SmtpAccountModal({
 
   const signinStep = (
     <div className="space-y-4">
+      {looksMicrosoft(form.email_address, activePreset?.name) && <MicrosoftConnectCard email={form.email_address} highlighted />}
       {/* Who we are signing in to, and how to get the right password. */}
       <div className="flex items-center gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/60 px-3.5 py-3">
         <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)]">

@@ -17,6 +17,7 @@ import { env } from '../config/env.js';
 import { selectInChunks } from '../utils/batch.js';
 import { previewWithSampleData, htmlToText } from '../services/sequence.service.js';
 import { previewAsContact } from '../services/campaign-preview.service.js';
+import { mailboxSecret } from '../services/mailbox-oauth.service.js';
 
 /* Writing with Claude costs money per call; a stuck button or a loop should
    not. Twenty drafts an hour is far beyond anyone iterating by hand. */
@@ -299,7 +300,7 @@ export const campaignsController = {
       // is spent, not after, or every retry burns quota for zero emails sent.
       let password: string;
       try {
-        password = decrypt(account.smtp_pass_encrypted);
+        password = await mailboxSecret(account.smtp_pass_encrypted);
       } catch (decryptErr: any) {
         return res.status(500).json({ error: `Failed to decrypt SMTP password: ${decryptErr.message}` });
       }

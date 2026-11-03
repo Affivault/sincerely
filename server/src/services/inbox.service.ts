@@ -22,6 +22,7 @@ import { notSnoozedFilter, snoozeReady, remindersReady, assignReady, inboxRemind
 import { inboxAssignService } from './inbox-assign.service.js';
 import { prepareOutgoingAttachments } from './inbox-attachments.service.js';
 import { isNudgeDays, type AttachmentMeta } from '@lemlist/shared';
+import { mailboxSecret, imapAuth } from './mailbox-oauth.service.js';
 
 /** Reserve a monthly-quota slot before an interactive send; throws if over cap. */
 async function assertSendQuota(userId: string): Promise<void> {
@@ -99,7 +100,7 @@ async function syncArchiveToImap(
 
     let password: string;
     try {
-      password = decrypt(account.smtp_pass_encrypted);
+      password = await mailboxSecret(account.smtp_pass_encrypted);
     } catch (decryptErr: any) {
       console.warn('[IMAP archive] failed to decrypt password for account', accountId, decryptErr?.message);
       continue;
@@ -129,7 +130,7 @@ async function syncArchiveToImap(
       port: account.imap_port || 993,
       secure: account.imap_secure !== false,
       servername: imapHost,
-      auth: { user: account.imap_user || account.smtp_user || account.email_address, pass: password },
+      auth: imapAuth(account.imap_user || account.smtp_user || account.email_address, password),
       logger: false,
     }), 'inbox');
 
@@ -912,7 +913,7 @@ export const inboxService = {
     const smtpAccount = await findSmtpAccount(userId, smtpAccountId || original.smtp_account_id);
     let smtpPassword: string;
     try {
-      smtpPassword = decrypt(smtpAccount.smtp_pass_encrypted);
+      smtpPassword = await mailboxSecret(smtpAccount.smtp_pass_encrypted);
     } catch (decryptErr: any) {
       throw new AppError(`Failed to decrypt SMTP credentials for ${smtpAccount.label || smtpAccount.email_address}: ${decryptErr.message}`, 500);
     }
@@ -1013,7 +1014,7 @@ export const inboxService = {
     const smtpAccount = await findSmtpAccount(userId, smtpAccountId || original.smtp_account_id);
     let smtpPassword: string;
     try {
-      smtpPassword = decrypt(smtpAccount.smtp_pass_encrypted);
+      smtpPassword = await mailboxSecret(smtpAccount.smtp_pass_encrypted);
     } catch (decryptErr: any) {
       throw new AppError(`Failed to decrypt SMTP credentials for ${smtpAccount.label || smtpAccount.email_address}: ${decryptErr.message}`, 500);
     }
@@ -1073,7 +1074,7 @@ ${original.body_html || `<p>${textToHtml(original.body_text)}</p>`}`;
 
     let smtpPassword: string;
     try {
-      smtpPassword = decrypt(smtpAccount.smtp_pass_encrypted);
+      smtpPassword = await mailboxSecret(smtpAccount.smtp_pass_encrypted);
     } catch (decryptErr: any) {
       throw new AppError(`Failed to decrypt SMTP credentials for ${smtpAccount.label || smtpAccount.email_address}: ${decryptErr.message}`, 500);
     }
@@ -1589,7 +1590,7 @@ export async function processScheduledEmails(): Promise<number> {
         continue;
       }
 
-      const smtpPassword = decrypt(smtpAccount.smtp_pass_encrypted);
+      const smtpPassword = await mailboxSecret(smtpAccount.smtp_pass_encrypted);
 
       const doSend = () => sendViaSmtp({
         smtpHost: smtpAccount.smtp_host,

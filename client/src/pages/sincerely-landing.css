@@ -1252,6 +1252,7 @@
   width: 100%; height: 42px; margin-top: 26px; border-radius: 8px; cursor: pointer;
   border: 1px solid var(--line); background: var(--bg); color: var(--txt);
   font-size: 14px; font-weight: 500; transition: background 0.15s, border-color 0.15s; }
+.md-auth__oauth--stacked { margin-top: 8px; }
 .md-auth__oauth:hover { background: var(--bg-2); border-color: #C3C1BA; }
 .md-auth__divider { display: flex; align-items: center; gap: 12px; margin: 22px 0;
   font-size: 12px; font-weight: 500; color: var(--txt-3); }

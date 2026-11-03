@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
-import { AuthShell, BrandPreview, GoogleIcon } from '../../components/AuthShell';
+import { AuthShell, BrandPreview, GoogleIcon, MicrosoftIcon } from '../../components/AuthShell';
 import '../sincerely-landing.css';
 import { takeSignupRefusal } from '../../lib/platform';
 
@@ -73,6 +73,18 @@ export function LoginPage() {
       >
         <GoogleIcon />
         Continue with Google
+      </button>
+      <button
+        type="button"
+        className="md-auth__oauth md-auth__oauth--stacked"
+        onClick={async () => {
+          const { error } = await signInWithOAuth('azure');
+          if (error) toast.error(error.message);
+        }}
+        data-oauth-microsoft
+      >
+        <MicrosoftIcon />
+        Continue with Microsoft
       </button>
 
       <div className="md-auth__divider">or with email</div>
