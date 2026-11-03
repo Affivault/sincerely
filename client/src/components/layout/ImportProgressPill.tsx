@@ -17,7 +17,7 @@ export function ImportProgressPill() {
   const run = useSyncExternalStore(importRunner.subscribe, importRunner.get, importRunner.get);
   const { pathname } = useLocation();
   const navigate = useNavigate();
-  if (!run || pathname.startsWith('/contacts/import')) return null;
+  if (!run || pathname === '/contacts/import') return null;
   if (run.status === 'done' && run.acknowledged) return null;
 
   const { progress, result } = run;

@@ -1,3 +1,4 @@
+import { sanitizePersonFilters, type PersonFilters } from './person-filters.js';
 /* ═══════════════════════════════════════════════════════════════════════
    Keeping the contact list honest: duplicates, merges, saved views and
    bulk edits.
@@ -80,6 +81,11 @@ export interface DuplicateContact {
   linkedin_url: string | null;
   website: string | null;
   location: string | null;
+  /** Migration 109. */
+  country?: string | null;
+  city?: string | null;
+  state?: string | null;
+  industry?: string | null;
   lifecycle: Lifecycle | null;
   custom_fields: Record<string, string> | null;
   created_at: string;
@@ -107,6 +113,8 @@ export function duplicateGroupKey(ids: string[]): string {
 export const MERGE_FIELDS = [
   'email', 'first_name', 'last_name', 'company', 'job_title',
   'phone', 'linkedin_url', 'website', 'location',
+  // From imports (migration 109): kept when two records are merged.
+  'country', 'city', 'state', 'industry',
 ] as const;
 export type MergeField = typeof MERGE_FIELDS[number];
 
@@ -120,6 +128,10 @@ export const MERGE_FIELD_LABEL: Record<MergeField, string> = {
   linkedin_url: 'LinkedIn',
   website: 'Website',
   location: 'Location',
+  country: 'Country',
+  city: 'City',
+  state: 'State / region',
+  industry: 'Industry',
 };
 
 const LIFECYCLE_RANK: Record<Lifecycle, number> = { prospect: 1, contact: 2, customer: 3 };
@@ -208,6 +220,8 @@ export interface SavedViewConfig {
   sort_dir?: 'asc' | 'desc';
   /** Email traffic lights shown, comma-separated and sorted ("amber,green,none"). */
   lights?: string;
+  /** Country, industry, company size... (shared/person-filters). */
+  filters?: PersonFilters;
 }
 
 export interface SavedView {
@@ -247,7 +261,13 @@ export function sanitizeViewConfig(raw: unknown): SavedViewConfig {
     const lights = [...new Set(r.lights.split(',').map((l) => l.trim()).filter((l) => ['green', 'amber', 'red', 'none'].includes(l)))].sort();
     if (lights.length) out.lights = lights.join(',');
   }
+  const filters = sanitizePersonFilters(r.filters);
+  if (Object.keys(filters).length) out.filters = filters;
   return out;
+}
+
+function sortKeys(f?: PersonFilters): Array<[string, unknown]> {
+  return Object.entries(f || {}).sort(([a], [b]) => a.localeCompare(b));
 }
 
 /** Two configs that would show the same rows. Drives "Update view". */
@@ -255,7 +275,8 @@ export function sameViewConfig(a: SavedViewConfig, b: SavedViewConfig): boolean 
   const x = sanitizeViewConfig(a);
   const y = sanitizeViewConfig(b);
   const keys: (keyof SavedViewConfig)[] = ['lifecycle', 'outreach', 'search', 'status', 'company', 'list_id', 'sort_by', 'sort_dir', 'lights'];
-  return keys.every((k) => (x[k] ?? '') === (y[k] ?? ''));
+  return keys.every((k) => (x[k] ?? '') === (y[k] ?? ''))
+    && JSON.stringify(sortKeys(x.filters)) === JSON.stringify(sortKeys(y.filters));
 }
 
 /* ── Bulk edit ────────────────────────────────────────────────────────── */
@@ -265,13 +286,17 @@ export function sameViewConfig(a: SavedViewConfig, b: SavedViewConfig): boolean 
  * everything the app maintains (lifecycle, verification, list_count) and
  * everything owned by another feature is deliberately absent.
  */
-export const BULK_EDIT_FIELDS = ['company', 'job_title', 'location', 'phone', 'website'] as const;
+export const BULK_EDIT_FIELDS = ['company', 'job_title', 'location', 'city', 'state', 'country', 'industry', 'phone', 'website'] as const;
 export type BulkEditField = typeof BULK_EDIT_FIELDS[number];
 
 export const BULK_EDIT_FIELD_LABEL: Record<BulkEditField, string> = {
   company: 'Company',
   job_title: 'Job title',
   location: 'Location',
+  city: 'City',
+  state: 'State / region',
+  country: 'Country',
+  industry: 'Industry',
   phone: 'Phone',
   website: 'Website',
 };

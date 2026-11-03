@@ -11,7 +11,8 @@ import {
   deepCheckSkipped, formatDate, formatMoney, plural, websiteFromEmail, sourceLabel,
 } from '@lemlist/shared';
 import type { Lifecycle, ListKind, LeadOutreach, OutreachSummary, ContactDealSummary, ContactsListParams, EmailLight } from '@lemlist/shared';
-import { lightCounts, emailState as sharedEmailState, CREDIT_PRICES } from '@lemlist/shared';
+import { lightCounts, emailState as sharedEmailState, CREDIT_PRICES, sanitizePersonFilters, personFilterLabel, type PersonFilters, type PersonFilterKey } from '@lemlist/shared';
+import { PersonFiltersMenu } from '../../components/contacts/PersonFiltersMenu';
 import { usePeek, setPeekSequence } from '../../components/peek/usePeek';
 import { useFillViewport } from '../../hooks/useFillViewport';
 import { useGridKeys } from '../../hooks/useGridKeys';
@@ -374,6 +375,54 @@ const LIFECYCLE_TIP: Record<Lifecycle, string> = {
   contact: 'Replied, met, or added deliberately.',
   customer: 'Won a deal. Kept out of cold campaigns by default.',
 };
+
+/**
+ * One person on a phone: who, where they work, their email and its light,
+ * and the stage or verification - the columns that matter at a glance.
+ * Tap for the peek panel; the name opens the full record; the box selects
+ * for the bulk bar, same as the table's checkbox.
+ */
+function PersonCard({ c, noun, selected, onToggle, onOpen, showStage }: {
+  c: any; noun: string; selected: boolean; onToggle: () => void; onOpen: () => void; showStage: boolean;
+}) {
+  const fullName = [c.first_name, c.last_name].filter(Boolean).join(' ');
+  const where = [c.city || c.location, c.country].filter(Boolean).join(', ');
+  return (
+    <li
+      className={cn('flex items-start gap-3 px-3 py-3 active:bg-[var(--bg-hover)] transition-colors', selected && 'bg-[var(--indigo-subtle)]')}
+      onClick={onOpen}
+      data-person-card={c.id}
+    >
+      <Avatar name={fullName || c.email} email={c.email} size="md" />
+      <div className="min-w-0 flex-1">
+        <span className="flex items-center gap-1.5 min-w-0">
+          <Link
+            to={`/contacts/${c.id}`}
+            onClick={(e) => e.stopPropagation()}
+            className="truncate text-body font-semibold text-[var(--text-primary)]"
+          >
+            {fullName || `Unnamed ${noun}`}
+          </Link>
+          <LinkedInGlyph url={c.linkedin_url} />
+        </span>
+        {(c.job_title || c.company) && (
+          <p className="text-caption text-[var(--text-secondary)] truncate">{[c.job_title, c.company].filter(Boolean).join(' at ')}</p>
+        )}
+        <p className="mt-1 flex items-center gap-1.5 min-w-0 text-caption text-[var(--text-tertiary)]" onClick={(e) => e.stopPropagation()}>
+          <EmailStatusPopover c={c} className="p-1 -m-1"><EmailStatusDot c={c} /></EmailStatusPopover>
+          <span className="truncate">{c.email}</span>
+        </p>
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+          {showStage ? <LifecycleCell c={c} /> : <EmailStatusPopover c={c}><VerificationBadge c={c} /></EmailStatusPopover>}
+          {where && <span className="inline-flex items-center gap-1 text-caption text-[var(--text-tertiary)] truncate max-w-[60%]"><MapPin className="h-3 w-3 flex-shrink-0" />{where}</span>}
+        </div>
+      </div>
+      <span className="pt-0.5" onClick={(e) => e.stopPropagation()}>
+        <Checkbox checked={selected} onChange={onToggle} aria-label={`Select ${fullName || c.email}`} />
+      </span>
+    </li>
+  );
+}
 
 function LifecycleCell({ c }: { c: any }) {
   // Anything written before the lifecycle column existed reads as a prospect,
@@ -845,6 +894,9 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
   /** Only "No email" picked: the held people are the whole view. */
   const onlyHeld = lights.length === 1 && lights[0] === 'none';
   const [companyFilter, setCompanyFilter] = useState<string | null>(null);
+  /** Country, industry, company size, engagement... (shared/person-filters). */
+  const [personFilters, setPersonFiltersState] = useState<PersonFilters>({});
+  const setPersonFilters = (next: PersonFilters) => { setPersonFiltersState(sanitizePersonFilters(next)); setPage(1); };
 
   const handleSort = (key: ContactSortKey) => {
     if (key === sortBy) {
@@ -962,12 +1014,13 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
   });
 
   const { data: contactsData, isLoading, isPlaceholderData: stale } = useQuery({
-    queryKey: ['contacts', listKind, page, pageSize, debouncedSearch, activeListId, sortBy, sortDir, statusFilter, companyFilter, lifecycle, outreach, emailLights.join(',')],
+    queryKey: ['contacts', listKind, page, pageSize, debouncedSearch, activeListId, sortBy, sortDir, statusFilter, companyFilter, lifecycle, outreach, emailLights.join(','), JSON.stringify(personFilters)],
     queryFn: () => contactsApi.list({
       page,
       limit: pageSize,
       search: debouncedSearch || undefined,
       company: companyFilter || undefined,
+      ...personFilters,
       list_id: activeListId || undefined,
       sort_by: sortBy,
       sort_order: sortDir,
@@ -1438,6 +1491,11 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
     debouncedSearch.trim() && { id: 'search', label: `“${debouncedSearch.trim()}”`, clear: () => setSearch('') },
     statusFilter && { id: 'status', label: STATUS_LABEL[statusFilter] ?? statusFilter, clear: () => setStatusFilter('') },
     companyFilter && { id: 'company', label: companyFilter, clear: () => setCompanyFilter(null) },
+    ...(Object.entries(personFilters) as [PersonFilterKey, string | number][]).map(([k, v]) => ({
+      id: `pf-${k}`,
+      label: personFilterLabel(k, v),
+      clear: () => { const next = { ...personFilters }; delete next[k]; setPersonFilters(next); },
+    })),
     listKind === 'lead' && outreach && {
       id: 'outreach',
       label: LEAD_OUTREACH_LABEL[outreach],
@@ -1455,6 +1513,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
     setStatusFilter('');
     setLightsState([]);
     setCompanyFilter(null);
+    setPersonFiltersState({});
     setOutreach('');
     if (listKind === 'contact') setStage('engaged');
     setPage(1);
@@ -1473,6 +1532,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
     sort_by: sortBy,
     sort_dir: sortDir,
     lights: lights.length ? [...lights].sort().join(',') : undefined,
+    filters: Object.keys(personFilters).length ? personFilters : undefined,
   };
   const applyView = (cfg: SavedViewConfig) => {
     // Views saved before the split carry 'all' or 'prospect': read as the
@@ -1483,6 +1543,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
     setStatusFilter((cfg.status ?? '') as StatusFilter);
     setLightsState((cfg.lights ? cfg.lights.split(',') : []) as EmailLight[]);
     setCompanyFilter(cfg.company ?? null);
+    setPersonFiltersState(sanitizePersonFilters(cfg.filters));
     setSortBy((cfg.sort_by ?? 'created_at') as ContactSortKey);
     setSortDir(cfg.sort_dir ?? 'desc');
     setSelectedContacts(new Set());
@@ -1500,6 +1561,32 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
   };
 
   const allSelected = contacts.length > 0 && contacts.every((c: any) => selectedContacts.has(c.id));
+  /* "Select all N matching": every person the filters on screen hold, not
+     just this page - so a filtered audience can go into a campaign, be
+     edited or enriched in one go. */
+  const [selectingAll, setSelectingAll] = useState(false);
+  const selectAllMatching = async () => {
+    setSelectingAll(true);
+    try {
+      const r = await contactsApi.matchingIds({
+        search: debouncedSearch || undefined,
+        company: companyFilter || undefined,
+        ...personFilters,
+        list_id: activeListId || undefined,
+        verification_status: (listKind === 'lead' && statusFilter) || undefined,
+        lights: emailLights.length ? emailLights.join(',') : undefined,
+        lifecycle,
+        outreach: (listKind === 'lead' && outreach) || undefined,
+      } as any);
+      setSelectedContacts(new Set(r.ids));
+      if (r.capped) toast(`Selected the first ${r.ids.length.toLocaleString()} of ${r.total.toLocaleString()} - narrow the filters to reach the rest.`, { icon: 'ℹ️' });
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || 'Could not select them all');
+    } finally {
+      setSelectingAll(false);
+    }
+  };
+  const canSelectAllMatching = allSelected && totalContacts > selectedContacts.size;
   const someSelected = selectedContacts.size > 0;
   const pendingOnPage = (contacts as any[]).filter((c) => !c.dcs_verified_at && !c.is_bounced).length;
 
@@ -1911,6 +1998,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
               outreach: listKind === 'lead' ? cfg.outreach : undefined,
               verification_status: listKind === 'lead' ? (cfg.status || undefined) : undefined,
               lights: emailOnly.length ? emailOnly.join(',') : undefined,
+              ...sanitizePersonFilters(cfg.filters),
             };
           }}
         />
@@ -2082,6 +2170,8 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
 
           {/* View leads by company */}
           <CompanyFilter value={companyFilter} options={companyOptions || []} onChange={setCompanyFilter} />
+          {/* Country, industry, company size, engagement */}
+          <PersonFiltersMenu value={personFilters} onChange={setPersonFilters} lifecycle={listKind === 'lead' ? 'prospect' : 'engaged'} />
 
           {/* Live auto-verification indicator */}
           {listKind === 'lead' && autoVerifyOn && pendingOnPage > 0 && (
@@ -2219,6 +2309,9 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
               count={selectedContacts.size}
               noun={noun}
               onClear={() => setSelectedContacts(new Set())}
+              selectAll={canSelectAllMatching
+                ? { label: selectingAll ? 'Selecting...' : `Select all ${totalContacts.toLocaleString()}`, onSelect: selectAllMatching }
+                : undefined}
               primary={listKind === 'lead'
                 ? { label: 'Add to campaign', icon: Megaphone, onSelect: () => setShowCampaignModal(true) }
                 : undefined}
@@ -2329,7 +2422,26 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                 than height, so a short list still ends where it ends instead of
                 sitting in a tall empty box.
               */}
-              <div ref={gridRef} onScroll={measureEdges} className="overflow-auto" style={gridHeight ? { maxHeight: gridHeight } : undefined}>
+              {/* On a phone: one card per person instead of a table that
+                  only shows a name and half an email before it scrolls. */}
+              <label className="sm:hidden flex items-center gap-2.5 px-3 py-2 border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50 text-caption text-[var(--text-secondary)]">
+                <Checkbox checked={allSelected} onChange={toggleSelectAll} aria-label="Select everyone on this page" />
+                {allSelected ? `All ${contacts.length.toLocaleString()} on this page selected` : `Select all ${contacts.length.toLocaleString()} on this page`}
+              </label>
+              <ul className="sm:hidden divide-y divide-[var(--border-subtle)]" data-people-cards>
+                {contacts.map((contact: any) => (
+                  <PersonCard
+                    key={contact.id}
+                    c={contact}
+                    noun={noun}
+                    selected={selectedContacts.has(contact.id)}
+                    onToggle={() => toggleSelectContact(contact.id)}
+                    onOpen={() => openPeek('contact', contact.id)}
+                    showStage={listKind === 'contact'}
+                  />
+                ))}
+              </ul>
+              <div ref={gridRef} onScroll={measureEdges} className="hidden sm:block overflow-auto" style={gridHeight ? { maxHeight: gridHeight } : undefined}>
                 <table
                   className="border-separate border-spacing-0 text-left table-fixed w-full"
                   style={{ minWidth: GUTTER_W + widthOf(CONTACT_COL_ID) + activeColumns.reduce((n, c) => n + widthOf(c.id), 0) + ACTIONS_W }}
@@ -2567,7 +2679,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
               {/* More columns off to the right: a fade, and an arrow that
                   scrolls there, so a cut-off column never looks like the end. */}
               {edges.right && (
-                <>
+                <div className="hidden sm:block">
                   <div aria-hidden="true" className="pointer-events-none absolute top-0 right-0 bottom-0 z-[7] w-14 bg-gradient-to-l from-[var(--bg-surface)] to-transparent" />
                   <button
                     type="button"
@@ -2579,7 +2691,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                   >
                     <ChevronRight className="h-3.5 w-3.5" />
                   </button>
-                </>
+                </div>
               )}
             </div>
           )}
@@ -2856,6 +2968,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
           outreach: (listKind === 'lead' && outreach) || undefined,
           verificationStatus: (listKind === 'lead' && statusFilter) || undefined,
           lights: emailLights.length ? emailLights : undefined,
+          filters: Object.keys(personFilters).length ? personFilters : undefined,
         }}
         viewCount={totalContacts}
         viewLabel={activeListId ? currentListName : undefined}
@@ -2865,6 +2978,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
           listKind === 'lead' && outreach ? `outreach: ${outreach.replace(/_/g, ' ')}` : null,
           listKind === 'lead' && statusFilter ? `email: ${statusFilter.replace(/_/g, ' ')}` : null,
           emailLights.length ? `lights: ${emailLights.join(', ')}` : null,
+          ...(Object.entries(personFilters) as [PersonFilterKey, string | number][]).map(([k, v]) => personFilterLabel(k, v)),
           listKind !== 'lead' && lifecycle !== pageScope ? `stage: ${lifecycle}` : null,
         ].filter(Boolean).join(' · ') || undefined}
       />

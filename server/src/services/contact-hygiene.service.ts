@@ -32,7 +32,7 @@ function needs096(what: string): AppError {
 }
 
 const DUPLICATE_SELECT =
-  'id, email, first_name, last_name, company, job_title, phone, linkedin_url, website, location, lifecycle, custom_fields, created_at, updated_at';
+  'id, email, first_name, last_name, company, job_title, phone, linkedin_url, website, location, country, city, state, industry, lifecycle, custom_fields, created_at, updated_at';
 
 /** Join groups that share a contact, so one person is one card. */
 function cluster(rows: { reason: DuplicateReason; contact_ids: string[] }[]) {
@@ -191,6 +191,20 @@ export const contactHygieneService = {
       if ((error as any).code === 'P0002') throw new AppError('Contact not found', 404);
       if ((error as any).code === '22023') throw new AppError(error.message.replace(/^merge_contacts: /, ''), 400);
       throw new AppError(error.message, 500);
+    }
+
+    /*
+     * The fields imports added (migration 109). merge_contacts (096) writes
+     * the columns it names and nothing else, so a chosen country or
+     * industry would be dropped; they are applied here, on the record kept.
+     */
+    const later: Record<string, string | null> = {};
+    for (const f of ['country', 'city', 'state', 'industry'] as const) {
+      if (picked[f] !== undefined) later[f] = picked[f] === null ? null : (String(picked[f]).trim() || null);
+    }
+    if (Object.keys(later).length > 0) {
+      const { error: laterErr } = await supabaseAdmin.from('contacts').update(later).eq('user_id', userId).eq('id', primaryId);
+      if (laterErr) console.warn('[Merge] new fields not applied:', laterErr.message);
     }
 
     // A score from before the merge describes half a person.

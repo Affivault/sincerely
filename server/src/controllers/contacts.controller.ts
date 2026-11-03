@@ -7,6 +7,7 @@ import { OutOfCreditsError } from '../services/credits.service.js';
 import { contactHygieneService } from '../services/contact-hygiene.service.js';
 import { engagementService } from '../services/engagement.service.js';
 import { contactEnrichmentService } from '../services/contact-enrichment.service.js';
+import { importHistoryService } from '../services/import-history.service.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -100,7 +101,7 @@ export const contactsController = {
 
   async bulkCreate(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const { contacts, list_id, import_source, context, mode, tag_ids } = req.body || {};
+      const { contacts, list_id, import_source, context, mode, tag_ids, import_id } = req.body || {};
       if (!Array.isArray(contacts)) {
         res.status(400).json({ error: 'Request body must include a contacts array' });
         return;
@@ -121,6 +122,12 @@ export const contactsController = {
           tagIds: Array.isArray(tag_ids) ? tag_ids.filter((t: unknown) => typeof t === 'string') : undefined,
         },
       );
+      // Part of a recorded import: remember who it added, for Undo later.
+      if (typeof import_id === 'string' && import_id) {
+        await importHistoryService.record(req.userId!, import_id, {
+          createdIds: result.created_ids, created: result.created, updated: result.updated, errors: result.errors,
+        });
+      }
       res.json(result);
     } catch (err) { next(err); }
   },
@@ -138,11 +145,25 @@ export const contactsController = {
     } catch (err) { next(err); }
   },
 
+  /** Every id the list would show for these filters (select all matching). */
+  async matchingIds(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      res.json(await contactsService.matchingIds(req.userId!, (req.body || {}) as any));
+    } catch (err) { next(err); }
+  },
+
+  async facets(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const lifecycle = typeof req.query.lifecycle === 'string' ? req.query.lifecycle : undefined;
+      res.json(await contactsService.facets(req.userId!, lifecycle));
+    } catch (err) { next(err); }
+  },
+
   async lightCounts(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const ids = Array.isArray(req.body?.contact_ids) ? req.body.contact_ids : [];
       if (ids.length > 100_000) { res.status(413).json({ error: 'Too many contacts' }); return; }
-      res.json(await contactsService.lightCounts(req.userId!, ids));
+      res.json(await contactsService.lightCounts(req.userId!, ids, { amberIds: req.body?.amber_ids === true }));
     } catch (err) { next(err); }
   },
 
@@ -172,6 +193,14 @@ export const contactsController = {
     try {
       if (badId(req, res)) return;
       res.json(await heldPeopleService.addEmail(req.userId!, req.params.id, String(req.body?.email || '')));
+    } catch (err) { next(err); }
+  },
+
+  /** Enrich someone held without an email: role, location, LinkedIn, employer. */
+  async heldEnrich(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      if (badId(req, res)) return;
+      res.json(await contactEnrichmentService.enrichHeld(req.userId!, req.params.id));
     } catch (err) { next(err); }
   },
 
@@ -251,6 +280,7 @@ export const contactsController = {
         verificationStatus: str(b.verification_status),
         tagIds: Array.isArray(b.tag_ids) ? b.tag_ids : undefined,
         lights: Array.isArray(b.lights) ? b.lights : undefined,
+        filters: b.filters && typeof b.filters === 'object' ? b.filters : undefined,
         columns: Array.isArray(b.columns) ? b.columns : undefined,
       });
 

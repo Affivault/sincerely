@@ -113,6 +113,15 @@ export function buildTagValues(ctx: MergeContext): Record<string, string> {
     state: str(c.state),
     industry: str(c.industry),
 
+    // ─── Their company (the companies record, loaded only when a tag asks) ───
+    company_size: str(c.company_rec?.size),
+    company_industry: str(c.company_rec?.industry),
+    company_location: str(c.company_rec?.location),
+    company_phone: str(c.company_rec?.phone),
+    company_linkedin: str(c.company_rec?.linkedin_url),
+    // The company's site, or the contact's own website when the company has none.
+    company_website: str(c.company_rec?.website) || str(c.website),
+
     // ─── The account's own scheduler ───
     // A cold email that ends "here is my calendar" converts a reply into a
     // meeting without a second round trip, which is the whole reason this
@@ -359,6 +368,10 @@ export const SAMPLE_PREVIEW_CONTACT = {
   linkedin_url: 'https://linkedin.com/in/alexmorgan',
   website: 'https://acme.example.com',
   custom_fields: { custom_field_1: 'Sample 1', custom_field_2: 'Sample 2' },
+  company_rec: {
+    size: '51-200', industry: 'Software', location: 'San Francisco, United States',
+    phone: '+1 (555) 010-2000', linkedin_url: 'https://linkedin.com/company/acme', website: 'https://acme.example.com',
+  },
 };
 
 export const SAMPLE_PREVIEW_SENDER: SenderIdentity = {
@@ -437,6 +450,12 @@ export const TAG_LABELS: Record<string, string> = {
   state: 'State / region',
   country: 'Country',
   industry: 'Industry',
+  company_size: 'Company size',
+  company_industry: 'Company industry',
+  company_location: 'Company location',
+  company_phone: 'Company phone',
+  company_linkedin: 'Company LinkedIn',
+  company_website: 'Company website',
   sender_name: 'Your name',
   sender_first_name: 'Your first name',
   sender_email: 'Your email',
@@ -461,7 +480,22 @@ export const TAG_SOURCE_FIELD: Record<string, string> = {
   state: 'state',
   country: 'location',
   industry: 'industry',
+  // On the company record: the audit reads them through the contact's company.
+  company_size: 'companies.size',
+  company_industry: 'companies.industry',
+  company_location: 'companies.location',
+  company_phone: 'companies.phone',
+  company_linkedin: 'companies.linkedin_url',
+  company_website: 'companies.website',
 };
+
+/** Tags read from the contact's company record rather than the contact. */
+export const COMPANY_TAGS = ['company_size', 'company_industry', 'company_location', 'company_phone', 'company_linkedin', 'company_website'] as const;
+
+/** Whether any of this copy needs the company record loaded to render. */
+export function usesCompanyTags(...texts: Array<string | null | undefined>): boolean {
+  return texts.some((t) => !!t && /\{\{\s*company_(size|industry|location|phone|linkedin|website)\b/.test(t));
+}
 
 /**
  * The tags in some copy that would come out blank for this contact - no

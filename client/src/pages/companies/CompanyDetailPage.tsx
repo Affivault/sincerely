@@ -21,7 +21,7 @@ import { DEAL_STAGES, type CompanyActivity, formatDate, formatMoney } from '@lem
 import {
   ArrowLeft, Building2, Users, Handshake, Globe, MapPin, Factory, Linkedin,
   Mail, StickyNote, CalendarDays, ListTodo, ArrowUpRight, ArrowDownLeft,
-  Trash2, Plus, ExternalLink,
+  Trash2, Plus, ExternalLink, Phone,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -293,6 +293,7 @@ export function CompanyDetailPage() {
               <InfoRow icon={Factory} label="Industry" value={company.industry} onSave={field('industry')} />
               <InfoRow icon={MapPin} label="Location" value={company.location} onSave={field('location')} />
               <InfoRow icon={Linkedin} label="LinkedIn" value={company.linkedin_url} onSave={field('linkedin_url')} type="url" href={company.linkedin_url || undefined} />
+              <InfoRow icon={Phone} label="HQ phone" value={company.phone ?? null} onSave={field('phone')} />
               <div className="flex items-start gap-3">
                 <Users className="h-4 w-4 text-[var(--text-secondary)] mt-0.5 shrink-0" />
                 <div className="min-w-0 flex-1">

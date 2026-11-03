@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { AtSign, Check, Download, Linkedin, Loader2, MailX, Trash2, Upload } from 'lucide-react';
+import { AtSign, Check, Download, Linkedin, Loader2, MailX, Sparkles, Trash2, Upload } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import type { HeldPerson } from '@lemlist/shared';
+import { CREDIT_PRICES, type HeldPerson } from '@lemlist/shared';
 import { contactsApi } from '../../api/contacts.api';
 import { useConfirm } from '../ui/ConfirmDialog';
 import { downloadCsv, csvDate } from '../../lib/csv';
@@ -16,7 +16,10 @@ import { Refreshing } from '../ui/Refreshing';
    The "No email" light: people imported without a usable address, held
    in their list. Never emailed. Typing an address in turns one into an
    ordinary lead (or contact) in the same list; re-importing the fixed file
-   does the same for everyone it now has an address for.
+   does the same for everyone it now has an address for. Enrich fills in
+   their role, location and LinkedIn from their profile (no email lookup),
+   so whoever finds the address has the full picture; refunded when
+   nothing is found.
    ═══════════════════════════════════════════════════════════════════════ */
 
 const PAGE = 50;
@@ -34,6 +37,22 @@ export function HeldPeoplePanel({ listId, lifecycle, search, noun, kind }: {
   const [page, setPage] = useState(1);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<string | null>(null);
+  const [enriching, setEnriching] = useState<string | null>(null);
+
+  const enrich = async (p: HeldPerson, name: string) => {
+    setEnriching(p.id);
+    try {
+      const r = await contactsApi.heldEnrich(p.id);
+      if (!r.found) toast(r.note || `Nothing found for ${name} - your credits were refunded`);
+      else if (r.filled.length === 0) toast.success(`${name} checked - nothing new to add`);
+      else toast.success(`${name}: added ${r.filled.join(', ')}`);
+      qc.invalidateQueries({ queryKey: ['held-people'] });
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || 'Could not enrich them');
+    } finally {
+      setEnriching(null);
+    }
+  };
 
   const { data, isLoading, isPlaceholderData } = useQuery({
     queryKey: ['held-people', listId, lifecycle, search, page],
@@ -161,6 +180,7 @@ export function HeldPeoplePanel({ listId, lifecycle, search, noun, kind }: {
                     </p>
                     <p className="text-caption text-[var(--text-tertiary)] truncate">
                       {[p.job_title, p.company].filter(Boolean).join(' at ') || 'No title or company'}
+                      {typeof p.data?.location === 'string' && p.data.location ? ` - ${p.data.location}` : ''}
                     </p>
                   </div>
                   {p.reason === 'invalid_email' && p.raw_email && (
@@ -188,6 +208,18 @@ export function HeldPeoplePanel({ listId, lifecycle, search, noun, kind }: {
                     aria-label={`Save email for ${name}`}
                   >
                     {saving === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Add'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => enrich(p, name)}
+                    disabled={enriching === p.id}
+                    className="btn-ghost flex-shrink-0"
+                    data-held-enrich
+                    aria-label={`Enrich ${name}`}
+                    title={`Find their role, location and LinkedIn from their profile (${CREDIT_PRICES.enrich} credits, refunded if nothing is found). Does not look for an email.`}
+                  >
+                    {enriching === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                    <span className="hidden lg:inline">Enrich</span>
                   </button>
                   <button
                     type="button"

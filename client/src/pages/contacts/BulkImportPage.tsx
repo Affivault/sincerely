@@ -4,13 +4,14 @@ import { importRunner } from '../../lib/importRunner';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { contactsApi, listsApi, tagsApi, type BulkImportResult, type ImportPreflight } from '../../api/contacts.api';
+import { importsApi } from '../../api/imports.api';
 import { cn } from '../../lib/utils';
 import {
   ArrowLeft, Upload, FileText, X, Check, AlertTriangle,
   ArrowRight, Users, Loader2, CheckCircle2, XCircle, Eye,
   FolderOpen, RotateCcw, Download, AlertCircle, MailCheck, Plus,
   SlidersHorizontal, ChevronDown, Sparkles, Send, ClipboardPaste, Search,
-  Building2, User, Tag as TagIcon, Undo2, Bookmark, MailX,
+  Building2, User, Tag as TagIcon, Undo2, Bookmark, MailX, RefreshCw, History,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { blockedProps, BLOCKED_CLASS } from '../../lib/blockedAction';
@@ -154,6 +155,7 @@ export function BulkImportPage() {
     errorDetails: { email: string; reason: string }[];
     durationMs: number;
     cancelled: boolean;
+    importId?: string | null;
   } | null>(null);
   const [undone, setUndone] = useState(false);
   const [cancelRequested, setCancelRequested] = useState(false);
@@ -433,6 +435,15 @@ export function BulkImportPage() {
     });
     setStep('importing');
 
+    // Recorded in Import history, so it can be undone from there later.
+    const importId = await importsApi.start({
+      source: sourceName || 'Import',
+      origin: /^Pasted /.test(sourceName) && !file ? 'paste' : 'file',
+      list_id: listId || null,
+      kind: (importAs === 'contact' || (listMode === 'new' && newListKind === 'contact') || (chosenListEarly as any)?.kind === 'contact') ? 'contact' : 'lead',
+      total,
+    });
+
     // A file of nobody with an email still runs: the loop below does
     // nothing and the people are held.
     let imported = 0;
@@ -458,7 +469,7 @@ export function BulkImportPage() {
         // The filename travels with every batch so each contact remembers
         // which import it arrived in.
         const result: BulkImportResult = await contactsApi.bulkCreate(
-          batch, listId || undefined, sourceName || undefined, asContacts ? 'contacts' : undefined, { mode, tagIds },
+          batch, listId || undefined, sourceName || undefined, asContacts ? 'contacts' : undefined, { mode, tagIds, importId },
         );
         imported += result.imported;
         errors += result.errors;
@@ -517,6 +528,7 @@ export function BulkImportPage() {
       }
     }
     importRunner.held(runId, held);
+    if (importId) await importsApi.finish(importId, { held, cancelled });
 
     importRunner.finish(runId, {
       total,
@@ -530,12 +542,13 @@ export function BulkImportPage() {
       errorDetails,
       durationMs: Date.now() - startedAt,
       cancelled,
+      importId,
     });
     queryClient.invalidateQueries({ queryKey: ['lists'] });
     for (const key of ['contacts', 'contact-stats', 'contact-companies', 'verification-breakdown', 'companies', 'tags']) {
       queryClient.invalidateQueries({ queryKey: [key] });
     }
-  }, [prepared, mappingValid, listChoiceValid, listMode, targetListId, newListName, newListKind, importAs, lists, queryClient, sourceName, mode, tagIds, headers, mapping, keepHeld, holdable, emailColumn]);
+  }, [prepared, mappingValid, listChoiceValid, listMode, targetListId, newListName, newListKind, importAs, lists, queryClient, sourceName, mode, tagIds, headers, mapping, keepHeld, holdable, emailColumn, file]);
 
   const cancel = () => {
     importRunner.cancel();
@@ -557,8 +570,15 @@ export function BulkImportPage() {
     }, async () => {
       try {
         let deleted = 0;
-        for (let i = 0; i < ids.length; i += 1000) {
-          deleted += (await contactsApi.bulkDelete(ids.slice(i, i + 1000))).deleted;
+        if (completedResult?.importId) {
+          // Through Import history, so the run shows as undone there too.
+          const r = await importsApi.undo(completedResult.importId);
+          deleted = r.deleted;
+          if (r.kept_in_campaigns) toast(`${r.kept_in_campaigns.toLocaleString()} already in a campaign were kept`, { duration: 6000 });
+        } else {
+          for (let i = 0; i < ids.length; i += 1000) {
+            deleted += (await contactsApi.bulkDelete(ids.slice(i, i + 1000))).deleted;
+          }
         }
         setUndone(true);
         for (const key of ['contacts', 'contact-stats', 'lists', 'contact-companies', 'verification-breakdown']) {
@@ -766,6 +786,19 @@ export function BulkImportPage() {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* A sheet the team keeps adding to: synced on a schedule instead. */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-3" data-sheet-sync-entry>
+            <RefreshCw className="h-4 w-4 text-[var(--indigo-text)] flex-shrink-0" />
+            <span className="flex-1 min-w-[220px]">
+              <span className="block text-body font-medium text-[var(--text-primary)]">Keep a Google Sheet in sync</span>
+              <span className="block text-caption text-[var(--text-tertiary)]">New rows come in by themselves, every few hours, with this mapping saved.</span>
+            </span>
+            <button type="button" onClick={() => navigate(`/contacts/imports?sheet=new&as=${importAs}`)} className="btn-secondary">Connect a sheet</button>
+            <button type="button" onClick={() => navigate('/contacts/imports')} className="btn-ghost">
+              <History className="h-3.5 w-3.5" /> Import history
+            </button>
           </div>
 
           {parseError && (

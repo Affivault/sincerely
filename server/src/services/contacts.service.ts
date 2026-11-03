@@ -2,6 +2,7 @@ import {
   REPLY_CHECK_CONTACT_DOMAIN, normalizeLinkedinUrl, summariseOutreach, summariseDeals,
   LEAD_OUTREACH_STATES, IMPORT_FIELDS, IMPORT_MODES, type ImportMode,
   buildContactExport, resolveExportColumns, toCsv, emailState, heldMatchKey,
+  sanitizePersonFilters, exactIlike, type PersonFacets,
 } from '@lemlist/shared';
 import { heldPeopleService } from './held-people.service.js';
 import { enrichmentService } from './enrichment.service.js';
@@ -56,6 +57,8 @@ export interface ExportOptions {
   tagIds?: string[];
   /** Traffic lights, as on the list (green/amber/red). */
   lights?: string[];
+  /** Country, industry, company size... */
+  filters?: Record<string, unknown>;
   /** Export column keys (shared/contact-export); all when omitted. */
   columns?: string[];
 }
@@ -74,6 +77,14 @@ interface ListParams {
   verification_status?: string;
   /** Traffic lights to show, any of green/amber/red (shared/email-light). */
   lights?: string[] | string;
+  /** Country, industry, company size... (shared/person-filters). */
+  country?: string;
+  city?: string;
+  state?: string;
+  industry?: string;
+  company_size?: string;
+  company_industry?: string;
+  engagement_min?: number | string;
   /**
    * Which population to show.
    *
@@ -257,6 +268,11 @@ async function tagImported(
   }
 }
 
+/** The company join a size/industry filter needs, or nothing. */
+function companyFilterJoin(params: { company_size?: unknown; company_industry?: unknown }): string | null {
+  return params.company_size || params.company_industry ? 'co_filter:companies!inner(size, industry)' : null;
+}
+
 /** Which of these ids are this user's contacts, asked a slice at a time. */
 async function ownedContactIds(userId: string, contactIds: string[]): Promise<string[]> {
   const rows = await selectInChunks([...new Set(contactIds)], (slice) =>
@@ -344,6 +360,17 @@ function applyContactFilters(query: any, params: ListParams, ctx: { listScoped: 
     query = query.lte('dcs_score', params.dcs_max);
   }
 
+  // Who they are and where they work (shared/person-filters): exact but
+  // case-blind. Company size and industry live on the company record, which
+  // the caller joins as co_filter when either is asked for.
+  const pf = sanitizePersonFilters(params);
+  for (const k of ['country', 'city', 'state', 'industry'] as const) {
+    if (pf[k]) query = query.ilike(k, exactIlike(pf[k]!));
+  }
+  if (pf.company_size) query = query.ilike('co_filter.size', exactIlike(pf.company_size));
+  if (pf.company_industry) query = query.ilike('co_filter.industry', exactIlike(pf.company_industry));
+  if (pf.engagement_min) query = query.gte('engagement_score', pf.engagement_min);
+
   // Traffic lights: the union of the chosen ones, in the same buckets as
   // shared/email-light emailState(), so the chip counts and rows agree.
   const lights = (Array.isArray(params.lights) ? params.lights : String(params.lights || '').split(','))
@@ -421,6 +448,7 @@ export const contactsService = {
 
     const select = [
       '*, contact_tags(tag_id, tags(*)), list_contacts(contact_lists(id, name))',
+      companyFilterJoin(params),
       listScoped ? 'in_list:list_contacts!inner(list_id)' : null,
       tagIds.length > 0 ? 'has_tag:contact_tags!inner(tag_id)' : null,
     ].filter(Boolean).join(', ');
@@ -484,6 +512,7 @@ export const contactsService = {
       list_contacts: undefined,
       in_list: undefined,
       has_tag: undefined,
+      co_filter: undefined,
       ...(outreachById ? { outreach: outreachById.get(c.id) ?? null } : {}),
       ...(dealsById ? { deals: dealsById.get(c.id) ?? null } : {}),
       // The 360 profile is read on the contact's own page; a hundred of
@@ -1031,21 +1060,96 @@ export const contactsService = {
   },
 
   /**
+   * Every id the list would show for these filters - for "Select all N
+   * matching", so a filtered audience can be put in a campaign, edited or
+   * enriched in one go. Capped, and says when it was.
+   */
+  async matchingIds(userId: string, params: ListParams, cap = 10_000): Promise<{ ids: string[]; total: number; capped: boolean }> {
+    const tagIds = Array.isArray(params.tag_ids) ? params.tag_ids.filter(Boolean) : params.tag_ids ? [String(params.tag_ids)] : [];
+    const listScoped = !!params.list_id && !isUnlisted(params.list_id);
+    const outreach = (LEAD_OUTREACH_STATES as string[]).includes(params.outreach || '') ? params.outreach! : null;
+    const select = [
+      'id',
+      companyFilterJoin(params),
+      listScoped ? 'in_list:list_contacts!inner(list_id)' : null,
+      tagIds.length > 0 ? 'has_tag:contact_tags!inner(tag_id)' : null,
+    ].filter(Boolean).join(', ');
+    const ids: string[] = [];
+    let total = 0;
+    for (let from = 0; from < cap; from += 1000) {
+      let q = supabaseAdmin.from('contacts').select(select, { count: from === 0 ? 'exact' : undefined })
+        .eq('user_id', userId)
+        .not('email', 'like', `%@${REPLY_CHECK_CONTACT_DOMAIN}`);
+      q = applyContactFilters(q, params, { listScoped, tagIds, outreach });
+      const { data, error, count } = await q.order('created_at', { ascending: false }).order('id').range(from, Math.min(from + 999, cap - 1));
+      if (error) throw new AppError(error.message, 500);
+      if (from === 0) total = count || 0;
+      for (const r of (data || []) as any[]) ids.push(r.id);
+      if (!data || data.length < 1000) break;
+    }
+    return { ids, total, capped: total > ids.length };
+  },
+
+  /**
+   * The values the filter menu offers, commonest first: what this page's
+   * people actually have for country, city, state and industry, and what
+   * their companies have for size and industry.
+   */
+  async facets(userId: string, lifecycle?: string): Promise<PersonFacets> {
+    const tally = () => new Map<string, { value: string; count: number }>();
+    const t = { country: tally(), city: tally(), state: tally(), industry: tally(), company_size: tally(), company_industry: tally() };
+    const add = (m: Map<string, { value: string; count: number }>, v: unknown) => {
+      const s = typeof v === 'string' ? v.trim() : '';
+      if (!s) return;
+      const k = s.toLowerCase();
+      const hit = m.get(k);
+      if (hit) hit.count++; else m.set(k, { value: s, count: 1 });
+    };
+    // Sampled at 20,000 people: enough for every value worth a menu entry.
+    for (let from = 0; from < 20_000; from += 1000) {
+      let q = supabaseAdmin.from('contacts').select('country, city, state, industry, companies(size, industry)').eq('user_id', userId);
+      q = applyLifecycle(q, lifecycle);
+      const { data, error } = await q.order('id').range(from, from + 999);
+      if (error) {
+        // Before migration 109 there are no such columns: no facets, not an error page.
+        if (/country|city|state|industry/.test(error.message || '')) break;
+        throw new AppError(error.message, 500);
+      }
+      for (const r of (data || []) as any[]) {
+        add(t.country, r.country); add(t.city, r.city); add(t.state, r.state); add(t.industry, r.industry);
+        add(t.company_size, r.companies?.size); add(t.company_industry, r.companies?.industry);
+      }
+      if (!data || data.length < 1000) break;
+    }
+    const top = (m: Map<string, { value: string; count: number }>) => [...m.values()].sort((a, b) => b.count - a.count || a.value.localeCompare(b.value)).slice(0, 60);
+    return {
+      country: top(t.country), city: top(t.city), state: top(t.state), industry: top(t.industry),
+      company_size: top(t.company_size), company_industry: top(t.company_industry),
+    };
+  },
+
+  /**
    * How many of these contacts are each light, for the launch screen.
    * Unverified is counted on its own as well, because "verify them first"
    * is the thing to offer when amber is mostly unchecked.
    */
-  async lightCounts(userId: string, contactIds: string[]): Promise<{ green: number; amber: number; red: number; unverified: number }> {
+  /**
+   * With `amberIds`, also who is amber (at most 5,000): the launch screen's
+   * "Verify the unsure now" checks exactly those, not the whole audience.
+   */
+  async lightCounts(userId: string, contactIds: string[], opts: { amberIds?: boolean } = {}): Promise<{ green: number; amber: number; red: number; unverified: number; amber_ids?: string[] }> {
     const ids = [...new Set((contactIds || []).filter((x) => typeof x === 'string'))].slice(0, 100_000);
-    const out = { green: 0, amber: 0, red: 0, unverified: 0 };
+    const out: { green: number; amber: number; red: number; unverified: number; amber_ids?: string[] } = { green: 0, amber: 0, red: 0, unverified: 0 };
+    if (opts.amberIds) out.amber_ids = [];
     if (ids.length === 0) return out;
     const rows = await selectInChunks(ids, (slice) =>
-      supabaseAdmin.from('contacts').select('email, is_bounced, dcs_verified_at, dcs_score, dcs_syntax_ok, dcs_domain_ok').eq('user_id', userId).in('id', slice));
+      supabaseAdmin.from('contacts').select('id, email, is_bounced, dcs_verified_at, dcs_score, dcs_syntax_ok, dcs_domain_ok').eq('user_id', userId).in('id', slice));
     for (const r of rows) {
       const state = emailState(r);
       if (state === 'unverified') out.unverified++;
       const light = state === 'valid' ? 'green' : state === 'risky' || state === 'unverified' ? 'amber' : state === 'no_email' ? null : 'red';
       if (light) out[light]++;
+      if (light === 'amber' && out.amber_ids && out.amber_ids.length < 5000) out.amber_ids.push(r.id);
     }
     return out;
   },
@@ -1268,6 +1372,7 @@ export const contactsService = {
       const params: ListParams = {
         list_id: opts.listId, lifecycle: opts.lifecycle, search: opts.search, company: opts.company,
         outreach: opts.outreach, verification_status: opts.verificationStatus, lights: opts.lights,
+        ...sanitizePersonFilters(opts.filters),
         tag_ids: Array.isArray(opts.tagIds) ? opts.tagIds : undefined,
       };
       const tagIds = (params.tag_ids || []).filter(Boolean);
@@ -1275,6 +1380,7 @@ export const contactsService = {
       const outreach = (LEAD_OUTREACH_STATES as string[]).includes(params.outreach || '') ? params.outreach! : null;
       const select = [
         withJoins,
+        companyFilterJoin(params),
         listScoped ? 'in_list:list_contacts!inner(list_id)' : null,
         tagIds.length > 0 ? 'has_tag:contact_tags!inner(tag_id)' : null,
       ].filter(Boolean).join(', ');
@@ -1304,7 +1410,7 @@ export const contactsService = {
     }
 
     const rows = (data || []).map((r: any) => {
-      const { contact_tags, list_contacts, in_list: _l, has_tag: _t, enrichment: _e, engagement_factors: _f, ...rest } = r;
+      const { contact_tags, list_contacts, in_list: _l, has_tag: _t, co_filter: _c, enrichment: _e, engagement_factors: _f, ...rest } = r;
       return {
         ...rest,
         tag_names: (contact_tags || []).map((ct: any) => ct?.tags?.name).filter(Boolean),

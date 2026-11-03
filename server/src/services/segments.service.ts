@@ -12,6 +12,9 @@ import type { CreateSegmentInput, UpdateSegmentInput, FilterConfig, SegmentCondi
 const ALLOWED_SEGMENT_FIELDS = new Set([
   'email', 'first_name', 'last_name', 'company', 'job_title', 'phone',
   'source', 'is_unsubscribed', 'is_bounced', 'dcs_score', 'created_at', 'tag',
+  // From imports (migration 109) and the CRM split.
+  'country', 'city', 'state', 'industry', 'location', 'website', 'linkedin_url',
+  'lifecycle', 'engagement_score',
 ]);
 
 function assertValidField(field: string): void {

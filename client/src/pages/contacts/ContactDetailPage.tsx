@@ -20,6 +20,7 @@ import { EngagementPanel } from '../../components/contacts/Engagement';
 import { ContactDuplicatesSection } from '../../components/contacts/Duplicates';
 import { Profile360 } from '../../components/contacts/Profile360';
 import { verificationApi } from '../../api/verification.api';
+import { companiesApi } from '../../api/companies.api';
 import {
   DEAL_STAGES, isColdEmailable, LIFECYCLE_LABEL, PROMOTION_LABEL, peoplePageHref,
   type Deal, type CrmEvent, type Lifecycle, type PromotionTrigger, formatDate, formatMoney } from '@lemlist/shared';
@@ -573,6 +574,7 @@ export function ContactDetailPage() {
               <InfoRow icon={Linkedin} label="LinkedIn" value={contact.linkedin_url} isLink onSave={field('linkedin_url')} />
               <InfoRow icon={Globe} label="Website" value={contact.website} isLink onSave={field('website')} />
             </div>
+            {contact.company_id && <CompanyFacts companyId={contact.company_id} />}
             <div className="mt-3 pt-3 border-t border-[var(--border-subtle)] space-y-1.5">
               <ContactOrigin
                 source={contact.source}
@@ -842,6 +844,51 @@ export function ContactDetailPage() {
       {dealModal !== undefined && <DealModal deal={dealModal} onClose={() => setDealModal(undefined)} />}
       {eventModal !== undefined && <MeetingModal event={eventModal} onClose={() => setEventModal(undefined)} />}
       {showCampaignModal && <AddToCampaignModal contactIds={[contact.id]} onClose={() => setShowCampaignModal(false)} />}
+    </div>
+  );
+}
+
+/**
+ * Their company's size, industry, location and switchboard, editable here.
+ * These live on the company record (shared by everyone who works there,
+ * and read by {{company_size}} and friends), so a change here is a change
+ * for all of them - which the heading says.
+ */
+function CompanyFacts({ companyId }: { companyId: string }) {
+  const qc = useQueryClient();
+  const { data, isError } = useQuery({
+    queryKey: ['company-summary', companyId],
+    queryFn: () => companiesApi.summary(companyId),
+    staleTime: 60_000,
+  });
+  const company = data?.company;
+  if (isError || !company) return null;
+  const save = (key: 'size' | 'industry' | 'location' | 'phone' | 'website' | 'linkedin_url') => async (next: string) => {
+    try {
+      await companiesApi.update(companyId, { [key]: next.trim() || null });
+      qc.invalidateQueries({ queryKey: ['company-summary', companyId] });
+      qc.invalidateQueries({ queryKey: ['companies'] });
+      qc.invalidateQueries({ queryKey: ['contact-facets'] });
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || 'Could not save that');
+      throw err;
+    }
+  };
+  const people = data?.contacts?.length || 0;
+  return (
+    <div className="mt-3 pt-3 border-t border-[var(--border-subtle)]" data-company-facts>
+      <p className="text-caption font-semibold text-[var(--text-tertiary)] mb-2.5">
+        {company.name}
+        {people > 1 && <span className="font-normal"> - shared with {people - 1} other{people === 2 ? '' : 's'} there</span>}
+      </p>
+      <div className="space-y-2.5">
+        <InfoRow icon={Briefcase} label="Company size" value={company.size} onSave={save('size')} />
+        <InfoRow icon={Building2} label="Company industry" value={company.industry} onSave={save('industry')} />
+        <InfoRow icon={MapPin} label="Company location" value={company.location} onSave={save('location')} />
+        <InfoRow icon={Phone} label="HQ phone" value={company.phone ?? null} onSave={save('phone')} />
+        <InfoRow icon={Globe} label="Company website" value={company.website} isLink onSave={save('website')} />
+        <InfoRow icon={Linkedin} label="Company LinkedIn" value={company.linkedin_url} isLink onSave={save('linkedin_url')} />
+      </div>
     </div>
   );
 }

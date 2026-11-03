@@ -523,7 +523,96 @@ export function mergeCompany(icy: EnrichedCompany | null, dir: EnrichedCompany |
   return out as EnrichedCompany;
 }
 
+/**
+ * Enrich someone held without an email (held_people, migration 110).
+ *
+ * The person half of a contact's Enrich: their LinkedIn profile, found
+ * from the link on file or by name at their company, read for role,
+ * location and employer. It does not look for an email address - that is
+ * a separate decision - so they stay under "No email" with a fuller
+ * record, ready for whoever finds the address. Costs what Enrich costs,
+ * refunded when nothing is found.
+ */
+async function runHeld(userId: string, heldId: string): Promise<{ found: boolean; filled: string[]; note: string | null }> {
+  const { data: held, error } = await supabaseAdmin.from('held_people').select('*').eq('id', heldId).eq('user_id', userId).maybeSingle();
+  if (error) throw new AppError(error.message, 500);
+  if (!held) throw new AppError('Not found', 404);
+  const data = (held.data && typeof held.data === 'object') ? held.data as Record<string, any> : {};
+  const first = str(held.first_name);
+  const last = str(held.last_name);
+  const knownCompany = str(held.company);
+  const knownDomain = str(domainOf(str(data.company_website, data.website)));
+  let linkedin = normalizeLinkedinUrl(held.linkedin_url) || null;
+  if (!linkedin && !(first && last && (knownCompany || knownDomain))) {
+    return { found: false, filled: [], note: 'Needs a LinkedIn link, or a first and last name and their company.' };
+  }
+
+  const ref = `held:${heldId}`;
+  const bucket = await spend(userId, ref);
+  const notes: string[] = [];
+  try {
+    let person: EnrichedPerson | null = null;
+    if (!linkedin && first && last) {
+      const tries: Record<string, any>[] = [];
+      if (knownDomain) tries.push({ currentCompanyWebsite: { include: [knownDomain] } });
+      if (knownCompany) tries.push({ currentCompanyName: { include: [knownCompany] } });
+      for (const where of tries) {
+        const found = await tryIcypeas('The people database', () => icypeas('/find-people', {
+          query: { firstname: { include: [first] }, lastname: { include: [last] }, ...where },
+          pagination: { size: LOOKUP_SIZE },
+        }), notes);
+        const lead = pickLead(found, (l) => sameName(l, first, last));
+        person = lead ? personFromProfile(lead) : null;
+        if (person) break;
+      }
+      if (person?.linkedin_url) linkedin = person.linkedin_url;
+    }
+    if (linkedin && (!person || person.experience.length < 1)) {
+      const scraped = await tryIcypeas('The profile reader', () => icypeas(`/scrape/profile?url=${encodeURIComponent(linkedin!)}`, undefined, 'GET'), notes);
+      person = mergePerson(scraped ? personFromProfile(scraped) : null, person);
+    }
+    if (!person) {
+      await refund(userId, ref, bucket, 'nothing_found');
+      return { found: false, filled: [], note: notes[0] || 'No LinkedIn profile was found for them.' };
+    }
+
+    // Fill blanks only: what the import brought stays as it was.
+    const patch: Record<string, any> = {};
+    const filled: string[] = [];
+    if (!held.job_title && person.job_title) { patch.job_title = person.job_title; filled.push('job title'); }
+    if (!held.company && person.company) { patch.company = person.company; filled.push('company'); }
+    if (!held.linkedin_url && (person.linkedin_url || linkedin)) { patch.linkedin_url = person.linkedin_url || linkedin; filled.push('LinkedIn'); }
+    const nextData = { ...data };
+    if (!nextData.location && person.location) { nextData.location = person.location; filled.push('location'); }
+    if (!nextData.company_website && person.company_website) { nextData.company_website = person.company_website; filled.push('company website'); }
+    if (!nextData.company_linkedin && person.company_linkedin_url) { nextData.company_linkedin = person.company_linkedin_url; filled.push('company LinkedIn'); }
+    nextData.enrichment = {
+      headline: person.headline, summary: person.summary, location: person.location,
+      job_title: person.job_title, company: person.company, enriched_at: new Date().toISOString(),
+    };
+    patch.data = nextData;
+    const { error: upErr } = await supabaseAdmin.from('held_people').update(patch).eq('id', heldId).eq('user_id', userId);
+    if (upErr) throw new AppError(upErr.message, 500);
+    return { found: true, filled, note: null };
+  } catch (err) {
+    await refund(userId, ref, bucket, 'provider_error').catch(() => {});
+    throw err;
+  }
+}
+
 export const contactEnrichmentService = {
+  async enrichHeld(userId: string, heldId: string) {
+    if (!env.ICYPEAS_API_KEY) throw new AppError('Enrichment needs an ICYPEAS_API_KEY on the server.', 503);
+    const key = `${userId}:held:${heldId}`;
+    if (running.has(key)) throw new AppError('Already being enriched.', 409);
+    running.add(key);
+    try {
+      return await withUsage(userId, 'enrich', () => runHeld(userId, heldId));
+    } finally {
+      running.delete(key);
+    }
+  },
+
   async enrich(userId: string, contactId: string): Promise<EnrichContactResult> {
     if (!env.ICYPEAS_API_KEY) {
       throw new AppError('Enrichment needs an ICYPEAS_API_KEY on the server.', 503);
