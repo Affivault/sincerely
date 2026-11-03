@@ -172,6 +172,17 @@ export interface CampaignRevenueDetail {
   deals: AttributedDealRow[];
 }
 
+export interface TodayPulse {
+  since: string;
+  sent: number; sent_yesterday: number;
+  replied: number; replied_yesterday: number;
+  bounced: number; bounced_yesterday: number;
+  bounce_rate: number;
+  meetings: number;
+  next_meeting: { id: string; title: string; starts_at: string; contact_name: string | null } | null;
+  queued: number;
+}
+
 export const analyticsApi = {
   /** Two to four campaigns on the same definitions, in the order given. */
   compare: async (ids: string[]) => {
@@ -198,6 +209,13 @@ export const analyticsApi = {
 
   revenue: async () => {
     const { data } = await apiClient.get<CampaignRevenueRow[]>('/analytics/revenue');
+    return data;
+  },
+
+  /** Today so far, from the viewer's own midnight, beside yesterday. */
+  today: async () => {
+    const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
+    const { data } = await apiClient.get<TodayPulse>('/analytics/today', { params: { since: midnight.toISOString() } });
     return data;
   },
 

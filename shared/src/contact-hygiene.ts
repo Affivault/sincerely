@@ -206,6 +206,8 @@ export interface SavedViewConfig {
   list_id?: string | null;
   sort_by?: string;
   sort_dir?: 'asc' | 'desc';
+  /** Email traffic lights shown, comma-separated and sorted ("amber,green,none"). */
+  lights?: string;
 }
 
 export interface SavedView {
@@ -241,6 +243,10 @@ export function sanitizeViewConfig(raw: unknown): SavedViewConfig {
   if (typeof r.list_id === 'string' && /^[0-9a-f-]{36}$/i.test(r.list_id)) out.list_id = r.list_id;
   if (typeof r.sort_by === 'string' && (VIEW_SORT_KEYS as readonly string[]).includes(r.sort_by)) out.sort_by = r.sort_by;
   if (r.sort_dir === 'asc' || r.sort_dir === 'desc') out.sort_dir = r.sort_dir;
+  if (typeof r.lights === 'string') {
+    const lights = [...new Set(r.lights.split(',').map((l) => l.trim()).filter((l) => ['green', 'amber', 'red', 'none'].includes(l)))].sort();
+    if (lights.length) out.lights = lights.join(',');
+  }
   return out;
 }
 
@@ -248,7 +254,7 @@ export function sanitizeViewConfig(raw: unknown): SavedViewConfig {
 export function sameViewConfig(a: SavedViewConfig, b: SavedViewConfig): boolean {
   const x = sanitizeViewConfig(a);
   const y = sanitizeViewConfig(b);
-  const keys: (keyof SavedViewConfig)[] = ['lifecycle', 'outreach', 'search', 'status', 'company', 'list_id', 'sort_by', 'sort_dir'];
+  const keys: (keyof SavedViewConfig)[] = ['lifecycle', 'outreach', 'search', 'status', 'company', 'list_id', 'sort_by', 'sort_dir', 'lights'];
   return keys.every((k) => (x[k] ?? '') === (y[k] ?? ''));
 }
 

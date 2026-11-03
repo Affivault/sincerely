@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
@@ -12,7 +12,7 @@ import {
 } from '@lemlist/shared';
 import type { Lifecycle, ListKind, LeadOutreach, OutreachSummary, ContactDealSummary, ContactsListParams, EmailLight } from '@lemlist/shared';
 import { lightCounts, emailState as sharedEmailState, CREDIT_PRICES } from '@lemlist/shared';
-import { usePeek } from '../../components/peek/usePeek';
+import { usePeek, setPeekSequence } from '../../components/peek/usePeek';
 import { useFillViewport } from '../../hooks/useFillViewport';
 import { useGridKeys } from '../../hooks/useGridKeys';
 import { listFoldersApi, type ListFolder } from '../../api/list-folders.api';
@@ -147,6 +147,8 @@ import { ExportDialog } from '../../components/contacts/ExportDialog';
 import { LightChips } from '../../components/contacts/EmailLights';
 import { HeldPeoplePanel } from '../../components/contacts/HeldPeoplePanel';
 import { SelectionBar, type BarAction } from '../../components/contacts/SelectionBar';
+import { EmailStatusPopover } from '../../components/contacts/EmailStatusPopover';
+import { EditableCell } from '../../components/contacts/EditableCell';
 import { ListsRail, LIST_COLORS } from '../../components/contacts/ListsRail';
 import { SavedViewsBar } from '../../components/contacts/SavedViews';
 import { BulkEditModal } from '../../components/contacts/BulkEditModal';
@@ -616,21 +618,21 @@ function ResizeHandle({ onPointerDown, onDoubleClick }: {
 
 const ALL_COLUMNS: ColumnDef[] = [
   { id: 'email',       label: 'Email',     icon: Mail,        sortKey: 'email',      tdClass: 'max-w-[280px]', render: (c) => (
-    <span className="flex items-center gap-2 min-w-0"><EmailStatusDot c={c} /><CopyableEmail email={c.email} /></span>
+    <span className="flex items-center gap-2 min-w-0"><EmailStatusPopover c={c} className="p-1 -m-1"><EmailStatusDot c={c} /></EmailStatusPopover><CopyableEmail email={c.email} /></span>
   ) },
-  { id: 'status',      label: 'Status',    icon: ShieldCheck, sortKey: 'dcs_score',  render: (c) => <VerificationBadge c={c} /> },
+  { id: 'status',      label: 'Status',    icon: ShieldCheck, sortKey: 'dcs_score',  render: (c) => <EmailStatusPopover c={c}><VerificationBadge c={c} /></EmailStatusPopover> },
   { id: 'lifecycle',   label: 'Stage',     icon: Sparkles,                           render: (c) => <LifecycleCell c={c} /> },
   // 0-100 from replies, meetings, clicks and human opens, fading with time
   // (shared/engagement). Sortable, so "who is warm" is one click.
   { id: 'engagement',  label: 'Engagement', icon: Flame,      sortKey: 'engagement_score', render: (c) => <EngagementCell score={c.engagement_score} factors={c.engagement_factors} /> },
-  { id: 'company',     label: 'Company',   icon: Building2,   sortKey: 'company',    tdClass: 'max-w-[200px]', render: (c) => <CompanyCell company={c.company} website={c.website} email={c.email} /> },
-  { id: 'location',    label: 'Location',  icon: MapPin,                             tdClass: 'max-w-[200px]', render: (c) => <TextCell v={c.location} /> },
-  { id: 'country',     label: 'Country',   icon: MapPin,                             tdClass: 'max-w-[160px]', render: (c) => <TextCell v={c.country} /> },
-  { id: 'industry',    label: 'Industry',  icon: Building2,                          tdClass: 'max-w-[180px]', render: (c) => <TextCell v={c.industry} /> },
-  { id: 'job_title',   label: 'Job title', icon: Briefcase,                          tdClass: 'max-w-[180px]', render: (c) => <TextCell v={c.job_title} /> },
-  { id: 'phone',       label: 'Phone',     icon: Phone,                              render: (c) => <TextCell v={c.phone} mono /> },
-  { id: 'website',     label: 'Website',   icon: Globe,                              tdClass: 'max-w-[180px]', render: (c) => <LinkCell href={c.website} /> },
-  { id: 'linkedin_url',label: 'LinkedIn',  icon: Linkedin,                           tdClass: 'max-w-[180px]', render: (c) => <LinkCell href={c.linkedin_url} label={c.linkedin_url ? 'Profile' : null} /> },
+  { id: 'company',     label: 'Company',   icon: Building2,   sortKey: 'company',    tdClass: 'max-w-[200px]', render: (c) => <EditableCell contact={c} field="company" value={c.company}><CompanyCell company={c.company} website={c.website} email={c.email} /></EditableCell> },
+  { id: 'location',    label: 'Location',  icon: MapPin,                             tdClass: 'max-w-[200px]', render: (c) => <EditableCell contact={c} field="location" value={c.location}><TextCell v={c.location} /></EditableCell> },
+  { id: 'country',     label: 'Country',   icon: MapPin,                             tdClass: 'max-w-[160px]', render: (c) => <EditableCell contact={c} field="country" value={c.country}><TextCell v={c.country} /></EditableCell> },
+  { id: 'industry',    label: 'Industry',  icon: Building2,                          tdClass: 'max-w-[180px]', render: (c) => <EditableCell contact={c} field="industry" value={c.industry}><TextCell v={c.industry} /></EditableCell> },
+  { id: 'job_title',   label: 'Job title', icon: Briefcase,                          tdClass: 'max-w-[180px]', render: (c) => <EditableCell contact={c} field="job_title" value={c.job_title}><TextCell v={c.job_title} /></EditableCell> },
+  { id: 'phone',       label: 'Phone',     icon: Phone,                              render: (c) => <EditableCell contact={c} field="phone" type="tel" value={c.phone}><TextCell v={c.phone} mono /></EditableCell> },
+  { id: 'website',     label: 'Website',   icon: Globe,                              tdClass: 'max-w-[180px]', render: (c) => <EditableCell contact={c} field="website" type="url" value={c.website}><LinkCell href={c.website} /></EditableCell> },
+  { id: 'linkedin_url',label: 'LinkedIn',  icon: Linkedin,                           tdClass: 'max-w-[180px]', render: (c) => <EditableCell contact={c} field="linkedin_url" type="url" value={c.linkedin_url}><LinkCell href={c.linkedin_url} label={c.linkedin_url ? 'Profile' : null} /></EditableCell> },
   { id: 'tags',        label: 'Tags',      icon: TagIcon,                            tdClass: 'max-w-[240px]', render: (c) => <TagsCell tags={c.tags} /> },
   { id: 'lists',       label: 'Lists',     icon: List,                               tdClass: 'max-w-[240px]', render: (c) => <ListsCell lists={c.lists} /> },
   // Where they came from, and which search or file exactly (import_source).
@@ -757,6 +759,30 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
    * come and go with the list you are in.
    */
   const { ref: gridRef, height: gridHeight } = useFillViewport<HTMLDivElement>({ min: 280 });
+  /** Whether the table has more columns off to the right. */
+  const [edges, setEdges] = useState({ right: false });
+  const measureEdges = useCallback(() => {
+    const el = gridRef.current;
+    if (!el) return;
+    const right = el.scrollWidth - el.clientWidth - el.scrollLeft > 4;
+    setEdges((prev) => (prev.right === right ? prev : { right }));
+  }, [gridRef]);
+  // The grid element mounts after the first load, so this checks each
+  // render but only (re)attaches when the element itself has changed.
+  const observed = useRef<{ el: Element | null; ro: ResizeObserver | null }>({ el: null, ro: null });
+  useEffect(() => {
+    const el = gridRef.current;
+    if (el === observed.current.el) { measureEdges(); return; }
+    observed.current.ro?.disconnect();
+    observed.current = { el, ro: null };
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => measureEdges());
+    ro.observe(el);
+    if (el.firstElementChild) ro.observe(el.firstElementChild);
+    observed.current.ro = ro;
+    measureEdges();
+  });
+  useEffect(() => () => observed.current.ro?.disconnect(), []);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { openPeek } = usePeek();
@@ -799,6 +825,21 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('');
   /** Traffic lights shown; none on means everyone. 'none' is people held without an email. */
   const [lights, setLightsState] = useState<EmailLight[]>([]);
+  /* Links can carry a filter or an action - the command palette's "Leads
+     without an email" is /leads?lights=none, "Export leads" is ?export=1.
+     Read once on arrival, then taken off the URL so a refresh does not
+     re-apply something the person has since changed. */
+  useEffect(() => {
+    const l = searchParams.get('lights');
+    const ex = searchParams.get('export');
+    if (l == null && ex == null) return;
+    if (l != null) {
+      const picked = l.split(',').filter((x): x is EmailLight => ['green', 'amber', 'red', 'none'].includes(x));
+      setLightsState(picked);
+    }
+    if (ex === '1') setShowExport(true);
+    setSearchParams((prev) => { const next = new URLSearchParams(prev); next.delete('lights'); next.delete('export'); return next; }, { replace: true });
+  }, [searchParams, setSearchParams]);
   const setLights = (v: EmailLight[]) => { setLightsState(v); setPage(1); };
   const emailLights = lights.filter((l) => l !== 'none');
   /** Only "No email" picked: the held people are the whole view. */
@@ -1431,6 +1472,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
     list_id: activeListId,
     sort_by: sortBy,
     sort_dir: sortDir,
+    lights: lights.length ? [...lights].sort().join(',') : undefined,
   };
   const applyView = (cfg: SavedViewConfig) => {
     // Views saved before the split carry 'all' or 'prospect': read as the
@@ -1439,6 +1481,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
     else setOutreach(cfg.outreach ?? '');
     setSearch(cfg.search ?? '');
     setStatusFilter((cfg.status ?? '') as StatusFilter);
+    setLightsState((cfg.lights ? cfg.lights.split(',') : []) as EmailLight[]);
     setCompanyFilter(cfg.company ?? null);
     setSortBy((cfg.sort_by ?? 'created_at') as ContactSortKey);
     setSortDir(cfg.sort_dir ?? 'desc');
@@ -1510,6 +1553,12 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
       // The root of each page is named for the page, not for the table. On
       // /leads this is everyone you might pitch; on /contacts it is the CRM.
       : listKind === 'lead' ? 'All leads' : 'All contacts';
+
+  // The side panel's next/previous walks the rows on screen, in order.
+  useEffect(() => {
+    setPeekSequence({ type: 'contact', ids: contacts.map((c: any) => c.id), label: currentListName });
+  }, [contacts, currentListName]);
+  useEffect(() => () => setPeekSequence(null), []);
 
   /* ── Resizable columns ──────────────────────────────────────────────
      The table is fixed-layout with an explicit <colgroup>, so a dragged width
@@ -1840,7 +1889,31 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
       {/* Main content */}
       <div className="flex-1 min-w-0 space-y-4">
         <DuplicatesBanner />
-        <SavedViewsBar page={listKind} current={currentView} onApply={applyView} />
+        <SavedViewsBar
+          page={listKind}
+          current={currentView}
+          onApply={applyView}
+          onReset={() => {
+            clearAllFilters();
+            setSortBy('created_at');
+            setSortDir('desc');
+            setSearchParams({});
+          }}
+          paramsFor={(cfg) => {
+            const emailOnly = (cfg.lights || '').split(',').filter((l) => l && l !== 'none');
+            // A view of only "No email" holds no contacts to count.
+            if (cfg.lights && emailOnly.length === 0) return null;
+            return {
+              search: cfg.search || undefined,
+              company: cfg.company || undefined,
+              list_id: cfg.list_id || undefined,
+              lifecycle: listKind === 'lead' ? 'prospect' : (cfg.lifecycle === 'contact' || cfg.lifecycle === 'customer' ? cfg.lifecycle : 'engaged'),
+              outreach: listKind === 'lead' ? cfg.outreach : undefined,
+              verification_status: listKind === 'lead' ? (cfg.status || undefined) : undefined,
+              lights: emailOnly.length ? emailOnly.join(',') : undefined,
+            };
+          }}
+        />
         {(contactsData as any)?.sort_unavailable && (
           <Notice tone="attention">{(contactsData as any).sort_unavailable}</Notice>
         )}
@@ -1851,54 +1924,46 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
           one thing worth saying up top is where the others went, and how
           many there are. A lead who replies moves across on their own.
         */}
-        {explainerHidden ? (
-          otherTotal != null && (
-            <div className="flex justify-end text-caption">
-              <Link to={listKind === 'lead' ? '/contacts' : '/leads'} className="inline-flex items-center gap-1 font-medium text-[var(--indigo-text)] hover:underline">
+        {/* One line: what this page holds, and the way to the other one.
+            Once hidden, the link moves into the filter row below rather
+            than keeping a row of its own. */}
+        {!explainerHidden && (
+          <div className="flex items-center gap-2.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] pl-3 pr-1.5 h-9 text-caption text-[var(--text-secondary)]" data-page-intro>
+            {listKind === 'lead'
+              ? <Radar className="h-3.5 w-3.5 flex-shrink-0 text-[var(--indigo-text)]" />
+              : <Contact2 className="h-3.5 w-3.5 flex-shrink-0 text-[var(--indigo-text)]" />}
+            <span className="min-w-0 flex-1 truncate">
+              {listKind === 'lead'
+                ? <><span className="font-semibold text-[var(--text-primary)]">Leads</span> are people you're sourcing and emailing. Anyone who replies moves to Contacts.</>
+                : <><span className="font-semibold text-[var(--text-primary)]">Contacts</span> are people you have a relationship with. Cold campaigns never email them.</>}
+            </span>
+            <span className="hidden sm:inline-flex">{otherTotal != null && (
+              <Link to={listKind === 'lead' ? '/contacts' : '/leads'} className="inline-flex flex-shrink-0 items-center gap-1 font-medium text-[var(--indigo-text)] hover:underline">
                 {listKind === 'lead'
                   ? `${otherTotal.toLocaleString()} contact${otherTotal === 1 ? '' : 's'} in your CRM`
                   : `${otherTotal.toLocaleString()} lead${otherTotal === 1 ? '' : 's'} in outreach`}
                 <ArrowRight className="h-3 w-3" />
               </Link>
-            </div>
-          )
-        ) : (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2 text-caption text-[var(--text-secondary)]">
-          {listKind === 'lead' ? (
-            <>
-              <Radar className="h-3.5 w-3.5 flex-shrink-0 text-[var(--indigo-text)]" />
-              <span className="min-w-0 flex-1">
-                <span className="font-semibold text-[var(--text-primary)]">Leads</span> are your outbound pipeline: people you are sourcing, verifying and sequencing.
-                {' '}Anyone who replies, books a meeting or goes on a deal becomes a contact.
-              </span>
-              {otherTotal != null && (
-                <Link to="/contacts" className="inline-flex w-full flex-shrink-0 items-center gap-1 pl-[22px] font-medium text-[var(--indigo-text)] hover:underline sm:w-auto sm:pl-0">
-                  {otherTotal.toLocaleString()} contact{otherTotal === 1 ? '' : 's'} in your CRM <ArrowRight className="h-3 w-3" />
-                </Link>
-              )}
-            </>
-          ) : (
-            <>
-              <Contact2 className="h-3.5 w-3.5 flex-shrink-0 text-[var(--indigo-text)]" />
-              <span className="min-w-0 flex-1">
-                <span className="font-semibold text-[var(--text-primary)]">Contacts</span> are your CRM: people you have a relationship with. Cold campaigns never send to contact lists.
-              </span>
-              {otherTotal != null && (
-                <Link to="/leads" className="inline-flex w-full flex-shrink-0 items-center gap-1 pl-[22px] font-medium text-[var(--indigo-text)] hover:underline sm:w-auto sm:pl-0">
-                  {otherTotal.toLocaleString()} lead{otherTotal === 1 ? '' : 's'} in outreach <ArrowRight className="h-3 w-3" />
-                </Link>
-              )}
-            </>
-          )}
-          <button type="button" onClick={hideExplainer} aria-label="Hide this note" title="Hide this note" className="icon-btn h-6 w-6 flex-shrink-0">
-            <X className="h-3 w-3" />
-          </button>
-        </div>
+            )}</span>
+            <button type="button" onClick={hideExplainer} aria-label="Hide this note" title="Hide this note" className="icon-btn h-6 w-6 flex-shrink-0">
+              <X className="h-3 w-3" />
+            </button>
+          </div>
         )}
 
         {/* Each page's own filter. Leads: where they are in outreach.
             Contacts: which side of the CRM. Neither can show the other page. */}
         <div className="flex flex-wrap items-center gap-2">
+          {explainerHidden && (
+            <span className="order-last ml-auto text-caption">{otherTotal != null && (
+              <Link to={listKind === 'lead' ? '/contacts' : '/leads'} className="inline-flex flex-shrink-0 items-center gap-1 font-medium text-[var(--indigo-text)] hover:underline">
+                {listKind === 'lead'
+                  ? `${otherTotal.toLocaleString()} contact${otherTotal === 1 ? '' : 's'} in your CRM`
+                  : `${otherTotal.toLocaleString()} lead${otherTotal === 1 ? '' : 's'} in outreach`}
+                <ArrowRight className="h-3 w-3" />
+              </Link>
+            )}</span>
+          )}
           <div
             role="radiogroup"
             aria-label={listKind === 'lead' ? 'Outreach' : 'Stage'}
@@ -2253,7 +2318,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
               />
             </div>
           ) : (
-            <div className="panel overflow-hidden">
+            <div className="panel overflow-hidden relative">
               {/*
                 The body scrolls, not the page.
 
@@ -2264,7 +2329,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                 than height, so a short list still ends where it ends instead of
                 sitting in a tall empty box.
               */}
-              <div ref={gridRef} className="overflow-auto" style={gridHeight ? { maxHeight: gridHeight } : undefined}>
+              <div ref={gridRef} onScroll={measureEdges} className="overflow-auto" style={gridHeight ? { maxHeight: gridHeight } : undefined}>
                 <table
                   className="border-separate border-spacing-0 text-left table-fixed w-full"
                   style={{ minWidth: GUTTER_W + widthOf(CONTACT_COL_ID) + activeColumns.reduce((n, c) => n + widthOf(c.id), 0) + ACTIONS_W }}
@@ -2354,7 +2419,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                         </th>
                       ))}
                       <th aria-hidden="true" className="sticky top-0 z-[4] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)]" />
-                      <th className="sticky top-0 right-0 z-[5] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] px-2 py-2 shadow-[inset_1px_0_0_var(--border-subtle)]"><span className="sr-only">Actions</span></th>
+                      <th className="sticky top-0 z-[4] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] px-2 py-2"><span className="sr-only">Actions</span></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2447,7 +2512,15 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                             </td>
                           ))}
                           <td className="border-b border-[var(--border-subtle)]" />
-                          <td className={cn('sticky right-0 z-[1] px-2 py-2 border-b border-[var(--border-subtle)] shadow-[inset_1px_0_0_var(--border-subtle)]', frozenBg)} onClick={(e) => e.stopPropagation()}>
+                          {/* Pinned right, but only solid while the row is hovered or
+                              focused: at rest it is see-through, so it never hides
+                              the last column (it used to cover Status with a blank
+                              white strip). */}
+                          <td className={cn(
+                            'sticky right-0 z-[1] px-2 py-2 border-b border-[var(--border-subtle)] bg-transparent',
+                            'group-hover:shadow-[inset_1px_0_0_var(--border-subtle)] group-focus-within:shadow-[inset_1px_0_0_var(--border-subtle)]',
+                            isSelected ? 'group-hover:bg-[var(--bg-active)] group-focus-within:bg-[var(--bg-active)]' : 'group-hover:bg-[var(--bg-hover)] group-focus-within:bg-[var(--bg-hover)]',
+                          )} onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                               {listKind === 'lead' ? (
                                 <button aria-label="Verify email"
@@ -2491,6 +2564,23 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                   </tbody>
                 </table>
               </div>
+              {/* More columns off to the right: a fade, and an arrow that
+                  scrolls there, so a cut-off column never looks like the end. */}
+              {edges.right && (
+                <>
+                  <div aria-hidden="true" className="pointer-events-none absolute top-0 right-0 bottom-0 z-[7] w-14 bg-gradient-to-l from-[var(--bg-surface)] to-transparent" />
+                  <button
+                    type="button"
+                    onClick={() => gridRef.current?.scrollBy({ left: Math.max(240, (gridRef.current?.clientWidth || 600) * 0.6), behavior: 'smooth' })}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 z-[8] inline-flex h-7 w-7 items-center justify-center rounded-full border border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)] shadow-[var(--shadow-md)] hover:text-[var(--text-primary)]"
+                    aria-label="Scroll to more columns"
+                    title="More columns"
+                    data-scroll-more
+                  >
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </button>
+                </>
+              )}
             </div>
           )}
         </Refreshing>

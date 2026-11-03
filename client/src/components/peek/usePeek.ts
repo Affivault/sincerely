@@ -46,3 +46,30 @@ export function usePeek() {
 
   return { target, openPeek, closePeek };
 }
+
+/* ── The list a peek was opened from ────────────────────────────────────
+   So the drawer can step to the next or previous person without closing:
+   the page that opens peeks publishes its current rows here (ids, in the
+   order on screen), and the drawer reads them. A page that publishes
+   nothing simply gets no arrows. */
+
+type Sequence = { type: PeekType; ids: string[]; label: string };
+let sequence: Sequence | null = null;
+const listeners = new Set<() => void>();
+
+export function setPeekSequence(next: Sequence | null): void {
+  const same = sequence && next && sequence.type === next.type && sequence.label === next.label
+    && sequence.ids.length === next.ids.length && sequence.ids.every((id, i) => id === next.ids[i]);
+  if (same || (!sequence && !next)) return;
+  sequence = next;
+  listeners.forEach((l) => l());
+}
+
+export function getPeekSequence(): Sequence | null {
+  return sequence;
+}
+
+export function subscribePeekSequence(fn: () => void): () => void {
+  listeners.add(fn);
+  return () => { listeners.delete(fn); };
+}

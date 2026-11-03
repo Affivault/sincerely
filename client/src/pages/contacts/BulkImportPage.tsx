@@ -1,5 +1,6 @@
 import { PageHeader } from '../../components/shared/PageHeader';
-import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo, useSyncExternalStore } from 'react';
+import { importRunner } from '../../lib/importRunner';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { contactsApi, listsApi, tagsApi, type BulkImportResult, type ImportPreflight } from '../../api/contacts.api';
@@ -155,17 +156,34 @@ export function BulkImportPage() {
     cancelled: boolean;
   } | null>(null);
   const [undone, setUndone] = useState(false);
-  const cancelRef = useRef(false);
   const [cancelRequested, setCancelRequested] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
 
-  // Stop the import loop (and an email search) if the user navigates away.
-  // Re-armed on mount: React mounts twice in development, and a flag left
-  // set by the first unmount stopped every search before it started.
+  /*
+   * The import itself runs in importRunner, outside this page: leaving the
+   * page no longer stops it. Coming back - to a running import or one that
+   * finished while you were elsewhere - picks it up from there.
+   */
+  const run = useSyncExternalStore(importRunner.subscribe, importRunner.get, importRunner.get);
   useEffect(() => {
-    cancelRef.current = false;
-    return () => { cancelRef.current = true; };
-  }, []);
+    if (!run) return;
+    if (step !== 'upload' && step !== 'importing' && step !== 'complete') return;
+    // A finished import already seen is not brought back on a fresh visit.
+    if (run.status === 'done' && run.acknowledged && step === 'upload') return;
+    setProgress(run.progress);
+    setFiledAs(run.filedAs);
+    setCreatedListName(run.createdListName);
+    if (run.listId) setTargetListId(run.listId);
+    if (!sourceName) setSourceName(run.label);
+    if (run.status === 'running') {
+      if (step !== 'importing') setStep('importing');
+    } else if (run.result) {
+      setCompletedResult(run.result);
+      setHeldCount(run.heldCount);
+      if (step !== 'complete') setStep('complete');
+      importRunner.acknowledge();
+    }
+  }, [run]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { data: lists } = useQuery({
     queryKey: ['lists', 'all'],
@@ -376,7 +394,7 @@ export function BulkImportPage() {
   // Kick off the import
   const startImport = useCallback(async () => {
     if (!mappingValid || !listChoiceValid || !prepared) return;
-    cancelRef.current = false;
+    if (importRunner.isRunning()) { toast.error('An import is already running - it shows in the corner.'); return; }
     setCancelRequested(false);
     setUndone(false);
     // Remembered for the next file with these columns.
@@ -398,17 +416,22 @@ export function BulkImportPage() {
       }
     }
 
-    setStep('importing');
     const startedAt = Date.now();
 
     const mapped = prepared.contacts;
 
     const total = mapped.length;
     const totalBatches = Math.ceil(total / BATCH_SIZE);
-    setProgress({
-      total, processed: 0, imported: 0, errors: 0,
-      errorDetails: [], currentBatch: 0, totalBatches,
+    const chosenListEarly = listMode === 'existing' ? (lists || []).find((l: any) => l.id === targetListId) : null;
+    const runId = importRunner.start({
+      label: sourceName || 'Import',
+      filedAs: (importAs === 'contact' || (listMode === 'new' && newListKind === 'contact') || (chosenListEarly as any)?.kind === 'contact') ? 'contact' : 'prospect',
+      listId: listId || null,
+      createdListName: listMode === 'new' ? newListName.trim() : null,
+      total,
+      totalBatches,
     });
+    setStep('importing');
 
     // A file of nobody with an email still runs: the loop below does
     // nothing and the people are held.
@@ -428,7 +451,7 @@ export function BulkImportPage() {
     setFiledAs(asContacts ? 'contact' : 'prospect');
 
     for (let i = 0; i < total; i += BATCH_SIZE) {
-      if (cancelRef.current) { cancelled = true; break; }
+      if (importRunner.cancelRequested()) { cancelled = true; break; }
       const batch = mapped.slice(i, i + BATCH_SIZE);
       const batchNum = Math.floor(i / BATCH_SIZE) + 1;
       try {
@@ -457,7 +480,7 @@ export function BulkImportPage() {
         }
       }
       attempted = Math.min(i + BATCH_SIZE, total);
-      setProgress({
+      importRunner.progress(runId, {
         total,
         processed: attempted,
         imported, errors, errorDetails,
@@ -493,9 +516,9 @@ export function BulkImportPage() {
         toast.error(err?.response?.data?.error || 'People without an email could not be kept - they are in the "not imported" download.');
       }
     }
-    setHeldCount(held);
+    importRunner.held(runId, held);
 
-    setCompletedResult({
+    importRunner.finish(runId, {
       total,
       attempted,
       imported,
@@ -508,7 +531,6 @@ export function BulkImportPage() {
       durationMs: Date.now() - startedAt,
       cancelled,
     });
-    setStep('complete');
     queryClient.invalidateQueries({ queryKey: ['lists'] });
     for (const key of ['contacts', 'contact-stats', 'contact-companies', 'verification-breakdown', 'companies', 'tags']) {
       queryClient.invalidateQueries({ queryKey: [key] });
@@ -516,7 +538,7 @@ export function BulkImportPage() {
   }, [prepared, mappingValid, listChoiceValid, listMode, targetListId, newListName, newListKind, importAs, lists, queryClient, sourceName, mode, tagIds, headers, mapping, keepHeld, holdable, emailColumn]);
 
   const cancel = () => {
-    cancelRef.current = true;
+    importRunner.cancel();
     setCancelRequested(true);
     toast('Cancelling after current batch…', { icon: '⏸' });
   };
@@ -551,7 +573,7 @@ export function BulkImportPage() {
 
   // Reset to start over
   const reset = () => {
-    cancelRef.current = false;
+    importRunner.clear();
     setCancelRequested(false);
     setFile(null);
     setSourceName('');
@@ -1375,7 +1397,7 @@ export function BulkImportPage() {
           {/* Cancel */}
           <div className="flex items-center justify-between border-t border-[var(--border-subtle)] pt-4">
             <p className="text-caption text-[var(--text-tertiary)]">
-              Don't close this tab until the import finishes — leaving will stop it.
+              You can leave this page - the import keeps going and shows in the corner. Closing the browser tab would stop it.
             </p>
             <button
               onClick={cancel}

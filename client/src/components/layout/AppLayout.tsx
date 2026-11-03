@@ -9,6 +9,7 @@ import { UpgradeNag } from '../UpgradeNag';
 import { ViewAsBanner } from '../admin/ViewAsBanner';
 import { AnnouncementBanner } from './AnnouncementBanner';
 import { CommandPalette, PeekDrawer, ShortcutsOverlay, warmOverlays } from './Overlays';
+import { ImportProgressPill } from './ImportProgressPill';
 import { ConfirmProvider } from '../ui/ConfirmDialog';
 import { OverflowTooltip } from '../ui/OverflowTooltip';
 import { UndoProvider } from '../ui/UndoBar';
@@ -364,6 +365,8 @@ function AppContent() {
       <CommandPalette open={open} onClose={closePalette} />
       {/* Any page can open a record over itself; state lives in the URL. */}
       <PeekDrawer />
+      {/* An import keeps running while you work elsewhere. */}
+      <ImportProgressPill />
       {/* Reads out any value the layout had to cut off. One listener for
           the 241 places that were clipping text with no way to see it. */}
       <OverflowTooltip />

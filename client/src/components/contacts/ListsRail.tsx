@@ -229,21 +229,31 @@ export function ListsRail({
     );
   };
 
-  const ViewRow = ({ icon: Icon, label, count, active, onClick, title }: {
+  const ViewRow = ({ icon: Icon, label, count, active, onClick, title, nested }: {
     icon: React.ElementType; label: string; count?: number; active: boolean; onClick: () => void; title?: string;
+    /** Drawn as part of the row above (a subset of it), not a peer. */
+    nested?: boolean;
   }) => (
     <button
       type="button"
       onClick={onClick}
       title={title}
       className={cn(
-        'w-full flex items-center gap-2.5 h-9 px-2 rounded-lg text-left transition-colors',
+        'w-full flex items-center gap-2.5 px-2 rounded-lg text-left transition-colors',
+        nested ? 'h-8 pl-[18px]' : 'h-9',
         active ? 'bg-[var(--bg-active)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
       )}
     >
-      <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md bg-[var(--bg-elevated)] text-[var(--text-tertiary)]">
-        <Icon className="h-3.5 w-3.5" />
-      </span>
+      {nested ? (
+        // A short elbow: "these are some of the people above".
+        <span aria-hidden="true" className="flex h-6 w-6 flex-shrink-0 items-center justify-center text-[var(--text-tertiary)]">
+          <span className="block h-3 w-2.5 -mt-3 rounded-bl-md border-b border-l border-[var(--border-strong)]" />
+        </span>
+      ) : (
+        <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md bg-[var(--bg-elevated)] text-[var(--text-tertiary)]">
+          <Icon className="h-3.5 w-3.5" />
+        </span>
+      )}
       <span className={cn('flex-1 truncate text-body', active ? 'font-semibold' : 'font-medium')}>{label}</span>
       {/* Tertiary grey on the active row's tint was 4.13:1, short of AA. */}
       {count != null && <span className={cn('text-caption tabular-nums', active ? 'text-[var(--text-secondary)]' : 'text-[var(--text-tertiary)]')}>{count.toLocaleString()}</span>}
@@ -316,15 +326,28 @@ export function ListsRail({
       {/* Views that are not lists */}
       {!q && (
         <div className="space-y-0.5 pt-1">
-          <ViewRow icon={Users} label={kind === 'lead' ? 'All leads' : 'All contacts'} count={total} active={!activeListId} onClick={() => onSelect(null)} />
           <ViewRow
-            icon={FolderMinus}
-            label="Not in a list"
-            count={unlistedCount}
-            active={activeListId === UNLISTED_LIST_ID}
-            onClick={() => onSelect(UNLISTED_LIST_ID)}
-            title={`${kind === 'lead' ? 'Leads' : 'Contacts'} that are in no list yet`}
+            icon={Users}
+            label={kind === 'lead' ? 'All leads' : 'All contacts'}
+            count={total}
+            active={!activeListId}
+            onClick={() => onSelect(null)}
+            title={`Every ${kind === 'lead' ? 'lead' : 'contact'}, in a list or not`}
           />
+          {/* Part of "All", drawn under it: the count is a share of the
+              one above, not a separate group to add to it. Hidden when
+              everyone is filed, unless it is the view you are on. */}
+          {(unlistedCount > 0 || activeListId === UNLISTED_LIST_ID) && (
+            <ViewRow
+              nested
+              icon={FolderMinus}
+              label="Not in any list"
+              count={unlistedCount}
+              active={activeListId === UNLISTED_LIST_ID}
+              onClick={() => onSelect(UNLISTED_LIST_ID)}
+              title={`${kind === 'lead' ? 'Leads' : 'Contacts'} from "All" that are not filed in a list yet - add them to one so a campaign can reach them`}
+            />
+          )}
         </div>
       )}
 

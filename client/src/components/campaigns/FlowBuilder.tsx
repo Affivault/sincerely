@@ -157,6 +157,22 @@ interface AddStepMenuProps {
 function AddStepMenu({ onAdd, showAbove, last }: AddStepMenuProps & { last?: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
   const menu = usePopover(isOpen, () => setIsOpen(false));
+  /*
+   * Which way it opens is measured, not fixed. The last "Add a step" always
+   * opened upwards, so with one step on the page the menu ran off the top of
+   * the panel and Email and Wait - the first two items, the ones people want
+   * - were cut off and could not be clicked.
+   */
+  const [openUp, setOpenUp] = useState(false);
+  const MENU_H = 400;
+  const toggle = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (!isOpen) {
+      const r = e.currentTarget.getBoundingClientRect();
+      const below = window.innerHeight - r.bottom;
+      setOpenUp(!!showAbove && below < MENU_H && r.top > below);
+    }
+    setIsOpen(!isOpen);
+  };
 
   const groups: Array<Array<{ type: StepType; icon: typeof Mail; label: string; desc: string }>> = [
     [
@@ -184,7 +200,7 @@ function AddStepMenu({ onAdd, showAbove, last }: AddStepMenuProps & { last?: boo
         <button
           {...menu.triggerProps}
           type="button"
-          onClick={() => setIsOpen(!isOpen)}
+          onClick={toggle}
           title="Add a step here"
           className={cn(
             'inline-flex items-center gap-1.5 rounded-md text-caption font-medium transition-[opacity,color,background-color]',
@@ -202,7 +218,7 @@ function AddStepMenu({ onAdd, showAbove, last }: AddStepMenuProps & { last?: boo
             <div className="fixed inset-0 z-20" aria-hidden onClick={() => setIsOpen(false)} />
             <div {...menu.panelProps} className={cn(
               'absolute left-0 z-30 w-60 rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-1 shadow-[var(--shadow-xl)] animate-fade-in',
-              showAbove ? 'bottom-full mb-1.5' : 'top-full mt-1',
+              openUp ? 'bottom-full mb-1.5' : 'top-full mt-1',
             )}>
               {groups.map((g, gi) => (
                 <div key={gi} className={cn(gi > 0 && 'mt-1 pt-1 border-t border-[var(--border-subtle)]')}>
@@ -811,6 +827,59 @@ function DelayChip({ step, onUpdate, onRemove, onMoveUp, onMoveDown, isFirst, is
   );
 }
 
+/* ─── The sequence at a glance ───────────────────────────────────────
+   The step list says "Day 4" beside each step; this says it as a shape -
+   every touch on one line from Day 1 to the last, so the gaps (and the
+   bunching) are visible before anyone reads a word. Each mark opens its
+   step. Shown once there are two touches to space out. */
+function SequenceRuler({ steps, dayOffsets, totalDays, editingStep, onEdit }: {
+  steps: FlowStep[]; dayOffsets: number[]; totalDays: number; editingStep: number | null; onEdit: (i: number) => void;
+}) {
+  const touches = steps
+    .map((s, i) => ({ s, i, day: dayOffsets[i] }))
+    .filter(({ s }) => s.step_type === 'email' || isLinkedinStep(s.step_type));
+  if (touches.length < 2) return null;
+  const span = Math.max(1, totalDays);
+  // Same-day touches stack instead of hiding each other.
+  const seen = new Map<number, number>();
+  return (
+    <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/40 px-4 pt-3 pb-2" data-sequence-ruler aria-label="Sequence timeline">
+      <div className="relative h-8">
+        <span aria-hidden className="absolute left-0 right-0 top-1/2 h-px -translate-y-1/2 bg-[var(--border-default)]" />
+        {touches.map(({ s, i, day }, n) => {
+          const stack = seen.get(day) || 0;
+          seen.set(day, stack + 1);
+          const left = `${(day / span) * 100}%`;
+          const email = s.step_type === 'email';
+          const active = editingStep === i;
+          return (
+            <button
+              key={s.id || s._clientKey || i}
+              type="button"
+              onClick={() => onEdit(i)}
+              title={`${email ? 'Email' : 'LinkedIn'} ${n + 1} - Day ${day + 1}${email && s.subject ? `: ${s.subject}` : ''}`}
+              aria-label={`Open step ${n + 1}, day ${day + 1}`}
+              className={cn(
+                'absolute top-1/2 flex h-6 w-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border text-micro font-bold transition-transform hover:scale-110',
+                email ? 'border-[var(--indigo)] bg-[var(--bg-surface)] text-[var(--indigo-text)]' : 'border-[#0A66C2] bg-[var(--bg-surface)] text-[#0A66C2]',
+                active && (email ? 'bg-[var(--indigo)] text-white' : 'bg-[#0A66C2] text-white'),
+              )}
+              style={{ left, marginTop: stack ? stack * -14 : 0 }}
+            >
+              {n + 1}
+            </button>
+          );
+        })}
+      </div>
+      <div className="mt-1 flex justify-between text-micro tabular text-[var(--text-tertiary)]">
+        <span>Day 1</span>
+        {span >= 4 && <span>Day {Math.round(span / 2) + 1}</span>}
+        <span>Day {span + 1}</span>
+      </div>
+    </div>
+  );
+}
+
 export function FlowBuilder({ steps, onStepsChange, onEditStep, editingStep, campaignId }: FlowBuilderProps) {
   const makeStep = (type: StepType): FlowStep => ({
     _clientKey: `step-${crypto.randomUUID()}`,
@@ -981,10 +1050,13 @@ export function FlowBuilder({ steps, onStepsChange, onEditStep, editingStep, cam
       {emailCount > 0 && (
         <div className="grid grid-cols-[64px_1fr] gap-4 pb-3">
           <span />
-          <p className="text-caption text-[var(--text-tertiary)]">
-            {emailCount} email{emailCount !== 1 ? 's' : ''}
-            {totalDays > 0 && <> over {totalDays + 1} days</>}, stopping for anyone who replies.
-          </p>
+          <div className="space-y-2">
+            <p className="text-caption text-[var(--text-tertiary)]">
+              {emailCount} email{emailCount !== 1 ? 's' : ''}
+              {totalDays > 0 && <> over {totalDays + 1} days</>}, stopping for anyone who replies.
+            </p>
+            <SequenceRuler steps={steps} dayOffsets={dayOffsets} totalDays={totalDays} editingStep={editingStep} onEdit={onEditStep} />
+          </div>
         </div>
       )}
 

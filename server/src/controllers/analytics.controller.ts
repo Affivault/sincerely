@@ -12,6 +12,12 @@ export const analyticsController = {
     } catch (err) { next(err); }
   },
 
+  async today(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      res.json(await analyticsService.today(req.userId!, typeof req.query.since === 'string' ? req.query.since : undefined));
+    } catch (err) { next(err); }
+  },
+
   async trend(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const days = parseDayWindow(req.query.days, 30)!;

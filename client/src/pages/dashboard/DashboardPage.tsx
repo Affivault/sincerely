@@ -1,3 +1,4 @@
+import { TodayPulse } from '../../components/dashboard/TodayPulse';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { TodayPanel } from '../../components/dashboard/TodayPanel';
@@ -453,6 +454,9 @@ export function DashboardPage() {
           onWrite={() => navigate('/campaigns/new?write=1')}
         />
       )}
+
+      {/* Today at a glance - sends, replies, bounces, meetings - before the work. */}
+      {everSent && <TodayPulse />}
 
       {/* ── Row 1: the day's work, as one list - replies, meetings, moments,
           deals and tasks, most urgent first - and the calendar beside it. ── */}
