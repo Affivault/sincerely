@@ -445,6 +445,8 @@ export interface Company {
   size: string | null;
   location: string | null;
   linkedin_url: string | null;
+  /** HQ / switchboard number (migration 109). */
+  phone?: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -466,6 +468,7 @@ export interface CreateCompanyInput {
   size?: string | null;
   location?: string | null;
   linkedin_url?: string | null;
+  phone?: string | null;
   notes?: string | null;
 }
 export interface UpdateCompanyInput extends Partial<CreateCompanyInput> {}

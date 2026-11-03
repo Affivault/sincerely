@@ -17,6 +17,7 @@ import { isLinkedinStep, inferTimezone, isBlackoutDay, normalizeLinkedinUrl, isL
 import { campaignBlackoutDates } from './blackout.service.js';
 import { stepHasVariantB, assignVariant, classifyRejection, normalizeSendLights, lightGate, emailState } from '@lemlist/shared';
 import { verifyContact } from './verification.service.js';
+import { withCompanyRecord } from './company-tags.service.js';
 import { classifySendFailure, stallReasonFor } from '../utils/send-failure.js';
 import { isDraining } from '../utils/heartbeat.js';
 
@@ -711,9 +712,11 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
   // and passed in; a missing one blanks the tag rather than shipping a
   // half-written URL.
   const bookingLink = ownerId ? await defaultBookingLinkUrl(ownerId) : null;
-  const subject = interpolateMergeTags(rawSubject, cc.contacts, bookingLink);
   const rawBodyHtml = (step.body_html_b && useVariantB) ? step.body_html_b : (step.body_html || '');
-  const bodyHtml = interpolateMergeTags(rawBodyHtml, cc.contacts, bookingLink);
+  // {{company_size}} and the like read the company record: loaded only if used.
+  const tagContact = (await withCompanyRecord(ownerId, cc.contacts, rawSubject, rawBodyHtml)) || cc.contacts;
+  const subject = interpolateMergeTags(rawSubject, tagContact, bookingLink);
+  const bodyHtml = interpolateMergeTags(rawBodyHtml, tagContact, bookingLink);
   const bodyText = htmlToText(bodyHtml);
 
   // Atomically claim this contact BEFORE sending to prevent re-processing.
@@ -1301,7 +1304,8 @@ async function processLinkedinStep(cc: any, step: any, steps: any[]): Promise<vo
   const linkedinCopy = step.step_type === 'linkedin_connect'
     ? step.linkedin_note || ''
     : step.body_text || step.body_html || '';
-  const message = personalize(linkedinCopy, { contact, sender, spinSeed: `${step.id}:${cc.contact_id}` });
+  const tagContact = (await withCompanyRecord(cc.campaigns?.user_id, contact, linkedinCopy)) || contact;
+  const message = personalize(linkedinCopy, { contact: tagContact, sender, spinSeed: `${step.id}:${cc.contact_id}` });
 
   // The builder counts the template, not what a long company name turns it
   // into. LinkedIn refuses a note over the limit, and cutting it off mid-word

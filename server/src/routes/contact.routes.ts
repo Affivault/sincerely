@@ -20,11 +20,14 @@ contactRoutes.post('/duplicates/dismiss', contactsController.dismissDuplicate);
 contactRoutes.post('/merge', contactsController.merge);
 // Saved filters on the contacts and leads pages (096).
 contactRoutes.get('/views', contactsController.listViews);
+contactRoutes.get('/facets', contactsController.facets);
+contactRoutes.post('/matching-ids', contactsController.matchingIds);
 // People held without an email (migration 110). Before '/:id'.
 contactRoutes.get('/held', contactsController.heldList);
 contactRoutes.post('/held', contactsController.heldCreate);
 contactRoutes.post('/held/delete', contactsController.heldDelete);
 contactRoutes.post('/held/:id/email', contactsController.heldAddEmail);
+contactRoutes.post('/held/:id/enrich', contactsController.heldEnrich);
 contactRoutes.post('/views', contactsController.createView);
 contactRoutes.put('/views/:id', contactsController.updateView);
 contactRoutes.delete('/views/:id', contactsController.deleteView);

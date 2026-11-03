@@ -507,9 +507,14 @@ export const campaignsService = {
     if (neededFields.length > 0) {
       const PAGE = 1000;
       for (let from = 0; ; from += PAGE) {
+        // Company tags (companies.size ...) read through the contact's company.
+        const contactCols = neededFields.filter((f) => !f.startsWith('companies.'));
+        const companyCols = neededFields.filter((f) => f.startsWith('companies.')).map((f) => f.slice('companies.'.length));
+        if (companyCols.length > 0 && !contactCols.includes('website')) contactCols.push('website');
+        const embed = [...contactCols, companyCols.length ? `companies(${companyCols.join(', ')})` : null].filter(Boolean).join(', ');
         const { data: rows, error } = await supabaseAdmin
           .from('campaign_contacts')
-          .select(`contacts!inner(${neededFields.join(', ')})`)
+          .select(`contacts!inner(${embed})`)
           .eq('campaign_id', id)
           .range(from, from + PAGE - 1);
         if (error) throw new AppError(error.message, 500);
@@ -518,7 +523,9 @@ export const campaignsService = {
           totalContacts++;
           const contact = (row as any).contacts || {};
           for (const field of neededFields) {
-            const v = contact[field];
+            let v = field.startsWith('companies.') ? contact.companies?.[field.slice('companies.'.length)] : contact[field];
+            // {{company_website}} falls back to the contact's own website.
+            if (field === 'companies.website' && (v == null || String(v).trim() === '')) v = contact.website;
             if (v === null || v === undefined || String(v).trim() === '') blanks[field]++;
           }
           if (needsFullName) {

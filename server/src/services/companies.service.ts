@@ -11,7 +11,9 @@ import { outreachFor } from './contacts.service.js';
    user typing into a form.
    ═══════════════════════════════════════════════════════════════════════ */
 
-const COMPANY_KEYS = ['name', 'domain', 'website', 'industry', 'size', 'location', 'linkedin_url', 'notes'] as const;
+// phone: the HQ / switchboard number (migration 109). It was stored by
+// imports but could not be edited, because update() dropped it here.
+const COMPANY_KEYS = ['name', 'domain', 'website', 'industry', 'size', 'location', 'linkedin_url', 'phone', 'notes'] as const;
 
 function pick(body: any, keys: readonly string[]): Record<string, any> {
   const out: Record<string, any> = {};

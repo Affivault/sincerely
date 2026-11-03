@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState, type FocusEvent as Rea
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Plus, Megaphone, Upload, Handshake, UserPlus, CalendarPlus, AtSign,
+  Plus, Megaphone, Upload, Handshake, UserPlus, CalendarPlus, AtSign, FileSpreadsheet,
   User, Settings, LogOut, Sun, Moon, Keyboard,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -128,6 +128,7 @@ const CREATE_ITEMS = [
   { label: 'Add contact', desc: 'Someone you work with', icon: UserPlus, to: '/contacts?new=1' },
   { label: 'Book meeting', desc: 'Put a call on the calendar', icon: CalendarPlus, to: '/calendar?new=1' },
   { label: 'Import contacts', desc: 'Upload a CSV of leads', icon: Upload, to: '/contacts/import' },
+  { label: 'Sync a Google Sheet', desc: 'New rows come in on a schedule', icon: FileSpreadsheet, to: '/contacts/imports?sheet=new' },
   { label: 'Connect mailbox', desc: 'Send from another address', icon: AtSign, to: '/email-accounts?connect=1' },
 ];
 

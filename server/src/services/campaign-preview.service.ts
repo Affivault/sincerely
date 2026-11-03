@@ -1,3 +1,4 @@
+import { withCompanyRecord } from './company-tags.service.js';
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
 import {
@@ -224,6 +225,9 @@ export async function previewAsContact(userId: string, input: PreviewInput): Pro
     trackingBaseUrl(userId),
   ]);
   const sender: SenderIdentity = { ...identity, email: mailbox.account?.email_address || null };
+  // {{company_size}} and the like read the company record: loaded only if used.
+  const tagContact = (await withCompanyRecord(userId, contact as any,
+    ...emailSteps.flatMap((st: any) => [st.subject, st.subject_b, st.body_html, st.body_html_b]))) || contact;
   const includeUnsubscribe = input.includeUnsubscribe ?? campaign?.include_unsubscribe === true;
   // A link with the account's real host, to a token that resolves to nobody.
   const unsubscribeUrl = `${trackingBase}/api/track/unsubscribe/preview`;
@@ -238,8 +242,8 @@ export async function previewAsContact(userId: string, input: PreviewInput): Pro
     const rawSubject = step.subject_b && useB ? step.subject_b : step.subject || '';
     const rawBody = step.body_html_b && useB ? step.body_html_b : step.body_html || '';
 
-    const subject = interpolateMergeTags(rawSubject, contact, bookingLink);
-    const body = interpolateMergeTags(rawBody, contact, bookingLink);
+    const subject = interpolateMergeTags(rawSubject, tagContact, bookingLink);
+    const body = interpolateMergeTags(rawBody, tagContact, bookingLink);
 
     // The send's threading rules, in the send's order (email-sender step 2).
     let sendSubject = subject;

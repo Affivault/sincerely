@@ -275,7 +275,16 @@ export type SegmentField =
   | 'is_bounced'
   | 'dcs_score'
   | 'created_at'
-  | 'tag';
+  | 'tag'
+  | 'country'
+  | 'city'
+  | 'state'
+  | 'industry'
+  | 'location'
+  | 'website'
+  | 'linkedin_url'
+  | 'lifecycle'
+  | 'engagement_score';
 
 export interface SegmentCondition {
   field: SegmentField;
@@ -331,6 +340,14 @@ export interface ContactsListParams {
   verification_status?: 'valid' | 'risky' | 'invalid' | 'not_found' | 'unverified';
   /** Traffic lights, comma-separated: green,amber,red (shared/email-light). */
   lights?: string;
+  /** Who they are and where they work (shared/person-filters). */
+  country?: string;
+  city?: string;
+  state?: string;
+  industry?: string;
+  company_size?: string;
+  company_industry?: string;
+  engagement_min?: number;
   /**
    * Which population to list.
    *

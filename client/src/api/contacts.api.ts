@@ -9,6 +9,8 @@ import type {
   PaginatedResponse,
   ContactsListParams,
   HeldPerson,
+  PersonFacets,
+  PersonFilters,
   Tag,
   ContactList,
   ListKind,
@@ -73,6 +75,7 @@ export interface ExportRequest {
   verificationStatus?: string;
   columns?: string[];
   lights?: string[];
+  filters?: PersonFilters;
 }
 
 // The duplicates UI reads groups.length and total straight away, so an
@@ -89,7 +92,7 @@ function exportBody(req: ExportRequest, format: 'csv' | 'table') {
     format,
     contact_ids: req.contactIds, list_id: req.listId, segment_id: req.segmentId, lifecycle: req.lifecycle,
     search: req.search, company: req.company, outreach: req.outreach, verification_status: req.verificationStatus,
-    columns: req.columns, lights: req.lights,
+    columns: req.columns, lights: req.lights, filters: req.filters,
   };
 }
 
@@ -168,11 +171,12 @@ export const contactsApi = {
     importSource?: string,
     /** 'contacts' files everyone in the batch as a contact, not a prospect. */
     context?: 'contacts',
-    options: { mode?: 'fill' | 'overwrite' | 'skip'; tagIds?: string[] } = {},
+    /** importId: the recorded import this batch belongs to (migration 111). */
+    options: { mode?: 'fill' | 'overwrite' | 'skip'; tagIds?: string[]; importId?: string | null } = {},
   ) => {
     const { data } = await apiClient.post<BulkImportResult>(
       '/contacts/bulk',
-      { contacts, list_id: listId, import_source: importSource, context, mode: options.mode, tag_ids: options.tagIds }
+      { contacts, list_id: listId, import_source: importSource, context, mode: options.mode, tag_ids: options.tagIds, import_id: options.importId || undefined }
     );
     return data;
   },
@@ -180,6 +184,18 @@ export const contactsApi = {
   /** Before an import: how many of these are already here, and how many suppressed. */
   importPreflight: async (emails: string[]) => {
     const { data } = await apiClient.post<ImportPreflight>('/contacts/import/preflight', { emails });
+    return data;
+  },
+
+  /** The values the filter menu offers (countries, industries, company sizes...). */
+  facets: async (lifecycle?: string) => {
+    const { data } = await apiClient.get<PersonFacets>('/contacts/facets', { params: lifecycle ? { lifecycle } : undefined });
+    return data;
+  },
+
+  /** Every id matching a list query, for "Select all N matching" (capped at 10,000). */
+  matchingIds: async (params: ContactsListParams) => {
+    const { data } = await apiClient.post<{ ids: string[]; total: number; capped: boolean }>('/contacts/matching-ids', params, { timeout: 120_000 });
     return data;
   },
 
@@ -200,6 +216,12 @@ export const contactsApi = {
     return data;
   },
 
+  /** Enrich a held person (no email lookup). Refunded when nothing is found. */
+  heldEnrich: async (id: string) => {
+    const { data } = await apiClient.post<{ found: boolean; filled: string[]; note: string | null }>(`/contacts/held/${id}/enrich`);
+    return data;
+  },
+
   heldDelete: async (ids: string[]) => {
     const { data } = await apiClient.post<{ deleted: number }>('/contacts/held/delete', { ids });
     return data;
@@ -212,8 +234,8 @@ export const contactsApi = {
   },
 
   /** How many of these contacts are each light - for the launch screen. */
-  lightCounts: async (contactIds: string[]) => {
-    const { data } = await apiClient.post<Record<'green' | 'amber' | 'red' | 'unverified', number>>('/contacts/light-counts', { contact_ids: contactIds });
+  lightCounts: async (contactIds: string[], opts: { amberIds?: boolean } = {}) => {
+    const { data } = await apiClient.post<Record<'green' | 'amber' | 'red' | 'unverified', number> & { amber_ids?: string[] }>('/contacts/light-counts', { contact_ids: contactIds, amber_ids: opts.amberIds === true });
     return data;
   },
 

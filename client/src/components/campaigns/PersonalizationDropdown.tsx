@@ -26,6 +26,13 @@ const MERGE_TAGS: MergeTag[] = [
   { label: 'LinkedIn', value: '{{linkedin_url}}', icon: Linkedin, category: 'Professional', description: 'LinkedIn profile URL' },
 
   { label: 'Location', value: '{{location}}', icon: MapPin, category: 'Professional', description: 'Full location, as imported' },
+  { label: 'Industry', value: '{{industry}}', icon: Briefcase, category: 'Professional', description: 'Their industry, as imported' },
+  { label: 'Company Size', value: '{{company_size}}', icon: Building2, category: 'Company', description: 'Headcount band, e.g. 11-50' },
+  { label: 'Company Industry', value: '{{company_industry}}', icon: Building2, category: 'Company', description: 'What the company does' },
+  { label: 'Company Location', value: '{{company_location}}', icon: MapPin, category: 'Company', description: 'Where the company is based' },
+  { label: 'Company Website', value: '{{company_website}}', icon: Globe, category: 'Company', description: 'The company site (or their own)' },
+  { label: 'Company LinkedIn', value: '{{company_linkedin}}', icon: Linkedin, category: 'Company', description: 'Company page on LinkedIn' },
+  { label: 'Company Phone', value: '{{company_phone}}', icon: Phone, category: 'Company', description: 'Head office number' },
 
   // You — filled from your profile at send time
   { label: 'Your Name', value: '{{sender_name}}', icon: User, category: 'You', description: 'Your name, from Settings' },

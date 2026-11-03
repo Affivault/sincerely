@@ -18,6 +18,7 @@ import { startAbPromoteScheduler } from './jobs/schedulers/ab-promote.scheduler.
 import { startCampaignGuardScheduler } from './jobs/schedulers/campaign-guard.scheduler.js';
 import { startBookingReminderScheduler } from './jobs/schedulers/booking-reminder.scheduler.js';
 import { startDomainReverifyScheduler } from './jobs/schedulers/domain-reverify.scheduler.js';
+import { startSheetSyncScheduler } from './jobs/schedulers/sheet-sync.scheduler.js';
 import { startEngagementScheduler } from './jobs/schedulers/engagement.scheduler.js';
 
 const port = parseInt(env.PORT, 10);
@@ -200,6 +201,15 @@ const server = app.listen(port, () => {
     console.log('Domain re-verify scheduler started');
   } catch (err: any) {
     console.warn('Domain re-verify scheduler failed to start:', err.message);
+  }
+
+  // Google Sheets synced into lists on their schedule (migration 111).
+  try {
+    const sheetSync = startSheetSyncScheduler();
+    if (sheetSync) disposers.push(() => sheetSync.stop());
+    console.log('Sheet sync scheduler started');
+  } catch (err: any) {
+    console.warn('Sheet sync scheduler failed to start:', err.message);
   }
 });
 

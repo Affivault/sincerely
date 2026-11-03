@@ -27,6 +27,8 @@ export interface ImportRunResult {
   errorDetails: { email: string; reason: string }[];
   durationMs: number;
   cancelled: boolean;
+  /** The recorded import (Import history), when history is available. */
+  importId?: string | null;
 }
 
 export interface ImportRun {
