@@ -387,6 +387,15 @@ function answer(method, path, q) {
         ],
       };
     }
+    case '/backup': return { configured: true, connected: true, account_email: 'alex@affivault.com', enabled: true, spreadsheet_url: 'https://docs.google.com/spreadsheets/d/x', broken_reason: null, last_error: null, last_flush_at: iso(now - 90 * 1000), last_full_at: iso(now - 6 * 3600 * 1000), pending: 0, needs_full: false, rows: { people: 4812, companies: 1290, held: 214, lists: 18 } };
+    case '/backup/files': {
+      const snaps = Array.from({ length: 23 }, (_, i) => ({ day: new Date(now - i * 86400000).toISOString().slice(0, 10), folder: 'daily/x', files: 6, bytes: 3_400_000 + i * 9000, people: 4812 - i * 11, created_at: iso(now - i * 86400000) })).filter((_, i) => i !== 9 && i !== 10);
+      return { destinations: [
+        { provider: 'onedrive', configured: true, connected: false, account_label: null, enabled: false, keep_days: 30, broken_reason: null, last_error: null, last_write_at: null, last_bytes: null, pending: 0, writing: false, counts: { people: 0, companies: 0, held: 0, lists: 0, log: 0 }, location: null, s3: null, snapshots: [] },
+        { provider: 'dropbox', configured: true, connected: true, account_label: 'alex@affivault.com', enabled: true, keep_days: 30, broken_reason: null, last_error: null, last_write_at: iso(now - 4 * 60 * 1000), last_bytes: 3_412_877, pending: 3, writing: false, counts: { people: 4812, companies: 1290, held: 214, lists: 18, log: 18240 }, location: 'Dropbox > Apps > Sincerely > Sincerely backup', s3: null, snapshots: snaps },
+        { provider: 's3', configured: true, connected: false, account_label: null, enabled: false, keep_days: 30, broken_reason: null, last_error: null, last_write_at: null, last_bytes: null, pending: 0, writing: false, counts: { people: 0, companies: 0, held: 0, lists: 0, log: 0 }, location: null, s3: null, snapshots: [] },
+      ] };
+    }
     case '/settings': return { ...base, id: 's1', first_name: 'Alex', last_name: 'Morgan', company: 'AffiVault', job_title: 'CEO', timezone: 'Europe/London', email_notifications: true, campaign_alerts: true, reply_notifications: true, weekly_digest: true, default_signature: '', theme: 'light', sara_enabled: true, sara_auto_classify: true, sara_auto_execute: false, sara_confidence_threshold: 0.8, sara_auto_unsubscribe: true, sara_auto_bounce: true, sara_draft_replies: true, ai_tagging_enabled: true, auto_verify_contacts: true, crm_auto_deals: true, stop_all_campaigns_on_reply: true, pause_company_on_reply: false, bounce_guard_enabled: true, bounce_guard_threshold: 5, domain_hourly_limit: 20 };
     case '/contacts': return { ...page(contacts), total: 1450, total_pages: 58, limit: 25 };
     case '/contacts/stats': return { total: 1450, verified: 1320, unverified: 110, bounced: 15, unsubscribed: 5 };

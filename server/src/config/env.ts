@@ -75,6 +75,15 @@ const envSchema = z.object({
   // Absent = the feature is simply off; everything else works unchanged.
   GOOGLE_CLIENT_ID: z.string().optional().default(''),
   GOOGLE_CLIENT_SECRET: z.string().optional().default(''),
+  // Backups to OneDrive and Dropbox (migration 113). Each is off until its
+  // app is registered and these are set. Redirect URIs:
+  //   <API_BASE_URL>/api/oauth/backup/onedrive/callback
+  //   <API_BASE_URL>/api/oauth/backup/dropbox/callback
+  // S3-compatible backups need nothing here: each account brings its own keys.
+  MICROSOFT_CLIENT_ID: z.string().optional().default(''),
+  MICROSOFT_CLIENT_SECRET: z.string().optional().default(''),
+  DROPBOX_APP_KEY: z.string().optional().default(''),
+  DROPBOX_APP_SECRET: z.string().optional().default(''),
   // Relay reads replies, drafts answers and writes sequences with Claude
   // when this is set. Absent = the keyword rules and built-in templates,
   // which always work.

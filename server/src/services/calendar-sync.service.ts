@@ -92,7 +92,9 @@ export function newOAuthNonce(): string {
  * through this same callback, so it needs no second redirect address in
  * the Google Cloud console; the purpose travels in the signed state.
  */
-export type OAuthPurpose = 'calendar' | 'backup';
+export type OAuthPurpose = 'calendar' | 'backup' | 'backup_onedrive' | 'backup_dropbox';
+const PURPOSES: OAuthPurpose[] = ['calendar', 'backup', 'backup_onedrive', 'backup_dropbox'];
+const purposeOf = (p: unknown): OAuthPurpose => (PURPOSES.includes(p as OAuthPurpose) ? p as OAuthPurpose : 'calendar');
 
 export function signState(userId: string, nonce: string = newOAuthNonce(), purpose: OAuthPurpose = 'calendar'): string {
   const payload = Buffer.from(JSON.stringify({
@@ -133,14 +135,14 @@ export function verifyState(state: string, browserNonce?: string): { userId: str
       throw new AppError('Start connecting your calendar again from this browser.', 400);
     }
   }
-  return { userId: parsed.u, purpose: parsed.p === 'backup' ? 'backup' : 'calendar' };
+  return { userId: parsed.u, purpose: purposeOf(parsed.p) };
 }
 
 /** The purpose of a state, read without checking it (the handler it picks checks it). */
 export function statePurpose(state: string): OAuthPurpose {
   try {
     const parsed = JSON.parse(Buffer.from(String(state || '').split('.')[0] || '', 'base64url').toString('utf8'));
-    return parsed?.p === 'backup' ? 'backup' : 'calendar';
+    return purposeOf(parsed?.p);
   } catch {
     return 'calendar';
   }

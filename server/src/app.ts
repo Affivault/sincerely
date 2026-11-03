@@ -12,6 +12,7 @@ import { publicResultsRoutes } from './routes/results.routes.js';
 import { platformRoutes } from './routes/platform.routes.js';
 import { integrationsOAuthRoutes } from './routes/integrations-oauth.routes.js';
 import { calendarOAuthRoutes } from './routes/calendar-oauth.routes.js';
+import { backupOAuthRoutes } from './routes/backup-oauth.routes.js';
 import { billingController } from './controllers/billing.controller.js';
 
 const app = express();
@@ -63,6 +64,7 @@ app.use('/api/oauth/integrations', integrationsOAuthRoutes);
 
 // Public Google Calendar callback (no auth - identity is in the signed state)
 app.use('/api/oauth/calendar', calendarOAuthRoutes);
+app.use('/api/oauth/backup', backupOAuthRoutes);
 
 // Public booking pages (no auth - a stranger with a link is the point).
 // Rate limited in the router; every response is a hand-written whitelist.
