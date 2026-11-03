@@ -158,6 +158,73 @@ const MIN_AB_SAMPLE = 30;
 const AB_ALPHA = 0.05;
 
 export const analyticsService = {
+  /**
+   * Today at a glance: what went out, what came back and what is still to
+   * come, each beside yesterday's figure. "Today" is the caller's day - the
+   * page sends its own local midnight - so it matches the clock they read.
+   */
+  async today(userId: string, sinceIso?: string) {
+    const now = Date.now();
+    let since = sinceIso ? Date.parse(sinceIso) : NaN;
+    // Only a midnight within the last day and a half is believable.
+    if (!Number.isFinite(since) || since > now || now - since > 36 * 3_600_000) {
+      const d = new Date(); d.setUTCHours(0, 0, 0, 0); since = d.getTime();
+    }
+    const sinceIsoClean = new Date(since).toISOString();
+    const yesterday = new Date(since - 86_400_000).toISOString();
+    const endOfDay = new Date(since + 86_400_000).toISOString();
+
+    const count = async (type: string, from: string, until: string) => {
+      const { count: n, error } = await supabaseAdmin
+        .from('campaign_activities')
+        .select('id, campaigns!inner(user_id)', { count: 'exact', head: true })
+        .eq('campaigns.user_id', userId)
+        .eq('activity_type', type)
+        .gte('occurred_at', from)
+        .lt('occurred_at', until);
+      return error ? 0 : n || 0;
+    };
+    const nowIso = new Date(now).toISOString();
+    const [sent, sentY, replied, repliedY, bounced, bouncedY] = await Promise.all([
+      count('sent', sinceIsoClean, nowIso), count('sent', yesterday, sinceIsoClean),
+      count('replied', sinceIsoClean, nowIso), count('replied', yesterday, sinceIsoClean),
+      count('bounced', sinceIsoClean, nowIso), count('bounced', yesterday, sinceIsoClean),
+    ]);
+
+    // Meetings on today's calendar, and the next one still to come.
+    const { data: meetings } = await supabaseAdmin
+      .from('crm_events')
+      .select('id, title, starts_at, contact_name')
+      .eq('user_id', userId)
+      .gte('starts_at', sinceIsoClean)
+      .lt('starts_at', endOfDay)
+      .order('starts_at', { ascending: true })
+      .limit(50);
+    const list = (meetings || []) as Array<{ id: string; title: string; starts_at: string; contact_name: string | null }>;
+    const next = list.find((m) => Date.parse(m.starts_at) >= now) || null;
+
+    // Emails still queued to go out before the day ends.
+    const { count: queued } = await supabaseAdmin
+      .from('campaign_contacts')
+      .select('id, campaigns!inner(user_id, status)', { count: 'exact', head: true })
+      .eq('campaigns.user_id', userId)
+      .eq('campaigns.status', 'running')
+      .eq('status', 'active')
+      .gte('next_send_at', nowIso)
+      .lt('next_send_at', endOfDay);
+
+    return {
+      since: sinceIsoClean,
+      sent, sent_yesterday: sentY,
+      replied, replied_yesterday: repliedY,
+      bounced, bounced_yesterday: bouncedY,
+      bounce_rate: sent > 0 ? Math.round((bounced / sent) * 1000) / 10 : 0,
+      meetings: list.length,
+      next_meeting: next,
+      queued: queued || 0,
+    };
+  },
+
   async overview(userId: string, days?: number) {
     const { count: totalCampaigns } = await supabaseAdmin
       .from('campaigns')

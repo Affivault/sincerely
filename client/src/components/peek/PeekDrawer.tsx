@@ -1,5 +1,5 @@
 import { StagePill, OutreachPill, ListChips } from '../contacts/PersonBadges';
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -15,14 +15,18 @@ import { COMPANY_SIZE_OPTIONS } from '../../lib/constants';
 import { ContactHistory } from '../crm/ContactHistory';
 import { CompanyLogo } from '../shared/CompanyLogo';
 import { cn } from '../../lib/utils';
-import { usePeek } from './usePeek';
+import { usePeek, getPeekSequence, subscribePeekSequence } from './usePeek';
+import { EmailStatusPopover } from '../contacts/EmailStatusPopover';
+import { AddToCampaignModal } from '../shared/AddToCampaignModal';
+import { isTypingTarget } from '../../lib/keyboard';
+import { addRecentItem } from '../../lib/recentItems';
 import { openModals } from '../ui/Modal';
 import {
   X, ExternalLink, Mail, Building2, Briefcase, Phone, Linkedin, Globe,
-  Handshake, ArrowRight, Users, MapPin, Factory, Copy, Check,
+  Handshake, ArrowRight, Users, MapPin, Factory, Copy, Check, ChevronUp, ChevronDown, Megaphone, Sparkles, Loader2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { type DealStage, formatLongDate, formatMoney } from '@lemlist/shared';
+import { type DealStage, formatLongDate, formatMoney, emailState, STATE_LIGHT, CREDIT_PRICES } from '@lemlist/shared';
 import { usePipelines } from '../../hooks/usePipelines';
 import { OutcomeDialog } from '../crm/OutcomeDialog';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
@@ -129,9 +133,42 @@ function EditRow({
   );
 }
 
+const BADGE_TONE: Record<string, string> = {
+  green: 'text-emerald-700 dark:text-emerald-400 bg-emerald-500/10',
+  amber: 'text-amber-700 dark:text-amber-400 bg-amber-500/10',
+  red: 'text-rose-700 dark:text-rose-400 bg-rose-500/10',
+  none: 'text-[var(--text-tertiary)] bg-[var(--bg-elevated)]',
+};
+const BADGE_DOT: Record<string, string> = { green: 'bg-emerald-500', amber: 'bg-amber-500', red: 'bg-rose-500', none: 'bg-slate-400' };
+const STATE_SHORT: Record<string, string> = {
+  valid: 'Valid', risky: 'Risky', unverified: 'Unverified', invalid: 'Invalid', not_found: 'Not found', bounced: 'Bounced', no_email: 'No email',
+};
+
+/** The address's state as a small badge; clicking it explains (EmailStatusPopover). */
+function MiniEmailBadge({ c }: { c: any }) {
+  const state = emailState(c);
+  const light = STATE_LIGHT[state];
+  return (
+    <span className={cn('inline-flex items-center gap-1.5 h-5 px-1.5 rounded-md text-micro font-semibold flex-shrink-0 hover:brightness-95', BADGE_TONE[light])}>
+      <span className={cn('h-1.5 w-1.5 rounded-full', BADGE_DOT[light])} />
+      {STATE_SHORT[state]}
+    </span>
+  );
+}
+
 function ContactPeek({ id, onClose }: { id: string; onClose: () => void }) {
   const { openPeek } = usePeek();
   const qc = useQueryClient();
+  const [campaignOpen, setCampaignOpen] = useState(false);
+  const enrich = useMutation({
+    mutationFn: () => contactsApi.enrich(id),
+    onSuccess: (r: any) => {
+      const n = (r?.filled?.length || 0) + (r?.company_filled?.length || 0);
+      toast.success(n ? `Enriched: ${n} field${n === 1 ? '' : 's'} filled in` : 'Enriched - nothing new to add');
+      for (const k of ['contacts', 'contact-timeline', 'verification-breakdown', 'companies']) qc.invalidateQueries({ queryKey: [k] });
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.error || 'Could not enrich'),
+  });
   const { data: contact, isLoading } = useQuery({
     queryKey: ['contacts', id],
     queryFn: () => contactsApi.get(id),
@@ -158,6 +195,13 @@ function ContactPeek({ id, onClose }: { id: string; onClose: () => void }) {
     queryFn: () => inboxApi.list({ contact_id: id, contact_email: contact!.email, limit: 50 }),
     enabled: !!id && !!contact?.email,
   });
+
+  // Anyone opened here shows under "Recent" in the command palette (⌘K).
+  useEffect(() => {
+    if (!contact) return;
+    const label = [contact.first_name, contact.last_name].filter(Boolean).join(' ') || contact.email;
+    addRecentItem({ type: 'contact', id: contact.id, label, sublabel: [contact.job_title, contact.company].filter(Boolean).join(' · ') || contact.email });
+  }, [contact?.id, contact?.first_name, contact?.last_name]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { data: timeline } = useQuery({
     queryKey: ['contact-timeline', id],
@@ -188,7 +232,7 @@ function ContactPeek({ id, onClose }: { id: string; onClose: () => void }) {
       {/* pr-12 clears the absolutely-positioned close button, which otherwise
           sits on top of the right end of the "Full page" link and swallows
           the click that was meant to open the record. */}
-      <div className="flex items-start gap-3 pl-4 pr-12 py-4 border-b border-[var(--border-subtle)]">
+      <div className="flex items-start gap-3 px-4 py-4 border-b border-[var(--border-subtle)]">
         <Avatar name={name || contact.email} email={contact.email} size="lg" />
         <div className="flex-1 min-w-0">
           <InlineEdit
@@ -228,9 +272,39 @@ function ContactPeek({ id, onClose }: { id: string; onClose: () => void }) {
         </Link>
       </div>
 
+      {/* The things people do from here, without opening the full page. */}
+      <div className="flex flex-wrap items-center gap-1.5 px-4 py-2.5 border-b border-[var(--border-subtle)]" data-peek-actions>
+        {((contact as any).lifecycle || 'prospect') === 'prospect' && (
+          <button type="button" onClick={() => setCampaignOpen(true)} className="btn-primary">
+            <Megaphone className="h-3.5 w-3.5" />
+            Add to campaign
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => enrich.mutate()}
+          disabled={enrich.isPending}
+          className="btn-secondary"
+          title={`LinkedIn profile, role, company details and an email check - ${CREDIT_PRICES.enrich} credits, refunded if nothing is found`}
+        >
+          {enrich.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+          {enrich.isPending ? 'Enriching...' : 'Enrich'}
+        </button>
+        <a href={`mailto:${contact.email}`} className="btn-secondary">
+          <Mail className="h-3.5 w-3.5" />
+          Email
+        </a>
+      </div>
+      {campaignOpen && (
+        <AddToCampaignModal contactIds={[contact.id]} onClose={() => setCampaignOpen(false)} />
+      )}
+
       {/* Details */}
       <div className="px-4 py-3 space-y-1.5 border-b border-[var(--border-subtle)]">
-        <Row icon={Mail} value={contact.email} href={`mailto:${contact.email}`} copyLabel="email" />
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="flex-1 min-w-0"><Row icon={Mail} value={contact.email} href={`mailto:${contact.email}`} copyLabel="email" /></span>
+          <EmailStatusPopover c={contact as any}><MiniEmailBadge c={contact} /></EmailStatusPopover>
+        </div>
         {contact.company_id ? (
           <button
             onClick={() => openPeek('company', contact.company_id!)}
@@ -346,7 +420,7 @@ function DealPeek({ id, onClose }: { id: string; onClose: () => void }) {
       {/* pr-12 clears the absolutely-positioned close button, which otherwise
           sits on top of the right end of the "Full page" link and swallows
           the click that was meant to open the record. */}
-      <div className="flex items-start gap-3 pl-4 pr-12 py-4 border-b border-[var(--border-subtle)]">
+      <div className="flex items-start gap-3 px-4 py-4 border-b border-[var(--border-subtle)]">
         <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] flex-shrink-0">
           <Handshake className="h-5 w-5 text-[var(--indigo-text)]" />
         </span>
@@ -516,7 +590,7 @@ function CompanyPeek({ id, onClose }: { id: string; onClose: () => void }) {
       {/* pr-12 clears the absolutely-positioned close button, which otherwise
           sits on top of the right end of the "Full page" link and swallows
           the click that was meant to open the record. */}
-      <div className="flex items-start gap-3 pl-4 pr-12 py-4 border-b border-[var(--border-subtle)]">
+      <div className="flex items-start gap-3 px-4 py-4 border-b border-[var(--border-subtle)]">
         <CompanyLogo domain={company.domain || company.website} name={company.name} size="lg" className="!h-10 !w-10 !rounded-xl" />
         <div className="flex-1 min-w-0">
           <InlineEdit
@@ -648,7 +722,17 @@ function CompanyPeek({ id, onClose }: { id: string; onClose: () => void }) {
 }
 
 export function PeekDrawer() {
-  const { target, closePeek } = usePeek();
+  const { target, closePeek, openPeek } = usePeek();
+  const sequence = useSyncExternalStore(subscribePeekSequence, getPeekSequence, getPeekSequence);
+  const seqIds = sequence && target && sequence.type === target.type ? sequence.ids : null;
+  const seqIndex = seqIds && target ? seqIds.indexOf(target.id) : -1;
+  const step = useCallback((delta: number) => {
+    if (!seqIds || seqIndex < 0 || !target) return;
+    const next = seqIds[seqIndex + delta];
+    if (next) openPeek(target.type, next);
+  }, [seqIds, seqIndex, target, openPeek]);
+  const stepRef = useRef(step);
+  stepRef.current = step;
   const identity = useRef({});
   const panelRef = useRef<HTMLElement>(null);
 
@@ -686,9 +770,12 @@ export function PeekDrawer() {
     const self = identity.current;
     openModals.push(self);
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
       if (openModals[openModals.length - 1] !== self) return;
-      closePeekRef.current();
+      if (e.key === 'Escape') { closePeekRef.current(); return; }
+      // J/K or the arrow keys walk the list this was opened from.
+      if (isTypingTarget(e.target) || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === 'j' || e.key === 'ArrowDown') { e.preventDefault(); stepRef.current(1); }
+      if (e.key === 'k' || e.key === 'ArrowUp') { e.preventDefault(); stepRef.current(-1); }
     };
     document.addEventListener('keydown', onKey);
     const original = document.body.style.overflow;
@@ -715,14 +802,32 @@ export function PeekDrawer() {
         className="absolute right-0 top-0 h-full w-full max-w-[520px] bg-[var(--bg-surface)] border-l border-[var(--border-subtle)] shadow-[var(--shadow-xl)] overflow-y-auto"
         style={{ animation: 'slideInRight 220ms var(--ease-out) both' }}
       >
-        <button
-          onClick={closePeek}
-          className="absolute right-3 top-3 z-10 icon-btn h-7 w-7 bg-[var(--bg-surface)]"
-          title="Close (esc)"
-          aria-label="Close"
-        >
-          <X className="h-4 w-4" />
-        </button>
+        {/* Where you are in the list, and the way along it. */}
+        <div className="sticky top-0 z-10 flex items-center gap-1.5 h-11 px-3 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)]/95 backdrop-blur" data-peek-nav>
+          {seqIds && seqIndex >= 0 ? (
+            <>
+              <button type="button" onClick={() => step(-1)} disabled={seqIndex <= 0} className="icon-btn h-7 w-7" aria-label="Previous" title="Previous (K or up arrow)">
+                <ChevronUp className="h-4 w-4" />
+              </button>
+              <button type="button" onClick={() => step(1)} disabled={seqIndex >= seqIds.length - 1} className="icon-btn h-7 w-7" aria-label="Next" title="Next (J or down arrow)">
+                <ChevronDown className="h-4 w-4" />
+              </button>
+              <span className="ml-1 text-caption text-[var(--text-tertiary)] tabular truncate">
+                <span className="font-semibold text-[var(--text-secondary)]">{seqIndex + 1}</span> of {seqIds.length}{sequence?.label ? ` in ${sequence.label}` : ''}
+              </span>
+            </>
+          ) : (
+            <span className="text-caption font-medium text-[var(--text-tertiary)] capitalize">{target.type}</span>
+          )}
+          <button
+            onClick={closePeek}
+            className="ml-auto icon-btn h-7 w-7"
+            title="Close (esc)"
+            aria-label="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
 
         {target.type === 'contact' ? <ContactPeek key={target.id} id={target.id} onClose={closePeek} />
           : target.type === 'deal' ? <DealPeek key={target.id} id={target.id} onClose={closePeek} />

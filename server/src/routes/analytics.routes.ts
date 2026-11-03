@@ -7,6 +7,7 @@ import { comparisonService } from '../services/comparison.service.js';
 export const analyticsRoutes = Router();
 
 analyticsRoutes.get('/overview', analyticsController.overview);
+analyticsRoutes.get('/today', analyticsController.today);
 // What each campaign earned, not just what it sent.
 analyticsRoutes.get('/revenue', analyticsController.revenue);
 // One campaign, sent to banked, and which step earned it.

@@ -5,8 +5,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Users, Megaphone, Inbox, FileText, Plus, Search, Sun, Moon, LogOut, CornerDownLeft,
   ArrowUp, ArrowDown, Handshake, ListTodo, CalendarDays, Phone, Mail,
-  CheckSquare, Loader2, Building2, type LucideIcon,
+  CheckSquare, Loader2, Building2, Upload, Download, MailX, ShieldQuestion, ShieldX, ShieldCheck, type LucideIcon,
 } from 'lucide-react';
+import { verificationApi } from '../api/verification.api';
 import { cn } from '../lib/utils';
 import { SECTIONS, SETTINGS_TABS } from '../lib/sections';
 import { useTheme } from '../context/ThemeContext';
@@ -134,8 +135,35 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     })),
     // Create
     { id: 'new-campaign', label: 'New campaign', icon: Plus, group: 'Create', href: '/campaigns/new', keywords: 'create sequence add' },
-    { id: 'import-contacts', label: 'Import contacts', icon: Users, group: 'Create', href: '/contacts/import', keywords: 'upload csv add leads' },
+    { id: 'import-leads', label: 'Import leads', sublabel: 'CSV, Excel or pasted rows - columns matched for you', icon: Upload, group: 'Create', href: '/contacts/import?as=lead', keywords: 'upload csv excel xlsx paste add leads prospects' },
+    { id: 'import-contacts', label: 'Import contacts', icon: Users, group: 'Create', href: '/contacts/import?as=contact', keywords: 'upload csv excel xlsx paste add crm customers' },
     { id: 'new-deal', label: 'New deal', icon: Handshake, group: 'Create', href: '/deals?new=1', keywords: 'opportunity pipeline add' },
+    // Lists and email health: straight to the people, filtered.
+    { id: 'leads-no-email', label: 'Leads without an email', sublabel: 'Imported without an address - add one or re-import', icon: MailX, group: 'Actions', href: '/leads?lights=none', keywords: 'missing email no address held' },
+    { id: 'leads-unsure', label: 'Unverified and risky leads', sublabel: 'Amber: catch-all, risky or not checked yet', icon: ShieldQuestion, group: 'Actions', href: '/leads?lights=amber', keywords: 'amber unverified risky catch-all unsure' },
+    { id: 'leads-bad', label: 'Bad email addresses', sublabel: 'Red: invalid, no mail server or bounced', icon: ShieldX, group: 'Actions', href: '/leads?lights=red', keywords: 'red invalid bounced bad' },
+    {
+      id: 'verify-unverified',
+      label: 'Verify unchecked addresses now',
+      sublabel: 'Checks the next batch of leads that have never been verified',
+      icon: ShieldCheck,
+      group: 'Actions',
+      keywords: 'verify check validate emails unverified',
+      run: async () => {
+        onClose();
+        const t = toast.loading('Verifying unchecked addresses...');
+        try {
+          const r = await verificationApi.batchVerify();
+          toast.success(r.verified + r.failed === 0 ? 'Nothing left to verify' : `Checked ${r.verified + r.failed}: ${r.verified} deliverable`, { id: t });
+          qc.invalidateQueries({ queryKey: ['contacts'] });
+          qc.invalidateQueries({ queryKey: ['verification-breakdown'] });
+        } catch (e: any) {
+          toast.error(e?.response?.data?.error || 'Verification failed', { id: t });
+        }
+      },
+    },
+    { id: 'export-leads', label: 'Export leads', sublabel: 'CSV or Excel, by preset or chosen columns', icon: Download, group: 'Actions', href: '/leads?export=1', keywords: 'download csv excel xlsx export' },
+    { id: 'export-contacts', label: 'Export contacts', icon: Download, group: 'Actions', href: '/contacts?export=1', keywords: 'download csv excel xlsx export crm' },
     // Actions
     {
       id: 'toggle-theme',
@@ -146,7 +174,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
       run: () => { toggleTheme(); onClose(); },
     },
     { id: 'sign-out', label: 'Sign out', icon: LogOut, group: 'Actions', keywords: 'logout exit leave', run: () => { signOut(); onClose(); } },
-  ], [theme, toggleTheme, signOut, onClose]);
+  ], [theme, toggleTheme, signOut, onClose, qc]);
 
   const debouncedQuery = useDebounce(query, 180);
   const trimmed = debouncedQuery.trim();

@@ -257,6 +257,8 @@ export function CampaignCreatePage() {
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const [activeField, setActiveField] = useState<'subject' | 'body'>('body');
   const [showAiModal, setShowAiModal] = useState(false);
+  /** The email editor's two faces: writing it, or reading it as a recipient. */
+  const [editorView, setEditorView] = useState<'write' | 'preview'>('write');
   const [aiGoal, setAiGoal] = useState('');
   const [aiTone, setAiTone] = useState('professional');
   const [aiProduct, setAiProduct] = useState('');
@@ -1788,6 +1790,45 @@ export function CampaignCreatePage() {
                         </div>
                       </div>
 
+                      {/* Write it, or read it as the person getting it. */}
+                      <div className="px-4 pt-3">
+                        <div role="tablist" aria-label="Editor view" className="grid grid-cols-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-0.5" data-editor-view>
+                          {(['write', 'preview'] as const).map((v) => (
+                            <button
+                              key={v}
+                              type="button"
+                              role="tab"
+                              aria-selected={editorView === v}
+                              onClick={() => setEditorView(v)}
+                              className={cn(
+                                'h-7 rounded-md text-caption font-semibold transition-colors',
+                                editorView === v ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[0_1px_2px_rgba(0,0,0,0.06)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]',
+                              )}
+                            >
+                              {v === 'write' ? 'Write' : 'Preview as recipient'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      {editorView === 'preview' ? (
+                        <div className="p-4 space-y-3 max-h-[calc(100vh-220px)] overflow-y-auto" data-editor-preview>
+                          {steps[editingStep].body_html ? (
+                            <RecipientPreview
+                              subject={steps[editingStep].subject || '(no subject)'}
+                              bodyHtml={steps[editingStep].body_html || ''}
+                              fromName={previewSender?.from_name || previewSender?.label || PLACEHOLDER.senderName}
+                              fromEmail={previewSender?.email_address || PLACEHOLDER.senderEmail}
+                              people={selectedContactsPreview}
+                            />
+                          ) : (
+                            <div className="rounded-lg border border-dashed border-[var(--border-default)] px-4 py-10 text-center">
+                              <p className="text-body font-medium text-[var(--text-primary)]">Nothing to preview yet</p>
+                              <p className="text-caption text-[var(--text-tertiary)] mt-0.5">Write the email, then read it here as each person will get it.</p>
+                              <button type="button" onClick={() => setEditorView('write')} className="btn-secondary mt-3">Write it</button>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
                       <div className="p-4 space-y-3 max-h-[calc(100vh-220px)] overflow-y-auto">
                         {/* A follow-up: reply in the thread, or a new email.
                             The first email has nothing to reply to. */}
@@ -1864,6 +1905,27 @@ export function CampaignCreatePage() {
                           })()}
                         </Field>
                         )}
+
+                        {/* One click to drop the common tags in where the cursor was -
+                            the Personalize menu above has every tag; these are the
+                            ones most emails use. */}
+                        <div className="flex flex-wrap items-center gap-1.5" data-quick-tags>
+                          <span className="text-caption text-[var(--text-tertiary)]">Insert into {activeField === 'subject' ? 'subject' : 'body'}:</span>
+                          {['first_name', 'company', 'job_title', 'website', 'city'].map((t) => (
+                            <button
+                              key={t}
+                              type="button"
+                              // Keep focus (and the caret) where it is: mousedown would blur the editor.
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => insertPersonalization(`{{${t}}}`)}
+                              className="inline-flex items-center gap-1 h-6 px-2 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-caption font-medium text-[var(--text-secondary)] hover:border-[var(--indigo)]/50 hover:text-[var(--indigo-text)] hover:bg-[var(--indigo-subtle)] transition-colors"
+                              title={`Insert {{${t}}}`}
+                            >
+                              <span className="font-mono text-micro opacity-60">{'{}'}</span>
+                              {TAG_LABELS[t] || t}
+                            </button>
+                          ))}
+                        </div>
 
                         {/* Body — WYSIWYG */}
                         <Field label="Email body">
@@ -2039,6 +2101,7 @@ export function CampaignCreatePage() {
                           );
                         })()}
                       </div>
+                      )}
                     </div>
                   ) : editingStep !== null && steps[editingStep]?.step_type === 'delay' ? (
                     <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] sticky top-4 overflow-hidden">
