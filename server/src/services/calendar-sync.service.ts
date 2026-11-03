@@ -87,9 +87,16 @@ export function newOAuthNonce(): string {
   return crypto.randomBytes(24).toString('base64url');
 }
 
-export function signState(userId: string, nonce: string = newOAuthNonce()): string {
+/**
+ * What a Google consent is for. The Drive backup (migration 112) signs in
+ * through this same callback, so it needs no second redirect address in
+ * the Google Cloud console; the purpose travels in the signed state.
+ */
+export type OAuthPurpose = 'calendar' | 'backup';
+
+export function signState(userId: string, nonce: string = newOAuthNonce(), purpose: OAuthPurpose = 'calendar'): string {
   const payload = Buffer.from(JSON.stringify({
-    u: userId, e: Date.now() + STATE_TTL_MS, n: nonce,
+    u: userId, e: Date.now() + STATE_TTL_MS, n: nonce, ...(purpose === 'calendar' ? {} : { p: purpose }),
   })).toString('base64url');
   const sig = crypto.createHmac('sha256', env.ENCRYPTION_KEY).update(payload).digest('base64url');
   return `${payload}.${sig}`;
@@ -100,7 +107,7 @@ export function signState(userId: string, nonce: string = newOAuthNonce()): stri
  * that it was minted for the browser presenting it. The callback always
  * passes one; see completeConnection.
  */
-export function verifyState(state: string, browserNonce?: string): { userId: string } {
+export function verifyState(state: string, browserNonce?: string): { userId: string; purpose: OAuthPurpose } {
   const [payload, sig] = String(state || '').split('.');
   if (!payload || !sig) throw new AppError('Invalid state', 400);
   const expected = crypto.createHmac('sha256', env.ENCRYPTION_KEY).update(payload).digest('base64url');
@@ -110,7 +117,7 @@ export function verifyState(state: string, browserNonce?: string): { userId: str
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
     throw new AppError('State signature mismatch', 400);
   }
-  let parsed: { u: string; e: number; n?: string };
+  let parsed: { u: string; e: number; n?: string; p?: string };
   try {
     parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
   } catch {
@@ -126,7 +133,17 @@ export function verifyState(state: string, browserNonce?: string): { userId: str
       throw new AppError('Start connecting your calendar again from this browser.', 400);
     }
   }
-  return { userId: parsed.u };
+  return { userId: parsed.u, purpose: parsed.p === 'backup' ? 'backup' : 'calendar' };
+}
+
+/** The purpose of a state, read without checking it (the handler it picks checks it). */
+export function statePurpose(state: string): OAuthPurpose {
+  try {
+    const parsed = JSON.parse(Buffer.from(String(state || '').split('.')[0] || '', 'base64url').toString('utf8'));
+    return parsed?.p === 'backup' ? 'backup' : 'calendar';
+  } catch {
+    return 'calendar';
+  }
 }
 
 /* ── HTTP, against fixed trusted hosts ── */
@@ -216,7 +233,9 @@ export const calendarSync = {
     if (!browserNonce) {
       throw new AppError('Start connecting your calendar again from this browser.', 400);
     }
-    const { userId } = verifyState(state, browserNonce);
+    const { userId, purpose } = verifyState(state, browserNonce);
+    // A backup consent cannot be spent connecting a calendar.
+    if (purpose !== 'calendar') throw new AppError('Start connecting your calendar again.', 400);
 
     const token = await post(GOOGLE_TOKEN, new URLSearchParams({
       code,
