@@ -25,7 +25,7 @@ setInterval(() => {
   }
 }, RATE_WINDOW_MS).unref();
 
-interface RateVerdict {
+export interface RateVerdict {
   limited: boolean;
   retryAfterSeconds: number;
   /** Requests still allowed in this window. */
@@ -34,7 +34,7 @@ interface RateVerdict {
   resetSeconds: number;
 }
 
-function isRateLimited(keyId: string, limit: number): RateVerdict {
+export function isRateLimited(keyId: string, limit: number): RateVerdict {
   const now = Date.now();
   const entry = requestCounts.get(keyId);
 

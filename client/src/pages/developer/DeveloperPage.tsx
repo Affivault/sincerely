@@ -22,7 +22,11 @@ import {
   RefreshCw,
   Chrome,
   Info,
+  BookOpen,
+  Activity,
 } from 'lucide-react';
+import { ApiReference } from './ApiReference';
+import { RequestLog } from './RequestLog';
 import { cn } from '../../lib/utils';
 import { API_URL, ABSOLUTE_API_URL } from '../../lib/constants';
 import { PageHeader } from '../../components/shared/PageHeader';
@@ -41,7 +45,11 @@ const EVENT_CATEGORIES: Record<string, WebhookEventType[]> = {
   'System': ALL_EVENTS.filter(e => e.startsWith('account.')),
 };
 
-type Tab = 'webhooks' | 'api-keys';
+type Tab = 'webhooks' | 'api-keys' | 'reference' | 'log';
+const TABS: Tab[] = ['webhooks', 'api-keys', 'reference', 'log'];
+
+/** Who made a webhook through the API, for the badge on its row. */
+const SOURCE_LABEL: Record<string, string> = { api: 'API', zapier: 'Zapier', make: 'Make', n8n: 'n8n' };
 
 /**
  * Which tab to open on.
@@ -51,8 +59,10 @@ type Tab = 'webhooks' | 'api-keys';
  * to hunt for the right tab is a step that shouldn't exist.
  */
 function tabFromUrl(): Tab {
-  const requested = new URLSearchParams(window.location.search).get('tab');
-  return requested === 'api-keys' ? 'api-keys' : 'webhooks';
+  const requested = new URLSearchParams(window.location.search).get('tab') as Tab | null;
+  // An error's doc_url points at the reference with #error-<code>.
+  if (window.location.hash.startsWith('#error-')) return 'reference';
+  return requested && TABS.includes(requested) ? requested : 'webhooks';
 }
 
 export function DeveloperPage() {
@@ -84,6 +94,7 @@ export function DeveloperPage() {
     const url = new URL(window.location.href);
     if (url.searchParams.get('tab') === tab) return;
     url.searchParams.set('tab', tab);
+    if (tab !== 'reference') url.hash = '';
     window.history.replaceState(window.history.state, '', url.toString());
   }, [tab]);
 
@@ -307,10 +318,10 @@ export function DeveloperPage() {
       />
 
       {/* Tabs — segmented control */}
-      <div className="inline-flex items-center gap-0.5 p-0.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)]">
+      <div className="inline-flex max-w-full overflow-x-auto items-center gap-0.5 p-0.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)]">
         <button
           onClick={() => setTab('webhooks')}
-          className={cn('flex items-center gap-1.5 px-3.5 h-7 rounded-md text-body font-medium transition-all',
+          className={cn('shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3.5 h-7 rounded-md text-body font-medium transition-all',
             tab === 'webhooks' ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
           )}
         >
@@ -319,14 +330,35 @@ export function DeveloperPage() {
         </button>
         <button
           onClick={() => setTab('api-keys')}
-          className={cn('flex items-center gap-1.5 px-3.5 h-7 rounded-md text-body font-medium transition-all',
+          className={cn('shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3.5 h-7 rounded-md text-body font-medium transition-all',
             tab === 'api-keys' ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
           )}
         >
           <Key className="h-3.5 w-3.5" />
           API keys
         </button>
+        <button
+          onClick={() => setTab('reference')}
+          className={cn('shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3.5 h-7 rounded-md text-body font-medium transition-all',
+            tab === 'reference' ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+          )}
+        >
+          <BookOpen className="h-3.5 w-3.5" />
+          API reference
+        </button>
+        <button
+          onClick={() => setTab('log')}
+          className={cn('shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3.5 h-7 rounded-md text-body font-medium transition-all',
+            tab === 'log' ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+          )}
+        >
+          <Activity className="h-3.5 w-3.5" />
+          Request log
+        </button>
       </div>
+
+      {tab === 'reference' && <ApiReference onCreateKey={() => setTab('api-keys')} />}
+      {tab === 'log' && <RequestLog />}
 
       {/* Webhooks Tab */}
       {tab === 'webhooks' && (
@@ -349,7 +381,7 @@ export function DeveloperPage() {
                 <button aria-label="Dismiss" onClick={() => setRevealedSecret(null)} className="relative text-[var(--text-secondary)] hover:text-[var(--text-primary)] after:absolute after:-inset-1 after:content-['']"><X className="h-4 w-4" /></button>
               </div>
               <p className="text-body text-[var(--text-tertiary)]">
-                Copy this now — it won't be shown again. Use it to verify the <code>X-Sincerely-Signature</code> header on incoming deliveries.
+                Copy this now — it won't be shown again. Use it to verify the <code>X-Sincerely-Signature</code> header on incoming deliveries (<code>Sincerely-Signature</code> on webhooks made through the API).
               </p>
               <div className="flex items-center gap-2">
                 <code className="flex-1 rounded bg-[var(--bg-surface)] px-3 py-2 text-strong font-mono text-[var(--text-primary)] break-all">{revealedSecret.secret}</code>
@@ -439,6 +471,14 @@ export function DeveloperPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <h3 className="text-strong font-medium text-[var(--text-primary)]">{ep.label}</h3>
+                        {ep.format === 'v1' && (
+                          <span
+                            className="inline-flex items-center h-[18px] px-1.5 rounded text-micro font-medium bg-[var(--bg-elevated)] text-[var(--text-secondary)]"
+                            title="Made through the public API. It receives the v1 event format, signed with the Sincerely-Signature header."
+                          >
+                            {SOURCE_LABEL[ep.source || 'api'] || 'API'}
+                          </span>
+                        )}
                         {lastDelivery && (
                           <span
                             className={cn(
@@ -454,7 +494,7 @@ export function DeveloperPage() {
                       </div>
                       <p className="text-body text-[var(--text-tertiary)] truncate font-mono">{ep.url}</p>
                     </div>
-                    <span className="text-body text-[var(--text-tertiary)]">{ep.events.length} events</span>
+                    <span className="text-body text-[var(--text-tertiary)]" title={ep.events.join(', ')}>{plural(ep.events.length, 'event')}</span>
                     <button
                       onClick={() => testEndpointMutation.mutate(ep.id)}
                       disabled={testEndpointMutation.isPending && testEndpointMutation.variables === ep.id}

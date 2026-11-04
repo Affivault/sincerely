@@ -374,19 +374,34 @@ export async function fireEvent(
     .then((m) => m.notifyForEvent(userId, eventType, data))
     .catch((err) => console.error('[Notify] Dispatch error:', err?.message ?? String(err)));
 
-  // Find active endpoints subscribed to this event
-  const { data: endpoints, error: endpointsError } = await supabaseAdmin
+  /*
+   * Every active endpoint, then split by format. A 'v1' endpoint (made
+   * through the public API, Zapier, Make or n8n - migration 115) lists
+   * public event names and gets the v1 envelope; every other endpoint
+   * lists internal names and keeps the payload it was built against.
+   * Before 115 there is no format column, so every row reads as legacy.
+   */
+  const { data: allEndpoints, error: endpointsError } = await supabaseAdmin
     .from('webhook_endpoints')
     .select('*')
     .eq('user_id', userId)
-    .eq('is_active', true)
-    .contains('events', [eventType]);
+    .eq('is_active', true);
 
   if (endpointsError) {
     console.error('[Webhook] Failed to query endpoints:', endpointsError.message);
     return;
   }
-  if (!endpoints || endpoints.length === 0) return;
+
+  const v1 = (allEndpoints || []).filter((e: any) => e.format === 'v1');
+  if (v1.length > 0) {
+    import('../public-api/events.js')
+      .then((m) => m.dispatchV1(userId, eventType, data, v1))
+      .catch((err) => console.error('[Webhook v1] Dispatch error:', err?.message ?? String(err)));
+  }
+
+  const endpoints = (allEndpoints || []).filter((e: any) =>
+    e.format !== 'v1' && Array.isArray(e.events) && e.events.includes(eventType));
+  if (endpoints.length === 0) return;
 
   const payload: WebhookPayload = {
     event: eventType,
@@ -511,6 +526,15 @@ export async function testEndpoint(userId: string, endpointId: string): Promise<
     .single();
   const endpoint = data as WebhookEndpoint | null;
   if (!endpoint) throw new AppError('Endpoint not found', 404);
+
+  // An API / Zapier / Make endpoint is tested with a real v1 event of a
+  // type it asked for, signed the v1 way: a legacy ping would fail its check.
+  if (endpoint.format === 'v1') {
+    const { sampleEvent, deliverV1 } = await import('../public-api/events.js');
+    const type = ((endpoint.events || [])[0] || 'reply.interested') as any;
+    const out = await deliverV1(endpoint as any, await sampleEvent(userId, type), { retries: false });
+    return { success: out.delivered, status_code: out.status };
+  }
 
   const payload: WebhookPayload = {
     event: 'test.ping',

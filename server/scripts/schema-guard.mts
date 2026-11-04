@@ -154,8 +154,15 @@ function check(label: string, ok: boolean, detail = '') {
  */
 const NOT_OURS = new Set(['auth.users']);
 
-for (const file of readdirSync(SERVICES).filter((f) => f.endsWith('.ts'))) {
-  const src = readFileSync(join(SERVICES, file), 'utf8');
+// The public API reads the same tables, so it is held to the same names.
+const PUBLIC_API = join(here, '../src/public-api');
+const SOURCES = [
+  ...readdirSync(SERVICES).filter((f) => f.endsWith('.ts')).map((f) => ({ file: f, path: join(SERVICES, f) })),
+  ...readdirSync(PUBLIC_API).filter((f) => f.endsWith('.ts')).map((f) => ({ file: `public-api/${f}`, path: join(PUBLIC_API, f) })),
+];
+
+for (const { file, path } of SOURCES) {
+  const src = readFileSync(path, 'utf8');
 
   for (const m of src.matchAll(/\.from\((['"])([a-z_][a-z0-9_.]*)\1\)([\s\S]{0,400})/gi)) {
     const table = m[2];
