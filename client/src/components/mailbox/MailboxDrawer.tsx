@@ -33,7 +33,7 @@ import { inboxApi } from '../../api/inbox.api';
 import { openModals } from '../ui/Modal';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { ProviderLogo } from './ProviderLogo';
-import { useConnectMicrosoft } from './MicrosoftConnect';
+import { useConnectMicrosoft, AdminHelpButton } from './MicrosoftConnect';
 import { cn, formatRelativeTime } from '../../lib/utils';
 
 const TONE = {
@@ -245,6 +245,10 @@ export function MailboxDrawer({
                 >
                   {remedy.busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}{remedy.label}
                 </button>
+              )}
+              {/* A work mailbox an admin has to unblock: give them the steps. */}
+              {microsoft && /admin|authenticated smtp|imap/i.test(`${account.last_send_error || ''} ${(account as any).last_inbox_sync_error || ''}`) && (
+                <AdminHelpButton mailboxes={[account.email_address]} className="mt-2 -ml-2" />
               )}
             </div>
 

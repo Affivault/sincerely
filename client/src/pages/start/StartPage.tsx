@@ -18,6 +18,7 @@ import { smtpApi } from '../../api/smtp.api';
 import { domainApi } from '../../api/domain.api';
 import { contactsApi, listsApi } from '../../api/contacts.api';
 import { setupApi } from '../../api/setup.api';
+import { MicrosoftConnectButton, useMicrosoftMail, useMicrosoftSignInEmail } from '../../components/mailbox/MicrosoftConnect';
 import { cn } from '../../lib/utils';
 
 const SmtpAccountModal = lazyNamed(() =>
@@ -180,6 +181,8 @@ function StepCard({ n, title, summary, icon: Icon, done, current, expanded, lock
 
 function MailboxStep({ mailboxes }: { mailboxes: SmtpAccount[] }) {
   const qc = useQueryClient();
+  const msEmail = useMicrosoftSignInEmail();
+  const { data: microsoft } = useMicrosoftMail();
   const [connecting, setConnecting] = useState(false);
   return (
     <div className="space-y-3">
@@ -194,8 +197,17 @@ function MailboxStep({ mailboxes }: { mailboxes: SmtpAccount[] }) {
           ))}
         </ul>
       )}
+      {/* Signed up with Microsoft: that mailbox, one click, no password. */}
+      {msEmail && microsoft?.microsoft && !mailboxes.some((a) => a.email_address.toLowerCase() === msEmail) && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-[var(--indigo)]/25 bg-[var(--indigo-subtle)]/40 px-4 py-3" data-start-microsoft>
+          <p className="flex-1 min-w-[220px] text-body text-[var(--text-secondary)]">
+            You signed in with Microsoft as <strong className="font-semibold text-[var(--text-primary)]">{msEmail}</strong>. Send from it: one sign-in, no password, tested before it is used.
+          </p>
+          <MicrosoftConnectButton email={msEmail} label={`Connect ${msEmail}`} className="btn-primary" returnTo="/start" />
+        </div>
+      )}
       <p className="text-body text-[var(--text-secondary)]">
-        Pick your provider and add an app password. Sincerely signs in, sends itself a test and reads the inbox before anything is saved, so a mailbox that shows here works.
+        Outlook and Microsoft 365 connect with Microsoft sign-in; for other providers, pick yours and add an app password. Sincerely signs in, sends itself a test and reads the inbox before anything is saved, so a mailbox that shows here works.
       </p>
       <Button onClick={() => setConnecting(true)}>
         <Mail className="h-4 w-4" /> {mailboxes.length ? 'Connect another mailbox' : 'Connect a mailbox'}

@@ -14,6 +14,7 @@ smtpRoutes.post('/pace', smtpController.applyPace);
 // "Connect with Microsoft" (migration 114). Before '/:id'.
 smtpRoutes.get('/microsoft', mailboxOAuthController.status);
 smtpRoutes.get('/microsoft/authorize', mailboxOAuthController.authorize);
+smtpRoutes.get('/microsoft/admin-link', mailboxOAuthController.adminLink);
 smtpRoutes.post('/verify', smtpController.verify);
 smtpRoutes.post('/check-domain', smtpController.checkDomain);
 smtpRoutes.post('/diagnose', smtpController.diagnose);

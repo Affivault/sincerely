@@ -20,6 +20,7 @@ import { startBookingReminderScheduler } from './jobs/schedulers/booking-reminde
 import { startDomainReverifyScheduler } from './jobs/schedulers/domain-reverify.scheduler.js';
 import { startSheetSyncScheduler } from './jobs/schedulers/sheet-sync.scheduler.js';
 import { startDriveBackupScheduler } from './jobs/schedulers/drive-backup.scheduler.js';
+import { startMailboxSigninScheduler } from './jobs/schedulers/mailbox-signin.scheduler.js';
 import { startEngagementScheduler } from './jobs/schedulers/engagement.scheduler.js';
 
 const port = parseInt(env.PORT, 10);
@@ -220,6 +221,15 @@ const server = app.listen(port, () => {
     console.log('Drive backup scheduler started');
   } catch (err: any) {
     console.warn('Drive backup scheduler failed to start:', err.message);
+  }
+
+  // The daily check of Microsoft mailbox sign-ins (migration 114).
+  try {
+    const mailboxSignin = startMailboxSigninScheduler();
+    if (mailboxSignin) disposers.push(() => mailboxSignin.stop());
+    console.log('Mailbox sign-in check started');
+  } catch (err: any) {
+    console.warn('Mailbox sign-in check failed to start:', err.message);
   }
 });
 

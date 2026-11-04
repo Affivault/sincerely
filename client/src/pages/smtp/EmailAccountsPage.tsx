@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { smtpApi } from '../../api/smtp.api';
 import { inboxApi } from '../../api/inbox.api';
 import { domainApi } from '../../api/domain.api';
@@ -32,7 +32,7 @@ import { MailboxDrawer } from '../../components/mailbox/MailboxDrawer';
 import { ProviderLogo } from '../../components/mailbox/ProviderLogo';
 import { EmptyState } from '../../components/shared/EmptyState';
 import { BulkConnect } from '../../components/mailbox/BulkConnect';
-import { useMicrosoftMail, useConnectMicrosoft, SuggestMicrosoftMailbox } from '../../components/mailbox/MicrosoftConnect';
+import { useMicrosoftMail, useConnectMicrosoft, SuggestMicrosoftMailbox, MicrosoftTeamPanel, ConnectNextBanner, takeMicrosoftReturn } from '../../components/mailbox/MicrosoftConnect';
 import { BulkPace } from '../../components/mailbox/BulkPace';
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -157,6 +157,7 @@ const VALID_TABS: Tab[] = ['mailboxes', 'domains', 'warmup', 'autopilot', 'readi
 export function EmailAccountsPage() {
   const confirm = useConfirm();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   // Lets other pages (e.g. Sending health) link straight to a
   // specific tab instead of always landing on Mailboxes.
@@ -242,6 +243,8 @@ export function EmailAccountsPage() {
   /* "Connect with Microsoft" (migration 114): Outlook and Microsoft 365 sign in
      with Microsoft rather than a password, when this deployment has the app. */
   const microsoftMail = useMicrosoftMail();
+  /* The Microsoft mailbox that just connected, so the next is one click away. */
+  const [justConnected, setJustConnected] = useState<string | null>(null);
   const connectMicrosoft = useConnectMicrosoft();
   const openQuick = (preset: SmtpPreset | null) => {
     if (preset?.name === 'Outlook / Microsoft 365' && microsoftMail.data?.microsoft) { connectMicrosoft.mutate(undefined); return; }
@@ -254,6 +257,7 @@ export function EmailAccountsPage() {
     if (!outcome) return;
     const email = searchParams.get('email') || 'the mailbox';
     const message = searchParams.get('message');
+    if (outcome === 'connected' || outcome === 'connected_unverified') setJustConnected(searchParams.get('email'));
     if (outcome === 'connected') {
       toast.success(searchParams.get('moved') ? `${email} now signs in with Microsoft - tested and working` : `Connected ${email} with Microsoft - tested and working`);
     } else if (outcome === 'connected_unverified') {
@@ -266,13 +270,20 @@ export function EmailAccountsPage() {
     queryClient.invalidateQueries({ queryKey: ['smtp-accounts'] });
     queryClient.invalidateQueries({ queryKey: ['mailbox-oauth'] });
     const account = searchParams.get('account');
+    // Started from first-run setup: go back there, the step now ticked.
+    const back = takeMicrosoftReturn();
+    if (back && outcome.startsWith('connected')) {
+      queryClient.invalidateQueries({ queryKey: ['setup-state'] });
+      navigate(back, { replace: true });
+      return;
+    }
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       ['microsoft', 'email', 'message', 'moved', 'account'].forEach((k) => next.delete(k));
       if (account && outcome.startsWith('connected')) next.set('mailbox', account);
       return next;
     }, { replace: true });
-  }, [searchParams, setSearchParams, queryClient]);
+  }, [searchParams, setSearchParams, queryClient, navigate]);
   const openEdit = (a: SmtpAccount) => { setEditAccount(a); setInitialPreset(null); setModalOpen(true); };
 
   const deleteMutation = useMutation({
@@ -550,8 +561,10 @@ export function EmailAccountsPage() {
                 repairing={repairMutation.isPending}
               />
             )}
-            <div className="mt-2.5">
+            <div className="mt-2.5 space-y-2.5">
+              {justConnected && <ConnectNextBanner email={justConnected} onDismiss={() => setJustConnected(null)} />}
               <SuggestMicrosoftMailbox connected={list.map((a: SmtpAccount) => a.email_address)} />
+              <MicrosoftTeamPanel connected={list.filter((a: SmtpAccount) => a.auth_kind === 'microsoft').map((a: SmtpAccount) => a.email_address)} />
             </div>
             <div className="mt-2.5 flex gap-2">
               <button

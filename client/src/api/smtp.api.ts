@@ -149,4 +149,6 @@ export const microsoftMailApi = {
   /** With credentials, so the browser keeps the cookie that finishes the sign-in. */
   authorize: async (email?: string) =>
     (await apiClient.get<{ url: string }>('/smtp-accounts/microsoft/authorize', { params: email ? { email } : undefined, withCredentials: true })).data,
+  /** The link an IT admin opens to approve Sincerely for the whole organisation. */
+  adminLink: async () => (await apiClient.get<{ url: string }>('/smtp-accounts/microsoft/admin-link')).data,
 };

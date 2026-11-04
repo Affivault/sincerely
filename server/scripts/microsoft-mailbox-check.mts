@@ -103,5 +103,19 @@ const connect = read('../../client/src/components/mailbox/MicrosoftConnect.tsx')
 is('the connect card has a step-by-step guide for cold email', /data-microsoft-guide/.test(connect) && /Authenticated SMTP/.test(connect) && /spf\.protection\.outlook\.com/.test(connect));
 is('signed in with Microsoft? that mailbox is offered in one click', /function SuggestMicrosoftMailbox/.test(connect) && /<SuggestMicrosoftMailbox/.test(read('../../client/src/pages/smtp/EmailAccountsPage.tsx')));
 
+console.log('\nlooking after mailboxes');
+is('every Microsoft mailbox sign-in is renewed about daily, so a revoked one is found early', /async checkAll\(\)/.test(svc) && /lt\('updated_at', since\)/.test(svc) && /startMailboxSigninScheduler\(\)/.test(read('../src/index.ts')));
+is('a revoked one leaves the sending rotation', /last_send_error: reason, is_verified: false/.test(svc));
+const status = read('../src/services/system-status.service.ts');
+is('and its owner is told, once, by the watchdog', /mailbox-microsoft:\$\{b\.id\}/.test(status) && /Reconnect \$\{b\.email_address\} with Microsoft/.test(status));
+const admin = new URL(mailboxOAuthService.adminConsentUrl());
+is('an IT admin gets a one-click approval for the whole organisation', admin.pathname === '/organizations/v2.0/adminconsent' && admin.searchParams.get('client_id') === 'ms-id' && admin.searchParams.get('redirect_uri') === mailboxRedirectUri());
+is('and lands on a plain thank-you page', /state === 'admin-consent'/.test(read('../src/routes/mailbox-oauth.routes.ts')));
+const connect2 = read('../../client/src/components/mailbox/MicrosoftConnect.tsx');
+is('the steps for the admin name the switches and a PowerShell line per mailbox', /Set-CASMailbox -Identity \$\{m\} -SmtpClientAuthenticationDisabled \$false -ImapEnabled \$true/.test(connect2));
+is('teams connect mailbox after mailbox', /function MicrosoftTeamPanel/.test(connect2) && /function ConnectNextBanner/.test(connect2));
+is('first-run setup offers the Microsoft account someone signed up with, and comes back to setup', /data-start-microsoft/.test(read('../../client/src/pages/start/StartPage.tsx')) && /returnTo="\/start"/.test(read('../../client/src/pages/start/StartPage.tsx')));
+is('a Microsoft 365 domain gets Microsoft\'s own checklist', /function Microsoft365Checklist/.test(read('../../client/src/pages/domains/DomainsPage.tsx')));
+
 console.log(`\n${passed} passed, ${failed} failed`);
 assert.equal(failed, 0, `${failed} Microsoft mailbox check(s) failed`);
