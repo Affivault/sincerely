@@ -12,6 +12,10 @@ export const mailboxOAuthController = {
     } catch (err) { next(err); }
   },
 
+  async adminLink(_req: AuthRequest, res: Response, next: NextFunction) {
+    try { res.json({ url: mailboxOAuthService.adminConsentUrl() }); } catch (err) { next(err); }
+  },
+
   async authorize(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const { url, nonce } = mailboxOAuthService.authorizeUrl(req.userId!, { loginHint: String(req.query.email || '') });

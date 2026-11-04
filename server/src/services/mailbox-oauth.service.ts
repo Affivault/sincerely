@@ -122,16 +122,16 @@ function idClaims(idToken: string | undefined): Record<string, any> {
 const cache = new Map<string, { token: string; until: number }>();
 const inflight = new Map<string, Promise<string>>();
 
-async function microsoftAccessToken(accountId: string): Promise<string> {
+async function microsoftAccessToken(accountId: string, opts: { force?: boolean } = {}): Promise<string> {
   const hit = cache.get(accountId);
-  if (hit && hit.until > Date.now()) return hit.token;
+  if (!opts.force && hit && hit.until > Date.now()) return hit.token;
   const running = inflight.get(accountId);
   if (running) return running;
   const p = (async () => {
     const { data: row, error } = await supabaseAdmin.from('mailbox_oauth').select('*').eq('account_id', accountId).maybeSingle();
     if (error || !row) throw new Error('This mailbox\'s Microsoft sign-in is missing. Reconnect it with "Connect with Microsoft".');
     if (row.broken_at) throw new Error(row.broken_reason || 'Microsoft sign-in stopped working. Reconnect this mailbox.');
-    if (row.access_token && row.expires_at && new Date(row.expires_at).getTime() > Date.now() + 60_000) {
+    if (!opts.force && row.access_token && row.expires_at && new Date(row.expires_at).getTime() > Date.now() + 60_000) {
       const token = decrypt(row.access_token);
       cache.set(accountId, { token, until: new Date(row.expires_at).getTime() - 60_000 });
       return token;
@@ -152,7 +152,10 @@ async function microsoftAccessToken(accountId: string): Promise<string> {
       if (err instanceof MicrosoftSignInError && err.permanent) {
         const reason = 'Microsoft sign-in for this mailbox was revoked or expired. Reconnect it with "Connect with Microsoft".';
         await supabaseAdmin.from('mailbox_oauth').update({ broken_at: new Date().toISOString(), broken_reason: reason }).eq('account_id', accountId);
-        await supabaseAdmin.from('smtp_accounts').update({ last_send_error: reason }).eq('id', accountId);
+        // Out of rotation until reconnected, so no campaign step fails on it;
+        // the watchdog tells the owner (system-status, "Reconnect ... with Microsoft").
+        await supabaseAdmin.from('smtp_accounts').update({ last_send_error: reason, is_verified: false }).eq('id', accountId);
+        cache.delete(accountId);
         throw new Error(reason);
       }
       throw new Error(`Could not renew the Microsoft sign-in: ${err?.message || err}`);
@@ -279,6 +282,50 @@ export const mailboxOAuthService = {
       check.success ? { is_verified: true } : { is_verified: false, last_send_error: check.message || null },
     ).eq('id', accountId);
     return { email, accountId, created, verified: check.success, message: check.message || null, personal };
+  },
+
+  /**
+   * The daily sign-in check. Renewing each Microsoft mailbox's sign-in proves
+   * it still works (and keeps it alive: Microsoft drops sign-ins unused for
+   * 90 days). One that was revoked is marked, taken out of rotation, and the
+   * watchdog emails its owner - before a campaign trips over it, not after.
+   * Cross-tenant: for the scheduler only.
+   */
+  async checkAll(): Promise<{ checked: number; broken: number }> {
+    if (!microsoftMailConfigured()) return { checked: 0, broken: 0 };
+    const since = new Date(Date.now() - 20 * 3600_000).toISOString();
+    const { data, error } = await supabaseAdmin.from('mailbox_oauth').select('account_id')
+      .is('broken_at', null).lt('updated_at', since).order('updated_at').limit(200);
+    if (error) return { checked: 0, broken: 0 };
+    let checked = 0;
+    let broken = 0;
+    for (const r of data || []) {
+      try {
+        await microsoftAccessToken(r.account_id, { force: true });
+        checked++;
+      } catch (err: any) {
+        checked++;
+        if (/revoked or expired/.test(String(err?.message))) broken++;
+      }
+    }
+    return { checked, broken };
+  },
+
+  /**
+   * The link an IT admin opens to approve Sincerely for their whole
+   * organisation, so every mailbox there connects without "Need admin
+   * approval". Sent to someone else, in another browser, so it carries no
+   * per-browser state: the callback only says thank you.
+   */
+  adminConsentUrl(): string {
+    if (!microsoftMailConfigured()) throw new AppError('Connecting with Microsoft is not set up on this deployment yet.', 503);
+    const q = new URLSearchParams({
+      client_id: env.MICROSOFT_CLIENT_ID,
+      scope: MS_MAIL_SCOPES.split(' ').filter((s) => s !== 'offline_access').join(' '),
+      redirect_uri: mailboxRedirectUri(),
+      state: 'admin-consent',
+    });
+    return `https://login.microsoftonline.com/organizations/v2.0/adminconsent?${q}`;
   },
 
   /** For the mailbox list: which Microsoft mailboxes need reconnecting. */

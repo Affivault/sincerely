@@ -20,7 +20,7 @@ export type JobId =
   | 'sending' | 'inbox' | 'autopilot' | 'warmup_send' | 'warmup_engage' | 'verification'
   | 'booking_reminders' | 'placement' | 'standing_searches' | 'ab_promote'
   | 'sse_maintenance' | 'domain_reverify' | 'watchdog' | 'digest' | 'reply_check' | 'improve' | 'signals'
-  | 'inbox_reminders' | 'campaign_guard' | 'engagement' | 'sheet_sync' | 'drive_backup';
+  | 'inbox_reminders' | 'campaign_guard' | 'engagement' | 'sheet_sync' | 'drive_backup' | 'mailbox_signin';
 
 export interface JobDef {
   id: JobId;
@@ -53,6 +53,7 @@ export const JOBS: JobDef[] = [
   { id: 'improve', label: 'Campaign improvement', what: 'Relay writes, runs and settles tests on campaigns that asked for it', everyMs: H, core: false },
   { id: 'signals', label: 'Moments', what: 'Finds people and companies where something just changed, from your own data and the websites you watch', everyMs: H, core: false },
   { id: 'engagement', label: 'Engagement scores', what: 'Each contact\'s 0-100 engagement score is kept current, and fades as people go quiet', everyMs: 6 * H, core: false },
+  { id: 'mailbox_signin', label: 'Microsoft sign-in check', what: 'Microsoft mailboxes are checked daily, so a revoked sign-in is caught before a campaign needs it', everyMs: 3 * H, core: false },
   { id: 'drive_backup', label: 'Backups', what: 'Changes reach your backups in Google Drive, OneDrive, Dropbox or S3', everyMs: M, core: false },
   { id: 'sheet_sync', label: 'Google Sheets sync', what: 'Synced sheets bring their new rows into your lists', everyMs: 15 * M, core: false },
   { id: 'campaign_guard', label: 'Open-rate guard', what: 'A campaign whose opens collapse is paused before it does more damage', everyMs: 30 * M, core: false },

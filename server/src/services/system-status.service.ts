@@ -58,7 +58,27 @@ async function accountIssues(userId: string, now = Date.now()): Promise<StatusIs
     .eq('is_seed', false);
   const active = (boxes || []).filter((b: any) => b.is_active);
 
+  // Microsoft mailboxes whose sign-in was revoked (migration 114).
+  const msBroken = new Map<string, string>();
+  if (active.some((b: any) => b.auth_kind === 'microsoft')) {
+    const { data: ms } = await supabaseAdmin.from('mailbox_oauth').select('account_id, broken_reason, broken_at')
+      .eq('user_id', userId).not('broken_at', 'is', null);
+    for (const m of (ms || []) as any[]) msBroken.set(m.account_id, m.broken_at);
+  }
+
   for (const b of active as any[]) {
+    if (msBroken.has(b.id)) {
+      issues.push({
+        key: `mailbox-microsoft:${b.id}`,
+        level: 'down',
+        title: `Reconnect ${b.email_address} with Microsoft`,
+        detail: 'Microsoft stopped accepting Sincerely\'s sign-in for this mailbox (access was removed, or the account password or security settings changed). '
+          + 'It is out of rotation, so campaigns send from your other mailboxes until you reconnect it: open it and click "Reconnect with Microsoft".',
+        href: `/email-accounts?mailbox=${b.id}`,
+        since: msBroken.get(b.id) || null,
+      });
+      continue;
+    }
     if (!b.is_verified) {
       issues.push({
         key: `mailbox-signin:${b.id}`,

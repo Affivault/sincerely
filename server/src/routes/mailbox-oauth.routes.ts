@@ -27,8 +27,26 @@ function back(res: Response, params: Record<string, string>) {
   res.redirect(`${base}/email-accounts?${new URLSearchParams(params).toString()}`);
 }
 
+/** The page an IT admin sees after approving Sincerely for their organisation. */
+function adminPage(res: Response, ok: boolean, detail: string) {
+  const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
+  res.status(ok ? 200 : 400).type('html').send(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sincerely - ${ok ? 'approved' : 'not approved'}</title></head>
+<body style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#FAFAF8;color:#18191D;display:flex;min-height:100vh;align-items:center;justify-content:center;padding:24px;">
+<main style="max-width:460px;background:#fff;border:1px solid #E7E6E1;border-radius:14px;padding:28px;">
+<p style="margin:0 0 8px;font-size:22px;font-weight:600;">${ok ? 'Sincerely is approved' : 'Sincerely was not approved'}</p>
+<p style="margin:0;font-size:15px;line-height:1.6;color:#5B5C64;">${esc(detail)}</p>
+</main></body></html>`);
+}
+
 mailboxOAuthRoutes.get('/microsoft/callback', async (req: Request, res: Response) => {
   const { code, state, error, error_description: description } = req.query as Record<string, string>;
+  // An IT admin approving Sincerely for the whole organisation (adminConsentUrl).
+  if (state === 'admin-consent') {
+    const approved = String(req.query.admin_consent || '').toLowerCase() === 'true';
+    return approved
+      ? adminPage(res, true, 'Everyone in your organisation can now connect their mailbox with "Connect with Microsoft" without asking for approval. You can close this page.')
+      : adminPage(res, false, String(description || error || 'The approval did not complete.').split('\r\n')[0].slice(0, 300));
+  }
   if (error) {
     const adminNeeded = /AADSTS65001|AADSTS90094|admin|approval/i.test(String(description || ''));
     return back(res, {

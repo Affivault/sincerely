@@ -32,6 +32,7 @@ import {
   Sparkles,
   ClipboardCopy,
 } from 'lucide-react';
+import { ProviderLogo } from '../../components/mailbox/ProviderLogo';
 import toast from 'react-hot-toast';
 import type { SendingDomain, DomainVerifyResponse, DnsRecordInstruction } from '@lemlist/shared';
 
@@ -164,6 +165,55 @@ const CHECKS: { key: keyof Pick<SendingDomain, 'txt_verified' | 'spf_ok' | 'dkim
   { key: 'dkim_ok', label: 'DKIM' },
   { key: 'dmarc_ok', label: 'DMARC' },
 ];
+
+/**
+ * A domain whose mail is on Microsoft 365 needs three things, and Microsoft
+ * names and places them its own way. This says exactly what and where,
+ * ticked off from the same DNS check as everything else.
+ */
+function Microsoft365Checklist({ domain, spf, dkim, dmarc }: { domain: string; spf: boolean; dkim: boolean; dmarc: boolean }) {
+  const dashed = domain.replace(/\./g, '-');
+  const rows: Array<{ ok: boolean; title: string; body: React.ReactNode }> = [
+    {
+      ok: spf,
+      title: 'SPF includes Microsoft',
+      body: <>Your SPF record (TXT at {domain}) needs <code className="rounded bg-[var(--bg-elevated)] px-1">include:spf.protection.outlook.com</code>, for example <code className="rounded bg-[var(--bg-elevated)] px-1">v=spf1 include:spf.protection.outlook.com -all</code>. Keep one SPF record: add to it rather than adding a second.</>,
+    },
+    {
+      ok: dkim,
+      title: 'DKIM switched on in Microsoft Defender',
+      body: <>Open security.microsoft.com &gt; Email &amp; collaboration &gt; Policies &amp; rules &gt; Threat policies &gt; Email authentication settings &gt; DKIM, and pick {domain}. Microsoft shows two CNAME records, <code className="rounded bg-[var(--bg-elevated)] px-1">selector1._domainkey</code> and <code className="rounded bg-[var(--bg-elevated)] px-1">selector2._domainkey</code> (their targets start with <code className="rounded bg-[var(--bg-elevated)] px-1">selector1-{dashed}</code>). Add both to your DNS exactly as shown, wait a few minutes, then switch <em>Sign messages for this domain with DKIM signatures</em> on.</>,
+    },
+    {
+      ok: dmarc,
+      title: 'DMARC published',
+      body: <>A TXT record at <code className="rounded bg-[var(--bg-elevated)] px-1">_dmarc.{domain}</code>, starting with <code className="rounded bg-[var(--bg-elevated)] px-1">v=DMARC1; p=none;</code>. The records below include one ready to copy.</>,
+    },
+  ];
+  const done = rows.filter((r) => r.ok).length;
+  return (
+    <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-3.5" data-m365-checklist>
+      <div className="flex items-center gap-2">
+        <ProviderLogo name="Outlook / Microsoft 365" className="h-4 w-4" />
+        <p className="flex-1 text-body font-semibold text-[var(--text-primary)]">Microsoft 365 checklist</p>
+        <span className="text-caption tabular text-[var(--text-tertiary)]">{done} of 3</span>
+      </div>
+      <ul className="mt-2.5 space-y-2.5">
+        {rows.map((r) => (
+          <li key={r.title} className="flex gap-2.5">
+            <span className={cn('mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full', r.ok ? 'bg-emerald-500 text-white' : 'border border-[var(--border-strong)]')}>
+              {r.ok && <Check className="h-2.5 w-2.5" strokeWidth={3} />}
+            </span>
+            <div className="min-w-0">
+              <p className={cn('text-body font-medium', r.ok ? 'text-[var(--text-secondary)]' : 'text-[var(--text-primary)]')}>{r.title}</p>
+              {!r.ok && <p className="mt-0.5 text-caption leading-relaxed text-[var(--text-secondary)]">{r.body}</p>}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 export function DomainDetailPanel({
   domain,
@@ -461,6 +511,15 @@ export function DomainDetailPanel({
       ) : null}
 
       {/* DKIM selector — the one check that cannot be finished by guessing */}
+      {/* Mail on Microsoft 365: the three things Microsoft needs, in its words. */}
+      {!loadingRecords && (domain.detected_provider === 'Microsoft 365' || recordsData?.dns?.provider_hint === 'Microsoft 365') && (
+        <Microsoft365Checklist
+          domain={domain.domain}
+          spf={!!recordsData?.dns?.spf?.includes_provider}
+          dkim={domain.dkim_ok}
+          dmarc={domain.dmarc_ok}
+        />
+      )}
       {!loadingRecords && dkimHelp}
 
       {/* Last checked */}

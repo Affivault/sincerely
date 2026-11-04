@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { ChevronDown, Loader2, ShieldCheck } from 'lucide-react';
+import { ChevronDown, Copy, Loader2, Send, ShieldCheck } from 'lucide-react';
+import { Modal } from '../ui/Modal';
 import { useAuth } from '../../context/AuthContext';
 import { microsoftMailApi } from '../../api/smtp.api';
 import { ProviderLogo } from './ProviderLogo';
@@ -27,16 +28,30 @@ export function useMicrosoftMail() {
   return useQuery({ queryKey: ['mailbox-oauth'], queryFn: microsoftMailApi.status, staleTime: 60_000, retry: false, meta: { silentError: true } });
 }
 
-export function useConnectMicrosoft() {
+const RETURN_KEY = 'sincerely:after-microsoft';
+
+/** Where to go back to after Microsoft (default: Email accounts). */
+export function takeMicrosoftReturn(): string | null {
+  try {
+    const v = sessionStorage.getItem(RETURN_KEY);
+    if (v) sessionStorage.removeItem(RETURN_KEY);
+    return v && v.startsWith('/') && !v.startsWith('//') ? v : null;
+  } catch { return null; }
+}
+
+export function useConnectMicrosoft(returnTo?: string) {
   return useMutation({
     mutationFn: (email?: string) => microsoftMailApi.authorize(email),
-    onSuccess: ({ url }) => { window.location.href = url; },
+    onSuccess: ({ url }) => {
+      try { if (returnTo) sessionStorage.setItem(RETURN_KEY, returnTo); else sessionStorage.removeItem(RETURN_KEY); } catch { /* storage blocked */ }
+      window.location.href = url;
+    },
     onError: (e: any) => toast.error(e?.response?.data?.error || 'Could not start connecting with Microsoft'),
   });
 }
 
-export function MicrosoftConnectButton({ email, label = 'Connect with Microsoft', className }: { email?: string; label?: string; className?: string }) {
-  const connect = useConnectMicrosoft();
+export function MicrosoftConnectButton({ email, label = 'Connect with Microsoft', className, returnTo }: { email?: string; label?: string; className?: string; returnTo?: string }) {
+  const connect = useConnectMicrosoft(returnTo);
   return (
     <button
       type="button"
@@ -129,6 +144,7 @@ export function MicrosoftConnectGuide() {
           </li>
           <li>If Microsoft says <em>Need admin approval</em>, your IT admin approves Sincerely once for the organisation, then everyone can connect.</li>
         </ul>
+        <AdminHelpButton className="mt-1.5 -ml-2" />
       </section>
       <section>
         <p className="mb-1.5 text-body font-semibold text-[var(--text-primary)]">For cold email that lands</p>
@@ -155,11 +171,17 @@ export function MicrosoftConnectGuide() {
  * Someone who signs in to Sincerely with Microsoft usually sends from that
  * same mailbox. When it is not connected yet, offer it in one click.
  */
-export function SuggestMicrosoftMailbox({ connected }: { connected: string[] }) {
+/** The address someone signs in to Sincerely with through Microsoft, if any. */
+export function useMicrosoftSignInEmail(): string | null {
   const { user } = useAuth();
-  const { data } = useMicrosoftMail();
   const identity = (user?.identities || []).find((i) => i.provider === 'azure');
   const email = String((identity?.identity_data as any)?.email || '').trim().toLowerCase();
+  return email || null;
+}
+
+export function SuggestMicrosoftMailbox({ connected }: { connected: string[] }) {
+  const { data } = useMicrosoftMail();
+  const email = useMicrosoftSignInEmail();
   if (!data?.microsoft || !email || connected.some((c) => c.toLowerCase() === email)) return null;
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-[var(--indigo)]/25 bg-[var(--indigo-subtle)]/40 px-4 py-3" data-suggest-microsoft>
@@ -168,6 +190,139 @@ export function SuggestMicrosoftMailbox({ connected }: { connected: string[] }) 
         You sign in with Microsoft as <strong className="font-semibold text-[var(--text-primary)]">{email}</strong>. Send campaigns from it too?
       </p>
       <MicrosoftConnectButton email={email} label={`Connect ${email}`} className="btn-primary h-8" />
+    </div>
+  );
+}
+
+/* ── For the IT admin ────────────────────────────────────────────────── */
+
+/** What an IT admin needs, written to be sent as it is. */
+export function adminInstructions(link: string | null, mailboxes: string[]): string {
+  const ids = mailboxes.length ? mailboxes : ['name@yourcompany.com'];
+  return [
+    'Hi,',
+    '',
+    'We send email from our Microsoft 365 mailboxes with Sincerely. It signs in with Microsoft (no passwords are shared). Two things need an admin:',
+    '',
+    '1. Approve Sincerely for our organisation (one click, as a Global or Application administrator):',
+    link || '(the approval link is in Sincerely: Email accounts > Connecting several Microsoft mailboxes)',
+    '',
+    '2. Allow Authenticated SMTP and IMAP for the mailboxes we send from:',
+    '- Microsoft 365 admin centre > Users > Active users > the user > Mail > Manage email apps > tick "Authenticated SMTP" and "IMAP" > Save.',
+    '- Or in Exchange Online PowerShell:',
+    ...ids.map((m) => `  Set-CASMailbox -Identity ${m} -SmtpClientAuthenticationDisabled $false -ImapEnabled $true`),
+    'This per-mailbox setting works even if SMTP AUTH is switched off for the organisation as a whole.',
+    '',
+    'Changes can take up to an hour to apply. Thank you!',
+  ].join('\n');
+}
+
+export function AdminHelpButton({ mailboxes = [], label = 'Send the steps to my IT admin', className }: { mailboxes?: string[]; label?: string; className?: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)} className={cn('btn-ghost', className)} data-admin-help>
+        <Send className="h-3.5 w-3.5" /> {label}
+      </button>
+      <AdminHelpModal isOpen={open} onClose={() => setOpen(false)} mailboxes={mailboxes} />
+    </>
+  );
+}
+
+export function AdminHelpModal({ isOpen, onClose, mailboxes }: { isOpen: boolean; onClose: () => void; mailboxes: string[] }) {
+  const { data: link } = useQuery({ queryKey: ['mailbox-oauth', 'admin-link'], queryFn: microsoftMailApi.adminLink, enabled: isOpen, staleTime: 60 * 60_000, retry: false, meta: { silentError: true } });
+  const [admin, setAdmin] = useState('');
+  const text = adminInstructions(link?.url || null, mailboxes);
+  const subject = 'Please approve Sincerely for our Microsoft 365 mailboxes';
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(text); toast.success('Copied - paste it into a message to your IT admin'); } catch { toast.error('Could not copy; select the text and copy it'); }
+  };
+  const mailto = `mailto:${encodeURIComponent(admin.trim())}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Steps for your IT admin" description="Work accounts need an admin to approve Sincerely once and allow sending. Send them this; it takes them a few minutes." size="lg">
+      <div className="space-y-3" data-admin-help-modal>
+        <label className="block">
+          <span className="mb-1 block text-caption font-semibold text-[var(--text-secondary)]">Your IT admin's email (optional)</span>
+          <input
+            type="email"
+            value={admin}
+            onChange={(e) => setAdmin(e.target.value)}
+            placeholder="it@yourcompany.com"
+            className="h-9 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2.5 text-body text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)] focus:border-[var(--indigo)] focus:ring-2 focus:ring-[var(--indigo)]/15"
+          />
+        </label>
+        <pre className="max-h-[320px] overflow-auto whitespace-pre-wrap rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3 font-sans text-caption leading-relaxed text-[var(--text-secondary)]">{text}</pre>
+        <div className="flex flex-wrap justify-end gap-2">
+          <button type="button" className="btn-secondary" onClick={copy}><Copy className="h-3.5 w-3.5" /> Copy</button>
+          <a className="btn-primary" href={mailto} onClick={() => setTimeout(onClose, 300)}><Send className="h-3.5 w-3.5" /> Open in my email</a>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/* ── Several mailboxes ───────────────────────────────────────────────── */
+
+/**
+ * Teams connect many Microsoft 365 mailboxes. The admin approves Sincerely
+ * once for the organisation; then each mailbox is one sign-in, picking the
+ * account each time.
+ */
+export function MicrosoftTeamPanel({ connected }: { connected: string[] }) {
+  const { data } = useMicrosoftMail();
+  const [open, setOpen] = useState(false);
+  const connect = useConnectMicrosoft();
+  if (!data?.microsoft) return null;
+  const ms = connected.length;
+  return (
+    <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]" data-microsoft-team>
+      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center gap-3 px-4 py-3 text-left">
+        <ProviderLogo name="Outlook / Microsoft 365" className="h-4 w-4" />
+        <span className="flex-1 text-body font-medium text-[var(--text-primary)]">Connecting several Microsoft 365 mailboxes</span>
+        <ChevronDown className={cn('h-4 w-4 text-[var(--text-tertiary)] transition-transform', open && 'rotate-180')} />
+      </button>
+      {open && (
+        <div className="border-t border-[var(--border-subtle)] px-4 py-4">
+          <ol className="space-y-4">
+            <li className="flex gap-3">
+              <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-[var(--indigo-subtle)] text-caption font-semibold text-[var(--indigo-text)]">1</span>
+              <div className="min-w-0 flex-1">
+                <p className="text-body font-semibold text-[var(--text-primary)]">Your IT admin approves Sincerely once</p>
+                <p className="mt-0.5 text-caption leading-relaxed text-[var(--text-secondary)]">So no one sees "Need admin approval", and sending is allowed for the mailboxes. Send them the steps, with the one-click approval link.</p>
+                <AdminHelpButton mailboxes={connected} className="mt-2 -ml-2" />
+              </div>
+            </li>
+            <li className="flex gap-3">
+              <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-[var(--indigo-subtle)] text-caption font-semibold text-[var(--indigo-text)]">2</span>
+              <div className="min-w-0 flex-1">
+                <p className="text-body font-semibold text-[var(--text-primary)]">Connect each mailbox</p>
+                <p className="mt-0.5 text-caption leading-relaxed text-[var(--text-secondary)]">
+                  Microsoft asks which account each time: choose <em>Use another account</em> and sign in as the next mailbox. Each one is tested and starts at 40 emails a day.
+                  {ms > 0 && <> {ms.toLocaleString()} connected so far.</>}
+                </p>
+                <button type="button" onClick={() => connect.mutate(undefined)} disabled={connect.isPending} className="btn-primary mt-2">
+                  {connect.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ProviderLogo name="Outlook / Microsoft 365" className="h-4 w-4" />}
+                  Connect a Microsoft mailbox
+                </button>
+              </div>
+            </li>
+          </ol>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** After a mailbox connects: the next one is a click away. */
+export function ConnectNextBanner({ email, onDismiss }: { email: string; onDismiss: () => void }) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-emerald-500/25 bg-emerald-500/[0.06] px-4 py-3" data-connect-next>
+      <ShieldCheck className="h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" />
+      <p className="flex-1 min-w-[220px] text-body text-[var(--text-secondary)]">
+        <strong className="font-semibold text-[var(--text-primary)]">{email}</strong> is connected and tested. Another Microsoft mailbox to add?
+      </p>
+      <MicrosoftConnectButton label="Connect the next one" className="h-8" />
+      <button type="button" className="btn-ghost h-8" onClick={onDismiss}>Done</button>
     </div>
   );
 }
