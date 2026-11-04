@@ -151,4 +151,7 @@ export const microsoftMailApi = {
     (await apiClient.get<{ url: string }>('/smtp-accounts/microsoft/authorize', { params: email ? { email } : undefined, withCredentials: true })).data,
   /** The link an IT admin opens to approve Sincerely for the whole organisation. */
   adminLink: async () => (await apiClient.get<{ url: string }>('/smtp-accounts/microsoft/admin-link')).data,
+  /** Sincerely sends the admin steps, formatted, from the person's own mailbox. */
+  sendAdminSteps: async (to: string, mailboxes: string[]) =>
+    (await apiClient.post<{ sent: boolean; from: string; to: string }>('/smtp-accounts/microsoft/admin-steps', { to, mailboxes }, { timeout: 30_000 })).data,
 };

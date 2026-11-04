@@ -15,6 +15,7 @@ smtpRoutes.post('/pace', smtpController.applyPace);
 smtpRoutes.get('/microsoft', mailboxOAuthController.status);
 smtpRoutes.get('/microsoft/authorize', mailboxOAuthController.authorize);
 smtpRoutes.get('/microsoft/admin-link', mailboxOAuthController.adminLink);
+smtpRoutes.post('/microsoft/admin-steps', mailboxOAuthController.sendAdminSteps);
 smtpRoutes.post('/verify', smtpController.verify);
 smtpRoutes.post('/check-domain', smtpController.checkDomain);
 smtpRoutes.post('/diagnose', smtpController.diagnose);

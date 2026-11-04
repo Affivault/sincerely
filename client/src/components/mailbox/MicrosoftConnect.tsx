@@ -3,6 +3,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { ChevronDown, Copy, Loader2, Send, ShieldCheck } from 'lucide-react';
 import { Modal } from '../ui/Modal';
+import { MS_ADMIN_SUBJECT, microsoftAdminText, microsoftAdminHtml } from '@lemlist/shared';
 import { useAuth } from '../../context/AuthContext';
 import { microsoftMailApi } from '../../api/smtp.api';
 import { ProviderLogo } from './ProviderLogo';
@@ -196,27 +197,6 @@ export function SuggestMicrosoftMailbox({ connected }: { connected: string[] }) 
 
 /* ── For the IT admin ────────────────────────────────────────────────── */
 
-/** What an IT admin needs, written to be sent as it is. */
-export function adminInstructions(link: string | null, mailboxes: string[]): string {
-  const ids = mailboxes.length ? mailboxes : ['name@yourcompany.com'];
-  return [
-    'Hi,',
-    '',
-    'We send email from our Microsoft 365 mailboxes with Sincerely. It signs in with Microsoft (no passwords are shared). Two things need an admin:',
-    '',
-    '1. Approve Sincerely for our organisation (one click, as a Global or Application administrator):',
-    link || '(the approval link is in Sincerely: Email accounts > Connecting several Microsoft mailboxes)',
-    '',
-    '2. Allow Authenticated SMTP and IMAP for the mailboxes we send from:',
-    '- Microsoft 365 admin centre > Users > Active users > the user > Mail > Manage email apps > tick "Authenticated SMTP" and "IMAP" > Save.',
-    '- Or in Exchange Online PowerShell:',
-    ...ids.map((m) => `  Set-CASMailbox -Identity ${m} -SmtpClientAuthenticationDisabled $false -ImapEnabled $true`),
-    'This per-mailbox setting works even if SMTP AUTH is switched off for the organisation as a whole.',
-    '',
-    'Changes can take up to an hour to apply. Thank you!',
-  ].join('\n');
-}
-
 export function AdminHelpButton({ mailboxes = [], label = 'Send the steps to my IT admin', className }: { mailboxes?: string[]; label?: string; className?: string }) {
   const [open, setOpen] = useState(false);
   return (
@@ -232,29 +212,48 @@ export function AdminHelpButton({ mailboxes = [], label = 'Send the steps to my 
 export function AdminHelpModal({ isOpen, onClose, mailboxes }: { isOpen: boolean; onClose: () => void; mailboxes: string[] }) {
   const { data: link } = useQuery({ queryKey: ['mailbox-oauth', 'admin-link'], queryFn: microsoftMailApi.adminLink, enabled: isOpen, staleTime: 60 * 60_000, retry: false, meta: { silentError: true } });
   const [admin, setAdmin] = useState('');
-  const text = adminInstructions(link?.url || null, mailboxes);
-  const subject = 'Please approve Sincerely for our Microsoft 365 mailboxes';
+  const valid = /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/.test(admin.trim());
+  const url = link?.url || null;
+  // CRLF line breaks: Outlook and others run LF-only breaks together in a mailto body.
+  const text = microsoftAdminText(url, mailboxes);
+  const html = microsoftAdminHtml(url, mailboxes);
+  const send = useMutation({
+    mutationFn: () => microsoftMailApi.sendAdminSteps(admin.trim(), mailboxes),
+    onSuccess: (r) => { toast.success(`Sent to ${r.to} from ${r.from}`); onClose(); },
+    onError: (e: any) => toast.error(e?.response?.data?.error || 'Could not send it - use Copy instead'),
+  });
   const copy = async () => {
     try { await navigator.clipboard.writeText(text); toast.success('Copied - paste it into a message to your IT admin'); } catch { toast.error('Could not copy; select the text and copy it'); }
   };
-  const mailto = `mailto:${encodeURIComponent(admin.trim())}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
+  const mailto = `mailto:${encodeURIComponent(admin.trim())}?subject=${encodeURIComponent(MS_ADMIN_SUBJECT)}&body=${encodeURIComponent(text)}`;
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Steps for your IT admin" description="Work accounts need an admin to approve Sincerely once and allow sending. Send them this; it takes them a few minutes." size="lg">
+    <Modal isOpen={isOpen} onClose={onClose} title="Steps for your IT admin" description="Work accounts need an admin to approve Sincerely once and allow sending. Sincerely can send them this from your mailbox; it takes them a few minutes." size="lg">
       <div className="space-y-3" data-admin-help-modal>
         <label className="block">
-          <span className="mb-1 block text-caption font-semibold text-[var(--text-secondary)]">Your IT admin's email (optional)</span>
+          <span className="mb-1 block text-caption font-semibold text-[var(--text-secondary)]">Your IT admin's email</span>
           <input
             type="email"
             value={admin}
             onChange={(e) => setAdmin(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && valid && !send.isPending) send.mutate(); }}
             placeholder="it@yourcompany.com"
             className="h-9 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2.5 text-body text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)] focus:border-[var(--indigo)] focus:ring-2 focus:ring-[var(--indigo)]/15"
           />
         </label>
-        <pre className="max-h-[320px] overflow-auto whitespace-pre-wrap rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3 font-sans text-caption leading-relaxed text-[var(--text-secondary)]">{text}</pre>
-        <div className="flex flex-wrap justify-end gap-2">
-          <button type="button" className="btn-secondary" onClick={copy}><Copy className="h-3.5 w-3.5" /> Copy</button>
-          <a className="btn-primary" href={mailto} onClick={() => setTimeout(onClose, 300)}><Send className="h-3.5 w-3.5" /> Open in my email</a>
+        <p className="text-caption font-semibold text-[var(--text-secondary)]">What they will get</p>
+        {/* Our own template, every value escaped (shared/microsoft-admin). */}
+        <div
+          className="max-h-[340px] overflow-auto rounded-lg border border-[var(--border-subtle)] bg-white p-4 [color-scheme:light]"
+          dangerouslySetInnerHTML={{ __html: html }}
+          data-admin-preview
+        />
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <button type="button" className="btn-ghost" onClick={copy}><Copy className="h-3.5 w-3.5" /> Copy text</button>
+          <a className="btn-secondary" href={mailto} onClick={() => setTimeout(onClose, 300)}>Open in my email app</a>
+          <button type="button" className="btn-primary" disabled={!valid || send.isPending} onClick={() => send.mutate()} data-send-admin>
+            {send.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+            {send.isPending ? 'Sending...' : 'Send it'}
+          </button>
         </div>
       </div>
     </Modal>

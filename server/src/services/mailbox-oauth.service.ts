@@ -32,7 +32,7 @@ import { AppError } from '../middleware/error.middleware.js';
 import { encrypt, decrypt } from '../utils/encryption.js';
 import { env } from '../config/env.js';
 import { newOAuthNonce, signState, verifyState } from './calendar-sync.service.js';
-import { RECOMMENDED_DAILY_LIMIT } from '@lemlist/shared';
+import { RECOMMENDED_DAILY_LIMIT, MS_ADMIN_SUBJECT, microsoftAdminText, microsoftAdminHtml } from '@lemlist/shared';
 
 const MS_AUTH = 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize';
 const MS_TOKEN = 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
@@ -120,6 +120,7 @@ function idClaims(idToken: string | undefined): Record<string, any> {
 }
 
 const cache = new Map<string, { token: string; until: number }>();
+const adminSends = new Map<string, number[]>();
 const inflight = new Map<string, Promise<string>>();
 
 async function microsoftAccessToken(accountId: string, opts: { force?: boolean } = {}): Promise<string> {
@@ -326,6 +327,46 @@ export const mailboxOAuthService = {
       state: 'admin-consent',
     });
     return `https://login.microsoftonline.com/organizations/v2.0/adminconsent?${q}`;
+  },
+
+  /**
+   * Send the IT-admin steps as a formatted email, from the person's own
+   * connected mailbox so it arrives from someone the admin knows. The
+   * content is fixed (only the admin's address comes from the request), the
+   * PowerShell lines name only this account's own Microsoft mailboxes, and
+   * it is limited to a few an hour, so it cannot be used to send anything else.
+   */
+  async sendAdminSteps(userId: string, input: { to?: unknown; mailboxes?: unknown }) {
+    const to = String(input?.to || '').trim().toLowerCase();
+    if (!/^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/.test(to) || to.length > 254) throw new AppError('Enter your IT admin\'s email address.', 400);
+    const now = Date.now();
+    const recent = (adminSends.get(userId) || []).filter((t) => now - t < 3600_000);
+    if (recent.length >= 5) throw new AppError('That is five already this hour. Copy the steps instead, or try again later.', 429);
+
+    const { data: mine } = await supabaseAdmin.from('smtp_accounts').select('email_address, auth_kind').eq('user_id', userId);
+    const own = new Set((mine || []).filter((m: any) => m.auth_kind === 'microsoft').map((m: any) => String(m.email_address).toLowerCase()));
+    const asked = Array.isArray(input?.mailboxes) ? input.mailboxes.map((m) => String(m).toLowerCase()) : [];
+    const mailboxes = (asked.length ? asked.filter((m) => own.has(m)) : [...own]).slice(0, 50);
+
+    const { senderFor } = await import('./booking-mail.service.js');
+    const sender = await senderFor(userId);
+    if (!sender) throw new AppError('Connect a mailbox first so Sincerely can send this from it, or use Copy.', 409);
+    const { sendViaSmtp } = await import('./email-sender.service.js');
+    const link = this.adminConsentUrl();
+    // sender.from is a whole header ("Name <address>"); the sign-off wants the name.
+    const name = (/^\s*"?([^"<]+?)"?\s*</.exec(sender.from || '')?.[1] || '').trim() || null;
+    await sendViaSmtp({
+      smtpHost: sender.host, smtpPort: sender.port, smtpSecure: sender.secure, smtpUser: sender.user, smtpPass: sender.pass,
+      from: sender.from,
+      to,
+      subject: MS_ADMIN_SUBJECT,
+      text: microsoftAdminText(link, mailboxes, name),
+      html: microsoftAdminHtml(link, mailboxes, name),
+      timeoutMs: 20_000,
+    }).catch((err: any) => { throw new AppError(`Could not send it from ${sender.address}: ${err?.message || err}`, 502); });
+    recent.push(now);
+    adminSends.set(userId, recent);
+    return { sent: true, from: sender.address, to };
   },
 
   /** For the mailbox list: which Microsoft mailboxes need reconnecting. */
