@@ -32,6 +32,7 @@ import { AppError } from '../middleware/error.middleware.js';
 import { encrypt, decrypt } from '../utils/encryption.js';
 import { env } from '../config/env.js';
 import { newOAuthNonce, signState, verifyState } from './calendar-sync.service.js';
+import { RECOMMENDED_DAILY_LIMIT } from '@lemlist/shared';
 
 const MS_AUTH = 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize';
 const MS_TOKEN = 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
@@ -236,7 +237,13 @@ export const mailboxOAuthService = {
       last_inbox_sync_error: null,
     };
     if (created) {
-      Object.assign(row, { id: accountId, user_id: userId, email_address: email, from_name: name, label: email, is_active: true });
+      // A new mailbox starts at the pace recommended for cold email, not the
+      // database's 200 a day: a fresh Outlook address sending 200 cold emails
+      // on day one is how it gets blocked.
+      Object.assign(row, {
+        id: accountId, user_id: userId, email_address: email, from_name: name, label: email, is_active: true,
+        daily_send_limit: RECOMMENDED_DAILY_LIMIT,
+      });
       const { error } = await supabaseAdmin.from('smtp_accounts').insert(row);
       if (error) {
         if (/auth_kind/.test(error.message)) throw new AppError('Connecting with Microsoft needs the latest database update (migration 114).', 503);

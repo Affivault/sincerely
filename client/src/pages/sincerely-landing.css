@@ -1252,7 +1252,34 @@
   width: 100%; height: 42px; margin-top: 26px; border-radius: 8px; cursor: pointer;
   border: 1px solid var(--line); background: var(--bg); color: var(--txt);
   font-size: 14px; font-weight: 500; transition: background 0.15s, border-color 0.15s; }
-.md-auth__oauth--stacked { margin-top: 8px; }
+/* Continue with Google / Microsoft: the provider's mark on a quiet tile,
+   a calm lift on hover, a clear focus ring, and a spinner in the tile while
+   the browser leaves for the provider. */
+.md-auth__sso { display: grid; gap: 10px; margin-top: 26px; }
+.md-auth__sso-btn { position: relative; display: flex; align-items: center; gap: 12px; width: 100%;
+  height: 50px; padding: 0 14px 0 8px; border-radius: 11px; cursor: pointer;
+  border: 1px solid var(--line); background: #FFFFFF; color: var(--txt);
+  font: inherit; font-size: 14.5px; font-weight: 550; letter-spacing: -0.01em; text-align: left;
+  box-shadow: 0 1px 2px rgba(24,25,29,0.04);
+  transition: border-color 0.15s, box-shadow 0.2s, transform 0.15s, background 0.15s; }
+.md-auth__sso-btn:hover:not(:disabled) { border-color: #CFCDC6; box-shadow: 0 6px 18px -10px rgba(24,25,29,0.28), 0 1px 2px rgba(24,25,29,0.05); }
+.md-auth__sso-btn:active:not(:disabled) { transform: translateY(1px); box-shadow: 0 1px 2px rgba(24,25,29,0.05); }
+.md-auth__sso-btn:focus-visible { outline: none; border-color: var(--indigo); box-shadow: 0 0 0 3px rgba(47,63,156,0.18); }
+.md-auth__sso-btn:disabled { cursor: default; opacity: 0.55; }
+.md-auth__sso-btn[aria-busy="true"] { opacity: 1; background: var(--bg-2); }
+.md-auth__sso-mark { display: flex; flex-shrink: 0; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border-radius: 8px; background: var(--bg-2); border: 1px solid var(--line-2); }
+.md-auth__sso-mark svg { width: 18px; height: 18px; }
+.md-auth__sso-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.md-auth__sso-last { flex-shrink: 0; font-size: 11px; font-weight: 600; letter-spacing: 0;
+  color: #2F3F9C; background: rgba(47,63,156,0.08); padding: 3px 8px; border-radius: 999px; }
+.md-auth__sso-spin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #D6D5CF; border-top-color: var(--indigo);
+  animation: md-auth-spin 0.7s linear infinite; }
+@keyframes md-auth-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .md-auth__sso-btn { transition: none; }
+  .md-auth__sso-spin { animation-duration: 1.6s; }
+}
 .md-auth__oauth:hover { background: var(--bg-2); border-color: #C3C1BA; }
 .md-auth__divider { display: flex; align-items: center; gap: 12px; margin: 22px 0;
   font-size: 12px; font-weight: 500; color: var(--txt-3); }

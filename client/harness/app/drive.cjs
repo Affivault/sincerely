@@ -16,11 +16,18 @@ const session = { access_token: jwt, refresh_token: 'r', token_type: 'bearer', e
 async function open(opts = {}) {
   const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
   const ctx = await browser.newContext({ viewport: opts.viewport || { width: 1440, height: 900 }, colorScheme: opts.dark ? 'dark' : 'light' });
-  await ctx.addInitScript(([s, d]) => { localStorage.setItem('sb-127-auth-token', s); localStorage.setItem('sincerely-theme', d ? 'dark' : 'light'); }, [JSON.stringify(session), !!opts.dark]);
+  // signedOut: a visitor with no session (login and sign-up pages).
+  await ctx.addInitScript(([s, d, out, last]) => {
+    if (!out) localStorage.setItem('sb-127-auth-token', s);
+    if (last) localStorage.setItem('sincerely:last-sign-in', last);
+    localStorage.setItem('sincerely-theme', d ? 'dark' : 'light');
+  }, [JSON.stringify(session), !!opts.dark, !!opts.signedOut, opts.lastSignIn || '']);
   const log = { requests: [], errors: [] };
   await ctx.route('http://127.0.0.1:1/**', async (route) => {
     const req = route.request();
     const u = new URL(req.url());
+    // Which sign-in providers are switched on (the login page asks).
+    if (u.pathname === '/auth/v1/settings') return route.fulfill({ json: { external: { email: true, google: true, azure: opts.noMicrosoft ? false : true } }, headers: { 'access-control-allow-origin': '*' } });
     if (u.pathname.startsWith('/auth/v1') || u.pathname.startsWith('/rest/v1')) return route.fulfill({ json: u.pathname.endsWith('/user') ? user : session });
     const p = u.pathname.replace('/api/v1', '');
     const body = fixtures.answer(req.method(), p, u.searchParams, req.postData());

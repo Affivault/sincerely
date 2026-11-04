@@ -78,11 +78,30 @@ console.log('\nwhat people read');
 is('"Authenticated SMTP is off" says who fixes it and where', /admin centre/.test(describeMicrosoftSmtpError('535 5.7.139 Authentication unsuccessful, SmtpClientAuthentication is disabled for the Tenant') || ''));
 is('the add-mailbox flow offers Microsoft sign-in', /<MicrosoftConnectCard/.test(read('../../client/src/pages/smtp/SmtpAccountModal.tsx')));
 is('a broken Microsoft mailbox offers "Reconnect with Microsoft"', /Reconnect with Microsoft/.test(read('../../client/src/components/mailbox/MailboxDrawer.tsx')));
-is('login and sign-up offer "Continue with Microsoft"', ['LoginPage', 'SignupPage'].every((p) => /signInWithOAuth\('azure'\)/.test(read(`../../client/src/pages/auth/${p}.tsx`))));
+is('login and sign-up offer "Continue with Microsoft"', ['LoginPage', 'SignupPage'].every((p) => /<OAuthButtons/.test(read(`../../client/src/pages/auth/${p}.tsx`)))
+  && /id: 'azure', name: 'Microsoft'/.test(read('../../client/src/components/auth/OAuthButtons.tsx')));
 is('and ask Microsoft for the email address', /scopes: 'openid email profile'/.test(read('../../client/src/context/AuthContext.tsx')));
 const migration = read('../../supabase/migrations/114_microsoft_mailboxes.sql');
 is('the migration pastes cleanly: ASCII, no BEGIN/COMMIT', /^[\x00-\x7F]*$/.test(migration) && !/^\s*(BEGIN|COMMIT)\s*;/im.test(migration));
 is('tokens are never readable by the browser', !/CREATE POLICY[^;]*mailbox_oauth/.test(migration));
+
+console.log('\neveryday use');
+const { categoriseImapError } = await import('../src/services/inbox-sync.service.js');
+is('a Microsoft mailbox that cannot read its inbox is told about IMAP, not a password',
+  /IMAP/.test(categoriseImapError('AUTHENTICATIONFAILED', { microsoft: true })) && !/password/i.test(categoriseImapError('AUTHENTICATIONFAILED', { microsoft: true }))
+  && /password/.test(categoriseImapError('AUTHENTICATIONFAILED')));
+is('a new Microsoft mailbox starts at the cold-email pace, not 200 a day', /daily_send_limit: RECOMMENDED_DAILY_LIMIT/.test(svc));
+const buttons = read('../../client/src/components/auth/OAuthButtons.tsx');
+const providers = read('../../client/src/lib/oauthSignIn.ts');
+is('login shows only the providers Supabase has switched on', /auth\/v1\/settings/.test(providers) && /available\[p\.id\]/.test(buttons));
+is('a failed Google or Microsoft sign-in comes back to the login page in plain words', /captureOAuthError\(\);/.test(read('../../client/src/context/AuthContext.tsx')) && /takeOAuthError\(\)/.test(read('../../client/src/pages/auth/LoginPage.tsx')));
+is('each button shows it is working, and the one used last is marked', /Opening \$\{name\}/.test(buttons) && /Last used/.test(buttons));
+const methods = read('../../client/src/components/settings/SignInMethods.tsx');
+is('Settings > Account links and unlinks Google and Microsoft', /linkIdentity/.test(methods) && /unlinkIdentity/.test(methods));
+is('and never unlinks the last way in', /identities\.length < 2/.test(methods));
+const connect = read('../../client/src/components/mailbox/MicrosoftConnect.tsx');
+is('the connect card has a step-by-step guide for cold email', /data-microsoft-guide/.test(connect) && /Authenticated SMTP/.test(connect) && /spf\.protection\.outlook\.com/.test(connect));
+is('signed in with Microsoft? that mailbox is offered in one click', /function SuggestMicrosoftMailbox/.test(connect) && /<SuggestMicrosoftMailbox/.test(read('../../client/src/pages/smtp/EmailAccountsPage.tsx')));
 
 console.log(`\n${passed} passed, ${failed} failed`);
 assert.equal(failed, 0, `${failed} Microsoft mailbox check(s) failed`);
