@@ -89,17 +89,17 @@ const envSchema = z.object({
   // keyword rules and built-in templates take over, which always work.
   //
   // AI_PROVIDER picks the model behind every AI feature:
-  //   auto       DeepSeek when DEEPSEEK_API_KEY is set, else Claude (default)
-  //   deepseek   DeepSeek only
+  //   auto       the LLM_* model when LLM_API_KEY is set, else Claude (default)
+  //   llm        the LLM_* model only
   //   anthropic  Claude only
-  // Switching back is one env change, no code.
-  AI_PROVIDER: z.enum(['auto', 'deepseek', 'anthropic']).optional().default('auto'),
-  DEEPSEEK_API_KEY: z.string().optional().default(''),
-  DEEPSEEK_MODEL: z.string().optional().default('deepseek-chat'),
-  // Any OpenAI-compatible endpoint works here (Gemini, Groq, OpenRouter):
-  // set the base URL and model, and put that provider's key in DEEPSEEK_API_KEY.
-  DEEPSEEK_BASE_URL: z.string().optional().default('https://api.deepseek.com'),
-  DEEPSEEK_MAX_OUTPUT: z.coerce.number().int().positive().optional().default(4096),
+  // The LLM_* slot speaks the OpenAI chat format, so it takes Groq (the
+  // default, free tier), DeepSeek, Gemini, OpenRouter or OpenAI by changing
+  // LLM_BASE_URL and LLM_MODEL. Switching is an env change, never code.
+  AI_PROVIDER: z.enum(['auto', 'llm', 'anthropic']).optional().default('auto'),
+  LLM_API_KEY: z.string().optional().default(''),
+  LLM_BASE_URL: z.string().optional().default('https://api.groq.com/openai/v1'),
+  LLM_MODEL: z.string().optional().default('openai/gpt-oss-120b'),
+  LLM_MAX_OUTPUT: z.coerce.number().int().positive().optional().default(4096),
   ANTHROPIC_API_KEY: z.string().optional().default(''),
   RELAY_MODEL: z.string().optional().default('claude-opus-5-5'),
 });

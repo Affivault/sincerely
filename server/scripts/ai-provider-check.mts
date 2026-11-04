@@ -3,9 +3,10 @@
  *
  * Every AI feature (SARA's reply reading, drafts, sequences, first lines,
  * test versions, Moments) goes through one structured() call. This drives
- * the real service against a stubbed DeepSeek and pins down:
+ * the real service against a stubbed OpenAI-format model and pins down:
  *
- *   - AI_PROVIDER=auto prefers DeepSeek, falls back to Claude, and "off"
+ *   - AI_PROVIDER=auto prefers the LLM_* model (Groq by default), falls
+ *     back to Claude, and "off"
  *     means no key at all
  *   - the request is OpenAI-format JSON mode with the schema in the prompt
  *   - a good answer is parsed; a truncated, non-JSON or off-schema answer is
@@ -17,7 +18,9 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ||= 'stub';
 process.env.SUPABASE_ANON_KEY ||= 'stub';
 process.env.ENCRYPTION_KEY ||= 'a'.repeat(64);
 process.env.TRACKING_SECRET ||= 'audit-secret-at-least-16';
-process.env.DEEPSEEK_API_KEY = 'ds-test-key';
+process.env.LLM_API_KEY = 'gsk-test-key';
+delete process.env.LLM_BASE_URL;
+delete process.env.LLM_MODEL;
 process.env.ANTHROPIC_API_KEY = '';
 process.env.AI_PROVIDER = 'auto';
 
@@ -30,7 +33,7 @@ const is = (label: string, cond: boolean, detail = '') => {
 const { env } = await import('../src/config/env.js');
 const ai = await import('../src/services/ai.service.js');
 
-/* ── A stubbed DeepSeek ─────────────────────────────────────────────── */
+/* ── A stubbed model ─────────────────────────────────────────────── */
 type Reply = { status: number; body: unknown };
 let queue: Reply[] = [];
 const calls: { url: string; headers: Record<string, string>; body: any }[] = [];
@@ -47,23 +50,25 @@ const input = { subject: 'Re: hello', freshText: 'Sounds good, what does it cost
 
 console.log('\nwhich model');
 {
-  is('auto picks DeepSeek when its key is set', ai.aiProvider() === 'deepseek' && ai.aiEngineName() === 'DeepSeek');
+  is('auto picks the LLM slot when its key is set, Groq by default', ai.aiProvider() === 'llm' && ai.aiEngineName() === 'Groq');
   env.ANTHROPIC_API_KEY = 'sk-ant-test';
-  is('auto still prefers DeepSeek with both keys', ai.aiProvider() === 'deepseek');
+  is('auto still prefers it with both keys', ai.aiProvider() === 'llm');
   env.AI_PROVIDER = 'anthropic';
   is('AI_PROVIDER=anthropic switches back to Claude', ai.aiProvider() === 'anthropic' && ai.aiEngineName() === 'Claude');
   env.AI_PROVIDER = 'auto';
-  env.DEEPSEEK_API_KEY = '';
-  is('auto falls back to Claude without a DeepSeek key', ai.aiProvider() === 'anthropic');
+  env.LLM_API_KEY = '';
+  is('auto falls back to Claude without LLM_API_KEY', ai.aiProvider() === 'anthropic');
   env.ANTHROPIC_API_KEY = '';
   is('no key, no AI, and the rules run', ai.aiProvider() === null && !ai.aiAvailable());
-  env.AI_PROVIDER = 'deepseek';
-  is('AI_PROVIDER=deepseek without its key is off, not Claude', ai.aiProvider() === null);
-  env.DEEPSEEK_API_KEY = 'ds-test-key';
+  env.AI_PROVIDER = 'llm';
+  is('AI_PROVIDER=llm without its key is off, not Claude', ai.aiProvider() === null);
+  env.LLM_API_KEY = 'gsk-test-key';
   env.AI_PROVIDER = 'auto';
-  env.DEEPSEEK_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/openai';
+  env.LLM_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/openai';
   is('another OpenAI-compatible endpoint is named for what it is', ai.aiEngineName() === 'Gemini');
-  env.DEEPSEEK_BASE_URL = 'https://api.deepseek.com';
+  env.LLM_BASE_URL = 'https://api.deepseek.com';
+  is('so is DeepSeek', ai.aiEngineName() === 'DeepSeek');
+  env.LLM_BASE_URL = 'https://api.groq.com/openai/v1';
 }
 
 console.log('\nthe call');
@@ -72,11 +77,11 @@ console.log('\nthe call');
   queue = [answer(JSON.stringify({ ...reading, draft: '' }))];
   const out = await ai.readReply(input);
   const c = calls[0];
-  is('it posts to DeepSeek chat completions', !!c && c.url === 'https://api.deepseek.com/chat/completions');
-  is('with the key as a bearer token', c?.headers?.Authorization === 'Bearer ds-test-key');
-  is('in JSON mode on the configured model', c?.body?.response_format?.type === 'json_object' && c?.body?.model === env.DEEPSEEK_MODEL);
+  is('it posts to Groq chat completions by default', !!c && c.url === 'https://api.groq.com/openai/v1/chat/completions', c?.url);
+  is('with the key as a bearer token', c?.headers?.Authorization === 'Bearer gsk-test-key');
+  is('in JSON mode on the configured model', c?.body?.response_format?.type === 'json_object' && c?.body?.model === env.LLM_MODEL);
   is('with the schema in the system prompt', c?.body?.messages?.[0]?.role === 'system' && /"intent"/.test(c.body.messages[0].content) && /JSON Schema/.test(c.body.messages[0].content));
-  is('output tokens are capped at what deepseek-chat allows', (c?.body?.max_tokens ?? 0) <= 4096);
+  is('output tokens are capped at 4K', (c?.body?.max_tokens ?? 0) <= 4096);
   is('a good answer comes back parsed', out?.intent === 'interested' && out?.summary === 'Wants pricing.', JSON.stringify(out));
 }
 
@@ -99,7 +104,7 @@ console.log('\nwhen it goes wrong');
   is('a 5xx is retried', (await ai.readReply(input))?.intent === 'interested' && calls.length === 2, `${calls.length} calls`);
 }
 
-console.log('\nevery AI feature reaches DeepSeek');
+console.log('\nevery AI feature reaches the model');
 {
   const tries: [string, () => Promise<unknown>][] = [
     ['readReply', () => ai.readReply(input)],
@@ -117,7 +122,7 @@ console.log('\nevery AI feature reaches DeepSeek');
     let threw = '';
     try { await run(); } catch (err) { threw = (err as Error)?.message || String(err); }
     const sys = calls[0]?.body?.messages?.[0]?.content || '';
-    is(`${name} sends its schema to DeepSeek`, !threw && calls.length >= 1 && /JSON Schema/.test(sys) && /"type"/.test(sys), threw || `${calls.length} calls`);
+    is(`${name} sends its schema to the model`, !threw && calls.length >= 1 && /JSON Schema/.test(sys) && /"type"/.test(sys), threw || `${calls.length} calls`);
   }
 }
 
