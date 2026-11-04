@@ -15,6 +15,10 @@ import { calendarOAuthRoutes } from './routes/calendar-oauth.routes.js';
 import { backupOAuthRoutes } from './routes/backup-oauth.routes.js';
 import { mailboxOAuthRoutes } from './routes/mailbox-oauth.routes.js';
 import { billingController } from './controllers/billing.controller.js';
+import { openApiDocument } from '@lemlist/shared';
+import { buildPublicApiRouter, publicApiErrorHandler } from './public-api/core.js';
+import { HANDLERS as publicApiHandlers } from './public-api/handlers.js';
+import { env } from './config/env.js';
 
 const app = express();
 
@@ -31,7 +35,7 @@ app.use(helmet());
 app.use(cors({
   origin: true,
   credentials: true,
-  exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset', 'Retry-After'],
+  exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset', 'Retry-After', 'X-Request-Id', 'Idempotent-Replayed', 'Sincerely-Api-Version'],
 }));
 app.use(morgan('dev'));
 
@@ -76,6 +80,18 @@ app.use('/api/report', publicResultsRoutes);
 
 // Sign-up mode, announcement, live prices and plan limits (no auth, nothing private).
 app.use('/api/platform', platformRoutes);
+
+/*
+ * The public API (v1): API keys only, one error format, cursor paging,
+ * idempotent writes. Its own surface, kept stable for scripts, Zapier,
+ * Make and n8n, while /api/v1 below is free to change with the app.
+ * The OpenAPI document is public so tools can import it without a key.
+ */
+app.get('/v1/openapi.json', (_req, res) => {
+  res.setHeader('Cache-Control', 'public, max-age=300');
+  res.json(openApiDocument(env.API_BASE_URL));
+});
+app.use('/v1', buildPublicApiRouter(publicApiHandlers), publicApiErrorHandler);
 
 // Routes (authenticated)
 app.use('/api/v1', routes);

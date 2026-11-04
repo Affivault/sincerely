@@ -495,7 +495,23 @@ function more(P, q, seg) {
     case '/sse/dashboard': return mailboxes.map((b, i) => ({ id: b.id, label: b.label, email_address: b.email_address, health_score: b.health_score, sends_today: b.sends_today, daily_send_limit: 50, utilization_pct: Math.round(b.sends_today / 50 * 100), bounce_rate_7d: [0.8, 1.4, 0.4][i], warmup_mode: i === 2, is_available: true }));
     case '/assets/templates': return [];
     case '/assets/templates/presets': return [];
-    case '/webhooks/endpoints': return [{ ...base, id: 'wh1', url: 'https://hooks.zapier.com/hooks/catch/123/abc', label: 'Zapier - new replies', secret: null, is_active: true, events: ['reply.received', 'lead.created'] }];
+    case '/webhooks/endpoints': return [
+      { ...base, id: 'wh2', url: 'https://hooks.zapier.com/hooks/standard/123/abc', label: 'Interested replies to HubSpot', secret: null, is_active: true, events: ['reply.interested'], format: 'v1', source: 'zapier' },
+      { ...base, id: 'wh1', url: 'https://crm.example.com/hooks/sincerely', label: 'CRM sync', secret: null, is_active: true, events: ['email.replied', 'lead.created'], format: 'legacy', source: 'app' },
+    ];
+    case '/api-keys/public-api': return { base_url: 'https://api.sincerely.io/v1', openapi_url: 'https://api.sincerely.io/v1/openapi.json', version: '2026-11-01' };
+    case '/api-keys/request-log': {
+      const rows = [
+        [201, 'POST', '/v1/contacts', null, 'Zapier', 142],
+        [200, 'GET', '/v1/events/types/reply.interested/sample', null, 'Zapier', 88],
+        [409, 'POST', '/v1/contacts', 'contact_exists', 'Zapier', 64],
+        [200, 'GET', '/v1/contacts', null, 'python-requests/2.32', 120],
+        [422, 'POST', '/v1/suppressions', 'idempotency_key_reused', 'curl/8.5.0', 31],
+        [200, 'POST', '/v1/campaigns/c3e5a7b9-2d4f-4b6c-9d8e-0f1a2b3c4d5e/contacts', null, 'Make/production', 410],
+      ].map(([status, method, path, error_code, ua, ms], i) => ({ id: 100 - i, api_key_id: 'k1', key_name: ua === 'Zapier' ? 'Zapier' : 'Scripts', request_id: `req_${(0xa1b2c3 + i * 7919).toString(16)}9f3e0d2c4b6a`, method, path, status, duration_ms: ms, error_code, user_agent: ua, created_at: new Date(Date.now() - i * 7 * 60_000).toISOString() }));
+      const errorsOnly = q.get('errors') === '1';
+      return { setup_needed: false, rows: errorsOnly ? rows.filter((r) => r.status >= 400) : rows, last_day: { requests: 1284, errors: 9 } };
+    }
     case '/integrations': return [];
     case '/integrations/oauth-availability': return { hubspot: true, slack: true, salesforce: false, pipedrive: true };
     case '/suppression': return { data: [['bounce@deadco.com', 'bounced'], ['no@thanks.io', 'unsubscribed'], ['legal@bigcorp.com', 'manual']].map(([email, reason], i) => ({ id: `sup${i}`, user_id: 'u1', email, reason, notes: undefined, created_at: ago(i * 3), updated_at: ago(i * 3) })), total: 14, page: 1, limit: 25, total_pages: 1 };

@@ -661,7 +661,12 @@ export const contactsService = {
     }));
   },
 
-  async create(userId: string, input: any) {
+  async create(userId: string, input: any, opts: {
+    /** Where they came from, when it is not a person typing (the public API says 'api'). */
+    source?: string;
+    /** Set outright, rather than read from the Leads-page convention below. */
+    lifecycle?: 'prospect' | 'contact' | 'customer';
+  } = {}) {
     const { tag_ids } = input;
     // The same allow-list update() has used since the ownership hole was
     // closed there. create() was left spreading the raw body, so a request
@@ -697,16 +702,16 @@ export const contactsService = {
      * Except from the Leads page, which asks for a lead: filed as a contact,
      * the person you just added would vanish from the page you added them on.
      */
-    const asLead = input?.lifecycle === 'prospect';
+    const lifecycle = opts.lifecycle ?? (input?.lifecycle === 'prospect' ? 'prospect' : 'contact');
     const { data, error } = await supabaseAdmin
       .from('contacts')
       .insert({
         ...contactData,
         user_id: userId,
-        source: 'manual',
-        ...(asLead
+        source: opts.source || 'manual',
+        ...(lifecycle === 'prospect'
           ? { lifecycle: 'prospect' }
-          : { lifecycle: 'contact', engaged_at: new Date().toISOString(), promoted_by: 'manual' }),
+          : { lifecycle, engaged_at: new Date().toISOString(), promoted_by: 'manual' }),
       })
       .select()
       .single();

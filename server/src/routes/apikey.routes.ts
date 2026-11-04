@@ -1,10 +1,14 @@
 import { Router } from 'express';
 import { apikeyController } from '../controllers/apikey.controller.js';
 import { jwtOnly } from '../middleware/apikey.middleware.js';
+import { developerController } from '../public-api/developer.js';
 
 export const apikeyRoutes = Router();
 
 apikeyRoutes.get('/', apikeyController.list);
+// The public API's address and what has been calling it (Settings > Developer).
+apikeyRoutes.get('/public-api', jwtOnly, developerController.info);
+apikeyRoutes.get('/request-log', jwtOnly, developerController.requestLog);
 // Managing API keys (minting a new one, revoking/deleting) must require a
 // real user session — an API key must never be able to mint or revoke keys.
 apikeyRoutes.post('/', jwtOnly, apikeyController.create);

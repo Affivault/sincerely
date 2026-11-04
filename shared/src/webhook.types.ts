@@ -8,6 +8,9 @@ export interface WebhookEndpoint {
   secret: string | null;
   is_active: boolean;
   events: WebhookEventType[];
+  /** Migration 115. 'v1' endpoints were made through the public API (or Zapier, Make, n8n) and list public event names. */
+  format?: 'legacy' | 'v1';
+  source?: 'app' | 'api' | 'zapier' | 'make' | 'n8n';
   created_at: string;
   updated_at: string;
 }
