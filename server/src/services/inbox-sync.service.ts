@@ -26,7 +26,7 @@ import { repairImapHost } from './mailbox-repair.service.js';
 import { isSenderMismatch } from '@lemlist/shared';
 import { guardImap } from '../utils/imap-guard.js';
 import { inboxRemindersService } from './inbox-reminders.service.js';
-import { mailboxSecret, imapAuth } from './mailbox-oauth.service.js';
+import { mailboxSecret, imapAuth, isTokenSecret } from './mailbox-oauth.service.js';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Reading a mailbox.
@@ -892,8 +892,10 @@ export const inboxSyncService = {
         errors.push(`${raw.email_address}: The mailbox rejected the login. Trying again after ${waiting.toISOString().slice(11, 16)} UTC, or as soon as the password is updated.`);
         continue;
       }
+      let viaMicrosoft = false;
       try {
         const password = await mailboxSecret(raw.smtp_pass_encrypted);
+        viaMicrosoft = isTokenSecret(password);
 
         /*
          * Never read a mailbox that is not this one.
@@ -1093,8 +1095,8 @@ export const inboxSyncService = {
         authBackoff.delete(raw.id);
         console.log(`[InboxSync] ${raw.email_address}: ${totalNew} new, ${totalBackfilled} from history`);
       } catch (err: any) {
-        const friendly = categoriseImapError(err.message || String(err));
-        if (friendly === LOGIN_REJECTED) noteAuthFailure(raw);
+        const friendly = categoriseImapError(err.message || String(err), { microsoft: viaMicrosoft });
+        if (friendly === LOGIN_REJECTED || friendly === MICROSOFT_IMAP_REJECTED) noteAuthFailure(raw);
         console.error(`[InboxSync] Failed for ${raw.email_address}:`, err.message);
 
         /*
@@ -1164,6 +1166,9 @@ async function isAiTaggingEnabled(userId: string): Promise<boolean> {
 }
 
 const LOGIN_REJECTED = 'The mailbox rejected the login. Update the password (or app password) on this account.';
+const MICROSOFT_IMAP_REJECTED = 'Microsoft refused the sign-in for reading this inbox. For a work account, an admin turns IMAP on: '
+  + 'Microsoft 365 admin centre > Users > Active users > the user > Mail > Manage email apps > tick IMAP > Save. '
+  + 'Otherwise, reconnect the mailbox with "Connect with Microsoft".';
 
 /*
  * Backing off a refused login.
@@ -1193,10 +1198,13 @@ function noteAuthFailure(raw: { id: string; smtp_pass_encrypted: string }): void
 }
 
 /** IMAP failures in words somebody can act on. */
-export function categoriseImapError(message: string): string {
+export function categoriseImapError(message: string, opts: { microsoft?: boolean } = {}): string {
   const m = (message || '').toLowerCase();
+  // A Microsoft sign-in that could not be renewed explains itself (mailbox-oauth).
+  if (m.includes('microsoft sign-in')) return message;
   if (m.includes('invalid credentials') || m.includes('authenticationfailed') || m.includes('auth')) {
-    return LOGIN_REJECTED;
+    // A Microsoft mailbox has no password to update (migration 114).
+    return opts.microsoft ? MICROSOFT_IMAP_REJECTED : LOGIN_REJECTED;
   }
   if (m.includes('timed out') || m.includes('timeout')) {
     return 'The mail server did not respond in time. It may be slow or unreachable from here.';

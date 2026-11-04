@@ -32,7 +32,7 @@ import { MailboxDrawer } from '../../components/mailbox/MailboxDrawer';
 import { ProviderLogo } from '../../components/mailbox/ProviderLogo';
 import { EmptyState } from '../../components/shared/EmptyState';
 import { BulkConnect } from '../../components/mailbox/BulkConnect';
-import { useMicrosoftMail, useConnectMicrosoft } from '../../components/mailbox/MicrosoftConnect';
+import { useMicrosoftMail, useConnectMicrosoft, SuggestMicrosoftMailbox } from '../../components/mailbox/MicrosoftConnect';
 import { BulkPace } from '../../components/mailbox/BulkPace';
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -550,6 +550,9 @@ export function EmailAccountsPage() {
                 repairing={repairMutation.isPending}
               />
             )}
+            <div className="mt-2.5">
+              <SuggestMicrosoftMailbox connected={list.map((a: SmtpAccount) => a.email_address)} />
+            </div>
             <div className="mt-2.5 flex gap-2">
               <button
                 onClick={openAdd}

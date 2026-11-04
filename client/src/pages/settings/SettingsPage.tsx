@@ -15,6 +15,7 @@ import { NotificationTryOut } from '../../components/settings/NotificationTryOut
 import { Chip } from '../../components/ui/Chip';
 import { BlackoutDatesEditor } from '../../components/shared/BlackoutDatesEditor';
 import { BackupHub } from '../../components/settings/BackupHub';
+import { SignInMethods } from '../../components/settings/SignInMethods';
 import {
   User,
   Mail,
@@ -519,6 +520,9 @@ export function SettingsPage() {
                   <h2 className="text-heading font-semibold text-[var(--text-primary)]">Account security</h2>
                   <p className="text-strong text-[var(--text-secondary)] mt-1">Manage your password and security settings</p>
                 </div>
+
+                {/* Email, Google and Microsoft: the ways into this account. */}
+                <SignInMethods />
 
                 {/* Change Password */}
                 <div className="p-5 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] space-y-4">

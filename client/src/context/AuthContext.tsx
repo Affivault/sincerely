@@ -4,6 +4,11 @@ import { supabase } from '../lib/supabase';
 import { readPersistedUser } from '../lib/persistedSession';
 import { queryClient } from '../lib/queryClient';
 import { markSignedOutOnPurpose, clearSignedOutOnPurpose } from '../lib/returnTo';
+import { captureOAuthError } from '../lib/oauthSignIn';
+
+// A Google or Microsoft sign-in that failed comes back with the reason in
+// the address; keep it for the login page before any redirect drops it.
+captureOAuthError();
 
 interface AuthContextType {
   user: User | null;

@@ -2,7 +2,9 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
-import { AuthShell, BrandPreview, GoogleIcon, MicrosoftIcon } from '../../components/AuthShell';
+import { AuthShell, BrandPreview } from '../../components/AuthShell';
+import { OAuthButtons } from '../../components/auth/OAuthButtons';
+import { takeOAuthError, rememberSignIn } from '../../lib/oauthSignIn';
 import '../sincerely-landing.css';
 import { takeSignupRefusal } from '../../lib/platform';
 
@@ -23,6 +25,9 @@ export function LoginPage() {
       }
     } catch { /* storage blocked */ }
     if (takeSignupRefusal()) toast.error('Sign-ups are closed or by invitation right now, so no new account was made.', { duration: 8000 });
+    // A Google or Microsoft sign-in that came back with an error.
+    const oauth = takeOAuthError();
+    if (oauth) toast.error(oauth, { duration: 8000 });
   }, []);
 
   const handleSubmit = async (e: FormEvent) => {
@@ -30,6 +35,7 @@ export function LoginPage() {
     if (loading) return;
     setLoading(true);
     const { error } = await signIn(email, password);
+    if (!error) rememberSignIn('email');
     if (error) {
       // Network-level failures aren't the user's fault — send them to the
       // self-diagnostics page instead of showing a cryptic fetch error.
@@ -63,29 +69,7 @@ export function LoginPage() {
       <h1 className="md-auth__form-h1">Welcome back</h1>
       <p className="md-auth__form-sub">Sign in to your workspace to continue</p>
 
-      <button
-        type="button"
-        className="md-auth__oauth"
-        onClick={async () => {
-          const { error } = await signInWithOAuth('google');
-          if (error) toast.error(error.message);
-        }}
-      >
-        <GoogleIcon />
-        Continue with Google
-      </button>
-      <button
-        type="button"
-        className="md-auth__oauth md-auth__oauth--stacked"
-        onClick={async () => {
-          const { error } = await signInWithOAuth('azure');
-          if (error) toast.error(error.message);
-        }}
-        data-oauth-microsoft
-      >
-        <MicrosoftIcon />
-        Continue with Microsoft
-      </button>
+      <OAuthButtons />
 
       <div className="md-auth__divider">or with email</div>
 

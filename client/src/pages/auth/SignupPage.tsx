@@ -4,7 +4,8 @@ import { useQuery } from '@tanstack/react-query';
 import { platformQuery } from '../../lib/platform';
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
-import { AuthShell, GoogleIcon, MicrosoftIcon } from '../../components/AuthShell';
+import { AuthShell } from '../../components/AuthShell';
+import { OAuthButtons } from '../../components/auth/OAuthButtons';
 import '../sincerely-landing.css';
 
 export function SignupPage() {
@@ -105,29 +106,7 @@ export function SignupPage() {
         </p>
       )}
 
-      <button
-        type="button"
-        className="md-auth__oauth"
-        onClick={async () => {
-          const { error } = await signInWithOAuth('google');
-          if (error) toast.error(signupError(error.message));
-        }}
-      >
-        <GoogleIcon />
-        Continue with Google
-      </button>
-      <button
-        type="button"
-        className="md-auth__oauth md-auth__oauth--stacked"
-        onClick={async () => {
-          const { error } = await signInWithOAuth('azure');
-          if (error) toast.error(signupError(error.message));
-        }}
-        data-oauth-microsoft
-      >
-        <MicrosoftIcon />
-        Continue with Microsoft
-      </button>
+      <OAuthButtons onError={signupError} />
 
       <div className="md-auth__divider">or with email</div>
 
