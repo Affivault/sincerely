@@ -161,7 +161,7 @@ export function MailKindBar({ messageId, kind }: { messageId: string; kind: Mail
   );
 }
 
-/** One line in the Relay settings and composer: whether Claude is reading. */
+/** One line in the Relay settings and composer: whether an AI model is reading, and which. */
 export function RelayEngineNote() {
   const { data } = useQuery({ queryKey: ['inbox', 'relay-status'], queryFn: inboxApi.relayStatus, staleTime: 60_000 });
   if (!data) return null;
@@ -169,8 +169,8 @@ export function RelayEngineNote() {
     <p className="flex items-center gap-1.5 text-caption text-[var(--text-tertiary)]">
       <Sparkles className="h-3 w-3 text-[var(--indigo-text)]" />
       {data.ai
-        ? 'Relay reads replies and writes with Claude.'
-        : 'Relay is using keyword rules. Add ANTHROPIC_API_KEY on the server for Claude to read replies and write drafts.'}
+        ? `Relay reads replies and writes with ${data.engine || 'AI'}.`
+        : 'Relay is using keyword rules. Add DEEPSEEK_API_KEY (or ANTHROPIC_API_KEY) on the server for AI to read replies and write drafts.'}
     </p>
   );
 }

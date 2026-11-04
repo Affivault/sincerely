@@ -159,7 +159,7 @@ function ReferralDialog({ msg, person, referrer, campaignName, onClose, onSent }
           />
           {draft.data && (
             <p className="mt-1 text-caption text-[var(--text-tertiary)]">
-              {draft.data.engine === 'ai' ? 'Written by Claude from the conversation.' : 'A plain introduction - edit it to taste.'} Sent from the mailbox their reply came in on.
+              {draft.data.engine === 'ai' ? 'Written by AI from the conversation.' : 'A plain introduction - edit it to taste.'} Sent from the mailbox their reply came in on.
             </p>
           )}
         </div>

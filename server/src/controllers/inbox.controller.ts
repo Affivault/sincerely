@@ -1,4 +1,4 @@
-import { aiAvailable } from '../services/ai.service.js';
+import { aiAvailable, aiEngineName } from '../services/ai.service.js';
 import { mailSortService } from '../services/mail-sort.service.js';
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware.js';
@@ -31,10 +31,10 @@ export const inboxController = {
     } catch (err) { next(err); }
   },
 
-  /** Whether Relay reads with Claude, and people it may have wrongly unsubscribed. */
+  /** Whether Relay reads with an AI model (and which), and people it may have wrongly unsubscribed. */
   async relayStatus(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      res.json({ ai: aiAvailable(), review: await mailSortService.relayReview(req.userId!) });
+      res.json({ ai: aiAvailable(), engine: aiEngineName(), review: await mailSortService.relayReview(req.userId!) });
     } catch (err) { next(err); }
   },
 

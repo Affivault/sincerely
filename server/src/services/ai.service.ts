@@ -4,14 +4,15 @@
    Relay used to be a list of regular expressions. It could not tell "we
    already use a tool for this" from "we already use your tool and love
    it", or a newsletter footer from a person asking to be removed. This is
-   the same agent with Claude doing the reading:
+   the same agent with an LLM doing the reading (DeepSeek or Claude,
+   chosen by AI_PROVIDER, see aiProvider below):
 
      readReply       what a reply means, in one line, and what to do next
      draftReply      an answer in your voice, from the whole conversation
      writeSequence   a short cold sequence for a list, from what you sell
      firstLines      one opening line per lead, from what is known of them
 
-   Every function returns null when Claude is not configured or does not
+   Every function returns null when no model is configured or does not
    answer, and every caller has a non-AI path for that case. Relay never
    stops working because a key is missing or an API call failed - it just
    reads more simply.
@@ -23,33 +24,72 @@ import { z } from 'zod/v4';
 import { env } from '../config/env.js';
 import { WRITING_STANDARD, sequencePlaybook, sequenceJobs, JOB_WORDS, writingProblems, stripDashes } from '@lemlist/shared';
 
-let client: Anthropic | null = null;
+/* ── Which model ────────────────────────────────────────────────────────
+   Every AI feature goes through structured() below, so the provider is
+   chosen here once. AI_PROVIDER=auto prefers DeepSeek when its key is set
+   and falls back to Claude; set it to "anthropic" to switch back. */
 
-export function aiAvailable(): boolean {
-  return !!env.ANTHROPIC_API_KEY;
+export type AiProvider = 'deepseek' | 'anthropic';
+
+export function aiProvider(): AiProvider | null {
+  const want = env.AI_PROVIDER;
+  if (want === 'deepseek') return env.DEEPSEEK_API_KEY ? 'deepseek' : null;
+  if (want === 'anthropic') return env.ANTHROPIC_API_KEY ? 'anthropic' : null;
+  if (env.DEEPSEEK_API_KEY) return 'deepseek';
+  if (env.ANTHROPIC_API_KEY) return 'anthropic';
+  return null;
 }
 
+export function aiAvailable(): boolean {
+  return aiProvider() !== null;
+}
+
+/** The name shown in the app next to anything the model wrote. */
+export function aiEngineName(): string | null {
+  const p = aiProvider();
+  if (p === 'anthropic') return 'Claude';
+  if (p !== 'deepseek') return null;
+  // The DeepSeek slot speaks the OpenAI chat format, so it also takes any
+  // compatible endpoint (Gemini, Groq, OpenRouter) via DEEPSEEK_BASE_URL.
+  const host = env.DEEPSEEK_BASE_URL.toLowerCase();
+  if (host.includes('googleapis')) return 'Gemini';
+  if (host.includes('groq')) return 'Groq';
+  if (host.includes('openrouter')) return 'OpenRouter';
+  return host.includes('deepseek') ? 'DeepSeek' : 'AI';
+}
+
+let client: Anthropic | null = null;
+
 function getClient(): Anthropic | null {
-  if (!aiAvailable()) return null;
+  if (!env.ANTHROPIC_API_KEY) return null;
   if (!client) client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, maxRetries: 2, timeout: 60_000 });
   return client;
 }
 
 type Effort = 'low' | 'medium' | 'high';
 
-/**
- * One structured call. Refusals, truncation and API errors all come back as
- * null: the caller's fallback is always better than an exception in the
- * middle of an inbox sync.
- */
-async function structured<T>(opts: {
+interface StructuredOpts<T> {
   system: string;
   user: string;
   schema: z.ZodType<T>;
   effort: Effort;
   maxTokens: number;
   label: string;
-}): Promise<T | null> {
+}
+
+/**
+ * One structured call. Refusals, truncation and API errors all come back as
+ * null: the caller's fallback is always better than an exception in the
+ * middle of an inbox sync.
+ */
+async function structured<T>(opts: StructuredOpts<T>): Promise<T | null> {
+  const provider = aiProvider();
+  if (provider === 'deepseek') return deepseekStructured(opts);
+  if (provider === 'anthropic') return anthropicStructured(opts);
+  return null;
+}
+
+async function anthropicStructured<T>(opts: StructuredOpts<T>): Promise<T | null> {
   const c = getClient();
   if (!c) return null;
   try {
@@ -83,6 +123,119 @@ async function structured<T>(opts: {
   }
 }
 
+/* ── DeepSeek ──────────────────────────────────────────────────────────
+   DeepSeek speaks the OpenAI chat format. It has no schema-enforced output,
+   so the schema goes into the system prompt as JSON Schema, JSON mode keeps
+   the answer parseable, and zod checks it on the way back: anything that
+   does not match is treated like a refusal and the caller's fallback runs. */
+
+// deepseek-chat allows 4K output tokens by default (8K only on its beta
+// endpoint). The longest thing Relay writes, a six-email sequence, fits well
+// inside 4K; raise DEEPSEEK_MAX_OUTPUT for another endpoint if needed.
+const DEEPSEEK_MAX_OUTPUT = env.DEEPSEEK_MAX_OUTPUT;
+const DEEPSEEK_TIMEOUT_MS = 90_000;
+const DEEPSEEK_RETRIES = 2;
+
+const schemaText = new WeakMap<object, string>();
+function jsonSchemaOf(schema: z.ZodType<unknown>): string | null {
+  let text = schemaText.get(schema);
+  if (!text) {
+    try {
+      text = JSON.stringify(z.toJSONSchema(schema));
+    } catch (err) {
+      console.warn('[Relay AI] could not describe a schema to DeepSeek:', (err as Error)?.message || err);
+      return null;
+    }
+    schemaText.set(schema, text);
+  }
+  return text;
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function deepseekStructured<T>(opts: StructuredOpts<T>): Promise<T | null> {
+  if (!env.DEEPSEEK_API_KEY) return null;
+  const shape = jsonSchemaOf(opts.schema as z.ZodType<unknown>);
+  if (!shape) return null;
+  const system = `${opts.system}
+
+Answer with a single JSON object and nothing else: no prose, no markdown fences. It must match this JSON Schema exactly, with every required field present:
+${shape}`;
+  const body = JSON.stringify({
+    model: env.DEEPSEEK_MODEL,
+    max_tokens: Math.min(opts.maxTokens, DEEPSEEK_MAX_OUTPUT),
+    // Writing wants some variety; reading wants the same answer every time.
+    temperature: opts.effort === 'low' ? 0.2 : 0.7,
+    response_format: { type: 'json_object' },
+    messages: [
+      { role: 'system', content: system },
+      { role: 'user', content: opts.user },
+    ],
+  });
+  const url = `${env.DEEPSEEK_BASE_URL.replace(/\/+$/, '')}/chat/completions`;
+
+  for (let attempt = 0; attempt <= DEEPSEEK_RETRIES; attempt++) {
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${env.DEEPSEEK_API_KEY}` },
+        body,
+        signal: AbortSignal.timeout(DEEPSEEK_TIMEOUT_MS),
+      });
+      if (res.status === 401 || res.status === 403) {
+        console.error('[Relay AI] DEEPSEEK_API_KEY was rejected - falling back to rules');
+        return null;
+      }
+      if (res.status === 402) {
+        console.error('[Relay AI] DeepSeek account is out of credit - falling back to rules');
+        return null;
+      }
+      if (res.status === 429 || res.status >= 500) {
+        console.warn(`[Relay AI] ${opts.label}: DeepSeek ${res.status}${attempt < DEEPSEEK_RETRIES ? ', retrying' : ''}`);
+        if (attempt < DEEPSEEK_RETRIES) { await wait(1000 * 2 ** attempt); continue; }
+        return null;
+      }
+      if (!res.ok) {
+        const detail = (await res.text().catch(() => '')).slice(0, 300);
+        console.warn(`[Relay AI] ${opts.label}: DeepSeek error ${res.status}: ${detail}`);
+        return null;
+      }
+      const data = (await res.json()) as { choices?: { finish_reason?: string; message?: { content?: string | null } }[] };
+      const choice = data.choices?.[0];
+      if (choice?.finish_reason === 'length') {
+        console.warn(`[Relay AI] ${opts.label}: stopped (max_tokens)`);
+        return null;
+      }
+      const content = (choice?.message?.content || '').trim().replace(/^```(?:json)?\s*|\s*```$/g, '');
+      if (!content) {
+        console.warn(`[Relay AI] ${opts.label}: DeepSeek returned nothing`);
+        return null;
+      }
+      let raw: unknown;
+      try {
+        raw = JSON.parse(content);
+      } catch {
+        console.warn(`[Relay AI] ${opts.label}: DeepSeek answer was not JSON`);
+        return null;
+      }
+      const parsed = opts.schema.safeParse(raw);
+      if (!parsed.success) {
+        console.warn(`[Relay AI] ${opts.label}: DeepSeek answer did not match the schema`);
+        return null;
+      }
+      return parsed.data;
+    } catch (err) {
+      const msg = (err as Error)?.message || String(err);
+      if (attempt < DEEPSEEK_RETRIES) { await wait(1000 * 2 ** attempt); continue; }
+      console.warn(`[Relay AI] ${opts.label}: DeepSeek request failed: ${msg}`);
+      return null;
+    }
+  }
+  return null;
+}
+
 /** One piece of copy to hold to the standard, and how long it may be. */
 interface Copy { label: string; text: string; maxWords?: number; subject?: boolean; ignore?: string[] }
 
@@ -104,7 +257,7 @@ function problemsIn(pieces: Copy[]): string[] {
  * Callers still run stripDashes on what comes back - a long dash never
  * reaches a prospect, whatever the model did.
  */
-async function written<T>(opts: Parameters<typeof structured<T>>[0], copy: (out: T) => Copy[]): Promise<T | null> {
+async function written<T>(opts: StructuredOpts<T>, copy: (out: T) => Copy[]): Promise<T | null> {
   const first = await structured(opts);
   if (!first) return null;
   const problems = problemsIn(copy(first));
