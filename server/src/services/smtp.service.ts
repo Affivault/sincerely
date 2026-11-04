@@ -46,6 +46,16 @@ async function verifyImapLogin(opts: { host: string; port: number; secure: boole
   }
 }
 
+/**
+ * Google shows app passwords as "abcd efgh ijkl mnop" and people paste them
+ * that way; Gmail wants the 16 letters only. No other provider's password
+ * is touched: a space can be a real character in one.
+ */
+export function normaliseMailboxPassword(host: unknown, pass: unknown): string {
+  const p = String(pass ?? '');
+  return /(^|\.)gmail\.com$|(^|\.)googlemail\.com$/i.test(String(host || '').trim()) ? p.replace(/\s+/g, '') : p;
+}
+
 /** Drop a column the DB reports as missing so an insert/update can retry.
  *  Returns true when a key was stripped. */
 function stripMissingColumnKey(errorMessage: string, obj: Record<string, any>): boolean {
@@ -192,7 +202,7 @@ export const smtpService = {
       }
     }
 
-    const { smtp_pass } = input;
+    const smtp_pass = normaliseMailboxPassword(input.smtp_host, input.smtp_pass);
     const smtp_pass_encrypted = encrypt(smtp_pass);
     // Only these columns come from the caller. Notably absent: user_id (which
     // would hand the mailbox and its stored password to another account),
@@ -236,7 +246,7 @@ export const smtpService = {
     // in the allow-list, so it cannot reach the database as itself, and the
     // encrypted column is set here or not at all.
     if (input.smtp_pass) {
-      updateData.smtp_pass_encrypted = encrypt(input.smtp_pass);
+      updateData.smtp_pass_encrypted = encrypt(normaliseMailboxPassword(input.smtp_host, input.smtp_pass));
       // A typed password replaces a Microsoft sign-in (migration 114).
       updateData.auth_kind = 'password';
     }
@@ -425,6 +435,7 @@ export const smtpService = {
     // edit form deliberately leaves it blank to keep the stored one. Fill it
     // from the encrypted column when an owned account id is supplied.
     const input = { ...rawInput };
+    if (input.smtp_pass) input.smtp_pass = normaliseMailboxPassword(input.smtp_host, input.smtp_pass);
     if (!input.smtp_pass && input.account_id) {
       const { data: account } = await supabaseAdmin
         .from('smtp_accounts')

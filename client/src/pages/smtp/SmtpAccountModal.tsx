@@ -9,6 +9,7 @@ import { Select } from '../../components/ui/Select';
 import { Modal } from '../../components/ui/Modal';
 import { RichTextEditor } from '../../components/ui/RichTextEditor';
 import { MicrosoftConnectCard, looksMicrosoft } from '../../components/mailbox/MicrosoftConnect';
+import { GoogleAppPasswordGuide, isGooglePreset, cleanAppPassword } from '../../components/mailbox/GoogleConnect';
 import { ProviderLogo } from '../../components/mailbox/ProviderLogo';
 import { cn } from '../../lib/utils';
 import {
@@ -941,7 +942,8 @@ export function SmtpAccountModal({
         label={passwordLabel}
         type={showPass ? 'text' : 'password'}
         value={form.smtp_pass}
-        onChange={(e) => updateField('smtp_pass', e.target.value)}
+        // Google shows app passwords as four groups of four; only the letters count.
+        onChange={(e) => updateField('smtp_pass', isGooglePreset(activePreset?.name) ? cleanAppPassword(e.target.value) : e.target.value)}
         placeholder={passwordPlaceholder}
         autoComplete="new-password"
         error={err('smtp_pass')}
@@ -1443,6 +1445,9 @@ export function SmtpAccountModal({
           {passwordField}
           <Input label="From name" value={form.from_name || ''} onChange={(e) => updateField('from_name', e.target.value)} placeholder={`e.g. ${PLACEHOLDER.senderName}`} hint="What recipients see in the From field" />
         </div>
+        {isGooglePreset(activePreset?.name) ? (
+          <GoogleAppPasswordGuide email={form.email_address} password={form.smtp_pass} workspace={activePreset?.name === 'Google Workspace'} />
+        ) : (
         <div className="rounded-xl border border-[var(--indigo)]/15 bg-[var(--indigo-subtle)]/40 p-3.5">
           <p className="flex items-center gap-1.5 text-caption font-semibold text-[var(--text-primary)]">
             <KeyRound className="h-3.5 w-3.5 text-[var(--indigo-text)]" /> Getting your {guide.secret.toLowerCase()}
@@ -1466,6 +1471,7 @@ export function SmtpAccountModal({
             </p>
           )}
         </div>
+        )}
       </div>
 
       {/* Servers: one line when found, the full fields when they need you. */}

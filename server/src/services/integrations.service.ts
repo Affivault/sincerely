@@ -478,7 +478,10 @@ const telegramRuntime: ProviderRuntime = {
 const TEAMS_HOST_OK = (h: string) =>
   h === 'webhook.office.com' ||
   h.endsWith('.webhook.office.com') ||
-  h.endsWith('.logic.azure.com');
+  h.endsWith('.logic.azure.com') ||
+  // Teams "Workflows" webhooks, which replace the retired Office 365
+  // connectors, are issued on Power Platform environment hosts.
+  h.endsWith('.environment.api.powerplatform.com');
 
 const teamsRuntime: ProviderRuntime = {
   validate(config) {

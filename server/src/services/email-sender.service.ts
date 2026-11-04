@@ -76,6 +76,13 @@ export function describeSmtpError(err: any, opts?: { withRelayHint?: boolean }):
   if (microsoft) return microsoft;
   // A Microsoft mailbox whose sign-in could not be renewed says so itself.
   if (/microsoft sign-in/.test(raw)) return String(err?.message || err);
+  // Google's own refusals, which say exactly what is wrong.
+  if (raw.includes('5.7.9') || raw.includes('application-specific password required')) {
+    return 'Google wants an app password here, not your Google password. Create one (Google account > Security > App passwords; 2-Step Verification must be on) and paste its 16 letters.';
+  }
+  if ((raw.includes('5.7.8') || raw.includes('username and password not accepted')) && /gsmtp|google|gmail/.test(raw)) {
+    return 'Google did not accept that app password. Check it was created on this same Google account (the links in the connect guide open the right one) and that all 16 letters were pasted. A Google password change deletes old app passwords, so make a new one if you changed it.';
+  }
   const wantHint = opts?.withRelayHint !== false;
   const relayActive = !!(env.SMTP_RELAY_URL && env.SMTP_RELAY_SECRET);
   // A timeout with no relay configured almost always means the hosting

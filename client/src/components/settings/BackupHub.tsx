@@ -12,6 +12,8 @@ import {
 } from '@lemlist/shared';
 import { backupApi, fileBackupApi } from '../../api/backup.api';
 import { DriveBackupPanel } from './DriveBackupPanel';
+import { BrandLogo } from '../shared/BrandLogo';
+import type { BrandId } from '../shared/brandLogos';
 import { Toggle } from '../ui/Toggle';
 import { useConfirm } from '../ui/ConfirmDialog';
 import { cn } from '../../lib/utils';
@@ -70,18 +72,11 @@ const HEALTH: Record<Health, { word: string; dot: string; text: string }> = {
   off: { word: 'Not set up', dot: 'bg-transparent border border-[var(--border-strong)]', text: 'text-[var(--text-tertiary)]' },
 };
 
+const BACKUP_BRAND: Record<BackupProvider, BrandId> = { google_drive: 'google_drive', onedrive: 'onedrive', dropbox: 'dropbox', s3: 's3' };
+
+/** The destination's official mark (components/shared/brandLogos). */
 export function ProviderTile({ id, size = 'md' }: { id: BackupProvider; size?: 'sm' | 'md' | 'lg' }) {
-  const Icon = BACKUP_ICON[id];
-  const meta = BACKUP_PROVIDERS.find((p) => p.id === id)!;
-  return (
-    <span
-      className={cn('flex flex-shrink-0 items-center justify-center rounded-xl text-white',
-        size === 'lg' ? 'h-11 w-11' : size === 'sm' ? 'h-7 w-7 rounded-lg' : 'h-9 w-9')}
-      style={{ backgroundColor: meta.color }}
-    >
-      <Icon className={size === 'lg' ? 'h-5 w-5' : size === 'sm' ? 'h-3.5 w-3.5' : 'h-4 w-4'} strokeWidth={2} />
-    </span>
-  );
+  return <BrandLogo id={BACKUP_BRAND[id]} size={size} />;
 }
 
 /** Both status calls, shared by Settings and the Integrations page. */

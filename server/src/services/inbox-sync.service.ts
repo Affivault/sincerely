@@ -1202,6 +1202,9 @@ export function categoriseImapError(message: string, opts: { microsoft?: boolean
   const m = (message || '').toLowerCase();
   // A Microsoft sign-in that could not be renewed explains itself (mailbox-oauth).
   if (m.includes('microsoft sign-in')) return message;
+  if (m.includes('application-specific password')) {
+    return 'Google wants an app password to read this inbox, not your Google password. Create one under Google account > Security > App passwords and paste it into this mailbox.';
+  }
   if (m.includes('invalid credentials') || m.includes('authenticationfailed') || m.includes('auth')) {
     // A Microsoft mailbox has no password to update (migration 114).
     return opts.microsoft ? MICROSOFT_IMAP_REJECTED : LOGIN_REJECTED;

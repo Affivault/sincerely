@@ -45,14 +45,13 @@ export const PROVIDER_GUIDES: Record<string, ProviderGuide> = {
     gotcha: 'If App passwords is missing, your Workspace admin has turned it off - ask them to allow it for your account.',
   },
   'Outlook / Microsoft 365': {
-    secret: 'Password or app password',
+    secret: 'Microsoft sign-in',
     steps: [
-      'Personal Outlook/Hotmail: create an app password under Security > Advanced security options.',
-      'Microsoft 365 (work): ask your admin to enable "Authenticated SMTP" for this mailbox.',
-      'Paste the app password (or your mailbox password if your admin allows it).',
+      'Use "Connect with Microsoft" above: Microsoft no longer accepts passwords or app passwords for Outlook and Hotmail.',
+      'Work accounts (Microsoft 365): an admin turns on Authenticated SMTP and IMAP for the mailbox.',
+      'Only if your admin still allows SMTP passwords: paste the mailbox password here.',
     ],
-    link: { label: 'Open Microsoft security info', url: 'https://mysignins.microsoft.com/security-info' },
-    gotcha: 'Microsoft 365 switches SMTP sign-in off by default. "Authentication unsuccessful" almost always means it needs enabling in the admin centre.',
+    gotcha: 'Microsoft 365 switches SMTP sign-in off by default, and Microsoft is retiring passwords - "Connect with Microsoft" is the way that keeps working.',
   },
   'Yahoo Mail': {
     secret: 'App password',
