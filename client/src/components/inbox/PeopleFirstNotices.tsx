@@ -170,7 +170,7 @@ export function RelayEngineNote() {
       <Sparkles className="h-3 w-3 text-[var(--indigo-text)]" />
       {data.ai
         ? `Relay reads replies and writes with ${data.engine || 'AI'}.`
-        : 'Relay is using keyword rules. Add DEEPSEEK_API_KEY (or ANTHROPIC_API_KEY) on the server for AI to read replies and write drafts.'}
+        : 'Relay is using keyword rules. Add LLM_API_KEY (or ANTHROPIC_API_KEY) on the server for AI to read replies and write drafts.'}
     </p>
   );
 }

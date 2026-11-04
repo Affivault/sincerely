@@ -4,7 +4,7 @@
    Relay used to be a list of regular expressions. It could not tell "we
    already use a tool for this" from "we already use your tool and love
    it", or a newsletter footer from a person asking to be removed. This is
-   the same agent with an LLM doing the reading (DeepSeek or Claude,
+   the same agent with an LLM doing the reading (Groq, DeepSeek or Claude,
    chosen by AI_PROVIDER, see aiProvider below):
 
      readReply       what a reply means, in one line, and what to do next
@@ -26,16 +26,17 @@ import { WRITING_STANDARD, sequencePlaybook, sequenceJobs, JOB_WORDS, writingPro
 
 /* ── Which model ────────────────────────────────────────────────────────
    Every AI feature goes through structured() below, so the provider is
-   chosen here once. AI_PROVIDER=auto prefers DeepSeek when its key is set
-   and falls back to Claude; set it to "anthropic" to switch back. */
+   chosen here once. AI_PROVIDER=auto uses the LLM_* model (Groq by
+   default) when LLM_API_KEY is set and falls back to Claude; set it to
+   "anthropic" to force Claude. */
 
-export type AiProvider = 'deepseek' | 'anthropic';
+export type AiProvider = 'llm' | 'anthropic';
 
 export function aiProvider(): AiProvider | null {
   const want = env.AI_PROVIDER;
-  if (want === 'deepseek') return env.DEEPSEEK_API_KEY ? 'deepseek' : null;
+  if (want === 'llm') return env.LLM_API_KEY ? 'llm' : null;
   if (want === 'anthropic') return env.ANTHROPIC_API_KEY ? 'anthropic' : null;
-  if (env.DEEPSEEK_API_KEY) return 'deepseek';
+  if (env.LLM_API_KEY) return 'llm';
   if (env.ANTHROPIC_API_KEY) return 'anthropic';
   return null;
 }
@@ -48,14 +49,10 @@ export function aiAvailable(): boolean {
 export function aiEngineName(): string | null {
   const p = aiProvider();
   if (p === 'anthropic') return 'Claude';
-  if (p !== 'deepseek') return null;
-  // The DeepSeek slot speaks the OpenAI chat format, so it also takes any
-  // compatible endpoint (Gemini, Groq, OpenRouter) via DEEPSEEK_BASE_URL.
-  const host = env.DEEPSEEK_BASE_URL.toLowerCase();
-  if (host.includes('googleapis')) return 'Gemini';
-  if (host.includes('groq')) return 'Groq';
-  if (host.includes('openrouter')) return 'OpenRouter';
-  return host.includes('deepseek') ? 'DeepSeek' : 'AI';
+  if (p !== 'llm') return null;
+  const host = env.LLM_BASE_URL.toLowerCase();
+  const known: [string, string][] = [['groq', 'Groq'], ['deepseek', 'DeepSeek'], ['googleapis', 'Gemini'], ['openrouter', 'OpenRouter'], ['openai.com', 'OpenAI']];
+  return known.find(([k]) => host.includes(k))?.[1] ?? 'AI';
 }
 
 let client: Anthropic | null = null;
@@ -84,7 +81,7 @@ interface StructuredOpts<T> {
  */
 async function structured<T>(opts: StructuredOpts<T>): Promise<T | null> {
   const provider = aiProvider();
-  if (provider === 'deepseek') return deepseekStructured(opts);
+  if (provider === 'llm') return llmStructured(opts);
   if (provider === 'anthropic') return anthropicStructured(opts);
   return null;
 }
@@ -123,18 +120,17 @@ async function anthropicStructured<T>(opts: StructuredOpts<T>): Promise<T | null
   }
 }
 
-/* ── DeepSeek ──────────────────────────────────────────────────────────
-   DeepSeek speaks the OpenAI chat format. It has no schema-enforced output,
+/* ── Any OpenAI-format model (Groq, DeepSeek, Gemini, OpenRouter) ───────
+   These speak the OpenAI chat format, without schema-enforced output,
    so the schema goes into the system prompt as JSON Schema, JSON mode keeps
    the answer parseable, and zod checks it on the way back: anything that
    does not match is treated like a refusal and the caller's fallback runs. */
 
-// deepseek-chat allows 4K output tokens by default (8K only on its beta
-// endpoint). The longest thing Relay writes, a six-email sequence, fits well
-// inside 4K; raise DEEPSEEK_MAX_OUTPUT for another endpoint if needed.
-const DEEPSEEK_MAX_OUTPUT = env.DEEPSEEK_MAX_OUTPUT;
-const DEEPSEEK_TIMEOUT_MS = 90_000;
-const DEEPSEEK_RETRIES = 2;
+// 4K output tokens is within every provider's limit, and the longest thing
+// Relay writes, a six-email sequence, fits well inside it.
+const LLM_MAX_OUTPUT = env.LLM_MAX_OUTPUT;
+const LLM_TIMEOUT_MS = 90_000;
+const LLM_RETRIES = 2;
 
 const schemaText = new WeakMap<object, string>();
 function jsonSchemaOf(schema: z.ZodType<unknown>): string | null {
@@ -143,7 +139,7 @@ function jsonSchemaOf(schema: z.ZodType<unknown>): string | null {
     try {
       text = JSON.stringify(z.toJSONSchema(schema));
     } catch (err) {
-      console.warn('[Relay AI] could not describe a schema to DeepSeek:', (err as Error)?.message || err);
+      console.warn('[Relay AI] could not describe a schema to the model:', (err as Error)?.message || err);
       return null;
     }
     schemaText.set(schema, text);
@@ -155,8 +151,8 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function deepseekStructured<T>(opts: StructuredOpts<T>): Promise<T | null> {
-  if (!env.DEEPSEEK_API_KEY) return null;
+async function llmStructured<T>(opts: StructuredOpts<T>): Promise<T | null> {
+  if (!env.LLM_API_KEY) return null;
   const shape = jsonSchemaOf(opts.schema as z.ZodType<unknown>);
   if (!shape) return null;
   const system = `${opts.system}
@@ -164,8 +160,8 @@ async function deepseekStructured<T>(opts: StructuredOpts<T>): Promise<T | null>
 Answer with a single JSON object and nothing else: no prose, no markdown fences. It must match this JSON Schema exactly, with every required field present:
 ${shape}`;
   const body = JSON.stringify({
-    model: env.DEEPSEEK_MODEL,
-    max_tokens: Math.min(opts.maxTokens, DEEPSEEK_MAX_OUTPUT),
+    model: env.LLM_MODEL,
+    max_tokens: Math.min(opts.maxTokens, LLM_MAX_OUTPUT),
     // Writing wants some variety; reading wants the same answer every time.
     temperature: opts.effort === 'low' ? 0.2 : 0.7,
     response_format: { type: 'json_object' },
@@ -174,32 +170,32 @@ ${shape}`;
       { role: 'user', content: opts.user },
     ],
   });
-  const url = `${env.DEEPSEEK_BASE_URL.replace(/\/+$/, '')}/chat/completions`;
+  const url = `${env.LLM_BASE_URL.replace(/\/+$/, '')}/chat/completions`;
 
-  for (let attempt = 0; attempt <= DEEPSEEK_RETRIES; attempt++) {
+  for (let attempt = 0; attempt <= LLM_RETRIES; attempt++) {
     try {
       const res = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${env.DEEPSEEK_API_KEY}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${env.LLM_API_KEY}` },
         body,
-        signal: AbortSignal.timeout(DEEPSEEK_TIMEOUT_MS),
+        signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
       });
       if (res.status === 401 || res.status === 403) {
-        console.error('[Relay AI] DEEPSEEK_API_KEY was rejected - falling back to rules');
+        console.error('[Relay AI] LLM_API_KEY was rejected - falling back to rules');
         return null;
       }
       if (res.status === 402) {
-        console.error('[Relay AI] DeepSeek account is out of credit - falling back to rules');
+        console.error('[Relay AI] the LLM account is out of credit - falling back to rules');
         return null;
       }
       if (res.status === 429 || res.status >= 500) {
-        console.warn(`[Relay AI] ${opts.label}: DeepSeek ${res.status}${attempt < DEEPSEEK_RETRIES ? ', retrying' : ''}`);
-        if (attempt < DEEPSEEK_RETRIES) { await wait(1000 * 2 ** attempt); continue; }
+        console.warn(`[Relay AI] ${opts.label}: LLM ${res.status}${attempt < LLM_RETRIES ? ', retrying' : ''}`);
+        if (attempt < LLM_RETRIES) { await wait(1000 * 2 ** attempt); continue; }
         return null;
       }
       if (!res.ok) {
         const detail = (await res.text().catch(() => '')).slice(0, 300);
-        console.warn(`[Relay AI] ${opts.label}: DeepSeek error ${res.status}: ${detail}`);
+        console.warn(`[Relay AI] ${opts.label}: LLM error ${res.status}: ${detail}`);
         return null;
       }
       const data = (await res.json()) as { choices?: { finish_reason?: string; message?: { content?: string | null } }[] };
@@ -210,26 +206,26 @@ ${shape}`;
       }
       const content = (choice?.message?.content || '').trim().replace(/^```(?:json)?\s*|\s*```$/g, '');
       if (!content) {
-        console.warn(`[Relay AI] ${opts.label}: DeepSeek returned nothing`);
+        console.warn(`[Relay AI] ${opts.label}: LLM returned nothing`);
         return null;
       }
       let raw: unknown;
       try {
         raw = JSON.parse(content);
       } catch {
-        console.warn(`[Relay AI] ${opts.label}: DeepSeek answer was not JSON`);
+        console.warn(`[Relay AI] ${opts.label}: LLM answer was not JSON`);
         return null;
       }
       const parsed = opts.schema.safeParse(raw);
       if (!parsed.success) {
-        console.warn(`[Relay AI] ${opts.label}: DeepSeek answer did not match the schema`);
+        console.warn(`[Relay AI] ${opts.label}: LLM answer did not match the schema`);
         return null;
       }
       return parsed.data;
     } catch (err) {
       const msg = (err as Error)?.message || String(err);
-      if (attempt < DEEPSEEK_RETRIES) { await wait(1000 * 2 ** attempt); continue; }
-      console.warn(`[Relay AI] ${opts.label}: DeepSeek request failed: ${msg}`);
+      if (attempt < LLM_RETRIES) { await wait(1000 * 2 ** attempt); continue; }
+      console.warn(`[Relay AI] ${opts.label}: LLM request failed: ${msg}`);
       return null;
     }
   }
