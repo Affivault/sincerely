@@ -293,7 +293,7 @@ export const experimentsService = {
     }
     let waiting: string | null = null;
     if (campaign.relay_improve && !current) {
-      if (!aiAvailable()) waiting = 'Relay needs Claude to write new versions. Add ANTHROPIC_API_KEY on the server.';
+      if (!aiAvailable()) waiting = 'Relay needs AI to write new versions. Add DEEPSEEK_API_KEY (or ANTHROPIC_API_KEY) on the server.';
       else if (campaign.status !== 'running') waiting = 'Relay starts once the campaign is running.';
       else {
         const steps = await emailSteps(campaignId);

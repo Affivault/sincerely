@@ -57,6 +57,15 @@ services:
         sync: false
       - key: ICYPEAS_USD_PER_CREDIT
         sync: false
+      # AI behind SARA/Relay and every AI feature (optional). DeepSeek is
+      # used when DEEPSEEK_API_KEY is set; AI_PROVIDER=anthropic switches
+      # back to Claude. Without either key Relay uses its keyword rules.
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: AI_PROVIDER
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
       # Google Calendar (optional). Without these the feature is off and the
       # Availability page says so; nothing else changes. Listed here so a
       # blueprint re-apply cannot silently drop them.

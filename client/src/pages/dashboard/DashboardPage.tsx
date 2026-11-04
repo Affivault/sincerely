@@ -601,7 +601,7 @@ function FirstSendPanel({ contacts, verified, bounced, onWrite }: {
             {contacts > 0 ? 'Your leads are ready. Relay can draft the emails.' : 'Add a few leads, then Relay drafts the emails.'}
           </h2>
           <p className="mt-2 text-body text-[var(--text-secondary)] max-w-[52ch]">
-            Pick a list, say what you sell in a sentence or two, and you get a short sequence to read through and edit - with a personal first line for each lead when Claude is switched on. Nothing sends until you launch it.
+            Pick a list, say what you sell in a sentence or two, and you get a short sequence to read through and edit - with a personal first line for each lead when AI is switched on. Nothing sends until you launch it.
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             <button className="btn-primary" onClick={onWrite} disabled={contacts === 0}>

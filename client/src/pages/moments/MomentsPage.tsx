@@ -282,7 +282,7 @@ function WatchSettings({ data }: { data: MomentsResponse }) {
             Relay reads the home, careers and news pages of companies you have people at, once a week, and tells you when something you care about changes.
             {s.web && s.watching > 0 ? ` Watching ${s.watching} ${s.watching === 1 ? 'company' : 'companies'}${s.last_checked ? `, last checked ${formatRelativeTime(s.last_checked)}` : ''}.` : ''}
           </p>
-          {!s.ai && <p className="mt-1 text-caption text-amber-700 dark:text-amber-400">Needs Claude to judge what changed. Your own-data moments work without it.</p>}
+          {!s.ai && <p className="mt-1 text-caption text-amber-700 dark:text-amber-400">Needs AI to judge what changed. Your own-data moments work without it.</p>}
         </div>
         <Toggle checked={s.web} onChange={setWeb} disabled={!s.ai || save.isPending} aria-label="Watch company websites" />
       </div>

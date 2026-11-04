@@ -19,7 +19,7 @@ import { previewWithSampleData, htmlToText } from '../services/sequence.service.
 import { previewAsContact } from '../services/campaign-preview.service.js';
 import { mailboxSecret } from '../services/mailbox-oauth.service.js';
 
-/* Writing with Claude costs money per call; a stuck button or a loop should
+/* Writing with an AI model costs money per call (DeepSeek is cheap, not free); a stuck button or a loop should
    not. Twenty drafts an hour is far beyond anyone iterating by hand. */
 const writeLog = new Map<string, number[]>();
 function allowWrite(userId: string): boolean {

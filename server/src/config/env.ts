@@ -84,9 +84,22 @@ const envSchema = z.object({
   MICROSOFT_CLIENT_SECRET: z.string().optional().default(''),
   DROPBOX_APP_KEY: z.string().optional().default(''),
   DROPBOX_APP_SECRET: z.string().optional().default(''),
-  // Relay reads replies, drafts answers and writes sequences with Claude
-  // when this is set. Absent = the keyword rules and built-in templates,
-  // which always work.
+  // Relay (reply reading, drafts, sequences, first lines, test versions,
+  // Moments) runs on an LLM when one of these keys is set. With neither, the
+  // keyword rules and built-in templates take over, which always work.
+  //
+  // AI_PROVIDER picks the model behind every AI feature:
+  //   auto       DeepSeek when DEEPSEEK_API_KEY is set, else Claude (default)
+  //   deepseek   DeepSeek only
+  //   anthropic  Claude only
+  // Switching back is one env change, no code.
+  AI_PROVIDER: z.enum(['auto', 'deepseek', 'anthropic']).optional().default('auto'),
+  DEEPSEEK_API_KEY: z.string().optional().default(''),
+  DEEPSEEK_MODEL: z.string().optional().default('deepseek-chat'),
+  // Any OpenAI-compatible endpoint works here (Gemini, Groq, OpenRouter):
+  // set the base URL and model, and put that provider's key in DEEPSEEK_API_KEY.
+  DEEPSEEK_BASE_URL: z.string().optional().default('https://api.deepseek.com'),
+  DEEPSEEK_MAX_OUTPUT: z.coerce.number().int().positive().optional().default(4096),
   ANTHROPIC_API_KEY: z.string().optional().default(''),
   RELAY_MODEL: z.string().optional().default('claude-opus-5-5'),
 });

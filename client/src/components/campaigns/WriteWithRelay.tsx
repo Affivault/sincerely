@@ -79,7 +79,7 @@ export function WriteWithRelay({
       title="Write with Relay"
       description={ai
         ? 'Relay drafts the sequence from what you sell and who is on the list. You edit everything before it goes anywhere.'
-        : 'Relay drafts a plain sequence from what you sell. With ANTHROPIC_API_KEY set on the server, Claude writes it and adds a first line for each lead.'}
+        : 'Relay drafts a plain sequence from what you sell. With an AI key set on the server (DEEPSEEK_API_KEY or ANTHROPIC_API_KEY), AI writes it and adds a first line for each lead.'}
       size="lg"
       footer={
         <div className="flex items-center justify-between gap-3 w-full">
@@ -176,7 +176,7 @@ export function WriteWithRelay({
             <span className="block text-caption text-[var(--text-tertiary)] mt-0.5">
               {ai
                 ? `One opening sentence per lead from what is known about them, stored as {{first_line}}${chosen?.contact_count ? ` (up to 200 of ${chosen.contact_count})` : ''}. Never invented news or numbers.`
-                : 'Needs Claude (ANTHROPIC_API_KEY on the server).'}
+                : 'Needs AI (DEEPSEEK_API_KEY or ANTHROPIC_API_KEY on the server).'}
             </span>
           </span>
         </label>

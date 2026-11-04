@@ -2348,7 +2348,7 @@ function SaraCopilot({ msg, onUseDraft }: { msg: Message; onUseDraft: () => void
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-body font-semibold text-[var(--text-primary)]">Relay analysis</span>
             {msg.relay_engine === 'ai' && (
-              <span className="text-micro font-medium text-[var(--text-tertiary)]" title="Read by Claude">Read by Claude</span>
+              <span className="text-micro font-medium text-[var(--text-tertiary)]" title="Read by AI">Read by AI</span>
             )}
             {info && (
               <span className={cn('text-micro font-semibold px-1.5 py-0.5 rounded-full', info.bg, info.text)}>{info.label}</span>
