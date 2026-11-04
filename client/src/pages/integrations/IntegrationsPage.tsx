@@ -36,6 +36,8 @@ import { useOverlayStack } from '../../hooks/useOverlayStack';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { BackupDestinations } from '../../components/integrations/BackupDestinations';
+import { BrandLogo } from '../../components/shared/BrandLogo';
+import { BRAND_LOGOS, type BrandId } from '../../components/shared/brandLogos';
 import toast from 'react-hot-toast';
 
 /* ─── Brand tiles ─────────────────────────────────────────────────
@@ -89,16 +91,12 @@ const EVENT_PRESETS: { label: string; events: string[] }[] = [
 ];
 
 function BrandTile({ providerId, size = 'md' }: { providerId: string; size?: 'md' | 'lg' }) {
+  // The brand's own mark (components/shared/brandLogos), never a stand-in icon.
+  if (providerId in BRAND_LOGOS) return <BrandLogo id={providerId as BrandId} size={size} />;
   const brand = BRAND[providerId] || { color: 'var(--indigo)', icon: Blocks };
   const Icon = brand.icon;
   return (
-    <span
-      className={cn(
-        'flex items-center justify-center rounded-xl shrink-0',
-        size === 'lg' ? 'h-11 w-11' : 'h-9 w-9'
-      )}
-      style={{ backgroundColor: brand.color }}
-    >
+    <span className={cn('flex items-center justify-center rounded-xl shrink-0', size === 'lg' ? 'h-11 w-11' : 'h-9 w-9')} style={{ backgroundColor: brand.color }}>
       <Icon className={cn('text-white', size === 'lg' ? 'h-5 w-5' : 'h-4 w-4')} strokeWidth={2} />
     </span>
   );
