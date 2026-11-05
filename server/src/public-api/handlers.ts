@@ -9,7 +9,7 @@
 
 import {
   ACTIVITY_TYPES, API_LIST_KINDS, CAMPAIGN_STATUSES, CONTACT_WRITE_FIELDS, PUBLIC_API_VERSION,
-  PUBLIC_EVENT_TYPES, REPLY_CHECK_CAMPAIGN_NAME, REPLY_INTENTS, SUPPRESSION_REASONS,
+  PUBLIC_EVENT_TYPES, REPLY_CHECK_CAMPAIGN_NAME, REPLY_INTENTS, SUPPRESSION_REASONS, ENROL_SKIP_LABEL,
   type PublicEventType,
 } from '@lemlist/shared';
 import crypto from 'crypto';
@@ -92,8 +92,8 @@ function readContact(raw: Record<string, unknown>, opts: { creating: boolean; pr
 
   const tags = bodyStringArray(raw, 'tags', { max: 20, itemMax: 50, prefix })?.map((t) => t.replace(/\s+/g, ' '));
   const listIds = opts.noLists ? undefined : bodyUuidArray(raw, 'list_ids', 20);
+  // Everyone has a lifecycle, so there is nothing to clear: null (an empty dropdown in Make or n8n) means "leave it".
   const lifecycle = opts.noLists ? undefined : bodyString(raw, 'lifecycle', { enum: ['lead', 'contact', 'customer'], prefix }) as ContactInput['lifecycle'] | null | undefined;
-  if (lifecycle === null) throw invalid(`${prefix}lifecycle`, 'lifecycle cannot be cleared.');
 
   return { fields, custom, tags, listIds, lifecycle: lifecycle ?? undefined };
 }
@@ -323,28 +323,66 @@ const contactsDelete: Handler = async (req) => {
   return { body: { object: 'contact', id, deleted: true } };
 };
 
-const contactsUnsubscribe: Handler = async (req) => {
-  const id = pathId(req, 'id', 'contact');
-  const row = await readContactRow(req.userId, id);
+/**
+ * A contact path parameter: their id, or their email address, which is what
+ * a no-code tool has to hand. An address that is not a contact is a 404.
+ */
+async function contactRef(req: ApiReq, name: string): Promise<string> {
+  const raw = String(req.params[name] || '').trim();
+  if (raw.includes('@')) {
+    const email = raw.toLowerCase();
+    if (!EMAIL_RE.test(email)) throw invalid(name, `"${raw}" is not a valid email address.`);
+    const id = await contactIdByEmail(req.userId, email);
+    if (!id) throw new PublicApiError('resource_not_found', `There is no contact with the address ${email}.`, name);
+    return id;
+  }
+  return pathId(req, name, 'contact');
+}
+
+/** Unsubscribe one contact the way the unsubscribe link does: flagged, sequences stopped, address suppressed. */
+async function unsubscribeContact(userId: string, id: string): Promise<void> {
+  const row = await readContactRow(userId, id);
   const already = !!(row as any).is_unsubscribed;
 
-  const { error } = await supabaseAdmin.from('contacts').update({ is_unsubscribed: true }).eq('id', id).eq('user_id', req.userId);
+  const { error } = await supabaseAdmin.from('contacts').update({ is_unsubscribed: true }).eq('id', id).eq('user_id', userId);
   if (error) throw error;
 
   // Stop every sequence they are in, as the unsubscribe link does.
   const { data: live, error: liveErr } = await supabaseAdmin
     .from('campaign_contacts')
     .select('id, campaign_id, campaigns!inner(user_id)')
-    .eq('contact_id', id).eq('campaigns.user_id', req.userId)
+    .eq('contact_id', id).eq('campaigns.user_id', userId)
     .in('status', ['pending', 'active', 'paused']);
   if (liveErr) throw liveErr;
   for (const slice of chunk((live || []).map((r: any) => r.id))) {
     const { error: stopErr } = await supabaseAdmin.from('campaign_contacts').update({ status: 'unsubscribed', next_send_at: null }).in('id', slice);
     if (stopErr) throw stopErr;
   }
-  await suppressionService.add(req.userId, (row as any).email, 'unsubscribed', 'Unsubscribed through the API');
-  if (!already) fireEvent(req.userId, 'lead.unsubscribed', { contact_id: id, source: 'api' }).catch(() => {});
+  await suppressionService.add(userId, (row as any).email, 'unsubscribed', 'Unsubscribed through the API');
+  if (!already) fireEvent(userId, 'lead.unsubscribed', { contact_id: id, source: 'api' }).catch(() => {});
+}
+
+const contactsUnsubscribe: Handler = async (req) => {
+  const id = pathId(req, 'id', 'contact');
+  await unsubscribeContact(req.userId, id);
   return { body: contactOut(await readContactRow(req.userId, id)) };
+};
+
+const unsubscribesCreate: Handler = async (req) => {
+  const b = body(req);
+  onlyKeys(b, ['email']);
+  const email = bodyString(b, 'email', { required: true, max: 254 })!.toLowerCase();
+  if (!EMAIL_RE.test(email)) throw invalid('email', `"${email}" is not a valid email address.`);
+  const id = await contactIdByEmail(req.userId, email);
+  if (id) {
+    await unsubscribeContact(req.userId, id);
+    return { body: { object: 'unsubscribe', email, was_contact: true, contact_id: id } };
+  }
+  // Not a contact (yet): suppressed, so no import or campaign can ever email it. An existing entry keeps its reason.
+  const { data: existing, error } = await supabaseAdmin.from('suppression_list').select('id').eq('user_id', req.userId).eq('email', email).maybeSingle();
+  if (error) throw error;
+  if (!existing) await suppressionService.add(req.userId, email, 'unsubscribed', 'Unsubscribed through the API');
+  return { body: { object: 'unsubscribe', email, was_contact: false, contact_id: null } };
 };
 
 const contactsActivities: Handler = async (req) => {
@@ -433,9 +471,10 @@ async function resolveContacts(userId: string, b: Record<string, unknown>, opts:
   const invalidEmails = emails.filter((e) => !EMAIL_RE.test(e));
   const goodEmails = emails.filter((e) => EMAIL_RE.test(e));
 
-  const owned = ids.length
-    ? (await selectInChunks(ids, (slice) => supabaseAdmin.from('contacts').select('id').eq('user_id', userId).in('id', slice))).map((r: any) => r.id as string)
+  const ownedRows = ids.length
+    ? (await selectInChunks(ids, (slice) => supabaseAdmin.from('contacts').select('id, email').eq('user_id', userId).in('id', slice))) as { id: string; email: string }[]
     : [];
+  const owned = ownedRows.map((r) => r.id);
   const notFoundIds = ids.filter((id) => !owned.includes(id));
 
   let createdContacts = 0;
@@ -452,12 +491,53 @@ async function resolveContacts(userId: string, b: Record<string, unknown>, opts:
     }
   }
   const foundEmails = new Set(found.map((r) => r.email));
+  const idByEmail = new Map(found.map((r) => [String(r.email).toLowerCase(), r.id]));
+  const emailById = new Map([...ownedRows, ...found].map((r) => [r.id, String(r.email).toLowerCase()]));
+  // Everyone asked for, in the order asked, for a per-person answer.
+  const asked = [
+    ...ids.map((id) => ({ contact_id: owned.includes(id) ? id : null, email: emailById.get(id) ?? null, as: 'id' as const, raw: id })),
+    ...emails.map((e) => ({ contact_id: idByEmail.get(e) ?? null, email: e, as: EMAIL_RE.test(e) ? 'email' as const : 'invalid' as const, raw: e })),
+  ];
   return {
     ids: [...new Set([...owned, ...found.map((r) => r.id)])],
     notFound: [...notFoundIds, ...goodEmails.filter((e) => !foundEmails.has(e))],
     invalidEmails,
     createdContacts,
+    asked,
   };
+}
+
+/** Per-person answers for a call of up to this many people (skips are only itemised up to 100). */
+const RESULTS_MAX = 100;
+
+type Asked = Awaited<ReturnType<typeof resolveContacts>>['asked'];
+
+/**
+ * What happened to each person asked for: added, skipped (and why, in words),
+ * not found, or not an address. One entry per person, in the order asked, so a
+ * Zapier, Make or n8n step that adds one person can read its own answer.
+ */
+function enrolResults(asked: Asked, skips: Array<{ contact_id: string; reason: string; detail?: string | null }>) {
+  if (asked.length > RESULTS_MAX) return undefined;
+  const skipBy = new Map(skips.map((s) => [s.contact_id, s]));
+  const seen = new Set<string>();
+  const out: Array<Record<string, unknown>> = [];
+  for (const a of asked) {
+    const key = a.contact_id || `${a.as}:${a.raw}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    if (a.as === 'invalid') {
+      out.push({ email: a.raw, contact_id: null, outcome: 'invalid', reason_code: 'invalid_email', reason: 'not a valid email address', detail: null });
+    } else if (!a.contact_id) {
+      out.push({ email: a.email, contact_id: null, outcome: 'not_found', reason_code: 'not_found', reason: 'not a contact in this account', detail: null });
+    } else {
+      const s = skipBy.get(a.contact_id);
+      out.push(s
+        ? { email: a.email, contact_id: a.contact_id, outcome: 'skipped', reason_code: s.reason, reason: (ENROL_SKIP_LABEL as Record<string, string>)[s.reason] || s.reason, detail: s.detail ?? null }
+        : { email: a.email, contact_id: a.contact_id, outcome: 'added', reason_code: null, reason: null, detail: null });
+    }
+  }
+  return out;
 }
 
 const listsAdd: Handler = async (req) => {
@@ -485,7 +565,8 @@ const listsAdd: Handler = async (req) => {
 
 const listsRemove: Handler = async (req) => {
   const id = pathId(req, 'id', 'list');
-  const contactId = pathId(req, 'contact_id', 'contact');
+  await listsService.get(req.userId, id);
+  const contactId = await contactRef(req, 'contact_id');
   const res = await listsService.removeContacts(req.userId, id, [contactId]);
   return { body: { object: 'list_change', list_id: id, removed: res.success } };
 };
@@ -567,6 +648,7 @@ const campaignsEnrol: Handler = async (req) => {
       body: {
         object: 'enrolment_result', campaign_id: c.id, added: 0, skipped: 0, total: null, reasons: {}, skips: [],
         not_found: r.notFound, invalid_emails: r.invalidEmails, created_contacts: createdContacts,
+        results: enrolResults(r.asked, []),
       },
     };
   }
@@ -580,14 +662,17 @@ const campaignsEnrol: Handler = async (req) => {
   return {
     body: {
       object: 'enrolment_result', campaign_id: c.id, added: result.added, skipped: result.skipped, total: result.total,
-      reasons: result.reasons, skips: result.skips, not_found: r.notFound, invalid_emails: r.invalidEmails, created_contacts: createdContacts,
+      reasons: result.reasons,
+      skips: result.skips.map((s) => ({ ...s, reason_label: (ENROL_SKIP_LABEL as Record<string, string>)[s.reason] || s.reason })),
+      not_found: r.notFound, invalid_emails: r.invalidEmails, created_contacts: createdContacts,
+      results: enrolResults(r.asked, result.skips),
     },
   };
 };
 
 const campaignsUnenrol: Handler = async (req) => {
   const c = await ownedCampaign(req.userId, pathId(req, 'id', 'campaign'));
-  const contactId = pathId(req, 'contact_id', 'contact');
+  const contactId = await contactRef(req, 'contact_id');
   const { data, error } = await supabaseAdmin.from('campaign_contacts').select('id').eq('campaign_id', c.id).eq('contact_id', contactId).maybeSingle();
   if (error) throw error;
   if (!data) throw new PublicApiError('resource_not_found', 'That contact is not in this campaign.', 'contact_id');
@@ -844,6 +929,7 @@ export const HANDLERS: Record<string, Handler> = {
   'contacts.delete': contactsDelete,
   'contacts.unsubscribe': contactsUnsubscribe,
   'contacts.activities': contactsActivities,
+  'unsubscribes.create': unsubscribesCreate,
   'lists.list': listsList,
   'lists.create': listsCreate,
   'lists.get': listsGet,

@@ -1,0 +1,67 @@
+name: Deploy the Make app
+
+# Uploads integrations/make into the Sincerely custom app in Make, so a
+# merged change is live in Make's scenario editor without anyone clicking
+# through Make's app builder.
+#
+# Needs, once, in GitHub > Settings > Secrets and variables > Actions:
+#   secret   MAKE_API_TOKEN     a Make API token with the sdk-apps scopes
+#   variable MAKE_ZONE          the start of your Make address, e.g. eu1.make.com
+#   variable MAKE_APP_ID        the custom app's name in Make, e.g. sincerely-a1b2c3
+# and, only if the API is not at the default address:
+#   variable SINCERELY_API_URL  for example https://api.usesincerely.com
+#
+# Until the secret and both variables are set, the workflow says so and stops.
+
+on:
+  push:
+    branches: [main]
+    paths: ['integrations/make/**', 'shared/src/public-api.ts', '.github/workflows/make-deploy.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: make-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Test and upload to Make
+    runs-on: ubuntu-latest
+    env:
+      MAKE_API_TOKEN: ${{ secrets.MAKE_API_TOKEN }}
+      MAKE_ZONE: ${{ vars.MAKE_ZONE }}
+      MAKE_APP_ID: ${{ vars.MAKE_APP_ID }}
+      SINCERELY_API_URL: ${{ vars.SINCERELY_API_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Is deployment set up?
+        id: ready
+        run: |
+          if [ -z "$MAKE_API_TOKEN" ] || [ -z "$MAKE_ZONE" ] || [ -z "$MAKE_APP_ID" ]; then
+            echo "::notice title=Make deploy skipped::Add the MAKE_API_TOKEN secret and the MAKE_ZONE and MAKE_APP_ID variables to deploy the Make app."
+            echo "go=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # shared/ is built so the tests can check every endpoint the app calls exists.
+      - name: Install
+        if: steps.ready.outputs.go == 'true'
+        run: |
+          npm ci
+          npm run build:shared
+          npm ci --prefix integrations/make
+
+      - name: Test
+        if: steps.ready.outputs.go == 'true'
+        run: npm test --prefix integrations/make
+
+      - name: Upload to Make
+        if: steps.ready.outputs.go == 'true'
+        run: node integrations/make/deploy.js

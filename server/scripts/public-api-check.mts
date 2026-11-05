@@ -331,6 +331,30 @@ console.log('\nUpdating: merges, blanks and upserts');
   is('only this account\'s campaigns, only live enrolments', q.params.get('campaigns.user_id') === `eq.${USER}` && /pending.*active.*paused/.test(q.params.get('status') || ''));
   delete custom.campaign_contacts;
 
+  // One call for no-code tools: unsubscribe an address whether or not it is a contact.
+  db.suppression_list = [];
+  db.contacts[0].is_unsubscribed = false;
+  const one = await call('POST', '/v1/unsubscribes', { body: { email: 'ADA@example.com' } });
+  is('unsubscribes: a contact\'s address unsubscribes the contact', one.status === 200 && one.json?.was_contact === true && one.json?.contact_id === id && db.contacts[0].is_unsubscribed === true, JSON.stringify(one.json));
+  const two = await call('POST', '/v1/unsubscribes', { body: { email: 'nobody-yet@example.com' } });
+  is('unsubscribes: any other address is suppressed', two.status === 200 && two.json?.was_contact === false && db.suppression_list.some((x) => x.email === 'nobody-yet@example.com' && x.reason === 'unsubscribed'));
+  const bad = await call('POST', '/v1/unsubscribes', { body: { email: 'not an address' } });
+  is('unsubscribes: a non-address is refused', bad.status === 400 && bad.json?.error?.param === 'email');
+
+  // Removing by email, which is what a Make or n8n step has to hand.
+  const CAMP = '33333333-3333-4333-8333-333333333333';
+  db.campaigns = [{ id: CAMP, user_id: USER, name: 'Q4', status: 'running', list_id: null, created_at: T0, updated_at: T0 }];
+  db.campaign_contacts = [{ id: 'eeeeeeee-0000-4000-8000-000000000001', campaign_id: CAMP, contact_id: id, status: 'active' }];
+  const rm = await call('DELETE', `/v1/campaigns/${CAMP}/contacts/${encodeURIComponent('Ada@Example.com')}`);
+  is('a campaign removal can name the contact by email', rm.status === 200 && rm.json?.contact_id === id && db.campaign_contacts.length === 0, JSON.stringify(rm.json));
+  const rm404 = await call('DELETE', `/v1/campaigns/${CAMP}/contacts/${encodeURIComponent('ghost@example.com')}`);
+  is('an email that is not a contact is a plain 404', rm404.status === 404 && /no contact with the address ghost@example.com/.test(rm404.json?.error?.message || ''));
+
+  const enr = await call('POST', `/v1/campaigns/${CAMP}/contacts`, { body: { emails: ['ghost@example.com', 'not-an-address', 'ghost@example.com'] } });
+  const res = enr.json?.results || [];
+  is('enrolling: one answer per person asked for, in order, without repeats',
+    enr.status === 200 && res.length === 2 && res[0].outcome === 'not_found' && res[0].email === 'ghost@example.com' && res[1].outcome === 'invalid' && res[1].reason === 'not a valid email address', JSON.stringify(enr.json));
+
   const del = await call('DELETE', '/v1/contacts/00000000-0000-4000-8000-000000000999');
   is('deleting a contact that is not there: 404, nothing deleted', del.status === 404 && db.contacts.length === 1);
 }
