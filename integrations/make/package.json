@@ -1,0 +1,14 @@
+{
+  "name": "sincerely-make",
+  "version": "1.0.0",
+  "description": "Sincerely for Make: replies, contacts and campaigns, on the Sincerely public API (v1).",
+  "private": true,
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "deploy": "node deploy.js"
+  },
+  "devDependencies": {
+    "ajv": "8.17.1"
+  }
+}

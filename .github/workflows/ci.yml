@@ -73,6 +73,28 @@ jobs:
         working-directory: integrations/zapier
         run: npm test
 
+  make:
+    name: Make app
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: |
+          npm ci
+          npm run build:shared
+          npm ci --prefix integrations/make
+
+      # Every section against Make's own schemas, every endpoint against the
+      # public API, and the deployer against a stand-in for Make's SDK API.
+      - name: Test
+        run: npm test --prefix integrations/make
+
   extension:
     name: Extension suites
     runs-on: ubuntu-latest

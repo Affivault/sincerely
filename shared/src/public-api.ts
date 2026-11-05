@@ -480,6 +480,14 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
     returns: 'contact', responseExample: { ...CONTACT_EXAMPLE, unsubscribed: true },
   },
   {
+    id: 'unsubscribes.create', group: 'Contacts', method: 'POST', path: '/v1/unsubscribes', scope: 'write',
+    summary: 'Unsubscribe an email address',
+    description: 'One call for "never email this address again", whether or not it is a contact yet. A contact is unsubscribed and taken out of every sequence; any other address is added to your suppression list. Safe to repeat.',
+    body: [{ name: 'email', type: 'string', required: true, description: 'The address.' }],
+    bodyExample: { email: 'no-thanks@example.com' },
+    returns: 'unsubscribe', responseExample: { object: 'unsubscribe', email: 'no-thanks@example.com', was_contact: true, contact_id: ID.contact },
+  },
+  {
     id: 'contacts.activities', group: 'Contacts', method: 'GET', path: '/v1/contacts/{id}/activities', scope: 'read',
     summary: 'List a contact\'s activity', description: 'Everything that happened to this contact in campaigns, newest first.',
     params: [idParam('contact'), { name: 'type', in: 'query', type: 'string', enum: ACTIVITY_TYPES, description: 'Only this type.' }, ...PAGINATION],
@@ -539,7 +547,7 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
   {
     id: 'lists.remove', group: 'Lists', method: 'DELETE', path: '/v1/lists/{id}/contacts/{contact_id}', scope: 'write',
     summary: 'Remove a contact from a list', description: 'Takes the contact out of the list. The contact is kept.',
-    params: [idParam('list'), { name: 'contact_id', in: 'path', type: 'string', required: true, description: 'The contact\'s id.' }],
+    params: [idParam('list'), { name: 'contact_id', in: 'path', type: 'string', required: true, description: 'The contact\'s id, or their email address (URL-encoded).' }],
     returns: 'list_change', responseExample: { object: 'list_change', list_id: ID.list, removed: 1 },
   },
 
@@ -564,7 +572,7 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
   {
     id: 'campaigns.enrol', group: 'Campaigns', method: 'POST', path: '/v1/campaigns/{id}/contacts', scope: 'write',
     summary: 'Add contacts to a campaign',
-    description: 'Enrols contacts by id, by email, or as full contact objects (created or updated first, matched by email). The same checks as the app apply: nobody unsubscribed, suppressed, bounced or already in the campaign is added, and the answer says who was skipped and why. Up to 1,000 at a time.',
+    description: 'Enrols contacts by id, by email, or as full contact objects (created or updated first, matched by email). The same checks as the app apply: nobody unsubscribed, suppressed, bounced or already in the campaign is added, and the answer says who was skipped and why. For up to 100 people, `results` has one entry per person asked for, in order: outcome (added, skipped, not_found or invalid) and the reason in words. Up to 1,000 at a time.',
     params: [idParam('campaign')],
     body: [
       { name: 'contact_ids', type: 'string[]', description: 'Contact ids.' },
@@ -573,13 +581,16 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
     ],
     bodyExample: { contacts: [{ email: 'ada@analyticalengines.co.uk', first_name: 'Ada', company: 'Analytical Engines' }] },
     returns: 'enrolment_result',
-    responseExample: { object: 'enrolment_result', campaign_id: ID.campaign, added: 1, skipped: 0, total: 413, reasons: {}, skips: [], not_found: [] },
+    responseExample: {
+      object: 'enrolment_result', campaign_id: ID.campaign, added: 1, skipped: 0, total: 413, reasons: {}, skips: [], not_found: [], invalid_emails: [], created_contacts: 0,
+      results: [{ email: 'ada@analyticalengines.co.uk', contact_id: ID.contact, outcome: 'added', reason_code: null, reason: null, detail: null }],
+    },
     errors: ['campaign_finished'],
   },
   {
     id: 'campaigns.unenrol', group: 'Campaigns', method: 'DELETE', path: '/v1/campaigns/{id}/contacts/{contact_id}', scope: 'write',
     summary: 'Remove a contact from a campaign', description: 'Stops their sequence and takes them out of the campaign.',
-    params: [idParam('campaign'), { name: 'contact_id', in: 'path', type: 'string', required: true, description: 'The contact\'s id.' }],
+    params: [idParam('campaign'), { name: 'contact_id', in: 'path', type: 'string', required: true, description: 'The contact\'s id, or their email address (URL-encoded).' }],
     returns: 'deleted', responseExample: { object: 'enrolment', campaign_id: ID.campaign, contact_id: ID.contact, deleted: true },
   },
   {
