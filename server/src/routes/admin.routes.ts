@@ -60,6 +60,7 @@ adminRoutes.post('/settings/plans', adminController.savePlans);
 adminRoutes.post('/settings/prices', adminController.savePrices);
 adminRoutes.post('/settings/signups', adminController.saveSignups);
 adminRoutes.post('/settings/announcement', adminController.saveAnnouncement);
+adminRoutes.post('/settings/app-links', adminController.saveAppLinks);
 adminRoutes.post('/settings/kill-switch', adminController.killSwitch);
 adminRoutes.get('/sending', adminController.sending);
 adminRoutes.post('/mailboxes/:mailboxId/active', adminController.mailboxActive);

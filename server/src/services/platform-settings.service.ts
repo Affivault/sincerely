@@ -20,7 +20,7 @@ import {
  */
 
 const REFRESH_MS = 30_000;
-const KEYS = ['plans', 'credit_prices', 'signups', 'announcement', 'kill_switch'] as const;
+const KEYS = ['plans', 'credit_prices', 'signups', 'announcement', 'kill_switch', 'app_links'] as const;
 type Key = typeof KEYS[number];
 
 const DEFAULT_PLANS: Record<PlanId, Required<PlanOverride>> = Object.fromEntries(
@@ -34,6 +34,7 @@ export const EMPTY_SETTINGS: PlatformSettings = {
   signups: { mode: 'open', allow: [] },
   announcement: null,
   kill_switch: null,
+  app_links: {},
 };
 
 let current: PlatformSettings = structuredClone(EMPTY_SETTINGS);
@@ -120,6 +121,7 @@ export const platformSettings = {
     return {
       signups: s.signups.mode,
       announcement: s.announcement,
+      app_links: s.app_links || {},
       credit_prices: { ...CREDIT_PRICES },
       plans: Object.fromEntries((Object.keys(PLANS) as PlanId[]).map((id) => [id, { maxInboxes: PLANS[id].maxInboxes, emailsPerMonth: PLANS[id].emailsPerMonth, prospectCredits: PLANS[id].prospectCredits }])) as PublicPlatformInfo['plans'],
     };

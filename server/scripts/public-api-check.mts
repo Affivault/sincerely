@@ -430,6 +430,74 @@ console.log('\nThe example request bodies are valid requests');
   }
 }
 
+console.log('\nThe Zapier app, driving this server');
+{
+  // The real app from integrations/zapier, pointed at this server, so the two cannot drift apart.
+  const { createRequire } = await import('node:module');
+  const { fileURLToPath } = await import('node:url');
+  const zapierDir = fileURLToPath(new URL('../../integrations/zapier/', import.meta.url));
+  const zreq = createRequire(`${zapierDir}index.js`);
+  let ZapApp: any;
+  let zapierCore: any;
+  try {
+    process.env.SINCERELY_API_URL = base;
+    ZapApp = zreq('./index.js');
+    zapierCore = zreq('zapier-platform-core');
+  } catch (e: any) {
+    is('the Zapier app is installed (npm ci --prefix integrations/zapier)', false, e?.message);
+  }
+  if (ZapApp) {
+    const zap = zapierCore.createAppTester(ZapApp);
+    const authData = { api_key: KEY };
+
+    const me = await zap(ZapApp.authentication.test, { authData });
+    is('Zapier: connecting checks the key against /v1/me', me?.user_id === USER && me?.api_key?.name === 'Zapier');
+
+    db.contacts = [];
+    const created = await zap(ZapApp.creates.create_contact.operation.perform, {
+      authData, inputData: { email: 'Grace@Example.com', first_name: 'Grace', company: '', tags: 'navy' },
+    });
+    const row = db.contacts.find((c) => c.email === 'grace@example.com');
+    is('Zapier: Create or Update Contact creates a lead, from the API, with nothing blank written',
+      created?.email === 'grace@example.com' && row?.source === 'api' && row?.lifecycle === 'prospect' && !('company' in row), JSON.stringify(row));
+
+    const again = await zap(ZapApp.creates.create_contact.operation.perform, { authData, inputData: { email: 'grace@example.com', job_title: 'Admiral' } });
+    is('Zapier: the same address again updates the same contact', again?.id === row?.id && db.contacts.filter((c) => c.email === 'grace@example.com').length === 1 && row?.job_title === 'Admiral');
+
+    db.webhook_endpoints = [];
+    const sub = await zap(ZapApp.triggers.reply_interested.operation.performSubscribe, { authData, targetUrl: 'https://203.0.113.10/hooks/catch/1/abc', inputData: {} });
+    const hook = db.webhook_endpoints[0];
+    is('Zapier: turning a Zap on creates a v1 webhook for that one event, marked as Zapier\'s',
+      sub?.id === hook?.id && hook?.format === 'v1' && hook?.source === 'zapier' && JSON.stringify(hook?.events) === '["reply.interested"]', JSON.stringify(hook));
+    is('Zapier: the signing secret comes back once, as whsec_', /^whsec_[0-9a-f]{48}$/.test(sub?.secret || ''));
+
+    const list = await zap(ZapApp.triggers.reply_interested.operation.performList, { authData, inputData: {} });
+    is('Zapier: the test record is a full interested-reply event', list?.length === 1 && list[0].event_type === 'reply.interested' && !!list[0].contact?.email && !!list[0].reply);
+
+    await zap(ZapApp.triggers.reply_interested.operation.performUnsubscribe, { authData, subscribeData: sub });
+    is('Zapier: turning the Zap off deletes the webhook', db.webhook_endpoints.length === 0);
+    await zap(ZapApp.triggers.reply_interested.operation.performUnsubscribe, { authData, subscribeData: sub });
+    is('Zapier: turning it off again (already gone) does not fail', true);
+
+    let msg = '';
+    try {
+      await zap(ZapApp.creates.add_to_campaign.operation.perform, { authData, inputData: { campaign_id: '99999999-9999-4999-8999-999999999999', email: 'grace@example.com' } });
+    } catch (e: any) { msg = e.message; }
+    is('Zapier: a campaign that does not exist is a plain sentence, with the reference', /No such campaign/.test(msg) && /req_[0-9a-f]{20}/.test(msg), msg);
+
+    db.suppression_list = [];
+    const un = await zap(ZapApp.creates.unsubscribe.operation.perform, { authData, inputData: { email: 'stranger@example.com' } });
+    is('Zapier: unsubscribing an address that is not a contact suppresses it', un?.was_contact === false && db.suppression_list.some((x) => x.email === 'stranger@example.com'));
+
+    let badKey = '';
+    try { await zap(ZapApp.authentication.test, { authData: { api_key: 'sk_live_revoked' } }); } catch (e: any) { badKey = e.name; }
+    is('Zapier: a revoked key asks the person to reconnect', badKey === 'ExpiredAuthError');
+
+    const logged = (db.api_request_log || []).filter((r) => /Zapier/.test(r.user_agent || ''));
+    is('Zapier: its calls are in the request log, named as Zapier', logged.length >= 5);
+  }
+}
+
 server.close();
 fake.close();
 console.log(`\n${passed} passed, ${failed} failed`);

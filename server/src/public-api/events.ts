@@ -328,7 +328,9 @@ export async function sampleEvent(userId: string, type: PublicEventType): Promis
     if (!internal || !data) return fallback();
     const events = await publicEventsFor(userId, internal, data);
     const match = events.find((e) => e.type === type);
-    return match ?? fallback();
+    // A sample is for mapping fields: one missing the contact (since deleted) would hide them all.
+    if (!match || (!type.startsWith('campaign.') && !(match.data as any).contact)) return fallback();
+    return match;
   } catch (e: any) {
     console.warn('[Webhook v1] sample fell back to the example:', e?.message || e);
     return fallback();

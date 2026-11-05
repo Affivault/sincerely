@@ -6,6 +6,7 @@ import {
   CREDIT_PRICES, PLANS,
   type AccountOverrides, type AdminSendingReport, type AdminSettingsResponse, type Announcement, type CreditAction,
   type PlanId, type PlanOverride, type PlatformSettings,
+  APP_LINK_HOSTS, type AppLinkId, type AppLinks,
 } from '@lemlist/shared';
 import { accountControls } from './account-controls.service.js';
 import { adminAccountsService, getUser, writeControls } from './admin-accounts.service.js';
@@ -87,6 +88,20 @@ function cleanAnnouncement(input: any): Announcement | null {
   return { id, text, tone, link_url: url || null, link_label: label };
 }
 
+function cleanAppLinks(input: any): AppLinks {
+  const out: AppLinks = {};
+  for (const id of Object.keys(APP_LINK_HOSTS) as AppLinkId[]) {
+    const v = String(input?.[id] ?? '').trim();
+    if (!v) continue;
+    if (v.length > 500 || /\s/.test(v) || !APP_LINK_HOSTS[id].test(v)) {
+      const where = id === 'zapier' ? 'zapier.com' : id === 'make' ? 'make.com' : 'n8n.io or npmjs.com';
+      throw new AppError(`The ${id === 'n8n' ? 'n8n' : id === 'make' ? 'Make' : 'Zapier'} link must be an https:// address on ${where}.`, 400);
+    }
+    out[id] = v;
+  }
+  return out;
+}
+
 async function save(actor: string, key: keyof PlatformSettings, value: unknown, details: Record<string, any>) {
   try {
     await platformSettings.save(key, value, actor);
@@ -138,6 +153,12 @@ export const adminPlatformService = {
   async saveAnnouncement(actor: string, input: unknown) {
     const a = cleanAnnouncement(input);
     await save(actor, 'announcement', a, { text: a?.text ?? null });
+    return this.settings();
+  },
+
+  async saveAppLinks(actor: string, input: unknown) {
+    const links = cleanAppLinks(input);
+    await save(actor, 'app_links', Object.keys(links).length ? links : null, { links });
     return this.settings();
   },
 

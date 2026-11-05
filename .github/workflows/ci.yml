@@ -37,6 +37,10 @@ jobs:
       - name: Typecheck server and client
         run: npm run typecheck
 
+      # The public API check also drives the real Zapier app against the server.
+      - name: Install the Zapier app
+        run: npm ci --prefix integrations/zapier
+
       # Bounce classification, the whole send path, per-step analytics, what an
       # enrolment actually did, campaign health, sending readiness, the API-key
       # chain, and the write-path audit.
@@ -47,6 +51,27 @@ jobs:
         run: |
           npm run build:server
           npm run build:client
+
+  zapier:
+    name: Zapier app
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: integrations/zapier/package-lock.json
+
+      - name: Install
+        working-directory: integrations/zapier
+        run: npm ci
+
+      # Schema validation, and every trigger, action and search step by step.
+      - name: Test
+        working-directory: integrations/zapier
+        run: npm test
 
   extension:
     name: Extension suites

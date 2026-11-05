@@ -246,6 +246,15 @@ export interface Announcement {
   link_label?: string | null;
 }
 
+/** Where Sincerely's own apps live on Zapier, Make and n8n (invite links while they are private). */
+export type AppLinkId = 'zapier' | 'make' | 'n8n';
+export type AppLinks = Partial<Record<AppLinkId, string>>;
+export const APP_LINK_HOSTS: Record<AppLinkId, RegExp> = {
+  zapier: /^https:\/\/([a-z0-9-]+\.)*zapier\.com\//i,
+  make: /^https:\/\/([a-z0-9-]+\.)*make\.com\//i,
+  n8n: /^https:\/\/([a-z0-9-]+\.)*(n8n\.io|npmjs\.com)\//i,
+};
+
 export interface PlatformSettings {
   plans: Partial<Record<PlanId, PlanOverride>>;
   credit_prices: Partial<Record<CreditAction, number>>;
@@ -253,6 +262,7 @@ export interface PlatformSettings {
   announcement: Announcement | null;
   /** While set, nothing sends on the whole platform. */
   kill_switch: { reason: string; at: string; by: string } | null;
+  app_links: AppLinks;
 }
 
 /** GET /admin/settings: what is set, beside the defaults it overrides. */
@@ -267,6 +277,7 @@ export interface AdminSettingsResponse {
 export interface PublicPlatformInfo {
   signups: SignupMode;
   announcement: Announcement | null;
+  app_links: AppLinks;
   credit_prices: Record<CreditAction, number>;
   plans: Record<PlanId, Required<PlanOverride>>;
 }

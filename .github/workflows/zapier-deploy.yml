@@ -1,0 +1,75 @@
+name: Deploy the Zapier app
+
+# Pushes integrations/zapier to the Sincerely integration in Zapier, so a
+# merged change is live in the Zap editor without anyone running the CLI.
+#
+# Needs, once, in GitHub > Settings > Secrets and variables > Actions:
+#   secret   ZAPIER_DEPLOY_KEY    from developer.zapier.com > Settings > Deploy Keys
+#   variable ZAPIER_APP_ID        the number in the integration's URL on developer.zapier.com
+# and, only if the API is not at the default address:
+#   variable SINCERELY_API_URL    for example https://api.usesincerely.com
+#
+# Until the secret and the variable are set, the workflow says so and stops.
+
+on:
+  push:
+    branches: [main]
+    paths: ['integrations/zapier/**', '.github/workflows/zapier-deploy.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: zapier-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Test and push to Zapier
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: integrations/zapier
+    env:
+      ZAPIER_DEPLOY_KEY: ${{ secrets.ZAPIER_DEPLOY_KEY }}
+      ZAPIER_APP_ID: ${{ vars.ZAPIER_APP_ID }}
+      SINCERELY_API_URL: ${{ vars.SINCERELY_API_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: integrations/zapier/package-lock.json
+
+      - name: Is deployment set up?
+        id: ready
+        run: |
+          if [ -z "$ZAPIER_DEPLOY_KEY" ] || [ -z "$ZAPIER_APP_ID" ]; then
+            echo "::notice title=Zapier deploy skipped::Add the ZAPIER_DEPLOY_KEY secret and the ZAPIER_APP_ID variable to deploy the Zapier app."
+            echo "go=false" >> "$GITHUB_OUTPUT"
+          elif ! echo "$ZAPIER_APP_ID" | grep -Eq '^[0-9]+$'; then
+            echo "::error title=ZAPIER_APP_ID is not a number::Use the number from the integration's address on developer.zapier.com, for example 212345."
+            exit 1
+          else
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install
+        if: steps.ready.outputs.go == 'true'
+        run: npm ci
+
+      - name: Test
+        if: steps.ready.outputs.go == 'true'
+        run: npm test
+
+      - name: Push
+        if: steps.ready.outputs.go == 'true'
+        run: |
+          printf '{"id": %s, "key": "App%s"}\n' "$ZAPIER_APP_ID" "$ZAPIER_APP_ID" > .zapierapprc
+          npx --yes zapier-platform-cli@19.3.0 push
+
+      - name: Point it at the API
+        if: steps.ready.outputs.go == 'true' && env.SINCERELY_API_URL != ''
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          npx --yes zapier-platform-cli@19.3.0 env:set "$VERSION" "SINCERELY_API_URL=$SINCERELY_API_URL"
