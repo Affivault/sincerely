@@ -17,10 +17,19 @@
 const DEFAULT_API = 'https://skysend-api.onrender.com';
 const KEYS_URL = 'https://usesincerely.com/developer?tab=api-keys';
 
-/** The API origin the app talks to; deploy.js fills `common` with it. */
-function common(apiOrigin = DEFAULT_API) {
+/**
+ * The API's address, written straight into the base and the connection.
+ * (Make does not fill in `{{common.*}}` when it tests a connection, so the
+ * first version, which read the address from common, answered "Invalid URL".)
+ */
+function apiUrlOf(apiOrigin = DEFAULT_API) {
   const origin = String(apiOrigin).replace(/\/+$/, '').replace(/\/(api\/)?v1$/, '');
-  return { apiUrl: `${origin}/v1` };
+  return `${origin}/v1`;
+}
+
+/** Kept in the app's common data for reference only; nothing reads it. */
+function common(apiOrigin = DEFAULT_API) {
+  return { apiUrl: apiUrlOf(apiOrigin) };
 }
 
 const UA = 'Make (Sincerely app)';
@@ -29,8 +38,8 @@ const UA = 'Make (Sincerely app)';
 
 const errorMessage = "{{ifempty(body.error.message, 'Sincerely answered ' + statusCode + '.')}} (Sincerely reference {{ifempty(body.request_id, 'none')}})";
 
-const base = {
-  baseUrl: '{{common.apiUrl}}',
+const makeBase = (apiUrl) => ({
+  baseUrl: apiUrl,
   headers: {
     authorization: 'Bearer {{connection.apiKey}}',
     'user-agent': UA,
@@ -49,11 +58,11 @@ const base = {
     },
   },
   log: { sanitize: ['request.headers.authorization'] },
-};
+});
 
 /* ── Connection: an API key, checked against /v1/me ──────────────────── */
 
-const connection = {
+const makeConnection = (apiUrl) => ({
   key: 'sincerely',
   label: 'Sincerely',
   type: 'basic',
@@ -67,7 +76,7 @@ const connection = {
     },
   ],
   api: {
-    url: '{{common.apiUrl}}/me',
+    url: `${apiUrl}/me`,
     method: 'GET',
     headers: {
       authorization: 'Bearer {{parameters.apiKey}}',
@@ -82,7 +91,7 @@ const connection = {
     },
     log: { sanitize: ['request.headers.authorization'] },
   },
-};
+});
 
 /* ── Shared field specs ──────────────────────────────────────────────── */
 
@@ -543,4 +552,12 @@ const groups = [
   { label: 'Other', modules: ['makeApiCall'] },
 ];
 
-module.exports = { base, common, connection, webhooks, rpcs, modules, groups, EVENTS, DEFAULT_API };
+/** The parts that carry the API's address, for a given API origin. */
+function forApi(apiOrigin = DEFAULT_API) {
+  const apiUrl = apiUrlOf(apiOrigin);
+  return { base: makeBase(apiUrl), connection: makeConnection(apiUrl), common: common(apiOrigin) };
+}
+
+const { base, connection } = forApi();
+
+module.exports = { base, common, connection, forApi, webhooks, rpcs, modules, groups, EVENTS, DEFAULT_API };

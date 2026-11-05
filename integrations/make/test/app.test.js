@@ -164,6 +164,15 @@ test('the API key is never written to Make\'s logs', () => {
   assert.ok(app.connection.api.log.sanitize.includes('request.headers.authorization'));
 });
 
+test('nothing depends on common data: the API address is written into the base and the connection', () => {
+  const live = app.forApi('https://api.usesincerely.com');
+  assert.strictEqual(live.base.baseUrl, 'https://api.usesincerely.com/v1');
+  assert.strictEqual(live.connection.api.url, 'https://api.usesincerely.com/v1/me');
+  assert.strictEqual(app.connection.api.url, 'https://skysend-api.onrender.com/v1/me');
+  const everything = JSON.stringify([app.base, app.connection, app.webhooks, app.rpcs, app.modules]);
+  assert.ok(!everything.includes('common.'), 'a section still reads {{common.*}}');
+});
+
 test('common points at the API, from a bare origin or one with /v1', () => {
   assert.deepStrictEqual(app.common(), { apiUrl: 'https://skysend-api.onrender.com/v1' });
   assert.deepStrictEqual(app.common('https://api.usesincerely.com/'), { apiUrl: 'https://api.usesincerely.com/v1' });

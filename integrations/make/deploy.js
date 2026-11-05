@@ -109,22 +109,23 @@ async function deploy(cfg, opts = {}) {
   const appInfo = await call('GET', V);
   log(`Deploying to ${appInfo.app ? `"${appInfo.app.label}" (${cfg.appId} v${cfg.version})` : `${cfg.appId} v${cfg.version}`}`);
 
-  log('App: base and common');
-  await put(`${V}/base`, app.base);
-  await put(`${V}/common`, app.common(cfg.apiOrigin), JSON_TYPE);
+  const live = app.forApi(cfg.apiOrigin);
+  log(`App: base and common (API at ${live.common.apiUrl})`);
+  await put(`${V}/base`, live.base);
+  await put(`${V}/common`, live.common, JSON_TYPE);
 
   // Connection: Make names it, so it is found by label.
   log('Connection');
   const connections = (await call('GET', `${A}/connections`)).appConnections || [];
-  let conn = connections.find((c) => c.label === app.connection.label && c.type === app.connection.type);
+  let conn = connections.find((c) => c.label === live.connection.label && c.type === live.connection.type);
   if (!conn) {
-    const made = await call('POST', `${A}/connections`, { json: { label: app.connection.label, type: app.connection.type } });
+    const made = await call('POST', `${A}/connections`, { json: { label: live.connection.label, type: live.connection.type } });
     conn = made.appConnection || { name: '(dry run)' };
     summary.created.push(`connection ${conn.name}`);
   } else summary.updated.push(`connection ${conn.name}`);
   const C = `${cfg.sdk}/connections/${encodeURIComponent(conn.name)}`;
-  await put(`${C}/api`, app.connection.api);
-  await put(`${C}/parameters`, app.connection.parameters);
+  await put(`${C}/api`, live.connection.api);
+  await put(`${C}/parameters`, live.connection.parameters);
 
   // Webhooks: Make names them too; each one's label is unique.
   log(`Webhooks (${app.webhooks.length})`);
