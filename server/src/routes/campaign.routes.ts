@@ -73,6 +73,7 @@ campaignRoutes.post('/:id/pause', campaignsController.pause);
 campaignRoutes.post('/:id/resume', campaignsController.resume);
 campaignRoutes.post('/:id/cancel', campaignsController.cancel);
 campaignRoutes.post('/:id/retry-errors', campaignsController.retryErrors);
+campaignRoutes.post('/:id/pause-contacts', campaignsController.pauseContacts);
 campaignRoutes.post('/:id/resume-paused', campaignsController.resumePaused);
 campaignRoutes.get('/:id/forecast', campaignsController.forecast);
 

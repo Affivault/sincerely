@@ -16,12 +16,18 @@
    ═══════════════════════════════════════════════════════════════════════ */
 
 import { supabaseAdmin } from '../config/supabase.js';
-import { emailDomain, isFreeMailDomain } from '@lemlist/shared';
+import { emailDomain, isFreeMailDomain, MANUAL_PAUSE_PREFIX } from '@lemlist/shared';
 import { AppError } from '../middleware/error.middleware.js';
 import { chunk, selectInChunks } from '../utils/batch.js';
 
 /** The note left on a paused enrolment. Also how a resume recognises one. */
 export const COMPANY_PAUSE_PREFIX = 'Paused: ';
+/**
+ * Every pause a person chose (the command bar's "stop emailing bob@...",
+ * the inbox's "Stop for them") starts with this. Such a stop is a decision,
+ * not a wait, so it does not hold the campaign open: see checkCampaignCompletion.
+ */
+export { MANUAL_PAUSE_PREFIX };
 
 /** Most colleagues looked at per reply. A company bigger than this is not one relationship. */
 const MAX_COLLEAGUES = 500;
@@ -181,7 +187,7 @@ export async function pauseRecipient(userId: string, target: string): Promise<{ 
   for (const slice of chunk(ids)) {
     const { data, error } = await supabaseAdmin
       .from('campaign_contacts')
-      .update({ status: 'paused', next_send_at: null, error_message: `Paused by hand for ${label}` })
+      .update({ status: 'paused', next_send_at: null, error_message: `${MANUAL_PAUSE_PREFIX} for ${label}` })
       .in('contact_id', slice)
       .in('status', ['pending', 'active'])
       .select('id');
@@ -217,4 +223,43 @@ export async function resumeRecipient(userId: string, target: string): Promise<{
     }
   }
   return { resumed, label };
+}
+
+/**
+ * Stop one person's sequence in one campaign, and nobody else's.
+ *
+ * Named enrolments only, owner-checked through the campaign. The row is held
+ * as 'paused' with a by-hand reason, so the company-pause "resume all" leaves
+ * it alone and only a resume that names it (resumePausedContacts with its id)
+ * lets it go again. Rows that already finished, replied or bounced are left
+ * as they are: there is nothing left to stop.
+ */
+export async function pauseEnrolments(
+  userId: string,
+  campaignId: string,
+  campaignContactIds: string[],
+): Promise<number> {
+  const ids = campaignContactIds.filter((x) => typeof x === 'string' && x).slice(0, 1000);
+  if (ids.length === 0) return 0;
+  const { data: campaign, error: cErr } = await supabaseAdmin
+    .from('campaigns')
+    .select('id, user_id')
+    .eq('id', campaignId)
+    .maybeSingle();
+  if (cErr) throw new AppError(cErr.message, 500);
+  if (!campaign || campaign.user_id !== userId) throw new AppError('Campaign not found', 404);
+
+  let paused = 0;
+  for (const slice of chunk(ids)) {
+    const { data, error } = await supabaseAdmin
+      .from('campaign_contacts')
+      .update({ status: 'paused', next_send_at: null, error_message: `${MANUAL_PAUSE_PREFIX} from the inbox` })
+      .eq('campaign_id', campaignId)
+      .in('id', slice)
+      .in('status', ['pending', 'active'])
+      .select('id');
+    if (error) throw new AppError(error.message, 500);
+    paused += (data || []).length;
+  }
+  return paused;
 }

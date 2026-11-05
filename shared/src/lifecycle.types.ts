@@ -190,7 +190,19 @@ export interface OutreachEnrolment {
   campaign_name?: string | null;
   /** The campaign's own status: a cancelled campaign ends every sequence in it. */
   campaign_status?: string | null;
+  /** Why it is paused. A pause chosen by hand (see MANUAL_PAUSE_PREFIX) ends the sequence. */
+  error_message?: string | null;
 }
+
+/**
+ * The reason every by-hand stop is stored with ("Stop for them" in the inbox,
+ * "stop emailing bob@" in the command bar). Such a stop is a decision, so
+ * the person is not "In sequence" any more. Mirrored by outreach_state() in
+ * migration 116.
+ */
+export const MANUAL_PAUSE_PREFIX = 'Paused by hand';
+export const isManualPause = (r: { status?: string | null; error_message?: string | null }) =>
+  r.status === 'paused' && typeof r.error_message === 'string' && r.error_message.startsWith(MANUAL_PAUSE_PREFIX);
 
 export interface OutreachSummary {
   state: LeadOutreach;
@@ -215,7 +227,7 @@ export function summariseOutreach(rows: OutreachEnrolment[] | null | undefined):
     new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime();
   const sorted = [...list].sort(newest);
   const pick = (pred: (r: OutreachEnrolment) => boolean) => sorted.find(pred);
-  const enrolledLive = (r: OutreachEnrolment) => (OUTREACH_LIVE_STATUSES as readonly string[]).includes(r.status);
+  const enrolledLive = (r: OutreachEnrolment) => (OUTREACH_LIVE_STATUSES as readonly string[]).includes(r.status) && !isManualPause(r);
   const replied = pick((r) => r.status === 'replied');
   const live = pick((r) => enrolledLive(r)
     // No campaign status known (an older caller): trust the enrolment.
