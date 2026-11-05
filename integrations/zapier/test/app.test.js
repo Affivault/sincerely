@@ -46,6 +46,16 @@ test('every visible trigger, action and search has a description Zapier accepts'
   }
 });
 
+test('visible labels are title case the way Zapier checks it (words of four letters or more capitalised)', () => {
+  for (const kind of ['triggers', 'creates', 'searches']) {
+    for (const [key, def] of Object.entries(App[kind])) {
+      if (def.display.hidden) continue;
+      const lower = def.display.label.split(/\s+/).filter((w) => w.length >= 4 && /^[a-z]/.test(w));
+      assert.deepStrictEqual(lower, [], `${kind}.${key}: "${def.display.label}"`);
+    }
+  }
+});
+
 test('auth: the key is sent as a bearer token, and a read-only key is refused with a reason', async () => {
   nock(API, { reqheaders: { authorization: 'Bearer sk_live_test', 'user-agent': /Zapier/ } })
     .get('/v1/me').reply(200, { object: 'account', email: 'alex@affivault.com', api_key: { name: 'Zapier', scopes: ['read', 'write'] } });
