@@ -10,6 +10,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { inboxApi, type SendExtras } from '../../api/inbox.api';
 import { smtpApi } from '../../api/smtp.api';
 import { ReferralCard } from '../../components/inbox/ReferralCard';
+import { PanelResizer, usePanelWidth, usePersistentFlag } from '../../components/inbox/PanelResizer';
+import { useThreadContactId, SavePerson, PersonStage, PersonCampaigns, PersonLists } from '../../components/inbox/PersonManager';
 import { templateApi } from '../../api/template.api';
 import { crmApi } from '../../api/crm.api';
 import { companiesApi } from '../../api/companies.api';
@@ -101,6 +103,8 @@ import {
   Linkedin,
   ExternalLink,
   Trash2,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 
 import {
@@ -1313,11 +1317,12 @@ function TagFilterDropdown({ value, onChange }: { value: string; onChange: (v: s
 /** Day separator pill that sits on the timeline rail. */
 function DaySeparator({ label, gap }: { label: string; gap?: string }) {
   return (
-    <div className="relative z-10 flex items-center gap-2 py-2.5">
-      <span className="flex h-[22px] items-center rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2.5 text-micro font-semibold text-[var(--text-tertiary)] shadow-sm">
-        {label}
+    <div className="flex items-center gap-3 py-3" role="separator" aria-label={gap ? `${label}, ${gap}` : label}>
+      <span className="h-px flex-1 bg-[var(--border-subtle)]" />
+      <span className="text-micro font-semibold text-[var(--text-tertiary)]">
+        {label}{gap && <span className="font-medium"> · {gap}</span>}
       </span>
-      {gap && <span className="text-micro font-medium text-[var(--text-tertiary)]">{gap}</span>}
+      <span className="h-px flex-1 bg-[var(--border-subtle)]" />
     </div>
   );
 }
@@ -1340,59 +1345,55 @@ function TimelineMessage({ msg, threadSubject, isCurrent, expanded, onToggle }: 
   const viaInbox = msg.smtp_label || msg.smtp_email?.split('@')[0] || null;
 
   return (
-    <div id={`msg-${msg.id}`} className="relative flex gap-3 pb-3 animate-fade-in">
-      {/* Rail node — avatar for the contact, indigo send-node for you */}
-      <div className="relative z-10 w-9 flex-shrink-0 flex justify-center pt-2">
-        {isOutbound ? (
-          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--indigo)] text-white ring-4 ring-[var(--bg-app)] shadow-[0_2px_8px_-2px_rgba(47,63,156,0.55)]">
-            <SendHorizontal className="h-3.5 w-3.5" />
-          </span>
-        ) : (
-          <span className="inline-flex rounded-full ring-4 ring-[var(--bg-app)]">
-            <Avatar name={msg.contact_name || senderName(msg)} email={msg.from_email} size="lg" />
-          </span>
-        )}
-      </div>
-
-      {/* Card */}
+    <div id={`msg-${msg.id}`} className="pb-2.5 animate-fade-in">
       <div className={cn(
-        'flex-1 min-w-0 panel overflow-hidden transition-shadow',
-        isOutbound && 'border-[rgba(47,63,156,0.28)]',
-        isCurrent && 'ring-1 ring-[rgba(47,63,156,0.22)] shadow-[var(--shadow-sm)]'
+        'panel overflow-hidden transition-shadow',
+        // Yours are marked by an ink edge, not by a different shape: the
+        // conversation reads top to bottom as one column of mail.
+        isOutbound && 'shadow-[inset_3px_0_0_var(--indigo)]',
+        isCurrent && !isOutbound && 'ring-1 ring-[rgba(47,63,156,0.22)]',
+        !expanded && 'hover:border-[var(--border-default)]',
       )}>
         <button
           type="button"
           onClick={onToggle}
+          aria-expanded={expanded}
           className={cn(
-            'w-full text-left px-4 py-2.5 transition-colors',
-            expanded
-              ? cn('border-b', isOutbound
-                  ? 'bg-[var(--indigo-subtle)] border-[rgba(47,63,156,0.15)] hover:bg-[rgba(47,63,156,0.12)]'
-                  : 'border-[var(--border-subtle)] hover:bg-[var(--bg-hover)]/60')
-              : 'hover:bg-[var(--bg-hover)]/60'
+            'w-full flex items-start gap-3 text-left px-4 transition-colors hover:bg-[var(--bg-hover)]/50',
+            expanded ? 'pt-3.5 pb-3' : 'py-2.5',
           )}
         >
-          <div className="flex items-center gap-2">
-            <span className="text-strong font-semibold text-[var(--text-primary)] flex-shrink-0">
-              {isOutbound ? 'You' : senderName(msg)}
+          {isOutbound ? (
+            <span className={cn('flex flex-shrink-0 items-center justify-center rounded-full bg-[var(--indigo)] text-white font-semibold', expanded ? 'h-9 w-9 text-caption' : 'h-7 w-7 text-micro')}>
+              You
             </span>
-            <span className="text-caption text-[var(--text-tertiary)] truncate">
-              {isOutbound ? `to ${msg.to_email || 'contact'}` : (viaInbox ? `to ${viaInbox}` : msg.from_email)}
-            </span>
-            <span className="flex-1" />
-            {!expanded && intent && (
-              <span className={cn('hidden sm:inline-flex items-center text-micro font-semibold px-1.5 py-0.5 rounded-md flex-shrink-0', intent.bg, intent.text)}>
-                {intent.label}
-              </span>
-            )}
-            <span className="text-micro text-[var(--text-tertiary)] tabular flex-shrink-0" title={formatFullDateTime(msg.received_at)}>{stamp}</span>
-            <ChevronDown className={cn('h-3.5 w-3.5 text-[var(--text-tertiary)] transition-transform flex-shrink-0', expanded && 'rotate-180')} />
-          </div>
-
-          {!expanded ? (
-            <p className="mt-1 text-body text-[var(--text-tertiary)] truncate">{msgSnippet(msg)}</p>
           ) : (
-            (intent || subjectChanged || msg.campaign_name || (isOutbound && viaInbox)) && (
+            <Avatar name={msg.contact_name || senderName(msg)} email={msg.from_email} size={expanded ? 'md' : 'sm'} />
+          )}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-strong font-semibold text-[var(--text-primary)] flex-shrink-0">
+                {isOutbound ? 'You' : senderName(msg)}
+              </span>
+              {expanded && (
+                <span className="text-caption text-[var(--text-tertiary)] truncate">
+                  {isOutbound ? `to ${msg.to_email || 'contact'}` : msg.from_email}
+                </span>
+              )}
+              {!expanded && (
+                <span className="min-w-0 flex-1 truncate text-body text-[var(--text-tertiary)]">{msgSnippet(msg)}</span>
+              )}
+              {expanded && <span className="flex-1" />}
+              {!expanded && intent && (
+                <span className={cn('hidden md:inline-flex items-center text-micro font-semibold px-1.5 py-0.5 rounded-md flex-shrink-0', intent.bg, intent.text)}>
+                  {intent.label}
+                </span>
+              )}
+              <span className="text-micro text-[var(--text-tertiary)] tabular flex-shrink-0 whitespace-nowrap" title={formatFullDateTime(msg.received_at)}>{stamp}</span>
+              <ChevronDown className={cn('h-3.5 w-3.5 text-[var(--text-tertiary)] transition-transform flex-shrink-0', expanded && 'rotate-180')} />
+            </div>
+
+            {expanded && (intent || subjectChanged || msg.campaign_name || viaInbox) && (
               <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                 {intent && (
                   <span className={cn('inline-flex items-center gap-1 text-micro font-semibold px-1.5 py-0.5 rounded-md', intent.bg, intent.text)}>
@@ -1400,13 +1401,13 @@ function TimelineMessage({ msg, threadSubject, isCurrent, expanded, onToggle }: 
                     {intent.label}
                   </span>
                 )}
-                {isOutbound && viaInbox && (
-                  <span className="inline-flex items-center text-micro font-medium px-1.5 py-0.5 rounded-md bg-blue-500/8 text-blue-600 dark:text-blue-300" title={msg.smtp_email || undefined}>
-                    via {viaInbox}
+                {viaInbox && (
+                  <span className="inline-flex items-center text-micro font-medium px-1.5 py-0.5 rounded-md bg-[var(--bg-elevated)] text-[var(--text-tertiary)]" title={msg.smtp_email || undefined}>
+                    {isOutbound ? 'from' : 'to'} {viaInbox}
                   </span>
                 )}
                 {msg.campaign_name && (
-                  <span className="inline-flex items-center text-micro font-medium px-1.5 py-0.5 rounded-md bg-[var(--bg-elevated)] text-[var(--text-tertiary)]">{msg.campaign_name}</span>
+                  <span className="inline-flex items-center gap-1 text-micro font-medium px-1.5 py-0.5 rounded-md bg-[var(--bg-elevated)] text-[var(--text-tertiary)]"><Megaphone className="h-2.5 w-2.5" />{msg.campaign_name}</span>
                 )}
                 {subjectChanged && (
                   <span className="inline-flex items-center text-micro font-medium px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 truncate max-w-[260px]" title={msg.subject || undefined}>
@@ -1414,19 +1415,21 @@ function TimelineMessage({ msg, threadSubject, isCurrent, expanded, onToggle }: 
                   </span>
                 )}
               </div>
-            )
-          )}
+            )}
+          </div>
         </button>
 
         {expanded && (
-          <ErrorBoundary fallback={
-            <div className="p-5 text-strong text-[var(--text-secondary)]">
-              <p>{msg.body_text ? stripHtml(msg.body_text) : '(Unable to render email content)'}</p>
-            </div>
-          }>
-            <EmailBody html={msg.body_html} text={msg.body_text} />
-            <AttachmentList items={msg.attachments} messageId={msg.id} canDownload={!msg.read_only} />
-          </ErrorBoundary>
+          <div className="border-t border-[var(--border-subtle)]">
+            <ErrorBoundary fallback={
+              <div className="p-5 text-strong text-[var(--text-secondary)]">
+                <p>{msg.body_text ? stripHtml(msg.body_text) : '(Unable to render email content)'}</p>
+              </div>
+            }>
+              <EmailBody html={msg.body_html} text={msg.body_text} />
+              <AttachmentList items={msg.attachments} messageId={msg.id} canDownload={!msg.read_only} />
+            </ErrorBoundary>
+          </div>
         )}
       </div>
     </div>
@@ -1483,7 +1486,7 @@ function ThreadTimeline({ thread, threadSubject, selectedId }: {
 
   if (earlierCount > 0) {
     rows.push(
-      <div key="earlier" className="relative z-10 flex py-1.5">
+      <div key="earlier" className="flex justify-center pb-2.5">
         <button
           onClick={() => setShowEarlier(v => !v)}
           className="flex items-center gap-1.5 h-7 pl-2 pr-3 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-default)] transition-colors shadow-sm"
@@ -1521,11 +1524,7 @@ function ThreadTimeline({ thread, threadSubject, selectedId }: {
   }
 
   return (
-    <div className="relative">
-      {/* Timeline rail */}
-      <span aria-hidden className="absolute left-[17px] top-4 bottom-4 w-px bg-[var(--border-default)] opacity-70" />
-      {rows}
-    </div>
+    <div>{rows}</div>
   );
 }
 
@@ -1936,18 +1935,23 @@ function ThreadDealPanel({ msg }: { msg: Message }) {
   );
 }
 
-function ContactContextPanel({ msg, stats, onCopyEmail }: {
+function ContactContextPanel({ msg, stats, onCopyEmail, width }: {
   msg: Message;
   stats: { total: number; inbound: number; outbound: number; first: string | null; last: string | null; avgReply: number | null };
   onCopyEmail: () => void;
+  /** Dragged by the person; the rail keeps it between visits. */
+  width: number;
 }) {
   const email = msg.direction === 'outbound' ? (msg.contact_email || msg.to_email) : (msg.contact_email || msg.from_email);
   const name = msg.contact_name || sharedSenderLabel(email, msg.direction === 'outbound' ? null : msg.sender_name) || 'Contact';
   // Mail from a company is signed with its name ("GO Markets"); the domain
   // is the fallback. Never the sending subdomain.
   const company = (isMail(msg) && msg.sender_name && !msg.sender_name.includes('@') ? msg.sender_name : null) || companyFromEmail(email);
-  // Only link to the lead record when the message is matched to a real contact.
-  const contactHref = msg.contact_id ? `/contacts/${msg.contact_id}` : null;
+  // The person's record: the one the message names, or the one their
+  // address belongs to when inbox sync did not match it.
+  const person = useThreadContactId(msg.contact_id, email);
+  const contactHref = person.id ? `/contacts/${person.id}` : null;
+  const firstName = (name || '').split(/\s+/)[0] || 'them';
   const sendingInbox = msg.smtp_label || msg.smtp_email;
 
   const [copied, setCopied] = useState(false);
@@ -1959,7 +1963,7 @@ function ContactContextPanel({ msg, stats, onCopyEmail }: {
   const copy = () => { onCopyEmail(); setCopied(true); };
 
   return (
-    <aside aria-label="Conversation details" className="hidden xl:flex w-[300px] flex-shrink-0 border-l border-[var(--border-subtle)] bg-[var(--bg-surface)] flex-col overflow-y-auto">
+    <aside aria-label="Conversation details" style={{ width }} className="hidden xl:flex flex-shrink-0 bg-[var(--bg-surface)] flex-col overflow-y-auto">
       {/* ── Who this is — the person, then the shape of the conversation ── */}
       <div className="px-4 pt-5 pb-4">
         <div className="flex items-start gap-3">
@@ -1968,7 +1972,8 @@ function ContactContextPanel({ msg, stats, onCopyEmail }: {
             {contactHref ? (
               <Link
                 to={contactHref}
-                className="group flex items-center gap-1 text-strong font-semibold text-[var(--text-primary)] hover:text-[var(--indigo-text)] transition-colors leading-tight"
+                title={`Open ${name}'s page`}
+                className="group flex items-center gap-1 text-strong font-semibold text-[var(--text-primary)] hover:text-[var(--indigo-text)] hover:underline underline-offset-2 transition-colors leading-tight"
               >
                 <span className="truncate">{name}</span>
                 <ArrowUpRight className="h-3 w-3 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -2011,7 +2016,7 @@ function ContactContextPanel({ msg, stats, onCopyEmail }: {
               to={contactHref}
               className="flex items-center justify-center gap-1.5 h-8 rounded-lg border border-[var(--border-default)] text-caption font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] transition-colors"
             >
-              Open lead <ArrowUpRight className="h-3.5 w-3.5" />
+              Open page <ArrowUpRight className="h-3.5 w-3.5" />
             </Link>
           )}
         </div>
@@ -2032,6 +2037,15 @@ function ContactContextPanel({ msg, stats, onCopyEmail }: {
         </div>
       </div>
 
+      {/* ── Who they are to you: lead or contact, or nobody yet ── */}
+      {email && (
+        <RailSection title={person.id ? 'Lead or contact' : 'Save this person'}>
+          {person.id ? <PersonStage contactId={person.id} /> : person.resolving
+            ? <Skeleton className="h-9 w-full rounded-lg" />
+            : <SavePerson email={email} name={name} company={company} />}
+        </RailSection>
+      )}
+
       {/* ── Decide — a reply is triaged into a lead first, and only a pursued
           lead becomes a deal. Inbound only: there is nothing to decide about
           something you sent, or about a newsletter. ── */}
@@ -2049,8 +2063,22 @@ function ContactContextPanel({ msg, stats, onCopyEmail }: {
         </RailSection>
       )}
 
+      {/* ── Campaigns — and a stop that applies to this person alone ── */}
+      {person.id && (
+        <RailSection title="Campaigns">
+          <PersonCampaigns contactId={person.id} firstName={firstName} />
+        </RailSection>
+      )}
+
       {/* ── Deal — made here, where the conversation earns it ── */}
       <ThreadDealPanel msg={msg} />
+
+      {/* ── Lists — move between them without opening their page ── */}
+      {person.id && (
+        <RailSection title="Lists">
+          <PersonLists contactId={person.id} />
+        </RailSection>
+      )}
 
       {/* ── The thread itself: where it came from and how long it has run ── */}
       <RailSection title="Conversation">
@@ -2413,61 +2441,47 @@ function SaraCopilot({ msg, onUseDraft }: { msg: Message; onUseDraft: () => void
   if (isMail(msg)) return null;
   if (!intent && !hasDraft && !msg.sara_action) return null;
 
+  const said = msg.relay_summary
+    || msg.relay_next_step
+    || (msg.sara_action && RELAY_ACTION_TEXT[msg.sara_action])
+    || (hasDraft ? 'Relay drafted a reply for this conversation.' : 'Relay reviewed this reply and tagged its intent.');
+
+  /*
+   * One bar, not a card: what Relay read and the one thing to do about it.
+   * As a tall tinted card above the thread it outweighed the email it was
+   * about; the email is the thing being read.
+   */
   return (
-    <div className="mb-5 rounded-2xl border border-[rgba(47,63,156,0.22)] bg-[var(--indigo-subtle)] overflow-hidden">
-      <div className="flex items-start gap-3 p-4">
-        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--indigo)] text-white flex-shrink-0 shadow-[0_2px_8px_-2px_rgba(47,63,156,0.6)]">
-          <Sparkles className="h-4 w-4" />
-        </span>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-body font-semibold text-[var(--text-primary)]">Relay analysis</span>
-            {msg.relay_engine === 'ai' && (
-              <span className="text-micro font-medium text-[var(--text-tertiary)]" title="Read by AI">Read by AI</span>
-            )}
-            {info && (
-              <span className={cn('text-micro font-semibold px-1.5 py-0.5 rounded-full', info.bg, info.text)}>{info.label}</span>
-            )}
-            {conf != null && (
-              <span className="flex items-center gap-1.5 text-micro font-medium text-[var(--text-tertiary)]">
-                <span className="relative h-1 w-14 rounded-full bg-[var(--bg-elevated)] overflow-hidden">
-                  <span className="absolute inset-y-0 left-0 rounded-full bg-[var(--indigo)]" style={{ width: `${conf}%` }} />
-                </span>
-                {conf}% confident
-              </span>
-            )}
-          </div>
-          {msg.relay_summary ? (
-            <>
-              <p className="mt-1.5 text-body text-[var(--text-primary)] leading-snug">{msg.relay_summary}</p>
-              {msg.relay_next_step && (
-                <p className="mt-1 flex items-center gap-1.5 text-body text-[var(--text-secondary)]">
-                  <ArrowRight className="h-3 w-3 text-[var(--indigo-text)] flex-shrink-0" />
-                  {msg.relay_next_step}
-                </p>
-              )}
-            </>
-          ) : (
-            <p className="mt-1.5 text-body text-[var(--text-secondary)] leading-snug">
-              {/* The action is a key ("reply", "stop_sequence"); this printed it
-                  raw as the card's only sentence. Said as a recommendation. */}
-              {msg.relay_next_step
-                || (msg.sara_action && RELAY_ACTION_TEXT[msg.sara_action])
-                || (hasDraft ? 'Relay drafted a reply for this conversation.' : 'Relay reviewed this reply and tagged its intent.')}
-            </p>
+    <div className="mb-5 flex flex-wrap sm:flex-nowrap items-center gap-3 rounded-xl border border-[rgba(47,63,156,0.2)] bg-[var(--indigo-subtle)] pl-3 pr-2 py-2">
+      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--indigo)] text-white flex-shrink-0">
+        <Sparkles className="h-3.5 w-3.5" />
+      </span>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-caption font-bold text-[var(--indigo-text)]">Relay</span>
+          {info && (
+            <span className={cn('text-micro font-semibold px-1.5 py-0.5 rounded-full', info.bg, info.text)}>{info.label}</span>
+          )}
+          {conf != null && (
+            <span className="text-micro font-medium tabular text-[var(--text-tertiary)]" title={msg.relay_engine === 'ai' ? 'Read by AI' : undefined}>{conf}% sure</span>
           )}
         </div>
+        <p className="mt-0.5 text-body text-[var(--text-primary)] leading-snug">{said}</p>
+        {msg.relay_summary && msg.relay_next_step && (
+          <p className="mt-0.5 flex items-center gap-1.5 text-caption text-[var(--text-secondary)]">
+            <ArrowRight className="h-3 w-3 text-[var(--indigo-text)] flex-shrink-0" />
+            {msg.relay_next_step}
+          </p>
+        )}
       </div>
       {hasDraft && (
-        <div className="flex items-center gap-2.5 px-4 py-2.5 border-t border-[rgba(47,63,156,0.18)] bg-[var(--bg-surface)]">
-          <button
-            onClick={onUseDraft}
-            className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold hover:bg-[var(--indigo-hover)] transition-colors shadow-[inset_0_1px_0_rgba(255,255,255,0.15)]"
-          >
-            <Wand2 className="h-3.5 w-3.5" /> Use Relay's draft
-          </button>
-          <span className="text-caption text-[var(--text-tertiary)] hidden sm:inline">Loads into the composer — review before sending.</span>
-        </div>
+        <button
+          onClick={onUseDraft}
+          title="Loads into the composer - you review it before it sends"
+          className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[var(--indigo)] text-white text-caption font-semibold whitespace-nowrap hover:bg-[var(--indigo-hover)] transition-colors shadow-[inset_0_1px_0_rgba(255,255,255,0.15)] flex-shrink-0"
+        >
+          <Wand2 className="h-3.5 w-3.5" /> Use draft
+        </button>
       )}
     </div>
   );
@@ -2484,6 +2498,11 @@ export function InboxPage() {
   const [mailKindFilter, setMailKindFilter] = useState<'all' | Exclude<MailKind, 'person'>>('all');
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [showContext, setShowContext] = useState(true);
+  /* The list and the rail are yours to size: drag the line between panels.
+     The list can be folded away entirely to read with the room it frees. */
+  const listPanel = usePanelWidth('sincerely:inbox:list-width', 400, 300, 640);
+  const railPanel = usePanelWidth('sincerely:inbox:rail-width', 312, 260, 480);
+  const [listCollapsed, setListCollapsed] = usePersistentFlag('sincerely:inbox:list-collapsed');
   /* Room for the list beside the thread, and for the contact rail beside both. */
   const wide = useMediaQuery('(min-width: 1200px)');
   const roomy = useMediaQuery('(min-width: 1600px)');
@@ -3266,6 +3285,9 @@ export function InboxPage() {
         setReplySenderId(currentMsg.smtp_account_id || smtpAccounts[0]?.id || '');
       } else if (e.key === 'e') {
         handleArchiveToggle(currentMsg);
+      } else if (e.key === '[' && wide) {
+        // Fold the message list away (or back) to read with more room.
+        setListCollapsed(v => !v);
       } else if (e.key === 'Escape') {
         // Close the focus panel and return to the conversation table
         setSelectedId(null);
@@ -3273,7 +3295,7 @@ export function InboxPage() {
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [currentMsg, showCompose, replyMode, smtpAccounts, handleArchiveToggle]);
+  }, [currentMsg, showCompose, replyMode, smtpAccounts, handleArchiveToggle, wide, setListCollapsed]);
 
   /* ── Sidebar view selection + active detection ── */
   const selectView = useCallback((v: { folder?: Folder; tag?: string; quick?: string }) => {
@@ -3335,6 +3357,7 @@ export function InboxPage() {
   const threadContactEmail = currentMsg
     ? (currentMsg.direction === 'outbound' ? (currentMsg.contact_email || currentMsg.to_email) : (currentMsg.contact_email || currentMsg.from_email))
     : null;
+  const threadPerson = useThreadContactId(currentMsg?.contact_id, threadContactEmail);
   const threadContactName = currentMsg
     ? (currentMsg.contact_name
       || sharedSenderLabel(threadContactEmail, currentMsg.direction === 'outbound' ? null : currentMsg.sender_name)
@@ -3435,6 +3458,20 @@ export function InboxPage() {
     <>
             {/* ── Focus toolbar: back + position + actions ── */}
             <div className="flex items-center gap-2 px-3 h-[50px] border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] flex-shrink-0">
+              {/* Fold the list away to read wide; bring it back from here. */}
+              {split && (
+                <>
+                  <button
+                    aria-label={listCollapsed ? 'Show the message list' : 'Hide the message list'}
+                    title={listCollapsed ? 'Show the message list ([)' : 'Hide the message list ([)'}
+                    onClick={() => setListCollapsed(v => !v)}
+                    className={cn('icon-btn h-8 w-8', listCollapsed && 'bg-[var(--indigo-subtle)] !text-[var(--indigo-text)]')}
+                  >
+                    {listCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+                  </button>
+                  <span className="h-4 w-px bg-[var(--border-subtle)]" />
+                </>
+              )}
               {/* With the list beside it there is nothing to go back to. */}
               {!split && (
                 <>
@@ -3520,7 +3557,7 @@ export function InboxPage() {
               <button aria-label={showContext ? 'Hide contact details' : 'Show contact details'}
                 onClick={() => setShowContext(v => !v)}
                 title={showContext ? 'Hide contact details' : 'Show contact details'}
-                className={cn('icon-btn h-8 w-8 hidden xl:inline-flex', split && !roomy && '!hidden', showContext && 'bg-[var(--bg-active)] text-[var(--text-primary)]')}
+                className={cn('icon-btn h-8 w-8 hidden xl:inline-flex', split && !roomy && !listCollapsed && '!hidden', showContext && 'bg-[var(--bg-active)] text-[var(--text-primary)]')}
               >
                 {showContext ? <PanelRightClose className="h-4 w-4" /> : <PanelRight className="h-4 w-4" />}
               </button>
@@ -3531,41 +3568,14 @@ export function InboxPage() {
               <div className="flex-1 min-w-0 flex flex-col">
                 <div className="flex-1 overflow-y-auto bg-[var(--bg-app)]">
                   <div className="max-w-[860px] mx-auto px-4 pt-5 sm:px-8 sm:pt-8 pb-6">
-                    {/* Conversation hero — who, what, and the intent tag */}
-                    <div className="flex items-start gap-4">
-                      <span className="hidden sm:inline-flex rounded-full ring-4 ring-[var(--bg-surface)] shadow-[var(--shadow-sm)] flex-shrink-0">
-                        <Avatar name={threadContactName || undefined} email={threadContactEmail || undefined} size="lg" />
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        {/* The tag drops under the subject on a phone; beside it, the
-                            subject was squeezed into a column four lines tall. */}
-                        <div className="flex flex-wrap sm:flex-nowrap items-start justify-between gap-x-3 gap-y-2">
-                          <div className="min-w-0 basis-full sm:basis-auto">
-                            <div className="flex items-baseline gap-2 min-w-0">
-                              <h2 className="text-heading font-semibold text-[var(--text-primary)] truncate">{threadContactName || 'Unknown sender'}</h2>
-                              {threadContactEmail && <span className="text-body text-[var(--text-tertiary)] truncate hidden md:inline">{threadContactEmail}</span>}
-                            </div>
-                            <h2 className="mt-1 text-title sm:text-display font-semibold text-[var(--text-primary)] leading-snug tracking-[-0.02em]">
-                              {threadSubject || '(no subject)'}
-                            </h2>
-                            <div className="mt-1.5 flex items-center gap-2 text-body text-[var(--text-tertiary)] flex-wrap">
-                              <span className="tabular">{threadStats.total} message{threadStats.total === 1 ? '' : 's'}</span>
-                              {threadStats.first && threadStats.total > 1 && (
-                                <>
-                                  <span className="sep-dot" />
-                                  <span>Started {formatDayMonth(new Date(threadStats.first))}</span>
-                                </>
-                              )}
-                              {currentMsg.campaign_name && (
-                                <>
-                                  <span className="sep-dot" />
-                                  <span className="truncate max-w-[220px]">{currentMsg.campaign_name}</span>
-                                </>
-                              )}
-                            </div>
-                          </div>
+                    {/* Conversation hero: what it is about first, then who, as one
+                        line you can click through to their page. */}
+                    <div className="flex flex-wrap sm:flex-nowrap items-start justify-between gap-x-4 gap-y-2">
+                      <h1 className="min-w-0 text-title sm:text-display font-semibold text-[var(--text-primary)] leading-tight tracking-[-0.02em] break-words">
+                        {threadSubject || '(no subject)'}
+                      </h1>
                       {/* Clickable tag dropdown */}
-                      <div className="relative flex-shrink-0 mt-0.5">
+                      <div className="relative flex-shrink-0">
                         <button
                           {...tagMenu.triggerProps}
                           onClick={() => setShowTagDropdown(!showTagDropdown)}
@@ -3625,8 +3635,44 @@ export function InboxPage() {
                           </>
                         )}
                       </div>
-                        </div>
-                      </div>
+                    </div>
+                    <div className="mt-3 flex items-center gap-2.5 min-w-0 flex-wrap">
+                      {threadPerson.id ? (
+                        <Link
+                          to={`/contacts/${threadPerson.id}`}
+                          title={`Open ${threadContactName}'s page`}
+                          className="group inline-flex items-center gap-2 min-w-0 h-9 pl-1 pr-3 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-[var(--shadow-sm)] hover:border-[rgba(47,63,156,0.4)] transition-colors"
+                        >
+                          <Avatar name={threadContactName || undefined} email={threadContactEmail || undefined} size="sm" />
+                          <span className="text-body font-semibold text-[var(--text-primary)] truncate group-hover:text-[var(--indigo-text)]">{threadContactName || 'Unknown sender'}</span>
+                          <ArrowUpRight className="h-3.5 w-3.5 flex-shrink-0 text-[var(--text-tertiary)] group-hover:text-[var(--indigo-text)]" />
+                        </Link>
+                      ) : (
+                        <span className="inline-flex items-center gap-2 min-w-0 h-9 pl-1 pr-3 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface)]" title="Not in your CRM yet - save them from the panel on the right">
+                          <Avatar name={threadContactName || undefined} email={threadContactEmail || undefined} size="sm" />
+                          <span className="text-body font-semibold text-[var(--text-primary)] truncate">{threadContactName || 'Unknown sender'}</span>
+                        </span>
+                      )}
+                      {threadContactEmail && <span className="text-body text-[var(--text-tertiary)] truncate hidden md:inline">{threadContactEmail}</span>}
+                      <span className="flex items-center gap-2 text-body text-[var(--text-tertiary)]">
+                        <span className="sep-dot" />
+                        <span className="tabular whitespace-nowrap">{threadStats.total} message{threadStats.total === 1 ? '' : 's'}</span>
+                        {threadStats.first && threadStats.total > 1 && (
+                          <>
+                            <span className="sep-dot" />
+                            <span className="whitespace-nowrap">Since {formatDayMonth(new Date(threadStats.first))}</span>
+                          </>
+                        )}
+                      </span>
+                      {currentMsg.campaign_name && (
+                        currentMsg.campaign_id ? (
+                          <Link to={`/campaigns/${currentMsg.campaign_id}`} className="inline-flex items-center gap-1.5 h-6 px-2 rounded-md bg-[var(--bg-elevated)] text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--indigo-text)] max-w-[240px]" title={currentMsg.campaign_name}>
+                            <Megaphone className="h-3 w-3 flex-shrink-0" /><span className="truncate">{currentMsg.campaign_name}</span>
+                          </Link>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 h-6 px-2 rounded-md bg-[var(--bg-elevated)] text-caption font-medium text-[var(--text-secondary)] max-w-[240px]"><Megaphone className="h-3 w-3 flex-shrink-0" /><span className="truncate">{currentMsg.campaign_name}</span></span>
+                        )
+                      )}
                     </div>
 
                     {/* Turn the conversation into pipeline without leaving it.
@@ -3641,11 +3687,7 @@ export function InboxPage() {
                       <div className="mt-4"><MailKindBar messageId={currentMsg.id} kind={currentMsg.mail_kind} /></div>
                     )}
                     {currentMsg.direction !== 'outbound' && threadContactEmail && !isMail(currentMsg) && (
-                      <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50 px-3 py-2">
-                        <span className="text-caption font-semibold text-[var(--text-tertiary)]">
-                          Take this further
-                        </span>
-                        <span className="h-3 w-px bg-[var(--border-subtle)]" />
+                      <div className="mt-4 flex flex-wrap items-center gap-x-1.5 gap-y-2">
                         <ReplyActions
                           target={{
                             messageId: currentMsg.id,
@@ -3660,7 +3702,7 @@ export function InboxPage() {
                       </div>
                     )}
 
-                    <div className="my-6 h-px bg-[var(--border-subtle)]" />
+                    <div className="mt-5 mb-5 h-px bg-[var(--border-subtle)]" />
 
                     {/* Relay co-pilot — surfaces AI triage + one-tap draft */}
                     <SaraCopilot msg={currentMsg} onUseDraft={applySaraDraft} />
@@ -3694,9 +3736,8 @@ export function InboxPage() {
                 ) : (
                 <div className="flex-shrink-0 bg-[var(--bg-app)] pt-1 pb-5">
                   <div className="max-w-[860px] mx-auto px-3 sm:px-8">
-                  {/* The indent lines the composer up with the messages; on a phone it
-                      only took 48px from the one box that needs every one of them. */}
-                  <div className="sm:pl-12">
+                  {/* Full width: it lines up with the message cards above. */}
+                  <div>
                   {currentMsg.channel === 'linkedin' ? (
                     /* There is no mailbox behind a LinkedIn message, and the
                        server refuses an email reply to one, so the composer
@@ -3731,7 +3772,7 @@ export function InboxPage() {
                           void sendReplyNow();
                         }
                       }}
-                      className="w-full flex flex-col max-h-[64vh] rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)] overflow-hidden focus-within:border-[rgba(47,63,156,0.35)] transition-colors"
+                      className="w-full flex flex-col max-h-[64vh] rounded-2xl border border-[var(--border-default)] border-t-[3px] border-t-[var(--indigo)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)] overflow-hidden focus-within:border-[rgba(47,63,156,0.35)] focus-within:border-t-[var(--indigo)] transition-colors"
                     >
                       {/* Who it goes to, and from where: one header, two quiet lines. */}
                       <div className="flex-shrink-0 border-b border-[var(--border-subtle)]">
@@ -3955,8 +3996,13 @@ export function InboxPage() {
 
               {/* Contact context rail */}
               {/* Beside a list and a thread, only where there is room for a third column. */}
-              {showContext && (!split || roomy) && (
-                <ContactContextPanel msg={currentMsg} stats={threadStats} onCopyEmail={copyContactEmail} />
+              {showContext && (!split || roomy || listCollapsed) && (
+                <>
+                  <div className="hidden xl:flex">
+                    <PanelResizer side="right" label="Resize the contact panel" {...railPanel} />
+                  </div>
+                  <ContactContextPanel msg={currentMsg} stats={threadStats} onCopyEmail={copyContactEmail} width={railPanel.width} />
+                </>
               )}
             </div>
     </>
@@ -4684,9 +4730,14 @@ export function InboxPage() {
           <>
             {listChrome}
             <div className="flex-1 min-h-0 flex">
-              <div className="w-[380px] 2xl:w-[420px] flex-shrink-0 flex flex-col min-h-0 border-r border-[var(--border-subtle)] bg-[var(--bg-surface)]">
-                {listBody}
-              </div>
+              {!listCollapsed && (
+                <>
+                  <div style={{ width: listPanel.width }} className="flex-shrink-0 flex flex-col min-h-0 bg-[var(--bg-surface)]">
+                    {listBody}
+                  </div>
+                  <PanelResizer side="left" label="Resize the message list" {...listPanel} />
+                </>
+              )}
               <div className="flex-1 min-w-0 flex flex-col min-h-0">
                 {focusView ?? (
                   <div className="flex-1 flex flex-col items-center justify-center gap-3 bg-[var(--bg-app)] px-6 text-center">

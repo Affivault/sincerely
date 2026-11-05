@@ -216,6 +216,12 @@ export const campaignsApi = {
     return data;
   },
 
+  /** Stop named enrolments (campaign_contact ids) in this campaign only. */
+  pauseContacts: async (id: string, ids: string[]) => {
+    const { data } = await apiClient.post<{ paused: number }>(`/campaigns/${id}/pause-contacts`, { ids });
+    return data;
+  },
+
   /** Put contacts held back because a colleague replied back to work. No ids = all of them. */
   resumePaused: async (id: string, ids?: string[]) => {
     const { data } = await apiClient.post<{ resumed: number }>(`/campaigns/${id}/resume-paused`, { ids });

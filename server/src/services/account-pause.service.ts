@@ -218,3 +218,42 @@ export async function resumeRecipient(userId: string, target: string): Promise<{
   }
   return { resumed, label };
 }
+
+/**
+ * Stop one person's sequence in one campaign, and nobody else's.
+ *
+ * Named enrolments only, owner-checked through the campaign. The row is held
+ * as 'paused' with a by-hand reason, so the company-pause "resume all" leaves
+ * it alone and only a resume that names it (resumePausedContacts with its id)
+ * lets it go again. Rows that already finished, replied or bounced are left
+ * as they are: there is nothing left to stop.
+ */
+export async function pauseEnrolments(
+  userId: string,
+  campaignId: string,
+  campaignContactIds: string[],
+): Promise<number> {
+  const ids = campaignContactIds.filter((x) => typeof x === 'string' && x).slice(0, 1000);
+  if (ids.length === 0) return 0;
+  const { data: campaign, error: cErr } = await supabaseAdmin
+    .from('campaigns')
+    .select('id, user_id')
+    .eq('id', campaignId)
+    .maybeSingle();
+  if (cErr) throw new AppError(cErr.message, 500);
+  if (!campaign || campaign.user_id !== userId) throw new AppError('Campaign not found', 404);
+
+  let paused = 0;
+  for (const slice of chunk(ids)) {
+    const { data, error } = await supabaseAdmin
+      .from('campaign_contacts')
+      .update({ status: 'paused', next_send_at: null, error_message: 'Paused by hand from the inbox' })
+      .eq('campaign_id', campaignId)
+      .in('id', slice)
+      .in('status', ['pending', 'active'])
+      .select('id');
+    if (error) throw new AppError(error.message, 500);
+    paused += (data || []).length;
+  }
+  return paused;
+}

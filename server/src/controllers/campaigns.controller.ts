@@ -4,7 +4,7 @@ import { campaignsService } from '../services/campaigns.service.js';
 import { sequenceWriterService } from '../services/sequence-writer.service.js';
 import { campaignStepsService } from '../services/campaign-steps.service.js';
 import { campaignContactsService } from '../services/campaign-contacts.service.js';
-import { resumePausedContacts } from '../services/account-pause.service.js';
+import { resumePausedContacts, pauseEnrolments } from '../services/account-pause.service.js';
 import { campaignForecast } from '../services/forecast.service.js';
 import { campaignHealthService } from '../services/campaign-health.service.js';
 import { supabaseAdmin } from '../config/supabase.js';
@@ -188,6 +188,16 @@ export const campaignsController = {
 
   async forecast(req: AuthRequest, res: Response, next: NextFunction) {
     try { res.json(await campaignForecast(req.userId!, req.params.id)); } catch (err) { next(err); }
+  },
+
+  /** Stop named people in this campaign only; the campaign keeps running for everyone else. */
+  async pauseContacts(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const ids = Array.isArray(req.body?.ids) ? req.body.ids.filter((x: unknown) => typeof x === 'string') : [];
+      if (ids.length === 0) return res.status(400).json({ error: 'Say which people to stop.' });
+      const paused = await pauseEnrolments(req.userId!, req.params.id, ids);
+      res.json({ paused });
+    } catch (err) { next(err); }
   },
 
   async resumePaused(req: AuthRequest, res: Response, next: NextFunction) {

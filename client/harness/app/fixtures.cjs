@@ -599,8 +599,17 @@ function more(P, q, seg) {
       ...(seg[3] === 'c2' ? [{ id: 't7', activity_type: 'bounced', ...cmp, step_order: 1, step_subject: null, metadata: { source: 'notice', bounce_kind: 'address', reason: 'user unknown' }, occurred_at: ago(9.9) }] : []),
     ].sort((a, b) => b.occurred_at.localeCompare(a.occurred_at));
   }
-  if (/^\/lists\/contact\/c\d+$/.test(P)) return [];
-  if (/^\/contacts\/c\d+\/campaigns$/.test(P)) return [];
+  // A person on one lead list, with the other lists to move them to.
+  if (/^\/lists\/contact\/c\d+$/.test(P)) return [
+    { ...base, id: 'l3', name: 'Q3 Fintech leads', description: null, color: '#2F3F9C', icon: 'list', kind: 'lead', is_default: false, contact_count: 240, is_member: true },
+    { ...base, id: 'l1', name: 'Fintech EU', description: null, color: '#0e9f6e', icon: 'list', kind: 'contact', is_default: false, contact_count: 420, is_member: false },
+    { ...base, id: 'l2', name: 'Brokers - Tier 1', description: null, color: '#d97706', icon: 'list', kind: 'contact', is_default: false, contact_count: 180, is_member: false },
+  ];
+  // One live sequence (stoppable for this person) and one that finished.
+  if (/^\/contacts\/c\d+\/campaigns$/.test(P)) return [
+    { campaign_contact_id: 'cc1', campaign_id: 'cmp1', campaign_name: 'Q3 Fintech outreach', campaign_status: 'running', campaign_list_id: 'l3', status: 'active', current_step_order: 1, next_send_at: ahead(2), completed_at: null, error_message: null, enrolled_at: ago(10), is_active: true },
+    { campaign_contact_id: 'cc2', campaign_id: 'cmp2', campaign_name: 'Partner webinar invite', campaign_status: 'completed', campaign_list_id: null, status: 'completed', current_step_order: 2, next_send_at: null, completed_at: ago(30), error_message: null, enrolled_at: ago(45), is_active: false },
+  ];
   if (/^\/flow\/meetings\/e\d+\/brief$/.test(P)) return null;
   return undefined;
 }
