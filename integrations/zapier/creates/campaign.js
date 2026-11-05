@@ -84,7 +84,7 @@ const addToCampaign = {
 const removeFromCampaign = {
   key: 'remove_from_campaign',
   noun: 'Campaign Contact',
-  display: { label: 'Remove Contact from Campaign', description: 'Stops a person\'s sequence and takes them out of a campaign.' },
+  display: { label: 'Remove Contact From Campaign', description: 'Stops a person\'s sequence and takes them out of a campaign.' },
   operation: {
     inputFields: [campaignField('campaign_list.id.name'), { key: 'email', label: 'Email', required: true }],
     perform: async (z, bundle) => {

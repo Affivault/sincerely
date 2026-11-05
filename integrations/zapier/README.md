@@ -44,4 +44,4 @@ The **Deploy the Zapier app** workflow pushes this folder to Zapier on every mer
 - `ZAPIER_APP_ID` (variable): the number in the integration's address on developer.zapier.com.
 - `SINCERELY_API_URL` (variable, optional): only needed if the API is not at `https://skysend-api.onrender.com`.
 
-Raise `version` in `package.json` for a release; pushing the same version again updates it while it is private.
+Raise `version` in `package.json` for a release; pushing the same version again updates it while it is private. A version made in Zapier's web builder (the empty 1.0.0 it creates with the integration) cannot be overwritten from here, which is why this starts at 1.1.0.
