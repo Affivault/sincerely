@@ -100,6 +100,7 @@ import {
   BellRing,
   Linkedin,
   ExternalLink,
+  Trash2,
 } from 'lucide-react';
 
 import {
@@ -359,8 +360,22 @@ function SignaturePreview({ html, onRemove }: { html: string; onRemove: () => vo
 }
 
 /** The add/remove signature toggle button shown in a composer's action bar. */
-function SignatureButton({ available, on, onToggle }: { available: boolean; on: boolean; onToggle: () => void }) {
+function SignatureButton({ available, on, onToggle, compact }: { available: boolean; on: boolean; onToggle: () => void; compact?: boolean }) {
   if (!available) return null;
+  if (compact) {
+    return (
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-pressed={on}
+        aria-label={on ? 'Remove signature' : 'Add signature'}
+        title={on ? 'Remove signature' : 'Add signature'}
+        className={cn('icon-btn h-8 w-8 flex-shrink-0', on && 'bg-[var(--indigo-subtle)] !text-[var(--indigo-text)]')}
+      >
+        <PenLine className="h-4 w-4" />
+      </button>
+    );
+  }
   return (
     <button
       type="button"
@@ -378,6 +393,9 @@ function SignatureButton({ available, on, onToggle }: { available: boolean; on: 
     </button>
   );
 }
+
+/** The send-shortcut key as this keyboard labels it. */
+const MOD_KEY = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? '⌘' : 'Ctrl';
 
 /** "34m" / "5h" / "2d" — for avg-reply-gap stats. */
 function humanizeMs(ms: number): string {
@@ -540,7 +558,9 @@ function SenderSelect({ accounts, value, onChange }: {
         aria-label="Send from"
         value={value}
         onChange={e => onChange(e.target.value)}
-        className="appearance-none bg-transparent text-strong text-[var(--text-primary)] outline-none rounded focus-visible:shadow-[var(--ring-focus)] pr-6 cursor-pointer w-full"
+        // A ghost of the app-wide select: no box until you point at it. It
+        // drew the global box and arrow and a second chevron on top.
+        className="w-full !min-h-0 h-7 pl-2 rounded-md border-transparent !bg-transparent text-body font-medium text-[var(--text-primary)] outline-none hover:!border-[var(--border-subtle)] focus-visible:shadow-[var(--ring-focus)] cursor-pointer truncate"
       >
         {accounts.map(a => (
           <option key={a.id} value={a.id}>
@@ -550,7 +570,6 @@ function SenderSelect({ accounts, value, onChange }: {
           </option>
         ))}
       </select>
-      <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-tertiary)] pointer-events-none" />
     </div>
   );
 }
@@ -737,32 +756,24 @@ function ComposeModal({ onClose, onSend, onSchedule, sending, smtpAccounts, temp
 }
 
 /* ─── AI Reply Assist Bar ─────────────────────────── */
-function AiAssistBar({ messageId, onInsert }: { messageId: string; onInsert: (html: string) => void }) {
+/*
+ * "Ask Relay to write it": a prompt line that opens above the composer's
+ * action bar. Its trigger lives in that bar now, beside the other tools;
+ * on its own row under the editor it read as a stray label.
+ */
+function AiAssistBar({ messageId, onInsert, onClose }: { messageId: string; onInsert: (html: string) => void; onClose: () => void }) {
   const [prompt, setPrompt] = useState('');
-  const [isOpen, setIsOpen] = useState(false);
 
   const aiMut = useMutation({
     mutationFn: ({ id, prompt }: { id: string; prompt: string }) => inboxApi.aiReplyAssist(id, prompt),
     onSuccess: (data) => {
       onInsert(data.html);
       setPrompt('');
-      setIsOpen(false);
-      toast.success('AI reply generated');
+      onClose();
+      toast.success('Draft written - review it before sending');
     },
-    onError: () => toast.error('Failed to generate AI reply'),
+    onError: () => toast.error('Relay could not write that one. Try rewording it.'),
   });
-
-  if (!isOpen) {
-    return (
-      <button
-        onClick={() => setIsOpen(true)}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-body font-medium text-[var(--text-tertiary)] hover:text-[var(--indigo-text)] hover:bg-[var(--indigo)]/5 transition-colors"
-      >
-        <Wand2 className="h-3.5 w-3.5" />
-        AI Assist
-      </button>
-    );
-  }
 
   return (
     <div className="flex items-center gap-2 px-4 py-2.5 border-t border-[var(--border-subtle)] bg-[var(--indigo-subtle)] focus-within:shadow-[inset_0_-2px_0_var(--indigo)]">
@@ -775,9 +786,9 @@ function AiAssistBar({ messageId, onInsert }: { messageId: string; onInsert: (ht
           if (e.key === 'Enter' && prompt.trim() && !aiMut.isPending) {
             aiMut.mutate({ id: messageId, prompt: prompt.trim() });
           }
-          if (e.key === 'Escape') setIsOpen(false);
+          if (e.key === 'Escape') onClose();
         }}
-        placeholder="Describe your reply... e.g. 'Accept the meeting' or 'Politely decline'"
+        placeholder="Tell Relay what to say, e.g. 'accept Thursday at 2pm'"
         className="flex-1 bg-transparent text-strong text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)]"
         autoFocus
       />
@@ -791,13 +802,13 @@ function AiAssistBar({ messageId, onInsert }: { messageId: string; onInsert: (ht
         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--indigo)] text-white text-body font-medium hover:bg-[var(--indigo-hover)] transition-colors disabled:opacity-40 shadow-[inset_0_1px_0_rgba(255,255,255,0.15)]"
       >
         {aiMut.isPending ? (
-          <><Loader2 className="h-3 w-3 animate-spin" /> Generating...</>
+          <><Loader2 className="h-3 w-3 animate-spin" /> Writing…</>
         ) : (
-          <><Sparkles className="h-3 w-3" /> Generate</>
+          <><Sparkles className="h-3 w-3" /> Write it</>
         )}
       </button>
       <button aria-label="Close"
-        onClick={() => setIsOpen(false)}
+        onClick={() => onClose()}
         className="p-1 rounded hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)]"
       >
         <X className="h-3.5 w-3.5" />
@@ -993,7 +1004,7 @@ function CustomTimePicker({ value, onChange }: { value: { hour: number; minute: 
 }
 
 /* ─── Schedule Send Picker ────────────────────────── */
-function ScheduleSendPicker({ onSchedule, onClose, id }: { onSchedule: (date: string) => void; onClose: () => void; id?: string }) {
+function ScheduleSendPicker({ onSchedule, onClose, id, align = 'left' }: { onSchedule: (date: string) => void; onClose: () => void; id?: string; align?: 'left' | 'right' }) {
   const { panelProps } = usePopover(true, onClose);
   const ref = panelProps.ref;
   const [view, setView] = useState<'presets' | 'calendar' | 'time'>('presets');
@@ -1076,7 +1087,7 @@ function ScheduleSendPicker({ onSchedule, onClose, id }: { onSchedule: (date: st
   const selectedTimeLabel = `${display12}:${String(selectedTime.minute).padStart(2, '0')} ${isPM ? 'PM' : 'AM'}`;
 
   return (
-    <div {...panelProps} id={id ?? panelProps.id} className="absolute bottom-full left-0 mb-2 w-80 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-2xl z-50 overflow-hidden" style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08)' }}>
+    <div {...panelProps} id={id ?? panelProps.id} className={cn('absolute bottom-full mb-2 w-80 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-2xl z-50 overflow-hidden', align === 'right' ? 'right-0' : 'left-0')} style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08)' }}>
       {/* Header */}
       <div className="px-4 py-3 border-b border-[var(--border-subtle)]">
         <div className="flex items-center gap-2">
@@ -1347,7 +1358,7 @@ function TimelineMessage({ msg, threadSubject, isCurrent, expanded, onToggle }: 
       <div className={cn(
         'flex-1 min-w-0 panel overflow-hidden transition-shadow',
         isOutbound && 'border-[rgba(47,63,156,0.28)]',
-        isCurrent && 'ring-2 ring-[rgba(47,63,156,0.22)]'
+        isCurrent && 'ring-1 ring-[rgba(47,63,156,0.22)] shadow-[var(--shadow-sm)]'
       )}>
         <button
           type="button"
@@ -1519,11 +1530,120 @@ function ThreadTimeline({ thread, threadSubject, selectedId }: {
 }
 
 /* ─── Contact context panel (right rail) ──────────── */
+/*
+ * The rail reads as one set of notes about the person, the way a record
+ * page does: plain sections split by hairlines, not a stack of boxed cards
+ * each with its own heading floating above it. The only boxes left are the
+ * things you act on (a deal), so the eye goes to them.
+ */
 function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-3 py-[5px]">
+    <div className="flex items-center justify-between gap-3 py-1.5">
       <span className="text-caption text-[var(--text-tertiary)] flex-shrink-0">{label}</span>
       <span className="text-caption font-medium text-[var(--text-primary)] text-right min-w-0 truncate">{children}</span>
+    </div>
+  );
+}
+
+function RailSection({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <section className="border-t border-[var(--border-subtle)] px-4 py-4">
+      <div className="flex items-center justify-between gap-2 mb-2.5 min-h-5">
+        <h3 className="text-caption font-bold text-[var(--text-tertiary)]">{title}</h3>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+/** Lead, Qualified, Proposal, Won: the road a deal travels. Lost is off it. */
+const DEAL_PATH = DEAL_STAGES.filter((s) => s.id !== 'lost');
+
+/*
+ * A deal's stage as a progress track rather than five chips. The chips
+ * wrapped in a 300px rail ("Lost" alone on a second line) and gave every
+ * stage the same weight, when what matters is how far along it is. Each
+ * segment is still a one-click move, and the pill names the stage and holds
+ * the full list, Lost included.
+ */
+function DealStageTrack({ stage, onChange, children }: {
+  stage: DealStage;
+  onChange: (next: DealStage) => void;
+  /** Sits opposite the stage pill: the deal's value. */
+  children?: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const menu = usePopover(open, () => setOpen(false));
+  const at = DEAL_PATH.findIndex((s) => s.id === stage);
+  const lost = stage === 'lost';
+  const won = stage === 'won';
+  const label = DEAL_STAGES.find((s) => s.id === stage)?.label || stage;
+
+  return (
+    <div>
+      <div className="flex items-center gap-2">
+        <div className="relative">
+          <button
+            type="button"
+            {...menu.triggerProps}
+            onClick={() => setOpen((o) => !o)}
+            aria-label={`Stage: ${label}. Change stage`}
+            className={cn(
+              'inline-flex items-center gap-1 h-6 pl-2 pr-1.5 rounded-md text-micro font-semibold transition-colors',
+              lost ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                : won ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                : 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)]',
+            )}
+          >
+            {label}
+            <ChevronDown className="h-3 w-3 opacity-70" />
+          </button>
+          {open && (
+            <>
+              <div className="fixed inset-0 z-40" aria-hidden onClick={() => setOpen(false)} />
+              <div {...menu.panelProps} className="absolute left-0 top-full mt-1 z-50 w-40 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-1 shadow-lg">
+                {DEAL_STAGES.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => { setOpen(false); if (s.id !== stage) onChange(s.id); }}
+                    className={cn(
+                      'w-full flex items-center gap-2 h-8 px-2 rounded-lg text-body text-left transition-colors hover:bg-[var(--bg-hover)]',
+                      s.id === 'lost' && 'mt-1 border-t border-[var(--border-subtle)] rounded-t-none',
+                      s.id === stage ? 'font-semibold text-[var(--text-primary)]' : 'text-[var(--text-secondary)]',
+                    )}
+                  >
+                    <span className="flex-1">{s.label}</span>
+                    {s.id === stage && <Check className="h-3.5 w-3.5 text-[var(--indigo-text)]" />}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+        <span className="ml-auto flex-shrink-0">{children}</span>
+      </div>
+      <div className="mt-2 flex gap-1" role="group" aria-label="Move this deal">
+        {DEAL_PATH.map((s, i) => (
+          <button
+            key={s.id}
+            type="button"
+            onClick={() => s.id !== stage && onChange(s.id)}
+            title={s.label}
+            aria-label={`Move to ${s.label}`}
+            aria-current={s.id === stage ? 'step' : undefined}
+            className="group/seg flex-1 py-1.5"
+          >
+            <span className={cn(
+              'block h-1.5 rounded-full transition-colors',
+              lost ? 'bg-rose-500/20'
+                : i <= at ? (won ? 'bg-emerald-500' : 'bg-[var(--indigo)]')
+                : 'bg-[var(--border-default)] group-hover/seg:bg-[var(--text-tertiary)]',
+            )} />
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -1567,6 +1687,10 @@ function ThreadDealPanel({ msg }: { msg: Message }) {
   const [title, setTitle] = useState('');
   const [value, setValue] = useState('');
   const [stage, setStage] = useState<DealStage>('lead');
+  // A person with eight deals made the rail a page long. The open ones come
+  // first and three are shown; the rest are one click away.
+  const [showAll, setShowAll] = useState(false);
+  useEffect(() => { setShowAll(false); setOpen(false); }, [msg.id]);
 
   const startCreate = () => {
     // A deal named after the account and the thread beats "New deal" —
@@ -1639,86 +1763,82 @@ function ThreadDealPanel({ msg }: { msg: Message }) {
 
   if (!email && !msg.contact_id) return null;
 
-  return (
-    <div className="px-3.5 pb-3.5">
-      <div className="flex items-center justify-between mb-2 px-1">
-        <p className="text-caption font-medium text-[var(--text-tertiary)]">
-          {deals.length > 0 ? `Deals · ${deals.length}` : 'Deal'}
-        </p>
-        {!open && (
-          <button
-            onClick={startCreate}
-            className="inline-flex items-center gap-1 text-micro font-semibold text-[var(--indigo-text)] hover:underline"
-          >
-            <Plus className="h-3 w-3" /> {deals.length > 0 ? 'Add another' : 'Create'}
-          </button>
-        )}
-      </div>
+  // Open deals before closed ones: the one you are working is the one you want.
+  const closed = (s: string) => s === 'won' || s === 'lost';
+  const ordered = [...deals].sort((a, b) => Number(closed(a.stage)) - Number(closed(b.stage)));
+  const DEALS_SHOWN = 3;
+  const shown = showAll ? ordered : ordered.slice(0, DEALS_SHOWN);
+  const hidden = ordered.length - shown.length;
 
+  return (
+    <RailSection
+      title={deals.length > 0 ? `Deals · ${deals.length}` : 'Deal'}
+      action={!open && deals.length > 0 ? (
+        <button
+          onClick={startCreate}
+          className="inline-flex items-center gap-1 h-6 px-1.5 -mr-1.5 rounded-md text-micro font-semibold text-[var(--indigo-text)] hover:bg-[var(--indigo-subtle)] transition-colors"
+        >
+          <Plus className="h-3 w-3" /> New deal
+        </button>
+      ) : undefined}
+    >
       {/* Existing deals — stage and value are editable right here, since
           "they've agreed, move it to proposal" is the same moment. */}
-      {deals.map((d) => (
-        <div key={d.id} className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50 p-3 mb-2">
-          <button
-            onClick={() => openPeek('deal', d.id)}
-            className="group flex items-start gap-2 w-full text-left"
-          >
-            <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-[var(--indigo-subtle)] flex-shrink-0">
-              <Handshake className="h-3 w-3 text-[var(--indigo-text)]" />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-body font-semibold text-[var(--text-primary)] leading-snug truncate group-hover:text-[var(--indigo-text)] transition-colors">
+      <div className="space-y-2">
+        {shown.map((d) => (
+          <div key={d.id} className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-3 shadow-[var(--shadow-sm)] transition-colors hover:border-[var(--border-default)]">
+            <button
+              onClick={() => openPeek('deal', d.id)}
+              className="group flex items-start gap-1.5 w-full text-left"
+              title={d.title}
+            >
+              {/* Two lines, then an ellipsis: a deal named after an address
+                  was cut to "chris@notify.crustdata.tech..." on one. */}
+              <span className="min-w-0 flex-1 text-body font-semibold text-[var(--text-primary)] leading-snug line-clamp-2 break-words group-hover:text-[var(--indigo-text)] transition-colors">
                 {d.title}
               </span>
-            </span>
-            <ArrowUpRight className="h-3 w-3 flex-shrink-0 text-[var(--text-tertiary)] opacity-0 group-hover:opacity-100 transition-opacity mt-0.5" />
-          </button>
+              <ArrowUpRight className="h-3.5 w-3.5 flex-shrink-0 text-[var(--text-tertiary)] opacity-0 group-hover:opacity-100 transition-opacity mt-0.5" />
+            </button>
 
-          <div className="mt-2 flex items-center gap-2">
-            <span className="text-micro text-[var(--text-tertiary)]">Value</span>
-            <span className="ml-auto">
-              <InlineEdit
-                value={d.value ?? ''}
-                type="number"
-                placeholder="Add a value"
-                ariaLabel="deal value"
-                textClassName="text-body font-semibold tabular text-[var(--text-primary)]"
-                inputClassName="text-body font-semibold tabular text-right"
-                format={(v) => formatMoney(Number(v), d.currency)}
-                onSave={(next) => {
-                  const n = Number(next.replace(/[^0-9.-]/g, ''));
-                  if (!Number.isFinite(n)) return Promise.reject(new Error('nan'));
-                  return setDealValue.mutateAsync({ id: d.id, next: n });
-                }}
-              />
-            </span>
+            <div className="mt-2.5">
+              <DealStageTrack stage={d.stage} onChange={(next) => setDealStage.mutate({ id: d.id, next })}>
+                <InlineEdit
+                  value={d.value ?? ''}
+                  type="number"
+                  placeholder="Add value"
+                  ariaLabel="deal value"
+                  // Never cut: a value read "$12,..." when the rail squeezed it.
+                  className="!max-w-none"
+                  textClassName="text-body font-semibold tabular text-[var(--text-primary)] !overflow-visible whitespace-nowrap"
+                  inputClassName="text-body font-semibold tabular text-right w-28"
+                  format={(v) => formatMoney(Number(v), d.currency)}
+                  onSave={(next) => {
+                    const n = Number(next.replace(/[^0-9.-]/g, ''));
+                    if (!Number.isFinite(n)) return Promise.reject(new Error('nan'));
+                    return setDealValue.mutateAsync({ id: d.id, next: n });
+                  }}
+                />
+              </DealStageTrack>
+            </div>
           </div>
+        ))}
+      </div>
 
-          <div className="mt-2 flex flex-wrap gap-1">
-            {DEAL_STAGES.map((s) => (
-              <button
-                key={s.id}
-                onClick={() => setDealStage.mutate({ id: d.id, next: s.id })}
-                className={cn(
-                  'h-[22px] px-1.5 rounded-md text-micro font-semibold transition-colors',
-                  s.id === d.stage
-                    ? 'bg-[var(--indigo)] text-white'
-                    : 'text-[var(--text-tertiary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
-                )}
-              >
-                {s.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      ))}
+      {(hidden > 0 || showAll) && ordered.length > DEALS_SHOWN && (
+        <button
+          onClick={() => setShowAll((v) => !v)}
+          className="mt-2 w-full h-7 rounded-lg text-caption font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] transition-colors"
+        >
+          {showAll ? 'Show fewer' : `Show ${hidden} more`}
+        </button>
+      )}
 
       {isLoading && deals.length === 0 && <Skeleton className="h-16 w-full rounded-xl" />}
 
       {open ? (
         <form
           onSubmit={(e) => { e.preventDefault(); if (title.trim()) create.mutate(); }}
-          className="rounded-xl border border-[var(--indigo)]/40 bg-[var(--bg-elevated)]/50 p-3 space-y-2.5"
+          className={cn('rounded-xl border border-[var(--indigo)]/40 bg-[var(--bg-surface)] p-3 space-y-2.5 shadow-[var(--shadow-sm)]', deals.length > 0 && 'mt-2')}
         >
           <div>
             <label htmlFor="inbox-deal-name" className="block text-micro font-medium text-[var(--text-tertiary)] mb-1">Deal name</label>
@@ -1745,13 +1865,14 @@ function ThreadDealPanel({ msg }: { msg: Message }) {
           <div>
             <span id="inbox-deal-stage-label" className="block text-micro font-medium text-[var(--text-tertiary)] mb-1">Stage</span>
             <div className="flex flex-wrap gap-1" role="group" aria-labelledby="inbox-deal-stage-label">
-              {DEAL_STAGES.map((s) => (
+              {DEAL_PATH.map((s) => (
                 <button
                   key={s.id}
                   type="button"
                   onClick={() => setStage(s.id)}
+                  aria-pressed={s.id === stage}
                   className={cn(
-                    'h-[24px] px-2 rounded-md text-micro font-semibold transition-colors',
+                    'h-6 px-2 rounded-md text-micro font-semibold transition-colors',
                     s.id === stage
                       ? 'bg-[var(--indigo)] text-white'
                       : 'border border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]',
@@ -1764,7 +1885,7 @@ function ThreadDealPanel({ msg }: { msg: Message }) {
           </div>
 
           {/* Say what gets attached, before it happens rather than after. */}
-          <div className="rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] px-2 py-1.5 space-y-0.5">
+          <div className="rounded-lg bg-[var(--bg-elevated)]/60 px-2 py-1.5 space-y-0.5">
             <p className="text-micro text-[var(--text-tertiary)]">Links automatically</p>
             {leadName && (
               <p className="text-micro text-[var(--text-secondary)] truncate">
@@ -1784,14 +1905,14 @@ function ThreadDealPanel({ msg }: { msg: Message }) {
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="h-7 flex-1 rounded-lg border border-[var(--border-default)] text-caption font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-colors"
+              className="h-8 flex-1 rounded-lg border border-[var(--border-default)] text-caption font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={!title.trim() || create.isPending}
-              className="h-7 flex-1 rounded-lg bg-[var(--indigo)] text-caption font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
+              className="h-8 flex-1 rounded-lg bg-[var(--indigo)] text-caption font-semibold text-white hover:bg-[var(--indigo-hover)] disabled:opacity-50 transition-colors"
             >
               {create.isPending ? 'Creating…' : 'Create deal'}
             </button>
@@ -1800,19 +1921,18 @@ function ThreadDealPanel({ msg }: { msg: Message }) {
       ) : deals.length === 0 && !isLoading ? (
         <button
           onClick={startCreate}
-          className="w-full rounded-xl border border-dashed border-[var(--border-default)] px-3 py-3 text-left hover:border-[var(--indigo)]/50 hover:bg-[var(--bg-hover)] transition-colors"
+          className="group w-full flex items-center gap-2.5 rounded-xl border border-dashed border-[var(--border-default)] px-3 py-2.5 text-left hover:border-[var(--indigo)]/50 hover:bg-[var(--indigo-subtle)] transition-colors"
         >
-          <span className="flex items-center gap-2">
-            <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)]">
-              <Handshake className="h-3 w-3 text-[var(--text-tertiary)]" />
-            </span>
-            <span className="text-caption text-[var(--text-secondary)]">
-              No deal yet — <span className="text-[var(--indigo-text)] font-medium">create one</span>
-            </span>
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--bg-elevated)] group-hover:bg-[var(--bg-surface)] transition-colors">
+            <Plus className="h-3.5 w-3.5 text-[var(--text-tertiary)] group-hover:text-[var(--indigo-text)]" />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-body font-semibold text-[var(--text-primary)]">Create a deal</span>
+            <span className="block text-micro text-[var(--text-tertiary)]">Linked to this person and thread</span>
           </span>
         </button>
       ) : null}
-    </div>
+    </RailSection>
   );
 }
 
@@ -1826,68 +1946,97 @@ function ContactContextPanel({ msg, stats, onCopyEmail }: {
   // Mail from a company is signed with its name ("GO Markets"); the domain
   // is the fallback. Never the sending subdomain.
   const company = (isMail(msg) && msg.sender_name && !msg.sender_name.includes('@') ? msg.sender_name : null) || companyFromEmail(email);
-  const intent = msg.sara_intent && msg.sara_intent !== 'scheduled' ? (INTENT_COLORS[msg.sara_intent] || INTENT_COLORS.other) : null;
   // Only link to the lead record when the message is matched to a real contact.
   const contactHref = msg.contact_id ? `/contacts/${msg.contact_id}` : null;
   const sendingInbox = msg.smtp_label || msg.smtp_email;
 
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const t = setTimeout(() => setCopied(false), 1400);
+    return () => clearTimeout(t);
+  }, [copied]);
+  const copy = () => { onCopyEmail(); setCopied(true); };
+
   return (
-    <aside aria-label="Conversation details" className="hidden xl:flex w-[280px] flex-shrink-0 border-l border-[var(--border-subtle)] bg-[var(--bg-surface)] flex-col overflow-y-auto">
-      {/* ── Prospect card — the person, linked to their lead record ── */}
-      <div className="px-3.5 pt-4 pb-3.5">
-        <p className="text-caption font-medium text-[var(--text-tertiary)] mb-2 px-1">Prospect</p>
-        <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50 p-3.5">
-          <div className="flex items-start gap-3">
-            <Avatar name={name} email={email} size="md" />
-            <div className="min-w-0 flex-1">
-              {contactHref ? (
-                <Link
-                  to={contactHref}
-                  className="group inline-flex items-center gap-1 text-strong font-semibold text-[var(--text-primary)] hover:text-[var(--indigo-text)] transition-colors leading-tight"
-                >
-                  <span className="truncate">{name}</span>
-                  <ArrowUpRight className="h-3 w-3 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </Link>
-              ) : (
-                <p className="text-strong font-semibold text-[var(--text-primary)] leading-tight truncate">{name}</p>
-              )}
-              {email && <p className="mt-0.5 text-caption text-[var(--text-tertiary)] truncate">{email}</p>}
-              {company && (
-                <span className="mt-2 inline-flex items-center gap-1.5 text-caption font-medium px-2 py-0.5 rounded-full bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-secondary)]">
-                  <Building2 className="h-3 w-3 text-[var(--text-tertiary)]" />
-                  {company}
-                </span>
-              )}
-            </div>
-          </div>
-          <div className="mt-3 flex items-center gap-1.5">
-            <button
-              onClick={onCopyEmail}
-              className="flex items-center justify-center gap-1.5 h-7 flex-1 rounded-lg border border-[var(--border-default)] text-caption font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] transition-colors"
-            >
-              <Copy className="h-3 w-3" /> Copy email
-            </button>
-            {contactHref && (
+    <aside aria-label="Conversation details" className="hidden xl:flex w-[300px] flex-shrink-0 border-l border-[var(--border-subtle)] bg-[var(--bg-surface)] flex-col overflow-y-auto">
+      {/* ── Who this is — the person, then the shape of the conversation ── */}
+      <div className="px-4 pt-5 pb-4">
+        <div className="flex items-start gap-3">
+          <Avatar name={name} email={email} size="lg" />
+          <div className="min-w-0 flex-1 pt-0.5">
+            {contactHref ? (
               <Link
                 to={contactHref}
-                className="flex items-center justify-center gap-1.5 h-7 flex-1 rounded-lg border border-[var(--border-default)] text-caption font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] transition-colors"
+                className="group flex items-center gap-1 text-strong font-semibold text-[var(--text-primary)] hover:text-[var(--indigo-text)] transition-colors leading-tight"
               >
-                Open lead <ArrowUpRight className="h-3 w-3" />
+                <span className="truncate">{name}</span>
+                <ArrowUpRight className="h-3 w-3 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
               </Link>
+            ) : (
+              <p className="text-strong font-semibold text-[var(--text-primary)] leading-tight truncate">{name}</p>
+            )}
+            {email && (
+              <button
+                type="button"
+                onClick={copy}
+                title="Copy email"
+                className="group mt-1 flex max-w-full items-center gap-1 text-caption text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
+              >
+                <span className="truncate">{email}</span>
+                {copied
+                  ? <Check className="h-3 w-3 flex-shrink-0 text-emerald-600 dark:text-emerald-400" />
+                  : <Copy className="h-3 w-3 flex-shrink-0 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity" />}
+              </button>
+            )}
+            {company && (
+              <span className="mt-2 inline-flex max-w-full items-center gap-1.5 text-caption font-medium px-2 py-0.5 rounded-md bg-[var(--bg-elevated)] text-[var(--text-secondary)]">
+                <Building2 className="h-3 w-3 flex-shrink-0 text-[var(--text-tertiary)]" />
+                <span className="truncate">{company}</span>
+              </span>
             )}
           </div>
         </div>
+
+        <div className={cn('mt-4 grid gap-1.5', contactHref ? 'grid-cols-2' : 'grid-cols-1')}>
+          <button
+            onClick={copy}
+            className="flex items-center justify-center gap-1.5 h-8 rounded-lg border border-[var(--border-default)] text-caption font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] transition-colors"
+          >
+            {copied ? <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+            {copied ? 'Copied' : 'Copy email'}
+          </button>
+          {contactHref && (
+            <Link
+              to={contactHref}
+              className="flex items-center justify-center gap-1.5 h-8 rounded-lg border border-[var(--border-default)] text-caption font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] transition-colors"
+            >
+              Open lead <ArrowUpRight className="h-3.5 w-3.5" />
+            </Link>
+          )}
+        </div>
+
+        {/* The conversation in three numbers, as one ledger rather than
+            three cards (one of them twice the width of the others). */}
+        <div className="fact-strip grid-cols-3 mt-4">
+          {[
+            { label: 'Received', value: String(stats.inbound), icon: <ArrowDownLeft className="h-3 w-3 text-emerald-500" /> },
+            { label: 'Sent', value: String(stats.outbound), icon: <ArrowUpRight className="h-3 w-3 text-[var(--indigo-text)]" /> },
+            { label: 'Reply gap', value: stats.avgReply != null ? humanizeMs(stats.avgReply) : '—', icon: <Clock className="h-3 w-3" /> },
+          ].map((f) => (
+            <div key={f.label} className="px-2.5 py-2 min-w-0">
+              <p className="flex items-center gap-1 text-micro font-medium text-[var(--text-tertiary)] truncate">{f.icon}{f.label}</p>
+              <p className="mt-1 text-strong font-semibold tabular text-[var(--text-primary)] leading-none">{f.value}</p>
+            </div>
+          ))}
+        </div>
       </div>
 
-      {/* ── Deal — made here, where the conversation earns it ── */}
-      {/* The decision comes before the deal: a reply is triaged into a lead
-          first, and only a pursued lead becomes a deal. Inbound only —
-          there is nothing to decide about something you sent, or about a
-          newsletter. */}
+      {/* ── Decide — a reply is triaged into a lead first, and only a pursued
+          lead becomes a deal. Inbound only: there is nothing to decide about
+          something you sent, or about a newsletter. ── */}
       {msg.direction !== 'outbound' && !isMail(msg) && (
-        // Inset like every other section of the rail; unwrapped, its border
-        // ran into the window edge.
-        <div className="px-3.5 pb-4">
+        <RailSection title="What is this reply?">
           <ReplyTriage
             messageId={msg.id}
             contactId={msg.contact_id}
@@ -1897,105 +2046,31 @@ function ContactContextPanel({ msg, stats, onCopyEmail }: {
             decision={msg.triage_decision}
             leadId={msg.triage_ref}
           />
-        </div>
+        </RailSection>
       )}
 
+      {/* ── Deal — made here, where the conversation earns it ── */}
       <ThreadDealPanel msg={msg} />
 
-      {/* ── Campaign card — which sequence this thread belongs to ── */}
-      {(msg.campaign_name || sendingInbox) && (
-        <div className="px-3.5 pb-3.5">
-          <p className="text-caption font-medium text-[var(--text-tertiary)] mb-2 px-1">Campaign</p>
-          <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50 p-3.5">
+      {/* ── The thread itself: where it came from and how long it has run ── */}
+      <RailSection title="Conversation">
+        <div className="-my-1">
+          <DetailRow label="Campaign">
             {msg.campaign_name ? (
-              <div className="flex items-start gap-2.5">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--indigo-subtle)] flex-shrink-0">
-                  <Megaphone className="h-3.5 w-3.5 text-[var(--indigo-text)]" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  {msg.campaign_id ? (
-                    <Link
-                      to={`/campaigns/${msg.campaign_id}`}
-                      className="group inline-flex items-center gap-1 text-body font-semibold text-[var(--text-primary)] hover:text-[var(--indigo-text)] transition-colors leading-snug"
-                    >
-                      <span className="truncate">{msg.campaign_name}</span>
-                      <ArrowUpRight className="h-3 w-3 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </Link>
-                  ) : (
-                    <p className="text-body font-semibold text-[var(--text-primary)] leading-snug truncate">{msg.campaign_name}</p>
-                  )}
-                  <p className="mt-0.5 text-caption text-[var(--text-tertiary)]">Outreach sequence</p>
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-start gap-2.5">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] flex-shrink-0">
-                  <AtSign className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-body font-semibold text-[var(--text-primary)] leading-snug">Direct message</p>
-                  <p className="mt-0.5 text-caption text-[var(--text-tertiary)]">Not part of a campaign</p>
-                </div>
-              </div>
-            )}
-            {sendingInbox && (
-              <div className="mt-3 pt-3 border-t border-[var(--border-subtle)] flex items-center gap-2">
-                <span className="text-micro text-[var(--text-tertiary)] flex-shrink-0">Sending from</span>
-                <span className="ml-auto text-caption font-medium text-[var(--text-primary)] truncate">{sendingInbox}</span>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ── Engagement ── */}
-      <div className="px-3.5 pb-3.5">
-        <p className="text-caption font-medium text-[var(--text-tertiary)] mb-2 px-1">Engagement</p>
-        <div className="grid grid-cols-2 gap-2">
-          <div className="panel-inset px-2.5 py-1.5">
-            <div className="flex items-center gap-1.5 text-[var(--text-tertiary)]">
-              <ArrowDownLeft className="h-3 w-3 text-emerald-500" />
-              <span className="text-micro font-medium">Received</span>
-            </div>
-            <p className="mt-0.5 text-heading font-semibold tabular text-[var(--text-primary)] leading-none">{stats.inbound}</p>
-          </div>
-          <div className="panel-inset px-2.5 py-1.5">
-            <div className="flex items-center gap-1.5 text-[var(--text-tertiary)]">
-              <ArrowUpRight className="h-3 w-3 text-[var(--indigo-text)]" />
-              <span className="text-micro font-medium">Sent</span>
-            </div>
-            <p className="mt-0.5 text-heading font-semibold tabular text-[var(--text-primary)] leading-none">{stats.outbound}</p>
-          </div>
-          <div className="panel-inset px-2.5 py-1.5 col-span-2">
-            <div className="flex items-center gap-1.5 text-[var(--text-tertiary)]">
-              <Clock className="h-3 w-3" />
-              <span className="text-micro font-medium">Avg reply gap</span>
-            </div>
-            <p className="mt-0.5 text-heading font-semibold tabular text-[var(--text-primary)] leading-none">
-              {stats.avgReply != null ? humanizeMs(stats.avgReply) : '—'}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Details ── */}
-      <div className="px-3.5 pb-4">
-        <p className="text-caption font-medium text-[var(--text-tertiary)] mb-1.5 px-1">Details</p>
-        <div className="px-1">
-          <DetailRow label="Intent">
-            {intent ? (
-              <span className={cn('inline-flex items-center gap-1 text-micro font-semibold px-1.5 py-0.5 rounded-md', intent.bg, intent.text)}>{intent.label}</span>
-            ) : <span className="text-[var(--text-tertiary)] font-normal">Untagged</span>}
+              msg.campaign_id ? (
+                <Link to={`/campaigns/${msg.campaign_id}`} className="inline-flex items-center gap-1 max-w-full hover:text-[var(--indigo-text)] transition-colors" title={msg.campaign_name}>
+                  <Megaphone className="h-3 w-3 flex-shrink-0 text-[var(--text-tertiary)]" />
+                  <span className="truncate">{msg.campaign_name}</span>
+                </Link>
+              ) : msg.campaign_name
+            ) : <span className="font-normal text-[var(--text-tertiary)]">Direct, not a campaign</span>}
           </DetailRow>
-          {stats.first && (
-            <DetailRow label="First contact">{formatDate(new Date(stats.first))}</DetailRow>
-          )}
-          {stats.last && (
-            <DetailRow label="Last activity">{timeAgo(stats.last)} ago</DetailRow>
-          )}
+          {sendingInbox && <DetailRow label="Sending from"><span title={msg.smtp_email || undefined}>{sendingInbox}</span></DetailRow>}
+          {stats.first && <DetailRow label="First contact">{formatDate(new Date(stats.first))}</DetailRow>}
+          {stats.last && <DetailRow label="Last activity">{timeAgo(stats.last)} ago</DetailRow>}
           <DetailRow label="Messages"><span className="tabular">{stats.total}</span></DetailRow>
         </div>
-      </div>
+      </RailSection>
     </aside>
   );
 }
@@ -2464,6 +2539,9 @@ export function InboxPage() {
   // Files and a reminder on the reply being written; both reset with it.
   const replyFiles = useOutgoingAttachments();
   const [replyNudge, setReplyNudge] = useState<number | null>(null);
+  // The "Write with Relay" prompt line, open or not. Closed with the composer.
+  const [aiOpen, setAiOpen] = useState(false);
+  useEffect(() => { if (!replyMode) setAiOpen(false); }, [replyMode]);
   const [readingFiles, setReadingFiles] = useState(false);
   /** Writing to a teammate's contact from your own mailbox. */
   const [composePrefill, setComposePrefill] = useState<{ to: string; subject: string } | null>(null);
@@ -3285,6 +3363,38 @@ export function InboxPage() {
       .catch(() => toast.error('Failed to copy email'));
   }, [threadContactEmail]);
 
+  /*
+   * Send what is in the composer. One function behind the Send button and
+   * Cmd/Ctrl+Enter, so the shortcut can never send something the button
+   * would have refused.
+   */
+  const canSendReply = replyMode === 'reply'
+    ? !replyEditor.isEmpty && !replyMut.isPending && !readingFiles
+    : replyMode === 'forward' ? !!forwardTo.trim() && !forwardMut.isPending : false;
+  const sendReplyNow = async () => {
+    if (!currentMsg || !canSendReply) return;
+    const sid = replySenderId || undefined;
+    if (replyMode === 'reply') {
+      const b = withSignature(replyEditor.html, replyEditor.text, replySig.sigHtml, replySig.on);
+      let attachments: SendExtras['attachments'];
+      if (replyFiles.count > 0) {
+        setReadingFiles(true);
+        try {
+          attachments = await replyFiles.toPayload();
+        } catch {
+          toast.error('One of the files could not be read. Remove it and attach it again.');
+          return;
+        } finally {
+          setReadingFiles(false);
+        }
+      }
+      replyMut.mutate({ id: currentMsg.id, body: b.body, body_html: b.body_html, smtp_account_id: sid, extras: { attachments, nudge_days: replyNudge } });
+    } else if (replyMode === 'forward') {
+      const b = withSignature(replyEditor.html || '', replyEditor.text || '', replySig.sigHtml, replySig.on);
+      forwardMut.mutate({ id: currentMsg.id, to: forwardTo.trim(), note: b.body || undefined, body_html: b.body_html || undefined, smtp_account_id: sid });
+    }
+  };
+
   /* ── View model: one tab strip drives folder + smart-view state ── */
   type ViewId = 'inbox' | 'unread' | 'needs' | 'hot' | 'starred' | 'sent' | 'scheduled' | 'archived' | 'needs_triage' | 'other' | 'snoozed' | 'assigned';
   const activeView: ViewId =
@@ -3337,7 +3447,7 @@ export function InboxPage() {
                   <span className="h-4 w-px bg-[var(--border-subtle)]" />
                 </>
               )}
-              <span className="text-body text-[var(--text-tertiary)] tabular">
+              <span className="text-body text-[var(--text-tertiary)] tabular whitespace-nowrap">
                 {Math.max(1, visibleConversations.findIndex(c => c.latestMessage.id === selectedId) + 1)} of {visibleConversations.length}
               </span>
               <span className="hidden lg:flex items-center gap-1.5 ml-2 text-caption text-[var(--text-tertiary)]">
@@ -3608,56 +3718,68 @@ export function InboxPage() {
                   ) : replyMode ? (
                     <div
                       ref={replyComposerRef}
-                      className="w-full flex flex-col max-h-[64vh] rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)] overflow-hidden"
+                      // Cmd/Ctrl+Enter sends from anywhere in the composer: the
+                      // editor, the recipient, the sender. Every mail client
+                      // people come from has it, and reaching for the mouse
+                      // at the end of a reply is the slow part.
+                      // Capture phase, so the editor never sees the keystroke
+                      // and adds a line break to the reply as it goes out.
+                      onKeyDownCapture={(e) => {
+                        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !e.nativeEvent.isComposing) {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          void sendReplyNow();
+                        }
+                      }}
+                      className="w-full flex flex-col max-h-[64vh] rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)] overflow-hidden focus-within:border-[rgba(47,63,156,0.35)] transition-colors"
                     >
-                      {/* Routing line — recipient identity, with close. No labels, no boxes. */}
-                      <div className="flex items-center gap-2.5 px-4 h-[50px] border-b border-[var(--border-subtle)] flex-shrink-0 focus-within:shadow-[inset_0_-2px_0_var(--indigo)]">
-                        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--indigo-subtle)] flex-shrink-0">
-                          {replyMode === 'reply' ? <Reply className="h-3.5 w-3.5 text-[var(--indigo-text)]" /> : <Forward className="h-3.5 w-3.5 text-[var(--indigo-text)]" />}
-                        </span>
-                        <span className="text-caption font-medium text-[var(--text-tertiary)] flex-shrink-0">To</span>
-                        {replyMode === 'reply' ? (
-                          <div className="flex items-center gap-2 min-w-0 flex-1">
-                            <Avatar name={threadContactName || undefined} email={currentMsg.from_email} size="sm" />
-                            <span className="text-strong font-semibold text-[var(--text-primary)] truncate">{threadContactName || currentMsg.from_email}</span>
-                            {threadContactName && <span className="text-body text-[var(--text-tertiary)] truncate hidden sm:inline">{currentMsg.from_email}</span>}
-                          </div>
-                        ) : (
-                          <input
-                            aria-label="Forward to"
-                            value={forwardTo}
-                            onChange={e => setForwardTo(e.target.value)}
-                            className="flex-1 min-w-0 bg-transparent text-strong text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)]"
-                            placeholder="recipient@example.com"
-                            autoFocus
-                          />
-                        )}
-                        <button aria-label="Close composer" onClick={() => setReplyMode(null)} title="Close composer" className="icon-btn h-7 w-7 flex-shrink-0"><X className="h-3.5 w-3.5" /></button>
-                      </div>
-
-                      {/* Meta strip — subject on the left, sending-inbox routing on the right */}
-                      <div className="flex items-center gap-2 px-4 h-9 border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)]/40 flex-shrink-0">
-                        <span className="text-body text-[var(--text-tertiary)] truncate min-w-0">
-                          {(replyMode === 'reply' ? 'Re: ' : 'Fwd: ') + ((threadSubject || '').replace(/^((re|fwd?|fw)\s*:\s*)+/i, '') || '(no subject)')}
-                        </span>
-                        <span className="flex-1" />
-                        <span className="text-caption text-[var(--text-tertiary)] flex-shrink-0 hidden sm:inline">via</span>
-                        <div className="min-w-0 max-w-[190px] flex-shrink-0">
-                          <SenderSelect accounts={smtpAccounts} value={replySenderId} onChange={setReplySenderId} />
-                        </div>
-                        {(() => {
-                          const acct = smtpAccounts.find(a => a.id === replySenderId) || smtpAccounts[0];
-                          if (!acct) return null;
-                          return acct.is_verified ? (
-                            <span className="inline-flex items-center gap-1 text-micro font-medium text-emerald-600 dark:text-emerald-400 flex-shrink-0" title="This inbox is verified for sending.">
-                              <BadgeCheck className="h-3.5 w-3.5" /><span className="hidden md:inline">Verified</span>
+                      {/* Who it goes to, and from where: one header, two quiet lines. */}
+                      <div className="flex-shrink-0 border-b border-[var(--border-subtle)]">
+                        <div className="flex items-center gap-2 pl-4 pr-2 h-11">
+                          <span className="w-10 flex-shrink-0 text-caption font-medium text-[var(--text-tertiary)]">{replyMode === 'reply' ? 'To' : 'Forward'}</span>
+                          {replyMode === 'reply' ? (
+                            <span className="flex items-center gap-1.5 min-w-0 flex-1">
+                              <span className="inline-flex items-center gap-1.5 min-w-0 h-7 pl-0.5 pr-2.5 rounded-full bg-[var(--bg-elevated)]">
+                                <Avatar name={threadContactName || undefined} email={currentMsg.from_email} size="sm" />
+                                <span className="text-body font-semibold text-[var(--text-primary)] truncate">{threadContactName || currentMsg.from_email}</span>
+                              </span>
+                              {threadContactName && <span className="text-caption text-[var(--text-tertiary)] truncate hidden sm:inline">{currentMsg.from_email}</span>}
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 text-micro font-medium text-amber-600 dark:text-amber-400 flex-shrink-0" title="This inbox isn't verified for sending — deliverability may suffer.">
-                              Unverified
-                            </span>
-                          );
-                        })()}
+                            <input
+                              aria-label="Forward to"
+                              value={forwardTo}
+                              onChange={e => setForwardTo(e.target.value)}
+                              className="flex-1 min-w-0 bg-transparent text-strong text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)]"
+                              placeholder="recipient@example.com"
+                              autoFocus
+                            />
+                          )}
+                          <button aria-label="Close composer" onClick={() => setReplyMode(null)} title="Close (your draft is kept)" className="icon-btn h-8 w-8 flex-shrink-0"><X className="h-4 w-4" /></button>
+                        </div>
+                        <div className="flex items-center gap-2 pl-4 pr-3 h-9 border-t border-[var(--border-subtle)]">
+                          <span className="w-10 flex-shrink-0 text-caption font-medium text-[var(--text-tertiary)]">From</span>
+                          <div className="min-w-0 flex-1 sm:flex-none sm:max-w-[280px]">
+                            <SenderSelect accounts={smtpAccounts} value={replySenderId} onChange={setReplySenderId} />
+                          </div>
+                          {(() => {
+                            const acct = smtpAccounts.find(a => a.id === replySenderId) || smtpAccounts[0];
+                            if (!acct) return null;
+                            return acct.is_verified ? (
+                              <span className="inline-flex flex-shrink-0 text-emerald-600 dark:text-emerald-400" title="This inbox is verified for sending." aria-label="Verified inbox">
+                                <BadgeCheck className="h-3.5 w-3.5" />
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center flex-shrink-0 h-5 px-1.5 rounded text-micro font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400" title="This inbox isn't verified for sending — deliverability may suffer.">
+                                Unverified
+                              </span>
+                            );
+                          })()}
+                          <span className="hidden md:block flex-1" />
+                          <span className="hidden md:block min-w-0 max-w-[45%] truncate text-caption text-[var(--text-tertiary)]" title={threadSubject || undefined}>
+                            {(replyMode === 'reply' ? 'Re: ' : 'Fwd: ') + ((threadSubject || '').replace(/^((re|fwd?|fw)\s*:\s*)+/i, '') || '(no subject)')}
+                          </span>
+                        </div>
                       </div>
 
                       {/* Writing surface — a seamless canvas; the editor melts into the card */}
@@ -3665,10 +3787,10 @@ export function InboxPage() {
                         <RichTextEditor
                           key={replyMode}
                           bare
-                          placeholder={replyMode === 'reply' ? 'Write your reply…' : 'Add a note (optional)…'}
+                          placeholder={replyMode === 'reply' ? `Write your reply to ${(threadContactName || '').split(' ')[0] || 'them'}…` : 'Add a note (optional)…'}
                           onChange={replyEditor.handleChange}
                           templates={templates}
-                          minHeight="180px"
+                          minHeight="160px"
                           autoFocus={replyMode === 'reply'}
                         />
                         {replyMode === 'forward' && (
@@ -3693,116 +3815,135 @@ export function InboxPage() {
                         {replyMode === 'reply' && <AttachmentChips state={replyFiles} />}
                       </div>
 
-                      {/* AI Assist Bar */}
-                      {replyMode === 'reply' && (
+                      {/* Ask Relay to write it — opens above the action bar */}
+                      {replyMode === 'reply' && aiOpen && (
                         <AiAssistBar
                           messageId={currentMsg.id}
                           onInsert={handleAiInsert}
+                          onClose={() => setAiOpen(false)}
                         />
                       )}
 
-                      {/* Action bar — Discard left, Schedule + Send anchored right */}
-                      {/* Tighter on a phone: with full labels the three buttons
-                          overlapped - Discard under Schedule, Send reply wrapped. */}
-                      <div className="flex items-center justify-between gap-2 px-3 sm:px-4 py-3 border-t border-[var(--border-subtle)] bg-[var(--bg-elevated)]/30 flex-shrink-0">
-                        <div className="flex items-center gap-1 min-w-0">
-                          <button onClick={() => setReplyMode(null)} className="h-9 px-2 sm:px-3 rounded-lg text-strong font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors">Discard</button>
-                          <SignatureButton available={replySig.available} on={replySig.on} onToggle={replySig.toggle} />
-                          {/* Files and the reminder go with a reply; a forward
-                              carries the original as it was. */}
-                          {replyMode === 'reply' && (
-                            <>
-                              <AttachButton state={replyFiles} disabled={replyMut.isPending} />
-                              <span className="hidden lg:inline-flex"><NudgeSelect value={replyNudge} onChange={setReplyNudge} disabled={replyMut.isPending} /></span>
-                            </>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {replyMode === 'reply' && (
-                            <div className="relative">
-                              <button
-                                onClick={() => setShowReplySchedule(!showReplySchedule)}
-                                aria-haspopup="true"
-                                aria-expanded={showReplySchedule}
-                                aria-controls={showReplySchedule ? replyScheduleId : undefined}
-                                // A scheduled reply is stored and sent later, with
-                                // nowhere to keep files until then.
-                                disabled={replyEditor.isEmpty || replyMut.isPending || replyFiles.count > 0}
-                                className={`flex items-center gap-1.5 h-9 px-3 rounded-lg text-strong font-medium transition-all disabled:opacity-40 ${
-                                  showReplySchedule
-                                    ? 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)] border border-[rgba(47,63,156,0.25)]'
-                                    : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] border border-[var(--border-default)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
-                                }`}
-                                title={replyFiles.count > 0 ? 'Scheduled replies cannot carry attachments yet - send now, or remove the files' : 'Schedule send'}
-                              >
-                                <CalendarClock className="h-3.5 w-3.5" />
-                                <span className="hidden sm:inline">Schedule</span>
-                                <ChevronDown className={`h-3 w-3 transition-transform ${showReplySchedule ? 'rotate-180' : ''}`} />
-                              </button>
-                              {showReplySchedule && (
-                                <ScheduleSendPicker
-                                  id={replyScheduleId}
-                                  onSchedule={(scheduledAt) => {
-                                    const sid = replySenderId || undefined;
-                                    const b = withSignature(replyEditor.html, replyEditor.text, replySig.sigHtml, replySig.on);
-                                    scheduleReplyMut.mutate({ id: currentMsg.id, body: b.body, body_html: b.body_html, smtp_account_id: sid, scheduled_at: scheduledAt });
-                                    setShowReplySchedule(false);
-                                  }}
-                                  onClose={() => setShowReplySchedule(false)}
-                                />
-                              )}
-                            </div>
-                          )}
+                      {/* Action bar — the tools on the left, one send button on the
+                          right with scheduling folded into it. Before, Discard,
+                          a boxed reminder select, Schedule and Send sat in one row
+                          and the select ran into Schedule. */}
+                      <div className="flex items-center gap-1 px-2.5 sm:px-3 py-2.5 border-t border-[var(--border-subtle)] flex-shrink-0">
+                        {replyMode === 'reply' && (
                           <button
-                            onClick={async () => {
-                              const sid = replySenderId || undefined;
-                              if (replyMode === 'reply' && !replyEditor.isEmpty) {
-                                const b = withSignature(replyEditor.html, replyEditor.text, replySig.sigHtml, replySig.on);
-                                let attachments: SendExtras['attachments'];
-                                if (replyFiles.count > 0) {
-                                  setReadingFiles(true);
-                                  try {
-                                    attachments = await replyFiles.toPayload();
-                                  } catch {
-                                    toast.error('One of the files could not be read. Remove it and attach it again.');
-                                    return;
-                                  } finally {
-                                    setReadingFiles(false);
-                                  }
-                                }
-                                replyMut.mutate({ id: currentMsg.id, body: b.body, body_html: b.body_html, smtp_account_id: sid, extras: { attachments, nudge_days: replyNudge } });
-                              } else if (replyMode === 'forward' && forwardTo.trim()) {
-                                const b = withSignature(replyEditor.html || '', replyEditor.text || '', replySig.sigHtml, replySig.on);
-                                forwardMut.mutate({ id: currentMsg.id, to: forwardTo.trim(), note: b.body || undefined, body_html: b.body_html || undefined, smtp_account_id: sid });
-                              }
-                            }}
-                            disabled={
-                              (replyMode === 'reply' ? replyEditor.isEmpty || replyMut.isPending || readingFiles : !forwardTo.trim() || forwardMut.isPending)
-                            }
-                            className="flex items-center gap-2 h-9 px-3 sm:px-4 rounded-lg bg-[var(--indigo)] text-white text-strong font-semibold whitespace-nowrap hover:bg-[var(--indigo-hover)] transition-colors disabled:opacity-40 shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_2px_rgba(24,25,29,0.35)]"
+                            type="button"
+                            onClick={() => setAiOpen(v => !v)}
+                            aria-pressed={aiOpen}
+                            title="Tell Relay what to say and it writes the reply"
+                            className={cn(
+                              'inline-flex items-center gap-1.5 h-8 px-2.5 mr-1 rounded-lg text-caption font-semibold transition-colors flex-shrink-0',
+                              aiOpen
+                                ? 'bg-[var(--indigo)] text-white'
+                                : 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)] hover:bg-[rgba(47,63,156,0.14)]',
+                            )}
+                          >
+                            <Wand2 className="h-3.5 w-3.5" />
+                            <span className="hidden sm:inline">Write with Relay</span>
+                          </button>
+                        )}
+                        {/* Files and the reminder go with a reply; a forward
+                            carries the original as it was. */}
+                        {replyMode === 'reply' && <AttachButton state={replyFiles} disabled={replyMut.isPending} />}
+                        <SignatureButton compact available={replySig.available} on={replySig.on} onToggle={replySig.toggle} />
+                        {replyMode === 'reply' && (
+                          <NudgeSelect compact value={replyNudge} onChange={setReplyNudge} disabled={replyMut.isPending} />
+                        )}
+
+                        <span className="flex-1" />
+
+                        <button
+                          type="button"
+                          onClick={() => setReplyMode(null)}
+                          aria-label="Discard"
+                          title="Discard"
+                          className="icon-btn h-8 w-8 flex-shrink-0 mr-1 hover:!text-rose-600 dark:hover:!text-rose-400"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+
+                        {/* Send, with Schedule as its other half */}
+                        <div className="relative flex flex-shrink-0 items-stretch rounded-lg shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_2px_rgba(24,25,29,0.35)]">
+                          <button
+                            onClick={() => void sendReplyNow()}
+                            disabled={!canSendReply}
+                            title={`Send (${MOD_KEY}+Enter)`}
+                            className={cn(
+                              'flex items-center gap-2 h-9 pl-3 sm:pl-4 pr-3 bg-[var(--indigo)] text-white text-strong font-semibold whitespace-nowrap hover:bg-[var(--indigo-hover)] transition-colors disabled:opacity-40',
+                              replyMode === 'reply' ? 'rounded-l-lg' : 'rounded-lg',
+                            )}
                           >
                             <Send className="h-3.5 w-3.5" />
-                            {replyMut.isPending || forwardMut.isPending ? 'Sending…' : replyMode === 'reply' ? 'Send reply' : 'Forward'}
+                            {replyMut.isPending || forwardMut.isPending ? 'Sending…' : replyMode === 'reply' ? 'Send' : 'Forward'}
+                            <kbd className="hidden 2xl:inline-flex items-center h-[18px] px-1 rounded bg-white/15 text-micro font-medium leading-none text-white/85">{MOD_KEY === 'Ctrl' ? 'Ctrl ↵' : '⌘↵'}</kbd>
                           </button>
+                          {replyMode === 'reply' && (
+                            <button
+                              onClick={() => setShowReplySchedule(!showReplySchedule)}
+                              aria-haspopup="true"
+                              aria-expanded={showReplySchedule}
+                              aria-controls={showReplySchedule ? replyScheduleId : undefined}
+                              aria-label="Schedule send"
+                              // A scheduled reply is stored and sent later, with
+                              // nowhere to keep files until then.
+                              disabled={replyEditor.isEmpty || replyMut.isPending || replyFiles.count > 0}
+                              title={replyFiles.count > 0 ? 'Scheduled replies cannot carry attachments yet - send now, or remove the files' : 'Schedule send'}
+                              className="flex items-center justify-center w-9 h-9 rounded-r-lg border-l border-white/20 bg-[var(--indigo)] text-white hover:bg-[var(--indigo-hover)] transition-colors disabled:opacity-40"
+                            >
+                              <CalendarClock className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                          {replyMode === 'reply' && showReplySchedule && (
+                            <ScheduleSendPicker
+                              id={replyScheduleId}
+                              align="right"
+                              onSchedule={(scheduledAt) => {
+                                const sid = replySenderId || undefined;
+                                const b = withSignature(replyEditor.html, replyEditor.text, replySig.sigHtml, replySig.on);
+                                scheduleReplyMut.mutate({ id: currentMsg.id, body: b.body, body_html: b.body_html, smtp_account_id: sid, scheduled_at: scheduledAt });
+                                setShowReplySchedule(false);
+                              }}
+                              onClose={() => setShowReplySchedule(false)}
+                            />
+                          )}
                         </div>
                       </div>
                     </div>
                   ) : (
-                    /* Idle state: a one-click reply bar keeps the composer a thought away */
-                    <div className="w-full flex items-center gap-2.5 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-sm)] px-3 py-2.5">
-                      <Avatar name={threadContactName || undefined} email={threadContactEmail || undefined} size="md" />
+                    /* Idle state: the reply is one click (or R) away, and so is
+                       Relay's draft when it has one. */
+                    <div className="w-full flex items-center gap-1.5 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-sm)] p-1.5 hover:border-[rgba(47,63,156,0.35)] transition-colors">
                       <button
                         onClick={() => { setShowCompose(false); setReplyMode('reply'); setReplySenderId(currentMsg.smtp_account_id || smtpAccounts[0]?.id || ''); }}
-                        className="flex-1 h-10 px-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/60 text-left text-strong text-[var(--text-tertiary)] hover:border-[rgba(47,63,156,0.45)] hover:bg-[var(--bg-surface)] transition-colors"
+                        className="group flex-1 min-w-0 flex items-center gap-2.5 h-11 pl-1.5 pr-2 rounded-xl text-left hover:bg-[var(--bg-hover)] transition-colors"
                       >
-                        Reply to {threadContactName || 'this conversation'}…
+                        <Avatar name={threadContactName || undefined} email={threadContactEmail || undefined} size="md" />
+                        <span className="flex-1 min-w-0 truncate text-strong text-[var(--text-tertiary)] group-hover:text-[var(--text-secondary)]">
+                          Reply to {threadContactName || 'this conversation'}…
+                        </span>
+                        <kbd className="kbd hidden sm:inline-flex">R</kbd>
                       </button>
-                      <button aria-label="Forward"
+                      {currentMsg.sara_draft_reply && (
+                        <button
+                          onClick={applySaraDraft}
+                          title="Open the composer with Relay's draft loaded - you review it before it sends"
+                          className="inline-flex flex-shrink-0 items-center gap-1.5 h-9 px-3 rounded-lg bg-[var(--indigo-subtle)] text-caption font-semibold text-[var(--indigo-text)] hover:bg-[rgba(47,63,156,0.14)] transition-colors"
+                        >
+                          <Wand2 className="h-3.5 w-3.5" />
+                          <span className="hidden md:inline">Relay's draft</span>
+                        </button>
+                      )}
+                      <button
                         onClick={() => { setShowCompose(false); setReplyMode('forward'); setForwardTo(''); setReplySenderId(currentMsg.smtp_account_id || smtpAccounts[0]?.id || ''); }}
                         title="Forward"
-                        className="icon-btn h-9 w-9 flex-shrink-0"
+                        className="inline-flex flex-shrink-0 items-center gap-1.5 h-9 px-2.5 rounded-lg text-caption font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] transition-colors"
                       >
                         <Forward className="h-4 w-4" />
+                        <span className="hidden md:inline">Forward</span>
                       </button>
                     </div>
                   )}

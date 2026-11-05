@@ -193,14 +193,20 @@ export function ReplyTriage({ messageId, contactId, decision, leadId }: {
     );
   }
 
+  /*
+   * Three rows, one per decision, each with its key. Laid out as a short
+   * menu because this sits in a 300px rail: as a wrapping row the first
+   * choice sat beside "What is this?" and the other two dropped beneath it
+   * at their own widths, so the three choices did not look like a set.
+   */
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2.5">
-      <span className="text-caption font-medium text-[var(--text-tertiary)]">What is this?</span>
+    <div className="space-y-1.5" role="group" aria-label="Decide what this reply is">
       {TRIAGE_DECISIONS.map((d) => {
         const Icon = ICON[d.id];
         // Making a lead needs somebody to make it about; the server refuses
         // otherwise, so the button says why rather than failing on press.
         const blocked = d.id === 'interested' && !contactId;
+        const primary = d.id === 'interested';
         return (
           <button
             key={d.id}
@@ -210,17 +216,19 @@ export function ReplyTriage({ messageId, contactId, decision, leadId }: {
               ? 'This thread is not linked to a contact yet, so there is nobody to make a lead about.'
               : d.effect}
             className={cn(
-              'inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-body font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed',
-              d.id === 'interested'
-                ? 'bg-[var(--indigo)] text-white hover:opacity-90'
-                : 'border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
+              'group w-full flex items-center gap-2 h-9 px-3 rounded-lg text-body font-semibold text-left transition-colors disabled:opacity-40 disabled:cursor-not-allowed',
+              primary
+                ? 'bg-[var(--indigo)] text-white hover:bg-[var(--indigo-hover)] shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_2px_rgba(24,25,29,0.25)]'
+                : d.id === 'not_interested'
+                  ? 'border border-[var(--border-default)] text-[var(--text-secondary)] hover:border-rose-500/40 hover:bg-rose-500/5 hover:text-rose-600 dark:hover:text-rose-400'
+                  : 'border border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
             )}
           >
-            {triage.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Icon className="h-3.5 w-3.5" />}
-            {d.label}
+            {triage.isPending ? <Loader2 className="h-3.5 w-3.5 flex-shrink-0 animate-spin" /> : <Icon className="h-3.5 w-3.5 flex-shrink-0" />}
+            <span className="flex-1 truncate">{d.label}</span>
             <kbd className={cn(
-              'ml-0.5 rounded px-1 text-micro font-semibold leading-[15px]',
-              d.id === 'interested' ? 'bg-white/20 text-white' : 'bg-[var(--bg-surface)] text-[var(--text-tertiary)]',
+              'inline-flex h-[18px] min-w-[18px] items-center justify-center rounded px-1 text-micro font-semibold leading-none',
+              primary ? 'bg-white/20 text-white' : 'border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[var(--text-tertiary)]',
             )}>
               {d.key.toUpperCase()}
             </kbd>
