@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, BellRing, Coins, DoorOpen, Layers, Megaphone } from 'lucide-react';
-import { CREDIT_ACTION_LABELS, formatDateTime, type AdminAlertKind, type AdminSettingsResponse, type CreditAction, type PlanId, type PlatformSettings, type SignupMode } from '@lemlist/shared';
+import { AlertTriangle, BellRing, Coins, DoorOpen, Layers, Megaphone, Plug } from 'lucide-react';
+import { APP_LINK_HOSTS, CREDIT_ACTION_LABELS, formatDateTime, type AdminAlertKind, type AppLinkId, type AppLinks, type AdminSettingsResponse, type CreditAction, type PlanId, type PlatformSettings, type SignupMode } from '@lemlist/shared';
 import { adminApi } from '../../api/admin.api';
 import { Button } from '../ui/Button';
 import { Spinner } from '../ui/Spinner';
@@ -29,6 +29,7 @@ export function AdminSettings() {
         <AlertsCard />
         <SignupsCard data={data} />
         <AnnouncementCard data={data} />
+        <AppLinksCard data={data} />
         <PlansCard data={data} />
         <PricesCard data={data} />
       </div>
@@ -133,6 +134,46 @@ function AnnouncementCard({ data }: { data: AdminSettingsResponse }) {
         <Button size="sm" disabled={!text.trim() || !changed || postMut.isPending || !data.ready} onClick={() => postMut.mutate(undefined, { onSuccess: saved })}>{a ? 'Update' : 'Post'}</Button>
         {a && <Button size="sm" variant="ghost" disabled={downMut.isPending} onClick={() => downMut.mutate(undefined, { onSuccess: saved })}>Take down</Button>}
         <span className="text-caption text-[var(--text-tertiary)] ml-auto tabular">{text.length}/280</span>
+      </div>
+    </Card>
+  );
+}
+
+const APPS: Array<{ id: AppLinkId; label: string; placeholder: string }> = [
+  { id: 'zapier', label: 'Zapier', placeholder: 'https://zapier.com/developer/public-invite/...' },
+  { id: 'make', label: 'Make', placeholder: 'https://www.make.com/en/hq/app-invitation/...' },
+  { id: 'n8n', label: 'n8n', placeholder: 'https://www.npmjs.com/package/n8n-nodes-sincerely' },
+];
+
+/** Where Sincerely's own apps are, so Integrations can send people straight there. */
+function AppLinksCard({ data }: { data: AdminSettingsResponse }) {
+  const saved = useSaved();
+  const current = data.settings.app_links || {};
+  const fromSettings = () => Object.fromEntries(APPS.map((a) => [a.id, current[a.id] || ''])) as Record<AppLinkId, string>;
+  const [form, setForm] = useState(fromSettings);
+  const key = JSON.stringify(current);
+  useEffect(() => { setForm(fromSettings()); }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  const changed = APPS.some((a) => form[a.id].trim() !== (current[a.id] || ''));
+  const bad = APPS.find((a) => form[a.id].trim() && !APP_LINK_HOSTS[a.id].test(form[a.id].trim()));
+  const links = Object.fromEntries(APPS.filter((a) => form[a.id].trim()).map((a) => [a.id, form[a.id].trim()])) as AppLinks;
+  const mut = useAdminAction(() => adminApi.saveAppLinks(links), 'App links saved.', 'The app links could not be saved.');
+
+  return (
+    <Card title="Sincerely apps" icon={Plug} aside={<Stamp data={data} k="app_links" />}>
+      <p className="text-caption text-[var(--text-tertiary)] mb-2">
+        The invite link for each app while it is private, or its page once it is listed. Integrations shows an "Open in ..." button for each one set; blank hides it.
+      </p>
+      <div className="space-y-2">
+        {APPS.map((a) => (
+          <label key={a.id} className="flex items-center gap-2">
+            <span className="w-16 shrink-0 text-body text-[var(--text-secondary)]">{a.label}</span>
+            <input value={form[a.id]} onChange={(e) => setForm((f) => ({ ...f, [a.id]: e.target.value }))} placeholder={a.placeholder} aria-label={`${a.label} app link`} className={cn(inputBase, 'flex-1 min-w-0')} />
+          </label>
+        ))}
+      </div>
+      {bad && <p className="mt-2 text-caption text-rose-700 dark:text-rose-300">The {bad.label} link should be an https:// address on {bad.id === 'n8n' ? 'n8n.io or npmjs.com' : `${bad.id}.com`}.</p>}
+      <div className="mt-3">
+        <Button size="sm" disabled={!changed || !!bad || mut.isPending || !data.ready} onClick={() => mut.mutate(undefined, { onSuccess: saved })}>Save</Button>
       </div>
     </Card>
   );

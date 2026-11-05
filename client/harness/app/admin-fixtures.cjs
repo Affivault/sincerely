@@ -81,7 +81,7 @@ function detail(id) {
 const planDefaults = { free: { name: 'Free', maxInboxes: 1, emailsPerMonth: 100, prospectCredits: 25 }, trial: { name: 'Trial', maxInboxes: 25, emailsPerMonth: 15000, prospectCredits: 100 }, starter: { name: 'Starter', maxInboxes: 3, emailsPerMonth: 1500, prospectCredits: 250 }, growth: { name: 'Growth', maxInboxes: 25, emailsPerMonth: 15000, prospectCredits: 1000 }, scale: { name: 'Scale', maxInboxes: -1, emailsPerMonth: -1, prospectCredits: 5000 }, lifetime: { name: 'Lifetime', maxInboxes: -1, emailsPerMonth: -1, prospectCredits: 1000 } };
 const announcement = process.env.HARNESS_ANNOUNCE === '1' ? { id: 'a1', text: 'Scheduled maintenance on Sunday 2 to 3am UTC. Sending pauses for that hour.', tone: 'info', link_url: '/settings', link_label: 'Details' } : null;
 const settings = () => ({
-  settings: { plans: { starter: { emailsPerMonth: 2000 } }, credit_prices: { reveal: 1.5 }, signups: { mode: 'invite', allow: ['@northbeam.io', 'jane@acme.com'] }, announcement: { id: 'a1', text: 'Scheduled maintenance on Sunday 2 to 3am UTC.', tone: 'info', link_url: null, link_label: null }, kill_switch: null },
+  settings: { plans: { starter: { emailsPerMonth: 2000 } }, credit_prices: { reveal: 1.5 }, signups: { mode: 'invite', allow: ['@northbeam.io', 'jane@acme.com'] }, announcement: { id: 'a1', text: 'Scheduled maintenance on Sunday 2 to 3am UTC.', tone: 'info', link_url: null, link_label: null }, kill_switch: null, app_links: { zapier: 'https://zapier.com/developer/public-invite/212345/3f9a1c0b7e2d4a5c/' } },
   defaults: { plans: planDefaults, credit_prices: { search: 0.5, reveal: 1, verify: 0.1, enrich: 2 } },
   ready: true,
   updated: { signups: { by: 'steven@usesincerely.com', at: ago(1) }, plans: { by: 'steven@usesincerely.com', at: ago(4) } },
@@ -101,7 +101,7 @@ function sending() {
 }
 
 function adminAnswer(method, path) {
-  if (path === '/api/platform') return { signups: process.env.HARNESS_SIGNUPS || 'open', announcement, credit_prices: { search: 0.5, reveal: 1, verify: 0.1, enrich: 2 }, plans: planDefaults };
+  if (path === '/api/platform') return { signups: process.env.HARNESS_SIGNUPS || 'open', announcement, app_links: { zapier: 'https://zapier.com/developer/public-invite/212345/3f9a1c0b7e2d4a5c/' }, credit_prices: { search: 0.5, reveal: 1, verify: 0.1, enrich: 2 }, plans: planDefaults };
   if (path === '/billing/usage' || path === '/billing/refresh') {
     const u = { plan: 'growth', planName: 'Growth', status: 'active', trialEndsAt: null, periodStart: ago(12).slice(0, 10), currentPeriodEnd: ahead(18), emailsSent: 1874, emailsLimit: 10000, inboxes: 3, inboxLimit: 10, features: { sara: true, abTesting: true }, hasBilling: true };
     return owner() ? { ...u, isOwner: true } : u;

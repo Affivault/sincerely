@@ -191,6 +191,7 @@ export const adminController = {
   savePrices: act((req) => platform.savePrices(req.userEmail!, req.body?.prices)),
   saveSignups: act((req) => platform.saveSignups(req.userEmail!, req.body)),
   saveAnnouncement: act((req) => platform.saveAnnouncement(req.userEmail!, req.body)),
+  saveAppLinks: act((req) => platform.saveAppLinks(req.userEmail!, req.body)),
   killSwitch: act((req) => platform.setKillSwitch(req.userEmail!, req.body?.on === true, req.body?.reason)),
   sending: act(() => platform.sending()),
   mailboxActive: act((req) => platform.setMailboxActive(req.userEmail!, req.params.mailboxId, req.body?.active !== false)),

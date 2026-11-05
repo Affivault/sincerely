@@ -1,6 +1,7 @@
 import { apiClient } from './client';
 import type {
   AccountOverrides, AdminAlertKind, AdminAlertSettings, AdminBulkAction, AdminBulkResult, AdminInsights, AdminAccountDetail, AdminAccountsResponse, AdminBillingReport, AdminSendingReport, AdminSettingsResponse, PlatformSettings, AdminAuditResponse, AdminStats, AdminUsageReport, AdminUserRow, AdminUsersResponse,
+  AppLinks,
 } from '@lemlist/shared';
 
 const acct = (id: string) => `/admin/accounts/${encodeURIComponent(id)}`;
@@ -90,6 +91,7 @@ export const adminApi = {
   saveSignups: async (signups: PlatformSettings['signups']) => (await apiClient.post<AdminSettingsResponse>('/admin/settings/signups', signups)).data,
   saveAnnouncement: async (a: { text: string; tone: 'info' | 'warn'; link_url?: string; link_label?: string } | null) =>
     (await apiClient.post<AdminSettingsResponse>('/admin/settings/announcement', a || { text: '' })).data,
+  saveAppLinks: async (links: AppLinks) => (await apiClient.post<AdminSettingsResponse>('/admin/settings/app-links', links)).data,
   killSwitch: async (on: boolean, reason?: string) => (await apiClient.post<AdminSettingsResponse>('/admin/settings/kill-switch', { on, reason })).data,
   sending: async () => (await apiClient.get<AdminSendingReport>('/admin/sending')).data,
   setMailboxActive: async (mailboxId: string, active: boolean) => { await apiClient.post(`/admin/mailboxes/${encodeURIComponent(mailboxId)}/active`, { active }); },

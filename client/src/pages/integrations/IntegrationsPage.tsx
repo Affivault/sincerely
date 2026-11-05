@@ -6,6 +6,7 @@ import {
   INTEGRATION_CATALOG,
   type IntegrationProviderMeta,
   type UserIntegration,
+  type AppLinkId,
   type IntegrationResourcesResult, formatDateTime } from '@lemlist/shared';
 import {
   Blocks,
@@ -30,7 +31,10 @@ import {
   Clock,
   Sparkles,
   RefreshCw,
+  Key,
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { platformQuery } from '../../lib/platform';
 import { cn } from '../../lib/utils';
 import { useOverlayStack } from '../../hooks/useOverlayStack';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
@@ -357,6 +361,9 @@ function ProviderModal({
 }) {
   const confirm = useConfirm();
   const queryClient = useQueryClient();
+  // Sincerely's own app on Zapier, Make or n8n, once the owners have published its link.
+  const { data: platform } = useQuery(platformQuery);
+  const appLink = (['zapier', 'make', 'n8n'] as string[]).includes(meta.id) ? platform?.app_links?.[meta.id as AppLinkId] : undefined;
   const [config, setConfig] = useState<Record<string, string>>(() => {
     // Toggles start from the stored value (default on).
     const initial: Record<string, string> = {};
@@ -487,6 +494,27 @@ function ProviderModal({
               <p className="text-caption text-[var(--text-tertiary)]">
                 You'll approve access on {meta.name}'s own page and come straight back. Or set up manually below.
               </p>
+            </div>
+          )}
+
+          {/* The real app: triggers and actions, rather than one webhook for everything. */}
+          {appLink && (
+            <div className="rounded-lg border border-[var(--indigo)] bg-[rgba(47,63,156,0.05)] p-3.5 space-y-2">
+              <p className="text-body text-[var(--text-primary)] font-medium">Use the Sincerely app in {meta.name}</p>
+              <p className="text-caption text-[var(--text-secondary)]">
+                Instant triggers for interested replies, new replies, contacts and unsubscribes, and actions that add contacts, put people into campaigns and unsubscribe them. It connects with an API key.
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <a href={appLink} target="_blank" rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3.5 h-8 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold hover:opacity-90 transition-all shadow-[var(--glow-indigo)]">
+                  Open in {meta.name} <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+                <Link to="/developer?tab=api-keys" onClick={onClose}
+                  className="inline-flex items-center gap-1.5 px-3 h-8 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-body font-medium text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]">
+                  <Key className="h-3.5 w-3.5" /> Create an API key
+                </Link>
+              </div>
+              <p className="text-caption text-[var(--text-tertiary)]">Or send every event to one {meta.name} webhook, below.</p>
             </div>
           )}
 

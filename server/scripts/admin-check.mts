@@ -357,6 +357,20 @@ console.log('\nPlatform settings and an account\'s own limits');
   is('the platform switch stops every account\'s sending', (await billingService.reserveEmailQuota(USER_ID)) === false && (await accountControls.isSendingPaused(USER_ID)) === true);
   await adminPlatformService.setKillSwitch(OWNER, false);
   is('and turning it off lets them send again', (await accountControls.isSendingPaused(USER_ID)) === false);
+
+  // Where Sincerely's own Zapier, Make and n8n apps live.
+  await adminPlatformService.saveAppLinks(OWNER, { zapier: ' https://zapier.com/developer/public-invite/123/abc/ ', make: '' });
+  const links = (await platformSettings.publicInfo()).app_links;
+  is('an app link is kept, trimmed, and blanks are left out', JSON.stringify(links) === JSON.stringify({ zapier: 'https://zapier.com/developer/public-invite/123/abc/' }));
+  for (const [label, input] of [
+    ['a Zapier link that is not on zapier.com is refused', { zapier: 'https://zapier.com.evil.io/x' }],
+    ['an http link is refused', { make: 'http://www.make.com/x' }],
+    ['a javascript: app link is refused', { n8n: 'javascript:alert(1)' }],
+  ] as const) {
+    try { await adminPlatformService.saveAppLinks(OWNER, input); is(label, false); } catch (e: any) { is(label, e?.statusCode === 400); }
+  }
+  await adminPlatformService.saveAppLinks(OWNER, {});
+  is('clearing every link removes the setting', JSON.stringify((await platformSettings.publicInfo()).app_links) === '{}');
   platformSettings.reset();
 }
 
