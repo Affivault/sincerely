@@ -1328,9 +1328,11 @@ function DaySeparator({ label, gap }: { label: string; gap?: string }) {
 }
 
 /** One message on the timeline: direction-coded node + expandable card. */
-function TimelineMessage({ msg, threadSubject, isCurrent, expanded, onToggle }: {
+function TimelineMessage({ msg, threadSubject, threadCampaign, isCurrent, expanded, onToggle }: {
   msg: Message;
   threadSubject: string | null;
+  /** The campaign already named at the top of the conversation. */
+  threadCampaign?: string | null;
   isCurrent: boolean;
   expanded: boolean;
   onToggle: () => void;
@@ -1343,6 +1345,10 @@ function TimelineMessage({ msg, threadSubject, isCurrent, expanded, onToggle }: 
   const d = new Date(msg.received_at);
   const stamp = `${formatDayMonth(d)} · ${formatTime(d)}`;
   const viaInbox = msg.smtp_label || msg.smtp_email?.split('@')[0] || null;
+  // The header above already says the selected message's intent and the
+  // campaign, so a card only repeats them when they differ.
+  const cardIntent = isCurrent ? null : intent;
+  const cardCampaign = msg.campaign_name && msg.campaign_name !== threadCampaign ? msg.campaign_name : null;
 
   return (
     <div id={`msg-${msg.id}`} className="pb-2.5 animate-fade-in">
@@ -1393,12 +1399,12 @@ function TimelineMessage({ msg, threadSubject, isCurrent, expanded, onToggle }: 
               <ChevronDown className={cn('h-3.5 w-3.5 text-[var(--text-tertiary)] transition-transform flex-shrink-0', expanded && 'rotate-180')} />
             </div>
 
-            {expanded && (intent || subjectChanged || msg.campaign_name || viaInbox) && (
+            {expanded && (cardIntent || subjectChanged || cardCampaign || viaInbox) && (
               <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                {intent && (
-                  <span className={cn('inline-flex items-center gap-1 text-micro font-semibold px-1.5 py-0.5 rounded-md', intent.bg, intent.text)}>
+                {cardIntent && (
+                  <span className={cn('inline-flex items-center gap-1 text-micro font-semibold px-1.5 py-0.5 rounded-md', cardIntent.bg, cardIntent.text)}>
                     <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
-                    {intent.label}
+                    {cardIntent.label}
                   </span>
                 )}
                 {viaInbox && (
@@ -1406,8 +1412,8 @@ function TimelineMessage({ msg, threadSubject, isCurrent, expanded, onToggle }: 
                     {isOutbound ? 'from' : 'to'} {viaInbox}
                   </span>
                 )}
-                {msg.campaign_name && (
-                  <span className="inline-flex items-center gap-1 text-micro font-medium px-1.5 py-0.5 rounded-md bg-[var(--bg-elevated)] text-[var(--text-tertiary)]"><Megaphone className="h-2.5 w-2.5" />{msg.campaign_name}</span>
+                {cardCampaign && (
+                  <span className="inline-flex items-center gap-1 text-micro font-medium px-1.5 py-0.5 rounded-md bg-[var(--bg-elevated)] text-[var(--text-tertiary)]"><Megaphone className="h-2.5 w-2.5" />{cardCampaign}</span>
                 )}
                 {subjectChanged && (
                   <span className="inline-flex items-center text-micro font-medium px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 truncate max-w-[260px]" title={msg.subject || undefined}>
@@ -1436,9 +1442,10 @@ function TimelineMessage({ msg, threadSubject, isCurrent, expanded, onToggle }: 
   );
 }
 
-function ThreadTimeline({ thread, threadSubject, selectedId }: {
+function ThreadTimeline({ thread, threadSubject, threadCampaign, selectedId }: {
   thread: Message[];
   threadSubject: string | null;
+  threadCampaign?: string | null;
   selectedId: string | null;
 }) {
   // Expand the latest message and the selected one by default, collapse older ones
@@ -1515,6 +1522,7 @@ function ThreadTimeline({ thread, threadSubject, selectedId }: {
         key={msg.id}
         msg={msg}
         threadSubject={threadSubject}
+        threadCampaign={threadCampaign}
         isCurrent={msg.id === selectedId}
         expanded={expandedIds.has(msg.id)}
         onToggle={() => toggle(msg.id)}
@@ -2433,7 +2441,6 @@ function NavRow({ item, active, collapsed, count, onClick }: {
 /* ─── Relay co-pilot card (surfaces AI triage inline) ── */
 function SaraCopilot({ msg, onUseDraft }: { msg: Message; onUseDraft: () => void }) {
   const intent = msg.sara_intent;
-  const info = intent ? (INTENT_COLORS[intent] || INTENT_COLORS.other) : null;
   const conf = msg.sara_confidence != null
     ? Math.round(msg.sara_confidence <= 1 ? msg.sara_confidence * 100 : msg.sara_confidence)
     : null;
@@ -2452,16 +2459,12 @@ function SaraCopilot({ msg, onUseDraft }: { msg: Message; onUseDraft: () => void
    * about; the email is the thing being read.
    */
   return (
-    <div className="mb-5 flex flex-wrap sm:flex-nowrap items-center gap-3 rounded-xl border border-[rgba(47,63,156,0.2)] bg-[var(--indigo-subtle)] pl-3 pr-2 py-2">
-      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--indigo)] text-white flex-shrink-0">
-        <Sparkles className="h-3.5 w-3.5" />
-      </span>
+    <div className="mb-4 flex flex-wrap sm:flex-nowrap items-center gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-[inset_3px_0_0_var(--indigo)] pl-4 pr-2 py-2.5">
+      <Sparkles className="h-4 w-4 text-[var(--indigo-text)] flex-shrink-0" />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-caption font-bold text-[var(--indigo-text)]">Relay</span>
-          {info && (
-            <span className={cn('text-micro font-semibold px-1.5 py-0.5 rounded-full', info.bg, info.text)}>{info.label}</span>
-          )}
+          <span className="text-caption font-semibold text-[var(--indigo-text)]">Relay</span>
+          {/* The intent itself is the tag at the top of the conversation. */}
           {conf != null && (
             <span className="text-micro font-medium tabular text-[var(--text-tertiary)]" title={msg.relay_engine === 'ai' ? 'Read by AI' : undefined}>{conf}% sure</span>
           )}
@@ -2478,7 +2481,7 @@ function SaraCopilot({ msg, onUseDraft }: { msg: Message; onUseDraft: () => void
         <button
           onClick={onUseDraft}
           title="Loads into the composer - you review it before it sends"
-          className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[var(--indigo)] text-white text-caption font-semibold whitespace-nowrap hover:bg-[var(--indigo-hover)] transition-colors shadow-[inset_0_1px_0_rgba(255,255,255,0.15)] flex-shrink-0"
+          className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[var(--indigo-subtle)] text-[var(--indigo-text)] text-caption font-semibold whitespace-nowrap hover:bg-[rgba(47,63,156,0.14)] transition-colors flex-shrink-0"
         >
           <Wand2 className="h-3.5 w-3.5" /> Use draft
         </button>
@@ -3484,12 +3487,8 @@ export function InboxPage() {
                   <span className="h-4 w-px bg-[var(--border-subtle)]" />
                 </>
               )}
-              <span className="text-body text-[var(--text-tertiary)] tabular whitespace-nowrap">
+              <span className="text-body text-[var(--text-tertiary)] tabular whitespace-nowrap" title="J and K move between conversations, Esc closes">
                 {Math.max(1, visibleConversations.findIndex(c => c.latestMessage.id === selectedId) + 1)} of {visibleConversations.length}
-              </span>
-              <span className="hidden lg:flex items-center gap-1.5 ml-2 text-caption text-[var(--text-tertiary)]">
-                <kbd className="kbd">J</kbd><kbd className="kbd">K</kbd> move
-                <kbd className="kbd ml-1">Esc</kbd> close
               </span>
               <div className="flex-1" />
               {currentMsg.read_only ? (
@@ -3719,6 +3718,7 @@ export function InboxPage() {
                     <ThreadTimeline
                       thread={fullThread}
                       threadSubject={threadSubject}
+                      threadCampaign={currentMsg.campaign_name}
                       selectedId={selectedId}
                     />
                   </div>
@@ -3914,13 +3914,12 @@ export function InboxPage() {
                             disabled={!canSendReply}
                             title={`Send (${MOD_KEY}+Enter)`}
                             className={cn(
-                              'flex items-center gap-2 h-9 pl-3 sm:pl-4 pr-3 bg-[var(--indigo)] text-white text-strong font-semibold whitespace-nowrap hover:bg-[var(--indigo-hover)] transition-colors disabled:opacity-40',
+                              'flex items-center gap-2 h-9 px-3 sm:px-4 bg-[var(--indigo)] text-white text-strong font-semibold whitespace-nowrap hover:bg-[var(--indigo-hover)] transition-colors disabled:opacity-40',
                               replyMode === 'reply' ? 'rounded-l-lg' : 'rounded-lg',
                             )}
                           >
                             <Send className="h-3.5 w-3.5" />
                             {replyMut.isPending || forwardMut.isPending ? 'Sending…' : replyMode === 'reply' ? 'Send' : 'Forward'}
-                            <kbd className="hidden 2xl:inline-flex items-center h-[18px] px-1 rounded bg-white/15 text-micro font-medium leading-none text-white/85">{MOD_KEY === 'Ctrl' ? 'Ctrl ↵' : '⌘↵'}</kbd>
                           </button>
                           {replyMode === 'reply' && (
                             <button
