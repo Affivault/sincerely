@@ -107,7 +107,8 @@ test('sections are uploaded as Make stores them: IML as JSONC, common and groups
     await deploy(cfgFor(base, { SINCERELY_API_URL: 'https://api.usesincerely.com' }), quiet);
     const s = state.sections;
     assert.strictEqual(s['/sincerely-a1b2/1/base'].type, 'application/jsonc');
-    assert.deepStrictEqual(JSON.parse(s['/sincerely-a1b2/1/base'].body), app.base);
+    assert.deepStrictEqual(JSON.parse(s['/sincerely-a1b2/1/base'].body), app.forApi('https://api.usesincerely.com').base);
+    assert.strictEqual(JSON.parse(s['/connections/sincerely/api'].body).url, 'https://api.usesincerely.com/v1/me', 'the connection test calls the configured API, written out in full');
     assert.strictEqual(s['/sincerely-a1b2/1/common'].type, 'application/json');
     assert.deepStrictEqual(JSON.parse(s['/sincerely-a1b2/1/common'].body), { apiUrl: 'https://api.usesincerely.com/v1' });
     assert.deepStrictEqual(JSON.parse(s['/sincerely-a1b2/1/groups'].body), app.groups);
