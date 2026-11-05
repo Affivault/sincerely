@@ -35,9 +35,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Node 22, not the repo's .nvmrc: Zapier's CLI (19.x) refuses anything older.
       - uses: actions/setup-node@v4
         with:
-          node-version-file: .nvmrc
+          node-version: 22
           cache: npm
           cache-dependency-path: integrations/zapier/package-lock.json
 
