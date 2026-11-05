@@ -79,7 +79,7 @@ function RelayReviewBanner() {
         icon={ShieldAlert}
         action={<NoticeAction onClick={() => setOpen(true)}>Review</NoticeAction>}
       >
-        Relay unsubscribed {review.length === 1 ? '1 person' : `${review.length} people`} on a reading it no longer agrees with.
+        Relay may have unsubscribed {review.length === 1 ? '1 person' : `${review.length} people`} by mistake.
       </Notice>
       <Modal
         isOpen={open}

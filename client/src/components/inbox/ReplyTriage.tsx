@@ -218,7 +218,7 @@ export function ReplyTriage({ messageId, contactId, decision, leadId }: {
             className={cn(
               'group w-full flex items-center gap-2 h-9 px-3 rounded-lg text-body font-semibold text-left transition-colors disabled:opacity-40 disabled:cursor-not-allowed',
               primary
-                ? 'bg-[var(--indigo)] text-white hover:bg-[var(--indigo-hover)] shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_2px_rgba(24,25,29,0.25)]'
+                ? 'border border-[rgba(47,63,156,0.25)] bg-[var(--indigo-subtle)] text-[var(--indigo-text)] hover:bg-[rgba(47,63,156,0.14)]'
                 : d.id === 'not_interested'
                   ? 'border border-[var(--border-default)] text-[var(--text-secondary)] hover:border-rose-500/40 hover:bg-rose-500/5 hover:text-rose-600 dark:hover:text-rose-400'
                   : 'border border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
@@ -228,7 +228,7 @@ export function ReplyTriage({ messageId, contactId, decision, leadId }: {
             <span className="flex-1 truncate">{d.label}</span>
             <kbd className={cn(
               'inline-flex h-[18px] min-w-[18px] items-center justify-center rounded px-1 text-micro font-semibold leading-none',
-              primary ? 'bg-white/20 text-white' : 'border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[var(--text-tertiary)]',
+              primary ? 'bg-[var(--bg-surface)] text-[var(--indigo-text)]' : 'border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[var(--text-tertiary)]',
             )}>
               {d.key.toUpperCase()}
             </kbd>

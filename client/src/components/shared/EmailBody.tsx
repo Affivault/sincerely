@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { splitQuotedHtml, stripQuoted } from '@lemlist/shared';
+import { useTheme } from '../../context/ThemeContext';
 
 /**
  * Tracking pixels out. Opening an email in Sincerely should not tell a
@@ -22,6 +23,16 @@ function linkifiedText(text: string): string {
   });
 }
 
+/**
+ * Mail that brings no colours of its own (plain text, or the bare HTML a
+ * normal reply is) can follow the app into dark mode. Designed mail - a
+ * newsletter with its own backgrounds and text colours - keeps the white
+ * page it was made for, or its dark text would vanish.
+ */
+function isPlainLooking(html: string): boolean {
+  return !/bgcolor|background|(^|[\s;"'])color\s*:/i.test(html);
+}
+
 /* ─── Email HTML Renderer (sandboxed iframe) ──────────
    Renders received/sent email HTML in a sandboxed, self-sizing iframe so
    remote styles can't leak into the app. Shared by the Unibox and the
@@ -32,6 +43,7 @@ export function EmailBody({ html, text }: { html: string | null; text: string | 
   // The history a reply quotes is folded away, like every mail client does:
   // what they wrote is the message; the rest is one click away.
   const [showQuoted, setShowQuoted] = useState(false);
+  const { theme } = useTheme();
 
   const parts = useMemo(() => {
     if (html) {
@@ -42,7 +54,7 @@ export function EmailBody({ html, text }: { html: string | null; text: string | 
     return { main: main || text || '', quoted: main ? quoted : '', isHtml: false };
   }, [html, text]);
 
-  const srcDoc = useMemo(() => {
+  const { srcDoc, dark } = useMemo(() => {
     let bodyContent: string;
     if (parts.isHtml) {
       bodyContent = showQuoted && parts.quoted ? parts.main + parts.quoted : parts.main;
@@ -51,7 +63,12 @@ export function EmailBody({ html, text }: { html: string | null; text: string | 
       bodyContent = `<div style="white-space:pre-wrap;">${linkifiedText(shown)}</div>`;
     }
 
-    return `<!DOCTYPE html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><style>
+    const dark = theme === 'dark' && (!parts.isHtml || isPlainLooking(bodyContent));
+    const palette = dark
+      ? 'html{color-scheme:dark;background:transparent;} body{color:#E6E6EA;} a{color:#9AA6F0 !important;} blockquote{border-left-color:#3A3A42 !important;color:#A0A0AA !important;} pre{background:#232329 !important;} hr{border-top-color:#2E2E35 !important;}'
+      : '';
+
+    const doc = `<!DOCTYPE html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><style>
 body {
   margin: 0;
   padding: 20px 24px;
@@ -73,8 +90,10 @@ table { border-collapse: collapse; max-width: 100%; }
 hr { border: none; border-top: 1px solid #ECECEF; margin: 18px 0; }
 p { margin: 0 0 13px; }
 h1, h2, h3, h4 { margin: 0 0 10px; line-height: 1.35; }
+${palette}
 </style><base target="_blank"></head><body>${bodyContent}</body></html>`;
-  }, [parts, showQuoted]);
+    return { srcDoc: doc, dark };
+  }, [parts, showQuoted, theme]);
 
   useEffect(() => {
     const iframe = iframeRef.current;
@@ -85,7 +104,7 @@ h1, h2, h3, h4 { margin: 0 0 10px; line-height: 1.35; }
         const doc = iframe.contentDocument;
         if (doc?.body) {
           const h = doc.body.scrollHeight;
-          if (h > 0) setHeight(h + 32);
+          if (h > 0) setHeight(h + 2);
         }
       } catch { /* cross-origin safety */ }
     };
@@ -108,7 +127,7 @@ h1, h2, h3, h4 { margin: 0 0 10px; line-height: 1.35; }
         // doing nothing inside the sandbox. Still no scripts.
         sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
         className="w-full border-0"
-        style={{ height: `${height}px`, minHeight: '60px' }}
+        style={{ height: `${height}px`, minHeight: '60px', colorScheme: dark ? 'dark' : 'light' }}
         title="Email content"
       />
       {parts.quoted && (
