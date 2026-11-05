@@ -122,7 +122,9 @@ function EditorPlaceholder({ minHeight = '200px', bare = false }: { minHeight?: 
  */
 export function RichTextEditor(props: RichTextEditorProps) {
   return (
-    <Suspense fallback={<EditorPlaceholder minHeight={props.minHeight} bare={props.bare} />}>
+    <Suspense fallback={props.toolbarSlot !== undefined
+      ? <div style={{ minHeight: props.minHeight }} aria-busy data-editor-loading />
+      : <EditorPlaceholder minHeight={props.minHeight} bare={props.bare} />}>
       <Impl {...props} />
     </Suspense>
   );

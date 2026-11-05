@@ -780,7 +780,7 @@ function AiAssistBar({ messageId, onInsert, onClose }: { messageId: string; onIn
   });
 
   return (
-    <div className="flex items-center gap-2 px-4 py-2.5 border-t border-[var(--border-subtle)] bg-[var(--indigo-subtle)] focus-within:shadow-[inset_0_-2px_0_var(--indigo)]">
+    <div className="flex items-center gap-2 px-4 py-2 bg-[var(--indigo-subtle)] focus-within:shadow-[inset_0_-2px_0_var(--indigo)]">
       <Wand2 className="h-4 w-4 text-[var(--indigo-text)] flex-shrink-0" />
       <input
         aria-label="Describe your reply"
@@ -793,7 +793,7 @@ function AiAssistBar({ messageId, onInsert, onClose }: { messageId: string; onIn
           if (e.key === 'Escape') onClose();
         }}
         placeholder="Tell Relay what to say, e.g. 'accept Thursday at 2pm'"
-        className="flex-1 bg-transparent text-strong text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)]"
+        className="flex-1 bg-transparent text-strong text-[var(--text-primary)] outline-none focus-visible:shadow-none placeholder:text-[var(--text-tertiary)]"
         autoFocus
       />
       <button
@@ -2557,6 +2557,19 @@ export function InboxPage() {
   const tagMenu = usePopover(showTagDropdown, () => setShowTagDropdown(false));
   const moreMenu = usePopover(moreOpen, () => setMoreOpen(false));
   const replyComposerRef = useRef<HTMLDivElement>(null);
+  // Where the composer's formatting buttons go: its own action bar.
+  const [replyFormatSlot, setReplyFormatSlot] = useState<HTMLDivElement | null>(null);
+  // Whether the formatting buttons fit in the action bar beside Send. The
+  // composer's width follows the panels around it, not the window, so it is
+  // measured; narrower, they take a row of their own above the bar.
+  const [composerRoomy, setComposerRoomy] = useState(true);
+  useEffect(() => {
+    const el = replyComposerRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(([entry]) => setComposerRoomy(entry.contentRect.width >= 660));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [replyMode]);
   const replyEditor = useRichTextEditorRef();
   // Files and a reminder on the reply being written; both reset with it.
   const replyFiles = useOutgoingAttachments();
@@ -3772,35 +3785,37 @@ export function InboxPage() {
                           void sendReplyNow();
                         }
                       }}
-                      className="w-full flex flex-col max-h-[64vh] rounded-2xl border border-[var(--border-default)] border-t-[3px] border-t-[var(--indigo)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)] overflow-hidden focus-within:border-[rgba(47,63,156,0.35)] focus-within:border-t-[var(--indigo)] transition-colors"
+                      className="group/composer relative w-full flex flex-col max-h-[64vh] rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)] transition-[border-color,box-shadow] focus-within:border-[rgba(47,63,156,0.45)] focus-within:shadow-[var(--shadow-lg),0_0_0_4px_rgba(47,63,156,0.08)] animate-fade-in"
                     >
-                      {/* Who it goes to, and from where: one header, two quiet lines. */}
-                      <div className="flex-shrink-0 border-b border-[var(--border-subtle)]">
-                        <div className="flex items-center gap-2 pl-4 pr-2 h-11">
-                          <span className="w-10 flex-shrink-0 text-caption font-medium text-[var(--text-tertiary)]">{replyMode === 'reply' ? 'To' : 'Forward'}</span>
-                          {replyMode === 'reply' ? (
-                            <span className="flex items-center gap-1.5 min-w-0 flex-1">
-                              <span className="inline-flex items-center gap-1.5 min-w-0 h-7 pl-0.5 pr-2.5 rounded-full bg-[var(--bg-elevated)]">
-                                <Avatar name={threadContactName || undefined} email={currentMsg.from_email} size="sm" />
-                                <span className="text-body font-semibold text-[var(--text-primary)] truncate">{threadContactName || currentMsg.from_email}</span>
-                              </span>
-                              {threadContactName && <span className="text-caption text-[var(--text-tertiary)] truncate hidden sm:inline">{currentMsg.from_email}</span>}
-                            </span>
-                          ) : (
+                      {/* One header line: who it goes to on the left, which of
+                          your inboxes it goes from on the right. */}
+                      <div className="flex-shrink-0 flex flex-wrap items-center gap-x-3 gap-y-1.5 pl-4 pr-2 py-2.5 border-b border-[var(--border-subtle)]">
+                        {replyMode === 'reply' ? (
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1" title={`Re: ${(threadSubject || '').replace(/^((re|fwd?|fw)\s*:\s*)+/i, '') || '(no subject)'}`}>
+                            <Avatar name={threadContactName || undefined} email={currentMsg.from_email} size="sm" />
+                            <div className="min-w-0 leading-tight">
+                              <p className="text-body font-semibold text-[var(--text-primary)] truncate">
+                                <span className="font-normal text-[var(--text-tertiary)]">Reply to </span>{threadContactName || currentMsg.from_email}
+                              </p>
+                              {threadContactName && <p className="text-caption text-[var(--text-tertiary)] truncate">{currentMsg.from_email}</p>}
+                            </div>
+                          </div>
+                        ) : (
+                          <label className="flex items-center gap-2.5 min-w-0 flex-1">
+                            <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-[var(--bg-elevated)] text-[var(--text-tertiary)]"><Forward className="h-3.5 w-3.5" /></span>
                             <input
                               aria-label="Forward to"
                               value={forwardTo}
                               onChange={e => setForwardTo(e.target.value)}
-                              className="flex-1 min-w-0 bg-transparent text-strong text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)]"
-                              placeholder="recipient@example.com"
+                              className="flex-1 min-w-0 h-8 bg-transparent text-strong text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)]"
+                              placeholder="Forward to name@company.com"
                               autoFocus
                             />
-                          )}
-                          <button aria-label="Close composer" onClick={() => setReplyMode(null)} title="Close (your draft is kept)" className="icon-btn h-8 w-8 flex-shrink-0"><X className="h-4 w-4" /></button>
-                        </div>
-                        <div className="flex items-center gap-2 pl-4 pr-3 h-9 border-t border-[var(--border-subtle)]">
-                          <span className="w-10 flex-shrink-0 text-caption font-medium text-[var(--text-tertiary)]">From</span>
-                          <div className="min-w-0 flex-1 sm:flex-none sm:max-w-[280px]">
+                          </label>
+                        )}
+                        <div className="flex items-center gap-1 min-w-0 order-last basis-full sm:order-none sm:basis-auto pl-[38px] sm:pl-0">
+                          <span className="text-caption text-[var(--text-tertiary)] flex-shrink-0">From</span>
+                          <div className="min-w-0 max-w-[260px]">
                             <SenderSelect accounts={smtpAccounts} value={replySenderId} onChange={setReplySenderId} />
                           </div>
                           {(() => {
@@ -3811,31 +3826,42 @@ export function InboxPage() {
                                 <BadgeCheck className="h-3.5 w-3.5" />
                               </span>
                             ) : (
-                              <span className="inline-flex items-center flex-shrink-0 h-5 px-1.5 rounded text-micro font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400" title="This inbox isn't verified for sending — deliverability may suffer.">
+                              <span className="inline-flex items-center flex-shrink-0 h-5 px-1.5 rounded text-micro font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400" title="This inbox isn't verified for sending - deliverability may suffer.">
                                 Unverified
                               </span>
                             );
                           })()}
-                          <span className="hidden md:block flex-1" />
-                          <span className="hidden md:block min-w-0 max-w-[45%] truncate text-caption text-[var(--text-tertiary)]" title={threadSubject || undefined}>
-                            {(replyMode === 'reply' ? 'Re: ' : 'Fwd: ') + ((threadSubject || '').replace(/^((re|fwd?|fw)\s*:\s*)+/i, '') || '(no subject)')}
-                          </span>
                         </div>
+                        <button aria-label="Close composer" onClick={() => setReplyMode(null)} title="Close (your draft is kept)" className="icon-btn h-8 w-8 flex-shrink-0"><X className="h-4 w-4" /></button>
                       </div>
 
-                      {/* Writing surface — a seamless canvas; the editor melts into the card */}
+                      {/* Ask Relay to write it: a line above the writing,
+                          where what it writes will land. */}
+                      {replyMode === 'reply' && aiOpen && (
+                        <div className="flex-shrink-0 border-b border-[var(--border-subtle)]">
+                          <AiAssistBar
+                            messageId={currentMsg.id}
+                            onInsert={handleAiInsert}
+                            onClose={() => setAiOpen(false)}
+                          />
+                        </div>
+                      )}
+
+                      {/* The writing: a clean page with room around the words. */}
                       <div className="flex-1 min-h-0 overflow-y-auto">
                         <RichTextEditor
                           key={replyMode}
                           bare
-                          placeholder={replyMode === 'reply' ? `Write your reply to ${(threadContactName || '').split(' ')[0] || 'them'}…` : 'Add a note (optional)…'}
+                          toolbarSlot={replyFormatSlot}
+                          contentClassName="px-5 pt-4 pb-3"
+                          placeholder={replyMode === 'reply' ? `Write your reply to ${(threadContactName || '').split(' ')[0] || 'them'}...` : 'Add a note (optional)...'}
                           onChange={replyEditor.handleChange}
                           templates={templates}
-                          minHeight="160px"
+                          minHeight="150px"
                           autoFocus={replyMode === 'reply'}
                         />
                         {replyMode === 'forward' && (
-                          <div className="mx-4 mb-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/40 overflow-hidden">
+                          <div className="mx-5 mb-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/40 overflow-hidden">
                             <div className="px-3.5 py-2.5">
                               <p className="text-micro font-semibold text-[var(--text-tertiary)] mb-1.5">Forwarded message</p>
                               <div className="text-caption text-[var(--text-tertiary)] space-y-0.5">
@@ -3851,25 +3877,14 @@ export function InboxPage() {
                           </div>
                         )}
                         {replySig.on && (
-                          <SignaturePreview html={replySig.sigHtml!} onRemove={() => replySig.setOn(false)} />
+                          <div className="px-1"><SignaturePreview html={replySig.sigHtml!} onRemove={() => replySig.setOn(false)} /></div>
                         )}
                         {replyMode === 'reply' && <AttachmentChips state={replyFiles} />}
                       </div>
 
-                      {/* Ask Relay to write it — opens above the action bar */}
-                      {replyMode === 'reply' && aiOpen && (
-                        <AiAssistBar
-                          messageId={currentMsg.id}
-                          onInsert={handleAiInsert}
-                          onClose={() => setAiOpen(false)}
-                        />
-                      )}
-
-                      {/* Action bar — the tools on the left, one send button on the
-                          right with scheduling folded into it. Before, Discard,
-                          a boxed reminder select, Schedule and Send sat in one row
-                          and the select ran into Schedule. */}
-                      <div className="flex items-center gap-1 px-2.5 sm:px-3 py-2.5 border-t border-[var(--border-subtle)] flex-shrink-0">
+                      {/* Action bar: Relay, then formatting and what goes with
+                          the mail, then Send. One row, on a quiet tint. */}
+                      <div className="flex-shrink-0 flex flex-wrap items-center gap-1 px-2 sm:px-2.5 py-2 border-t border-[var(--border-subtle)] bg-[var(--bg-app)]/60 rounded-b-2xl">
                         {replyMode === 'reply' && (
                           <button
                             type="button"
@@ -3877,16 +3892,23 @@ export function InboxPage() {
                             aria-pressed={aiOpen}
                             title="Tell Relay what to say and it writes the reply"
                             className={cn(
-                              'inline-flex items-center gap-1.5 h-8 px-2.5 mr-1 rounded-lg text-caption font-semibold transition-colors flex-shrink-0',
+                              'inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-caption font-semibold transition-colors flex-shrink-0',
                               aiOpen
                                 ? 'bg-[var(--indigo)] text-white'
                                 : 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)] hover:bg-[rgba(47,63,156,0.14)]',
                             )}
                           >
                             <Wand2 className="h-3.5 w-3.5" />
-                            <span className="hidden sm:inline">Write with Relay</span>
+                            <span className="hidden sm:inline">Relay</span>
                           </button>
                         )}
+                        {replyMode === 'reply' && composerRoomy && <span className="h-5 w-px mx-1 bg-[var(--border-subtle)]" />}
+                        {/* Bold, lists, link, templates: filled in by the editor. */}
+                        <div
+                          ref={setReplyFormatSlot}
+                          className={cn('flex items-center', !composerRoomy && 'order-first basis-full -mx-2 sm:-mx-2.5 -mt-2 mb-1 px-1.5 py-1 border-b border-[var(--border-subtle)] overflow-x-auto scrollbar-none')}
+                        />
+                        {composerRoomy ? <span className="h-5 w-px mx-1 bg-[var(--border-subtle)]" /> : replyMode === 'reply' && <span className="w-1" />}
                         {/* Files and the reminder go with a reply; a forward
                             carries the original as it was. */}
                         {replyMode === 'reply' && <AttachButton state={replyFiles} disabled={replyMut.isPending} />}
@@ -3908,18 +3930,18 @@ export function InboxPage() {
                         </button>
 
                         {/* Send, with Schedule as its other half */}
-                        <div className="relative flex flex-shrink-0 items-stretch rounded-lg shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_2px_rgba(24,25,29,0.35)]">
+                        <div className="relative flex flex-shrink-0 items-stretch rounded-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_2px_rgba(24,25,29,0.3),0_4px_12px_-4px_rgba(47,63,156,0.5)]">
                           <button
                             onClick={() => void sendReplyNow()}
                             disabled={!canSendReply}
                             title={`Send (${MOD_KEY}+Enter)`}
                             className={cn(
-                              'flex items-center gap-2 h-9 px-3 sm:px-4 bg-[var(--indigo)] text-white text-strong font-semibold whitespace-nowrap hover:bg-[var(--indigo-hover)] transition-colors disabled:opacity-40',
-                              replyMode === 'reply' ? 'rounded-l-lg' : 'rounded-lg',
+                              'flex items-center gap-2 h-9 px-3.5 sm:px-4 bg-[var(--indigo)] text-white text-strong font-semibold whitespace-nowrap hover:bg-[var(--indigo-hover)] transition-colors disabled:opacity-40',
+                              replyMode === 'reply' ? 'rounded-l-xl' : 'rounded-xl',
                             )}
                           >
                             <Send className="h-3.5 w-3.5" />
-                            {replyMut.isPending || forwardMut.isPending ? 'Sending…' : replyMode === 'reply' ? 'Send' : 'Forward'}
+                            {replyMut.isPending || forwardMut.isPending ? 'Sending...' : replyMode === 'reply' ? 'Send' : 'Forward'}
                           </button>
                           {replyMode === 'reply' && (
                             <button
@@ -3932,7 +3954,7 @@ export function InboxPage() {
                               // nowhere to keep files until then.
                               disabled={replyEditor.isEmpty || replyMut.isPending || replyFiles.count > 0}
                               title={replyFiles.count > 0 ? 'Scheduled replies cannot carry attachments yet - send now, or remove the files' : 'Schedule send'}
-                              className="flex items-center justify-center w-9 h-9 rounded-r-lg border-l border-white/20 bg-[var(--indigo)] text-white hover:bg-[var(--indigo-hover)] transition-colors disabled:opacity-40"
+                              className="flex items-center justify-center w-9 h-9 rounded-r-xl border-l border-white/20 bg-[var(--indigo)] text-white hover:bg-[var(--indigo-hover)] transition-colors disabled:opacity-40"
                             >
                               <CalendarClock className="h-3.5 w-3.5" />
                             </button>
