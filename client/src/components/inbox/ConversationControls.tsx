@@ -122,16 +122,48 @@ export function SnoozeMenu({ snoozedUntil, onSnooze, pending }: {
  * "Remind me if no reply in N days" - a plain select for the composer,
  * where it is one more setting on the thing being sent.
  */
-export function NudgeSelect({ value, onChange, disabled }: {
+export function NudgeSelect({ value, onChange, disabled, compact }: {
   value: number | null;
   onChange: (days: number | null) => void;
   disabled?: boolean;
+  /** A bell that says "3d" once set: for an action bar with no room for words. */
+  compact?: boolean;
 }) {
+  if (compact) {
+    const label = value ? `Remind me if no reply in ${value} day${value === 1 ? '' : 's'}` : 'Remind me if no reply';
+    return (
+      <label
+        className={cn(
+          'relative inline-flex items-center gap-1 h-8 min-w-8 justify-center px-2 rounded-lg text-caption font-semibold transition-colors cursor-pointer focus-within:shadow-[var(--ring-focus)]',
+          value ? 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)]' : 'text-[var(--text-tertiary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
+          disabled && 'opacity-40 pointer-events-none',
+        )}
+        title={`${label}. If they have not replied by then, the conversation comes back to the top of your inbox marked 'No reply yet'.`}
+      >
+        <BellRing className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+        {value ? <span className="tabular" aria-hidden="true">{value}d</span> : null}
+        {/* The real control, invisible over the bell: native, so it works
+            with a keyboard and a screen reader without a menu of our own. */}
+        <select
+          aria-label={label}
+          value={value ?? ''}
+          disabled={disabled}
+          onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer !min-h-0"
+        >
+          <option value="">No reminder</option>
+          {NUDGE_DAY_OPTIONS.map((d) => (
+            <option key={d} value={d}>{`Remind me if no reply in ${d} day${d === 1 ? '' : 's'}`}</option>
+          ))}
+        </select>
+      </label>
+    );
+  }
   return (
     <label
       className={cn(
-        'inline-flex items-center gap-1.5 h-9 px-2 rounded-lg border text-caption font-medium transition-colors',
-        value ? 'border-[rgba(47,63,156,0.3)] bg-[var(--indigo-subtle)] text-[var(--indigo-text)]' : 'border-[var(--border-subtle)] text-[var(--text-tertiary)]',
+        'inline-flex items-center gap-1 h-8 pl-2 rounded-lg text-caption font-medium transition-colors',
+        value ? 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)]' : 'text-[var(--text-tertiary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
         disabled && 'opacity-40',
       )}
       title="If they have not replied by then, the conversation comes back to the top of your inbox marked 'No reply yet'."
@@ -143,7 +175,9 @@ export function NudgeSelect({ value, onChange, disabled }: {
         value={value ?? ''}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
-        className="bg-transparent outline-none cursor-pointer"
+        // Borderless inside the pill: the app-wide select style drew a
+        // second box inside this one, which then ran into Schedule.
+        className="!min-h-0 h-8 border-0 !bg-transparent pl-0 text-caption font-medium text-current outline-none cursor-pointer"
       >
         <option value="">No reminder</option>
         {NUDGE_DAY_OPTIONS.map((d) => (
