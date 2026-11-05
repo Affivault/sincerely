@@ -30,7 +30,7 @@ export function useThreadContactId(contactId: string | null | undefined, email: 
   const { data: found, isLoading } = useQuery({
     queryKey: ['contacts', 'by-email', addr],
     queryFn: async () => {
-      const r = await contactsApi.list({ search: addr, limit: 5, lifecycle: 'all' });
+      const r = await contactsApi.list({ search: addr, limit: 25, lifecycle: 'all' });
       return (r.data || []).find((c) => (c.email || '').toLowerCase() === addr)?.id ?? null;
     },
     enabled: !contactId && !!addr,

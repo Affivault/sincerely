@@ -127,7 +127,7 @@ export async function outreachFor(userId: string, contactIds: string[]): Promise
     const rows = await selectInChunks(contactIds, (slice) =>
       supabaseAdmin
         .from('campaign_contacts')
-        .select('contact_id, status, current_step_order, updated_at, campaign_id, campaigns!inner(name, status, user_id)')
+        .select('contact_id, status, current_step_order, updated_at, campaign_id, error_message, campaigns!inner(name, status, user_id)')
         .eq('campaigns.user_id', userId)
         .in('contact_id', slice));
     const byContact = new Map<string, any[]>();

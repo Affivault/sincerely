@@ -20,6 +20,7 @@ import { verifyContact } from './verification.service.js';
 import { withCompanyRecord } from './company-tags.service.js';
 import { classifySendFailure, stallReasonFor } from '../utils/send-failure.js';
 import { isDraining } from '../utils/heartbeat.js';
+import { MANUAL_PAUSE_PREFIX } from './account-pause.service.js';
 
 /**
  * Sequence Engine Service
@@ -1938,13 +1939,24 @@ export async function checkAndAutoCompleteCampaign(campaignId: string): Promise<
   // Count contacts still in non-terminal states. Paused counts: somebody
   // held back because a colleague replied is waiting on a decision, and a
   // campaign that completes around them cannot send once they are resumed.
-  const { count: nonTerminal } = await supabaseAdmin
+  // A pause somebody chose by hand does not: it is a decision already made,
+  // and counting it left the campaign "running" forever after everyone else
+  // finished. Resuming one later reopens the campaign (resumePausedContacts).
+  const { count: live, error: liveErr } = await supabaseAdmin
     .from('campaign_contacts')
     .select('*', { count: 'exact', head: true })
     .eq('campaign_id', campaignId)
-    .in('status', ['pending', 'active', 'paused']);
-
-  if (nonTerminal && nonTerminal > 0) return;
+    .in('status', ['pending', 'active']);
+  if (liveErr || (live && live > 0)) return;
+  const { count: waiting, error: waitErr } = await supabaseAdmin
+    .from('campaign_contacts')
+    .select('*', { count: 'exact', head: true })
+    .eq('campaign_id', campaignId)
+    .eq('status', 'paused')
+    .or(`error_message.is.null,error_message.not.like."${MANUAL_PAUSE_PREFIX}*"`);
+  // On a failed count, stay open: completing early is the mistake that
+  // cannot be seen, an extra check later costs nothing.
+  if (waitErr || (waiting && waiting > 0)) return;
 
   // All contacts are in terminal states — mark campaign as completed
   const { data: done, error } = await supabaseAdmin

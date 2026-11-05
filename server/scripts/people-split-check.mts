@@ -44,6 +44,8 @@ console.log('\noutreach, read from campaigns');
   ]).state === 'replied');
   is('only ended ones is "sequence ended"', sh.summariseOutreach([{ status: 'bounced', campaign_id: 'a' }]).state === 'finished');
   is('a draft campaign is "queued", not in sequence', sh.summariseOutreach([{ status: 'pending', campaign_id: 'a', campaign_status: 'draft' }]).state === 'queued');
+  is('a person stopped by hand is no longer in sequence', sh.summariseOutreach([{ status: 'paused', campaign_id: 'a', campaign_status: 'running', error_message: 'Paused by hand from the inbox' }]).state === 'finished');
+  is('but one held back by a colleague\'s reply still is', sh.summariseOutreach([{ status: 'paused', campaign_id: 'a', campaign_status: 'running', error_message: 'Paused: Ann at acme.com replied (interested)' }]).state === 'in_sequence');
   is('a cancelled campaign ends the sequence', sh.summariseOutreach([{ status: 'active', campaign_id: 'a', campaign_status: 'cancelled' }]).state === 'finished');
   is('a paused campaign still counts as in sequence', sh.summariseOutreach([{ status: 'active', campaign_id: 'a', campaign_status: 'paused' }]).state === 'in_sequence');
   is('live beats queued', sh.summariseOutreach([
