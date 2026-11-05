@@ -4,6 +4,7 @@ import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Bold,
   Italic,
@@ -81,9 +82,12 @@ function Sep() {
 function LinkPopover({
   editor,
   onClose,
+  up = false,
 }: {
   editor: Editor;
   onClose: () => void;
+  /** Open above the button: for a toolbar at the foot of a composer. */
+  up?: boolean;
 }) {
   const [url, setUrl] = useState(editor.getAttributes('link').href || '');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -103,7 +107,7 @@ function LinkPopover({
   };
 
   return (
-    <div className="absolute top-full left-0 mt-1 z-50 flex items-center gap-1.5 p-2 bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-lg shadow-lg">
+    <div className={`absolute ${up ? 'bottom-full mb-1' : 'top-full mt-1'} left-0 z-50 flex items-center gap-1.5 p-2 bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-lg shadow-lg`}>
       <input
         ref={inputRef}
         value={url}
@@ -144,10 +148,12 @@ function TemplatePicker({
   templates,
   onSelect,
   onClose,
+  up = false,
 }: {
   templates: Template[];
   onSelect: (template: Template) => void;
   onClose: () => void;
+  up?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -163,7 +169,7 @@ function TemplatePicker({
     return (
       <div
         ref={ref}
-        className="absolute top-full right-0 mt-1 z-50 p-4 bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-xl shadow-xl w-64"
+        className={`absolute ${up ? 'bottom-full mb-1 left-0' : 'top-full mt-1 right-0'} z-50 p-4 bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-xl shadow-xl w-64`}
       >
         <p className="text-body text-[var(--text-tertiary)] text-center">
           No templates yet. Create one in the Templates page.
@@ -175,7 +181,7 @@ function TemplatePicker({
   return (
     <div
       ref={ref}
-      className="absolute top-full right-0 mt-1 z-50 bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-xl shadow-xl w-72 max-h-64 overflow-y-auto"
+      className={`absolute ${up ? 'bottom-full mb-1 left-0' : 'top-full mt-1 right-0'} z-50 bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-xl shadow-xl w-72 max-h-64 overflow-y-auto`}
     >
       <div className="px-3 py-2 border-b border-[var(--border-subtle)]">
         <p className="text-caption font-medium text-[var(--text-tertiary)]">
@@ -210,6 +216,8 @@ export default function RichTextEditorImpl({
   minHeight = '200px',
   autoFocus = false,
   bare = false,
+  toolbarSlot,
+  contentClassName = 'px-4 py-3',
 }: RichTextEditorProps) {
   const [showLink, setShowLink] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
@@ -233,7 +241,7 @@ export default function RichTextEditorImpl({
     },
     editorProps: {
       attributes: {
-        class: 'outline-none prose prose-sm max-w-none text-[var(--text-primary)] px-4 py-3',
+        class: `outline-none prose prose-sm max-w-none text-[var(--text-primary)] ${contentClassName}`,
         role: 'textbox',
         'aria-multiline': 'true',
         // The placeholder vanishes as soon as there is text, and says what to
@@ -293,6 +301,59 @@ export default function RichTextEditorImpl({
     setContent(template.body_html);
     onTemplateSelect?.(template);
   };
+
+  /*
+   * A composer can ask for the formatting buttons in its own action bar
+   * (toolbarSlot), the way mail clients keep them by Send: a short set,
+   * no strip of its own above the writing. Undo, redo, strike and rules
+   * stay on their keys there.
+   */
+  if (toolbarSlot !== undefined) {
+    const footTools = (
+      <div className="flex items-center gap-0.5">
+        <ToolbarBtn active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()} title="Bold (Ctrl+B)">
+          <Bold className="h-3.5 w-3.5" />
+        </ToolbarBtn>
+        <ToolbarBtn active={editor.isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()} title="Italic (Ctrl+I)">
+          <Italic className="h-3.5 w-3.5" />
+        </ToolbarBtn>
+        <ToolbarBtn active={editor.isActive('underline')} onClick={() => (editor.chain().focus() as any).toggleUnderline().run()} title="Underline (Ctrl+U)">
+          <UnderlineIcon className="h-3.5 w-3.5" />
+        </ToolbarBtn>
+        <ToolbarBtn active={editor.isActive('bulletList')} onClick={() => editor.chain().focus().toggleBulletList().run()} title="Bullet List">
+          <List className="h-3.5 w-3.5" />
+        </ToolbarBtn>
+        <ToolbarBtn active={editor.isActive('orderedList')} onClick={() => editor.chain().focus().toggleOrderedList().run()} title="Numbered List">
+          <ListOrdered className="h-3.5 w-3.5" />
+        </ToolbarBtn>
+        <div className="relative">
+          <ToolbarBtn active={editor.isActive('link') || showLink} onClick={() => setShowLink(!showLink)} title="Insert Link">
+            <LinkIcon className="h-3.5 w-3.5" />
+          </ToolbarBtn>
+          {showLink && <LinkPopover up editor={editor} onClose={() => setShowLink(false)} />}
+        </div>
+        <ToolbarBtn active={editor.isActive('blockquote')} onClick={() => editor.chain().focus().toggleBlockquote().run()} title="Blockquote">
+          <Quote className="h-3.5 w-3.5" />
+        </ToolbarBtn>
+        {templates && (
+          <div className="relative">
+            <ToolbarBtn active={showTemplates} onClick={() => setShowTemplates(!showTemplates)} title="Insert a template">
+              <FileText className="h-3.5 w-3.5" />
+            </ToolbarBtn>
+            {showTemplates && (
+              <TemplatePicker up templates={templates} onSelect={insertTemplate} onClose={() => setShowTemplates(false)} />
+            )}
+          </div>
+        )}
+      </div>
+    );
+    return (
+      <>
+        <EditorContent editor={editor} />
+        {toolbarSlot && createPortal(footTools, toolbarSlot)}
+      </>
+    );
+  }
 
   return (
     <div className={bare
