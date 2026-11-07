@@ -61,6 +61,9 @@ export interface SmtpAccount {
   signature_html: string | null;
   /** When true, the signature is added by default on every new compose/reply from this inbox. */
   signature_auto: boolean;
+  /** Which emails get the signature on their own (migration 117). Absent on
+      older databases: read it with resolveSignatureUse. */
+  signature_use?: 'all' | 'new' | 'replies' | 'none';
   /** Why sending was last refused (migration 075). Cleared by a passing test. */
   last_send_error?: string | null;
   last_send_error_at?: string | null;
@@ -237,6 +240,7 @@ export interface CreateSmtpAccountInput {
   send_gap_max_seconds?: number;
   signature_html?: string | null;
   signature_auto?: boolean;
+  signature_use?: 'all' | 'new' | 'replies' | 'none';
 }
 
 export interface UpdateSmtpAccountInput extends Partial<CreateSmtpAccountInput> {}
