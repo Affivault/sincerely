@@ -7,7 +7,9 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Modal } from '../../components/ui/Modal';
-import { RichTextEditor } from '../../components/ui/RichTextEditor';
+import { Segmented } from '../../components/ui/Segmented';
+import { SignatureStudio } from '../../components/signature/SignatureStudio';
+import { signatureText } from '../../components/signature/signatureHtml';
 import { MicrosoftConnectCard, looksMicrosoft } from '../../components/mailbox/MicrosoftConnect';
 import { GoogleAppPasswordGuide, isGooglePreset, cleanAppPassword } from '../../components/mailbox/GoogleConnect';
 import { ProviderLogo } from '../../components/mailbox/ProviderLogo';
@@ -16,7 +18,7 @@ import {
   CheckCircle2, XCircle, Globe, Server, Loader2, Plug, Inbox,
   Send, ShieldCheck, Signature, Gauge, Sparkles, Mail, MinusCircle,
   Stethoscope, AlertTriangle, Eye, EyeOff, ChevronDown, ArrowLeft, ArrowRight,
-  ExternalLink, KeyRound, Flame, Check, Search,
+  ExternalLink, KeyRound, Flame, Check, Search, PenLine,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { SmtpAccount, CreateSmtpAccountInput, SmtpPreset, VerifyLegResult, MailboxDiagnostics, DiagStage, SetupSectionId, SetupField, SetupSummary } from '@lemlist/shared';
@@ -25,6 +27,7 @@ import {
   missingFields, mailboxLabel, serverSummary, sendingSummary, limitAdvice, sectionsToOpen,
   providerGuide, isSendOnlyProvider, isFreeMailDomain,
   RECOMMENDED_DAILY_LIMIT, RECOMMENDED_GAP, DAILY_LIMIT_PRESETS, GAP_PRESETS, formatGap, gapCapacityPerDay, gapProblem,
+  SIGNATURE_USES, resolveSignatureUse, type SignatureUse,
 } from '@lemlist/shared';
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -97,6 +100,7 @@ const emptyForm: Form = {
   send_gap_max_seconds: RECOMMENDED_GAP.max,
   signature_html: '',
   signature_auto: false,
+  signature_use: 'all',
 };
 
 /**
@@ -131,6 +135,7 @@ export function presetToForm(preset: SmtpPreset): Form {
     send_gap_max_seconds: RECOMMENDED_GAP.max,
     signature_html: '',
     signature_auto: false,
+    signature_use: 'all',
   };
 }
 
@@ -389,6 +394,7 @@ export function SmtpAccountModal({
   const [connected, setConnected] = useState<SmtpAccount | null>(null);
   const [warmupOn, setWarmupOn] = useState(true);
   const [sigOpen, setSigOpen] = useState(false);
+  const [studioOpen, setStudioOpen] = useState(false);
   /* Refused for a reason that is not the connection - a plan limit, an
      address already connected - so troubleshooting tips would mislead. */
   const [refused, setRefused] = useState<string | null>(null);
@@ -467,6 +473,7 @@ export function SmtpAccountModal({
         send_gap_max_seconds: editAccount.send_gap_max_seconds ?? RECOMMENDED_GAP.max,
         signature_html: editAccount.signature_html || '',
         signature_auto: editAccount.signature_auto || false,
+        signature_use: resolveSignatureUse(editAccount),
       };
       setForm(seeded);
       /*
@@ -679,7 +686,8 @@ export function SmtpAccountModal({
       reply_to: (form.reply_to || '').trim() || null,
       smtp_user: form.smtp_user || form.email_address,
       signature_html: sig ? form.signature_html : null,
-      signature_auto: sig ? !!form.signature_auto : false,
+      signature_use: form.signature_use || 'all',
+      signature_auto: sig ? (form.signature_use || 'all') !== 'none' : false,
     };
   };
 
@@ -801,6 +809,7 @@ export function SmtpAccountModal({
         send_gap_max_seconds: p.send_gap_max_seconds,
         signature_html: p.signature_html,
         signature_auto: p.signature_auto,
+        signature_use: p.signature_use,
       } as any);
       if (warmupOn && !isSendOnlyProvider(activePreset?.name)) {
         await smtpApi.setWarmup(connected.id, { enabled: true });
@@ -843,7 +852,8 @@ export function SmtpAccountModal({
     send_gap_max_seconds: form.send_gap_max_seconds,
     signature_html: form.signature_html,
     signature_auto: form.signature_auto,
-  }), [form.daily_send_limit, form.send_gap_min_seconds, form.send_gap_max_seconds, form.signature_html, form.signature_auto]);
+    signature_use: form.signature_use,
+  }), [form.daily_send_limit, form.send_gap_min_seconds, form.send_gap_max_seconds, form.signature_html, form.signature_auto, form.signature_use]);
 
   const limit = limitAdvice(Number(form.daily_send_limit) || 0);
 
@@ -1203,22 +1213,50 @@ export function SmtpAccountModal({
     </Group>
   );
 
+  const sigUse: SignatureUse = form.signature_use || 'all';
+  const sigHasContent = !!signatureText(form.signature_html);
   const signatureField = (
-    <Group icon={Signature} title="Signature" subtitle="offered in the composer for this inbox">
-      <div className="flex items-center justify-end mb-1.5">
-        <button type="button" role="switch" aria-checked={!!form.signature_auto} onClick={() => updateField('signature_auto', !form.signature_auto)} className="flex items-center gap-2 text-caption font-medium text-[var(--text-secondary)]">
-          Always add to new emails
-          <span className={cn('relative inline-flex h-[18px] w-8 items-center rounded-full transition-colors', form.signature_auto ? 'bg-[var(--indigo)]' : 'bg-[var(--border-default)]')}>
-            <span className={cn('inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform', form.signature_auto ? 'translate-x-[15px]' : 'translate-x-[2px]')} />
-          </span>
-        </button>
+    <Group icon={Signature} title="Signature" subtitle="added to emails from this inbox">
+      <div className="space-y-3" data-signature-field>
+        {sigHasContent ? (
+          <button
+            type="button"
+            onClick={() => setStudioOpen(true)}
+            title="Edit signature"
+            className="group relative block w-full overflow-hidden rounded-lg border border-[var(--border-subtle)] text-left"
+          >
+            <div
+              className="pointer-events-none max-h-40 overflow-hidden px-3 py-2.5 [&_img]:max-w-full"
+              style={{ background: '#ffffff', color: '#1f2328', fontFamily: 'Arial, Helvetica, sans-serif', fontSize: 13, lineHeight: 1.45 }}
+              dangerouslySetInnerHTML={{ __html: form.signature_html || '' }}
+            />
+            <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 py-1 text-caption font-medium text-[var(--text-secondary)] shadow-sm">
+              <PenLine className="h-3 w-3" /> Edit and preview
+            </span>
+          </button>
+        ) : (
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-[var(--border-default)] px-3 py-3">
+            <p className="text-caption text-[var(--text-tertiary)]">No signature yet. Build one from your details in a minute, with a logo and a booking button.</p>
+            <button type="button" onClick={() => setStudioOpen(true)} className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-[var(--indigo)] px-3 text-caption font-medium text-white">
+              <PenLine className="h-3.5 w-3.5" /> Create signature
+            </button>
+          </div>
+        )}
+        <div>
+          <p className="mb-1.5 text-caption font-medium text-[var(--text-secondary)]">Add it on its own to</p>
+          <Segmented size="sm" label="Add the signature to" options={SIGNATURE_USES} value={sigUse} onChange={(v) => updateField('signature_use', v)} />
+          <p className="mt-1 text-micro text-[var(--text-tertiary)]">{SIGNATURE_USES.find((u) => u.value === sigUse)?.hint}</p>
+        </div>
       </div>
-      <RichTextEditor
-        key={`sig-${editId || connected?.id || 'new'}`}
-        initialContent={form.signature_html || ''}
-        onChange={(html, text) => updateField('signature_html', text.trim() ? html : '')}
-        minHeight="100px"
-        placeholder={`e.g. ${PLACEHOLDER.senderName} — Growth, ${PLACEHOLDER.senderCompany} · ${PLACEHOLDER.senderEmail}`}
+      <SignatureStudio
+        isOpen={studioOpen}
+        onClose={() => setStudioOpen(false)}
+        initialHtml={form.signature_html || ''}
+        initialUse={sigUse}
+        onSave={(html, use) => { updateField('signature_html', html); updateField('signature_use', use); }}
+        fromName={form.from_name || ''}
+        fromEmail={form.email_address || ''}
+        accountId={editId || connected?.id || null}
       />
     </Group>
   );

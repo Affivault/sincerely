@@ -5,6 +5,7 @@ import morgan from 'morgan';
 import { errorMiddleware } from './middleware/error.middleware.js';
 import { routes } from './routes/index.js';
 import { assetController } from './controllers/asset.controller.js';
+import { signatureImageService } from './services/signature-image.service.js';
 import { webhookInboundRoutes } from './routes/webhook-inbound.routes.js';
 import { trackingRoutes } from './routes/tracking.routes.js';
 import { publicBookingRoutes } from './routes/booking.routes.js';
@@ -56,6 +57,20 @@ app.use(express.urlencoded({ extended: true }));
 
 // Public asset render endpoint (no auth - used in email images)
 app.get('/api/assets/render/:templateId', assetController.render);
+
+// Public signature images (no auth - fetched by Gmail, Outlook and phones).
+// The id is a random uuid, the bytes never change, so caches may keep them.
+app.get('/api/sig/:file', async (req, res) => {
+  const id = String(req.params.file || '').replace(/\.[a-z]+$/i, '');
+  const img = await signatureImageService.get(id).catch(() => null);
+  if (!img) { res.status(404).end(); return; }
+  res.setHeader('Content-Type', img.mime);
+  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  // helmet answers same-origin by default, which stops the app's own preview
+  // (on another origin) from showing the image it just uploaded.
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  res.end(img.bytes);
+});
 
 // Public inbound webhook endpoint (no auth - external systems call this)
 app.use('/api/webhooks/inbound', webhookInboundRoutes);

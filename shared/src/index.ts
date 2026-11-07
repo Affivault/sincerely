@@ -100,3 +100,4 @@ export * from './drive-backup.js';
 export * from './backup-destinations.js';
 export * from './microsoft-admin.js';
 export * from './public-api.js';
+export * from './signature.js';

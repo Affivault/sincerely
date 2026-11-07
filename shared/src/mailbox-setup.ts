@@ -1,4 +1,5 @@
 import { formatGap } from './sending-pace.js';
+import { resolveSignatureUse } from './signature.js';
 /* ═══════════════════════════════════════════════════════════════════════
    What is already known about a mailbox, and what is still missing.
 
@@ -132,14 +133,18 @@ export interface SendingFacts {
   daily_send_limit?: number | null;
   signature_html?: string | null;
   signature_auto?: boolean | null;
+  signature_use?: 'all' | 'new' | 'replies' | 'none';
 }
 
 /** The limit and the signature, in one line, for when the section is closed. */
 export function sendingSummary(f: SendingFacts): SetupSummary {
   const limit = typeof f.daily_send_limit === 'number' ? f.daily_send_limit : 0;
   const hasSig = !!(f.signature_html || '').replace(/<[^>]*>/g, '').trim();
+  const use = resolveSignatureUse({ signature_use: f.signature_use, signature_auto: !!f.signature_auto });
   const sig = !hasSig ? 'no signature'
-    : f.signature_auto ? 'signature added automatically'
+    : use === 'all' ? 'signature added automatically'
+    : use === 'new' ? 'signature on new emails'
+    : use === 'replies' ? 'signature on replies and forwards'
     : 'signature available in the composer';
 
   const advice = limitAdvice(limit);

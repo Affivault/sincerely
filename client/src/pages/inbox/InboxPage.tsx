@@ -111,7 +111,8 @@ import {
   DEAL_STAGES, TRIAGE_DECISIONS, BULK_TRIAGE_LIMIT,
   type DealStage, type TriageDecision, formatDate, formatDayMonth, formatFullDateTime, formatMonthYear, formatTime, formatWeekday, formatWeekdayDate, formatMoney, formatDayMonthTime, REPLY_INTENT_LABELS,
   previewText, senderLabel as sharedSenderLabel, companyFromEmail as sharedCompanyFromEmail,
-  MAIL_KIND_LABELS, type MailKind, type InboxTeammate, formatBytes } from '@lemlist/shared';
+  MAIL_KIND_LABELS, type MailKind, type InboxTeammate, formatBytes,
+  signatureAppliesTo, resolveSignatureUse } from '@lemlist/shared';
 
 /* ─── Types ────────────────────────────────────────── */
 type Folder = 'inbox' | 'starred' | 'sent' | 'archived' | 'scheduled' | 'needs_triage' | 'other' | 'snoozed' | 'assigned';
@@ -140,6 +141,7 @@ interface SmtpAccount {
   is_verified: boolean;
   signature_html?: string | null;
   signature_auto?: boolean;
+  signature_use?: 'all' | 'new' | 'replies' | 'none';
 }
 
 interface Message {
@@ -323,11 +325,13 @@ function withSignature(
 }
 
 /** Signature on/off state for a composer, following the selected sender inbox. */
-function useSignatureState(accounts: SmtpAccount[], senderId: string, resetKey?: string | null) {
+function useSignatureState(accounts: SmtpAccount[], senderId: string, kind: 'new' | 'reply', resetKey?: string | null) {
   const acct = accounts.find(a => a.id === senderId);
   const sigHtml = acct?.signature_html || null;
   const available = hasSignature(sigHtml);
-  const auto = !!acct?.signature_auto;
+  // The inbox's Gmail-style setting: every email, new only, replies and
+  // forwards only, or none. A forward counts as a reply, as in Gmail.
+  const auto = signatureAppliesTo(resolveSignatureUse(acct), kind);
   const [on, setOn] = useState(false);
   // Whenever the sender changes (or accounts finish loading), follow that
   // inbox's "always add" default — so the signature swaps with the sender.
@@ -600,7 +604,7 @@ function ComposeModal({ onClose, onSend, onSchedule, sending, smtpAccounts, temp
   const [showSchedule, setShowSchedule] = useState(false);
   const scheduleId = useId();
   const editor = useRichTextEditorRef();
-  const sig = useSignatureState(smtpAccounts, senderId);
+  const sig = useSignatureState(smtpAccounts, senderId, 'new');
   const panelRef = useRef<HTMLDivElement>(null);
   const topmost = useOverlayStack(true, onClose);
   useFocusTrap(panelRef, true, { topmost });
@@ -2592,7 +2596,7 @@ export function InboxPage() {
   // Also keyed on selectedId so switching to a different conversation always
   // re-derives the default instead of carrying over a manual toggle (see
   // useSignatureState above).
-  const replySig = useSignatureState(smtpAccounts, replySenderId, selectedId);
+  const replySig = useSignatureState(smtpAccounts, replySenderId, 'reply', selectedId);
 
   // smtpAccounts is fetched async and can still be empty when a reply/forward is first
   // opened (message has no smtp_account_id yet); resync once accounts arrive so the

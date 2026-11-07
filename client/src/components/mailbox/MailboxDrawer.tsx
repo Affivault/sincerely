@@ -27,6 +27,7 @@ import {
   resolveMailboxState, mailboxScore, warmupAllowance, formatDailyLimit,
   SYNC_WINDOW_MONTHS, syncWindowLabel, detectPresetFromEmail, SMTP_PRESETS,
   formatGap, RECOMMENDED_GAP,
+  describeSignatureUse, resolveSignatureUse,
 } from '@lemlist/shared';
 import { smtpApi } from '../../api/smtp.api';
 import { inboxApi } from '../../api/inbox.api';
@@ -345,7 +346,7 @@ export function MailboxDrawer({
                 <Fact label="Reply-to"><Reply className="mr-1 inline h-3 w-3 text-[var(--text-tertiary)]" />{account.reply_to || <span className="text-[var(--text-tertiary)]">This address</span>}</Fact>
                 <Fact label="Daily limit">{account.daily_send_limit === 0 ? 'No cap' : `${account.daily_send_limit.toLocaleString()} a day`}{account.warmup_mode && allowance !== account.daily_send_limit && <span className="text-caption text-[var(--text-tertiary)]"> · {formatDailyLimit(allowance)} while warming up</span>}</Fact>
                 <Fact label="Between emails">{formatGap(account.send_gap_min_seconds ?? RECOMMENDED_GAP.min, account.send_gap_max_seconds ?? RECOMMENDED_GAP.max)}</Fact>
-                <Fact label="Signature"><Signature className="mr-1 inline h-3 w-3 text-[var(--text-tertiary)]" />{signature ? (account.signature_auto ? 'Added to every new email' : 'Available in the composer') : <span className="text-[var(--text-tertiary)]">None</span>}</Fact>
+                <Fact label="Signature"><Signature className="mr-1 inline h-3 w-3 text-[var(--text-tertiary)]" />{signature ? describeSignatureUse(resolveSignatureUse(account)) : <span className="text-[var(--text-tertiary)]">None</span>}</Fact>
               </dl>
             </Section>
 

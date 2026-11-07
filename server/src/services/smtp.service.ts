@@ -1,7 +1,7 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { writable } from '../utils/writable-fields.js';
-import { gapProblem, dailyLimitProblem } from '@lemlist/shared';
+import { gapProblem, dailyLimitProblem, isSignatureUse } from '@lemlist/shared';
 import { chunk } from '../utils/batch.js';
 import { encrypt, decrypt } from '../utils/encryption.js';
 import { sendViaSmtp, formatFromHeader, describeSmtpError } from './email-sender.service.js';
@@ -58,13 +58,35 @@ export function normaliseMailboxPassword(host: unknown, pass: unknown): string {
 
 /** Drop a column the DB reports as missing so an insert/update can retry.
  *  Returns true when a key was stripped. */
-function stripMissingColumnKey(errorMessage: string, obj: Record<string, any>): boolean {
-  const m = /column "([a-zA-Z0-9_]+)"/.exec(errorMessage || '');
+export function stripMissingColumnKey(errorMessage: string, obj: Record<string, any>): boolean {
+  /*
+   * Two wordings reach here. Postgres says `column "x" ... does not exist`,
+   * but a write through PostgREST is refused before Postgres sees it, as
+   * "Could not find the 'x' column of 'smtp_accounts' in the schema cache".
+   * Only the first was matched, so the retry this exists for never fired on
+   * the error a missing column actually produces, and a form that sent a
+   * column ahead of its migration failed the whole save.
+   */
+  const m = /column "([a-zA-Z0-9_]+)"/.exec(errorMessage || '')
+    || /the '([a-zA-Z0-9_]+)' column/.exec(errorMessage || '');
   if (m && m[1] in obj) {
     delete obj[m[1]];
     return true;
   }
   return false;
+}
+
+/**
+ * Which emails get the signature (migration 117). Refused in words when it is
+ * not one of the four, and kept in step with signature_auto, which older code
+ * and databases without the new column still read as "add it".
+ */
+function assertSignatureUse(row: Record<string, any>): void {
+  if (row.signature_use === undefined) return;
+  if (!isSignatureUse(row.signature_use)) {
+    throw new AppError('The signature setting must be all, new, replies or none', 400);
+  }
+  row.signature_auto = row.signature_use !== 'none';
 }
 
 /**
@@ -84,6 +106,8 @@ const SMTP_ACCOUNT_FIELDS = [
    * one to offer.
    */
   'signature_html', 'signature_auto',
+  // When it goes on by itself: every email, new only, replies only, or none (117).
+  'signature_use',
   // How far back this mailbox's history reaches. Validated as 1/3/6 by a
   // CHECK constraint, so a bad value is rejected by the database rather than
   // silently stored.
@@ -219,6 +243,7 @@ export const smtpService = {
     };
     assertGap(row);
     assertLimit(row);
+    assertSignatureUse(row);
 
     // Retry without any column the DB doesn't have yet, so shipping ahead of a
     // migration (e.g. reply_to) never blocks connecting a mailbox.
@@ -241,6 +266,7 @@ export const smtpService = {
     const updateData: any = writable(input, SMTP_ACCOUNT_FIELDS);
     assertGap(updateData);
     assertLimit(updateData);
+    assertSignatureUse(updateData);
 
     // Only re-encrypt when a new password is supplied. The raw field is never
     // in the allow-list, so it cannot reach the database as itself, and the

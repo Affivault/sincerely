@@ -62,6 +62,12 @@ export const smtpApi = {
     return data;
   },
 
+  /** Keep a signature image on the server; answers its public https address (migration 117). */
+  uploadSignatureImage: async (dataUrl: string) => {
+    const { data } = await apiClient.post<{ id: string; url: string }>('/smtp-accounts/signature-images', { data_url: dataUrl }, { timeout: 30_000 });
+    return data;
+  },
+
   sendTestEmail: async (smtpAccountId: string, input: { to: string; subject: string; body_html?: string }) => {
     const { data } = await apiClient.post<{ success: boolean; message?: string; error?: string }>(`/smtp-accounts/${smtpAccountId}/send-test`, input);
     return data;

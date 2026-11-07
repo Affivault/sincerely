@@ -16,12 +16,20 @@ import { discoverMailHosts, type MailHostDiscovery } from '../services/mail-disc
 import { repairMailboxes } from '../services/mailbox-repair.service.js';
 import { warmupService } from '../services/warmup.service.js';
 import { mailboxSecret } from '../services/mailbox-oauth.service.js';
+import { signatureImageService } from '../services/signature-image.service.js';
 
 const resolveTxt = promisify(dns.resolveTxt);
 const resolveMx = promisify(dns.resolveMx);
 const resolveCname = promisify(dns.resolveCname);
 
 export const smtpController = {
+  /** Keep a logo or headshot for a signature and hand back its public address. */
+  async uploadSignatureImage(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      res.status(201).json(await signatureImageService.upload(req.userId!, req.body?.data_url));
+    } catch (err) { next(err); }
+  },
+
   async list(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const accounts = await smtpService.list(req.userId!);
