@@ -2567,13 +2567,17 @@ export function InboxPage() {
   // composer's width follows the panels around it, not the window, so it is
   // measured; narrower, they take a row of their own above the bar.
   const [composerRoomy, setComposerRoomy] = useState(true);
+  // The composer opened out to a large writing window over the page, for a
+  // long reply. It closes back to its place with the same button or Esc.
+  const [composerExpanded, setComposerExpanded] = useState(false);
+  useEffect(() => { if (!replyMode) setComposerExpanded(false); }, [replyMode]);
   useEffect(() => {
     const el = replyComposerRef.current;
     if (!el || typeof ResizeObserver === 'undefined') return;
     const ro = new ResizeObserver(([entry]) => setComposerRoomy(entry.contentRect.width >= 660));
     ro.observe(el);
     return () => ro.disconnect();
-  }, [replyMode]);
+  }, [replyMode, composerExpanded]);
   const replyEditor = useRichTextEditorRef();
   // Files and a reminder on the reply being written; both reset with it.
   const replyFiles = useOutgoingAttachments();
@@ -3774,8 +3778,18 @@ export function InboxPage() {
                       </a>
                     </div>
                   ) : replyMode ? (
+                    <>
+                    {composerExpanded && (
+                      <div
+                        aria-hidden
+                        onClick={() => setComposerExpanded(false)}
+                        className="fixed inset-0 z-40 bg-[rgba(24,25,29,0.35)] backdrop-blur-[2px] animate-fade-in"
+                      />
+                    )}
                     <div
                       ref={replyComposerRef}
+                      role={composerExpanded ? 'dialog' : undefined}
+                      aria-label={composerExpanded ? 'Reply' : undefined}
                       // Cmd/Ctrl+Enter sends from anywhere in the composer: the
                       // editor, the recipient, the sender. Every mail client
                       // people come from has it, and reaching for the mouse
@@ -3787,9 +3801,18 @@ export function InboxPage() {
                           e.preventDefault();
                           e.stopPropagation();
                           void sendReplyNow();
+                        } else if (e.key === 'Escape' && composerExpanded && !e.defaultPrevented) {
+                          e.stopPropagation();
+                          setComposerExpanded(false);
                         }
                       }}
-                      className="group/composer relative w-full flex flex-col max-h-[64vh] rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)] transition-[border-color,box-shadow] focus-within:border-[rgba(47,63,156,0.45)] focus-within:shadow-[var(--shadow-lg),0_0_0_4px_rgba(47,63,156,0.08)] animate-fade-in"
+                      className={cn(
+                        'group/composer flex flex-col rounded-2xl',
+                        composerExpanded
+                          ? 'fixed z-50 inset-x-3 top-3 bottom-3 sm:inset-x-6 sm:top-6 sm:bottom-6 lg:inset-x-auto lg:left-1/2 lg:-translate-x-1/2 lg:w-[min(960px,calc(100vw-96px))]'
+                          : 'relative w-full max-h-[64vh]',
+                        ' border border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)] transition-[border-color,box-shadow] focus-within:border-[rgba(47,63,156,0.45)] focus-within:shadow-[var(--shadow-lg),0_0_0_4px_rgba(47,63,156,0.08)] animate-fade-in',
+                      )}
                     >
                       {/* One header line: who it goes to on the left, which of
                           your inboxes it goes from on the right. */}
@@ -3836,7 +3859,18 @@ export function InboxPage() {
                             );
                           })()}
                         </div>
-                        <button aria-label="Close composer" onClick={() => setReplyMode(null)} title="Close (your draft is kept)" className="icon-btn h-8 w-8 flex-shrink-0"><X className="h-4 w-4" /></button>
+                        <div className="flex items-center flex-shrink-0">
+                          <button
+                            aria-label={composerExpanded ? 'Shrink the composer' : 'Expand the composer'}
+                            aria-pressed={composerExpanded}
+                            onClick={() => setComposerExpanded(v => !v)}
+                            title={composerExpanded ? 'Shrink back (Esc)' : 'Expand to write with more room'}
+                            className="icon-btn h-8 w-8"
+                          >
+                            {composerExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                          </button>
+                          <button aria-label="Close composer" onClick={() => setReplyMode(null)} title="Close (your draft is kept)" className="icon-btn h-8 w-8"><X className="h-4 w-4" /></button>
+                        </div>
                       </div>
 
                       {/* Ask Relay to write it: a line above the writing,
@@ -3852,7 +3886,20 @@ export function InboxPage() {
                       )}
 
                       {/* The writing: a clean page with room around the words. */}
-                      <div className="flex-1 min-h-0 overflow-y-auto">
+                      <div
+                        className="flex-1 min-h-0 overflow-y-auto cursor-text"
+                        onMouseDown={(e) => {
+                          // The page is taller than the words in it, most of all
+                          // expanded: a click in the empty part puts you at the end.
+                          if (e.target !== e.currentTarget) return;
+                          e.preventDefault();
+                          const pm = e.currentTarget.querySelector<HTMLElement>('.ProseMirror');
+                          if (!pm) return;
+                          pm.focus();
+                          const sel = window.getSelection();
+                          if (sel) { sel.selectAllChildren(pm); sel.collapseToEnd(); }
+                        }}
+                      >
                         <RichTextEditor
                           key={replyMode}
                           bare
@@ -3979,6 +4026,7 @@ export function InboxPage() {
                         </div>
                       </div>
                     </div>
+                    </>
                   ) : (
                     /* Idle state: the reply is one click (or R) away, and so is
                        Relay's draft when it has one. */
