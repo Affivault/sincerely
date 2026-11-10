@@ -166,7 +166,7 @@ const autopilotStatus = () => {
 
 const trend = Array.from({ length: 30 }, (_, i) => {
   const s = 30 + Math.round(20 * Math.sin(i / 3) + i);
-  return { date: iso(now - (29 - i) * DAY).slice(0, 10), sent: s, opened: Math.round(s * 0.5), clicked: Math.round(s * 0.07), replied: Math.round(s * 0.06), bounced: i % 7 === 0 ? 1 : 0 };
+  return { date: iso(now - (29 - i) * DAY).slice(0, 10), sent: s, opened: Math.round(s * 0.5), clicked: Math.round(s * 0.07), replied: Math.round(s * 0.06), bounced: i % 7 === 0 ? 1 : 0, meetings: i % 4 === 0 ? 1 : 0 };
 });
 
 const page = (data) => ({ data, total: data.length, page: 1, limit: 50, total_pages: 1 });
@@ -344,7 +344,8 @@ function answer(method, path, q) {
       return { steps: ['mailbox', 'domain', 'contacts', 'sequence', 'launch'].map((id) => ({ id, label: id, detail: '', done: doneIds.includes(id), current: false, href: '/', cta: 'Go', progress: null, warning: null })), done_count: doneIds.length, complete: !PRE, fresh: PRE };
     }
     case '/analytics/overview': if (PRE) return { total_campaigns: 0, active_campaigns: 0, total_contacts: 62, total_sent: 0, total_opened: 0, total_clicked: 0, total_replied: 0, avg_open_rate: 0, avg_click_rate: 0, avg_reply_rate: 0, suppressed_count: 0, avg_dcs_score: 97, verified_contacts: 60, bounced_contacts: 0, sent_change: null, opened_change: null, clicked_change: null, replied_change: null };
-      return { total_campaigns: 5, active_campaigns: 2, total_contacts: 1450, total_sent: 1252, total_opened: 651, total_clicked: 100, total_replied: 90, avg_open_rate: 52, avg_click_rate: 8, avg_reply_rate: 7.2, suppressed_count: 14, avg_dcs_score: 84, verified_contacts: 1320, bounced_contacts: 15, sent_change: 12, opened_change: 4, clicked_change: -2, replied_change: 18 };
+      return { total_campaigns: 5, active_campaigns: 2, total_contacts: 1450, total_sent: 1252, total_opened: 651, total_clicked: 100, total_replied: 90, avg_open_rate: 52, avg_click_rate: 8, avg_reply_rate: 7.2, suppressed_count: 14, avg_dcs_score: 84, verified_contacts: 1320, bounced_contacts: 15, sent_change: 12, opened_change: 4, clicked_change: -2, replied_change: 18, contacts_sent: 1180, reply_rate_change: 6, click_rate_change: -3, meetings_booked: 8, meetings_booked_change: 33 };
+    case '/analytics/today': return { since: iso(now), sent: 42, sent_yesterday: 38, replied: 3, replied_yesterday: 5, bounced: 0, bounced_yesterday: 1, bounce_rate: 0, meetings: 1, next_meeting: null, queued: 18 };
     case '/analytics/trend': return trend;
     case '/analytics/campaigns': if (PRE) return []; return campaigns.map((c) => ({ id: c.id, name: c.name, status: c.status, created_at: c.created_at, sent: c.sent_count, opened: c.opened_count, clicked: c.clicked_count, replied: c.replied_count, bounced: c.bounced_count, open_rate: c.open_rate, click_rate: c.click_rate, reply_rate: c.reply_rate, bounce_rate: c.bounce_rate }));
     case '/inbox': return page(q.get('folder') === 'sent' ? [] : q.get('folder') === 'other'

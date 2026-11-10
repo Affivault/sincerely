@@ -33,6 +33,8 @@ export interface TrendDataPoint {
   clicked: number;
   replied: number;
   bounced?: number;
+  /** Meetings booked that day (account trend only). */
+  meetings?: number;
 }
 
 export interface CampaignListItem {
@@ -233,8 +235,11 @@ export const analyticsApi = {
     return data;
   },
 
-  campaignList: async () => {
-    const { data } = await apiClient.get<CampaignListItem[]>('/analytics/campaigns');
+  /** All time, or only the last `days` days when given. */
+  campaignList: async (days?: number) => {
+    const { data } = await apiClient.get<CampaignListItem[]>('/analytics/campaigns', {
+      params: days ? { days } : undefined,
+    });
     return data;
   },
 
