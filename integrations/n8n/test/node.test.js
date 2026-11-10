@@ -293,6 +293,6 @@ test('the package lists files that exist, and the icons ship with it', () => {
 	assert.match(pkg.name, /^n8n-nodes-/);
 	for (const f of [...pkg.n8n.credentials, ...pkg.n8n.nodes]) assert.ok(fs.existsSync(path.join(__dirname, '..', f)), f);
 	assert.ok(fs.existsSync(path.join(__dirname, '..', 'dist', 'icons', 'sincerely.svg')), 'icon in dist');
-	assert.deepStrictEqual(pkg.files, ['dist']);
+	assert.deepStrictEqual(pkg.files, ['dist', '!dist/tsconfig.tsbuildinfo'], 'only the build ships, without the TypeScript cache');
 	assert.ok(!pkg.dependencies, 'verified community nodes may not have runtime dependencies');
 });
