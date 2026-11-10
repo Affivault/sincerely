@@ -30,6 +30,7 @@ import { integrationsApi } from '../../api/integrations.api';
 import { listsApi } from '../../api/contacts.api';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { Notice } from '../../components/ui/Notice';
+import { PageSkeleton, SkeletonList } from '../../components/ui/Skeleton';
 import { Toggle } from '../../components/ui/Toggle';
 import { Segmented } from '../../components/ui/Segmented';
 import { Button } from '../../components/ui/Button';
@@ -128,7 +129,7 @@ export function CrmSyncPage() {
   });
 
   if (overviewQuery.isLoading) {
-    return <p className="text-body text-[var(--text-tertiary)]">Loading the sync…</p>;
+    return <PageSkeleton variant="panels" bleed={false} />;
   }
   if (overviewQuery.isError || !overview) {
     return (
@@ -646,7 +647,7 @@ function SyncLog({ integrationId, crm }: { integrationId: string; crm: string })
       </div>
 
       {logQuery.isLoading ? (
-        <p className="text-body text-[var(--text-tertiary)]">Loading…</p>
+        <SkeletonList rows={4} />
       ) : rows.length === 0 ? (
         <p className="text-body text-[var(--text-tertiary)]">
           {status === 'failed' ? 'Nothing has failed.' : `Nothing has moved yet. Replies, Relay reads and the 15-minute sync will show here.`}
@@ -688,7 +689,7 @@ function SyncLog({ integrationId, crm }: { integrationId: string; crm: string })
           disabled={logQuery.isFetchingNextPage}
           className="text-body font-medium text-[var(--indigo-text)] hover:underline disabled:opacity-50"
         >
-          {logQuery.isFetchingNextPage ? 'Loading…' : 'Show older'}
+          {logQuery.isFetchingNextPage ? 'Fetching older…' : 'Show older'}
         </button>
       )}
     </section>
