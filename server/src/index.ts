@@ -19,6 +19,7 @@ import { startCampaignGuardScheduler } from './jobs/schedulers/campaign-guard.sc
 import { startBookingReminderScheduler } from './jobs/schedulers/booking-reminder.scheduler.js';
 import { startDomainReverifyScheduler } from './jobs/schedulers/domain-reverify.scheduler.js';
 import { startSheetSyncScheduler } from './jobs/schedulers/sheet-sync.scheduler.js';
+import { startCrmSyncScheduler } from './jobs/schedulers/crm-sync.scheduler.js';
 import { startDriveBackupScheduler } from './jobs/schedulers/drive-backup.scheduler.js';
 import { startMailboxSigninScheduler } from './jobs/schedulers/mailbox-signin.scheduler.js';
 import { startEngagementScheduler } from './jobs/schedulers/engagement.scheduler.js';
@@ -212,6 +213,15 @@ const server = app.listen(port, () => {
     console.log('Sheet sync scheduler started');
   } catch (err: any) {
     console.warn('Sheet sync scheduler failed to start:', err.message);
+  }
+
+  // Two-way HubSpot and Pipedrive sync (migration 118).
+  try {
+    const crmSync = startCrmSyncScheduler();
+    if (crmSync) disposers.push(() => crmSync.stop());
+    console.log('CRM sync scheduler started');
+  } catch (err: any) {
+    console.warn('CRM sync scheduler failed to start:', err.message);
   }
 
   // Google Drive backups, about a minute behind (migration 112).

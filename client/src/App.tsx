@@ -68,6 +68,7 @@ const AssetBuilderPage     = lazyRoute('/assets', () => import('./pages/assets/A
 const TemplatesPage        = lazyRoute('/templates', () => import('./pages/templates/TemplatesPage'), m => m.TemplatesPage);
 const DeveloperPage        = lazyRoute('/developer', () => import('./pages/developer/DeveloperPage'), m => m.DeveloperPage);
 const IntegrationsPage     = lazyRoute('/integrations', () => import('./pages/integrations/IntegrationsPage'), m => m.IntegrationsPage);
+const CrmSyncPage          = lazyRoute('/integrations/:id/sync', () => import('./pages/integrations/CrmSyncPage'), m => m.CrmSyncPage);
 const SuppressionPage      = lazyRoute('/suppression', () => import('./pages/suppression/SuppressionPage'), m => m.SuppressionPage);
 const VerificationPage     = lazyRoute('/verification', () => import('./pages/verification/VerificationPage'), m => m.VerificationPage);
 const TeamPage             = lazyRoute('/team', () => import('./pages/team/TeamPage'), m => m.TeamPage);
@@ -250,6 +251,7 @@ export default function App() {
           <Route path="/assets"             element={<AssetBuilderPage />} />
           <Route path="/developer"          element={<DeveloperPage />} />
           <Route path="/integrations"       element={<IntegrationsPage />} />
+          <Route path="/integrations/:id/sync" element={<CrmSyncPage />} />
           <Route path="/settings"           element={<SettingsPage />} />
           <Route path="/billing"            element={<BillingPage />} />
           <Route path="/suppression"        element={<SuppressionPage />} />

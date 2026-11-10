@@ -24,6 +24,7 @@ export * from './asset.types.js';
 export * from './webhook.types.js';
 export * from './integration.types.js';
 export * from './integration.catalog.js';
+export * from './crm-sync.types.js';
 export * from './apikey.types.js';
 export * from './domain.types.js';
 export * from './readiness.types.js';

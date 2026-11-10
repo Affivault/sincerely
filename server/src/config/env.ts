@@ -67,6 +67,11 @@ const envSchema = z.object({
   DISCORD_CLIENT_SECRET: z.string().optional().default(''),
   HUBSPOT_CLIENT_ID: z.string().optional().default(''),
   HUBSPOT_CLIENT_SECRET: z.string().optional().default(''),
+  // Extra HubSpot permissions asked for as optional, space-separated, e.g.
+  // "crm.lists.read crm.schemas.contacts.read communication_preferences.read_write".
+  // Each must also be ticked as an optional scope on the HubSpot app, or
+  // HubSpot refuses the sign-in, so this stays empty until it is.
+  HUBSPOT_OPTIONAL_SCOPES: z.string().optional().default(''),
   NOTION_CLIENT_ID: z.string().optional().default(''),
   NOTION_CLIENT_SECRET: z.string().optional().default(''),
   // Google Calendar, for reading free/busy so a booking page never offers a

@@ -48,6 +48,28 @@ const NOTIFY_DEFAULTS: string[] = [
 /** Events a CRM sync can act on (they carry a contact_id). */
 const CRM_EVENTS: string[] = [E.EmailReplied, E.SaraIntentClassified];
 
+/**
+ * HubSpot and Pipedrive sync both ways: these are what goes on the person's
+ * CRM timeline. Unsubscribes and bounces also mark the person in the CRM.
+ */
+const CRM_SYNC_EVENTS: string[] = [
+  E.EmailSent,
+  E.EmailOpened,
+  E.EmailClicked,
+  E.EmailReplied,
+  E.SaraIntentClassified,
+  E.EmailBounced,
+  E.LeadUnsubscribed,
+];
+/** Opens and clicks are left off by default: they are many, and opens are often a mail scanner. */
+const CRM_SYNC_DEFAULTS: string[] = [
+  E.EmailSent,
+  E.EmailReplied,
+  E.SaraIntentClassified,
+  E.EmailBounced,
+  E.LeadUnsubscribed,
+];
+
 export const INTEGRATION_CATALOG: IntegrationProviderMeta[] = [
   {
     id: 'slack',
@@ -231,10 +253,10 @@ export const INTEGRATION_CATALOG: IntegrationProviderMeta[] = [
     name: 'HubSpot',
     kind: 'crm',
     description:
-      'Automatically syncs contacts into HubSpot the moment they reply or Relay flags them as interested.',
+      'Two-way sync: people and field edits both ways, every email on the HubSpot timeline, deals for interested replies, won or lost deals end the sequence, HubSpot lists kept in step with Sincerely lists.',
     setupSteps: [
       'In HubSpot go to Settings → Integrations → Private Apps and click “Create a private app”.',
-      'Name it (e.g. “Sincerely”), then under Scopes enable crm.objects.contacts.read and crm.objects.contacts.write.',
+      'Name it (e.g. “Sincerely”), then under Scopes tick: crm.objects.contacts.read, crm.objects.contacts.write, crm.objects.deals.read, crm.objects.deals.write, crm.lists.read, crm.schemas.contacts.read and communication_preferences.read_write.',
       'Create the app and copy the access token (starts with pat-).',
       'Paste the token below — Sincerely verifies it live before saving.',
     ],
@@ -245,7 +267,7 @@ export const INTEGRATION_CATALOG: IntegrationProviderMeta[] = [
         label: 'Private app access token',
         placeholder: 'pat-na1-…',
         secret: true,
-        help: 'Needs crm.objects.contacts read + write scopes (add deals read + write for auto-deals).',
+        help: 'Contacts read + write are required. Deals, lists, contact properties and communication preferences turn on deals, list sync, the field picker and unsubscribes.',
       },
       {
         key: 'create_deals',
@@ -256,8 +278,8 @@ export const INTEGRATION_CATALOG: IntegrationProviderMeta[] = [
         toggle: true,
       },
     ],
-    supportedEvents: CRM_EVENTS,
-    defaultEvents: CRM_EVENTS,
+    supportedEvents: CRM_SYNC_EVENTS,
+    defaultEvents: CRM_SYNC_DEFAULTS,
     oauth: true,
   },
   {
@@ -265,7 +287,7 @@ export const INTEGRATION_CATALOG: IntegrationProviderMeta[] = [
     name: 'Pipedrive',
     kind: 'crm',
     description:
-      'Creates or updates a Pipedrive person and attaches a note whenever a lead replies to your outreach.',
+      'Two-way sync: people and field edits both ways, every email on the Pipedrive person, deals for interested replies in the pipeline you choose, won or lost deals end the sequence, filters kept in step with Sincerely lists.',
     setupSteps: [
       'In Pipedrive click your avatar → Personal preferences → API.',
       'Copy your personal API token.',
@@ -288,8 +310,8 @@ export const INTEGRATION_CATALOG: IntegrationProviderMeta[] = [
         toggle: true,
       },
     ],
-    supportedEvents: CRM_EVENTS,
-    defaultEvents: CRM_EVENTS,
+    supportedEvents: CRM_SYNC_EVENTS,
+    defaultEvents: CRM_SYNC_DEFAULTS,
   },
   {
     id: 'notion',

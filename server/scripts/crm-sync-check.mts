@@ -1,0 +1,831 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   Two-way HubSpot and Pipedrive sync, end to end (migration 118).
+
+   The real sync engine and event bus run against three stand-ins over
+   HTTP: Supabase's REST interface (in memory, with the joins, filters,
+   ordering, upserts and updated_at trigger the engine relies on), a fake
+   HubSpot and a fake Pipedrive. Each scenario changes one side and checks
+   what the other side ends up with.
+
+   Run: npx tsx scripts/crm-sync-check.mts
+   ═══════════════════════════════════════════════════════════════════════ */
+
+import http from 'node:http';
+import crypto from 'node:crypto';
+import type { AddressInfo } from 'node:net';
+
+let failures = 0;
+let passes = 0;
+function check(name: string, ok: unknown, detail?: unknown) {
+  if (ok) {
+    passes++;
+    console.log(`  ok  ${name}`);
+  } else {
+    failures++;
+    console.log(`  FAIL ${name}${detail !== undefined ? `\n       ${JSON.stringify(detail)}` : ''}`);
+  }
+}
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/* ── A stand-in for Supabase ─────────────────────────────────────────── */
+
+type Row = Record<string, any>;
+const db: Record<string, Row[]> = {};
+const UNIQUE: Record<string, string[][]> = {
+  contacts: [['user_id', 'email']],
+  suppression_list: [['user_id', 'email']],
+  crm_links: [['integration_id', 'contact_id'], ['integration_id', 'external_id']],
+  crm_list_syncs: [['integration_id', 'external_id']],
+};
+/** parent table -> embedded name -> how they join. */
+const RELATIONS: Record<string, Record<string, { table: string; many: boolean; local: string; foreign: string }>> = {
+  contacts: { crm_links: { table: 'crm_links', many: true, local: 'id', foreign: 'contact_id' } },
+  campaign_contacts: { campaigns: { table: 'campaigns', many: false, local: 'campaign_id', foreign: 'id' } },
+  crm_list_syncs: { contact_lists: { table: 'contact_lists', many: false, local: 'list_id', foreign: 'id' } },
+};
+const nowStamp = () => new Date().toISOString();
+
+function splitTop(s: string): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let cur = '';
+  let quoted = false;
+  for (const ch of s) {
+    if (ch === '"') quoted = !quoted;
+    if (!quoted && ch === '(') depth++;
+    if (!quoted && ch === ')') depth--;
+    if (!quoted && ch === ',' && depth === 0) {
+      out.push(cur);
+      cur = '';
+      continue;
+    }
+    cur += ch;
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+const unquote = (v: string) => v.replace(/^"|"$/g, '');
+
+function test(cell: any, op: string, v: string): boolean {
+  switch (op) {
+    case 'eq': return String(cell) === unquote(v);
+    case 'neq': return String(cell) !== unquote(v);
+    case 'is': return v === 'null' ? cell == null : String(cell) === v;
+    case 'in': return v.replace(/^\(|\)$/g, '').split(',').map(unquote).includes(String(cell));
+    case 'lt': return cell != null && String(cell) < unquote(v);
+    case 'lte': return cell != null && String(cell) <= unquote(v);
+    case 'gt': return cell != null && String(cell) > unquote(v);
+    case 'gte': return cell != null && String(cell) >= unquote(v);
+    case 'cs': {
+      const want = v.replace(/^\{|\}$/g, '').split(',').map(unquote);
+      return want.every((w) => (cell || []).includes(w));
+    }
+  }
+  throw new Error(`fake db: operator ${op} not supported`);
+}
+function cond(row: Row, expr: string): boolean {
+  // "col.op.value", "col.not.op.value"
+  const a = expr.indexOf('.');
+  const col = expr.slice(0, a);
+  let rest = expr.slice(a + 1);
+  let neg = false;
+  if (rest.startsWith('not.')) { neg = true; rest = rest.slice(4); }
+  const b = rest.indexOf('.');
+  const r = test(row[col], rest.slice(0, b), rest.slice(b + 1));
+  return neg ? !r : r;
+}
+function orGroup(row: Row, inner: string): boolean {
+  return splitTop(inner).some((part) => {
+    if (part.startsWith('and(')) return splitTop(part.slice(4, -1)).every((p) => cond(row, p));
+    return cond(row, part);
+  });
+}
+
+/** Embeds named in a select: name -> inner? */
+function embeds(select: string | null): Map<string, boolean> {
+  const out = new Map<string, boolean>();
+  for (const part of splitTop(select || '')) {
+    const m = part.trim().match(/^([a-z_]+)(!inner)?\(/);
+    if (m) out.set(m[1], !!m[2]);
+  }
+  return out;
+}
+
+function query(table: string, params: URLSearchParams): Row[] {
+  const rows = db[table] || [];
+  const emb = embeds(params.get('select'));
+  const out: Row[] = [];
+  for (const base of rows) {
+    const row: Row = { ...base };
+    let keep = true;
+    for (const [name, inner] of emb) {
+      const rel = RELATIONS[table]?.[name];
+      if (!rel) throw new Error(`fake db: no relation ${table} -> ${name}`);
+      let kids = (db[rel.table] || []).filter((k) => String(k[rel.foreign]) === String(base[rel.local]));
+      for (const [k, raw] of params) {
+        if (k.startsWith(`${name}.`)) kids = kids.filter((kid) => cond(kid, `${k.slice(name.length + 1)}.${raw}`));
+      }
+      if (inner && kids.length === 0) keep = false;
+      row[name] = rel.many ? kids.map((x) => ({ ...x })) : kids[0] ? { ...kids[0] } : null;
+    }
+    if (!keep) continue;
+    for (const [k, raw] of params) {
+      if (['select', 'order', 'limit', 'offset', 'on_conflict', 'columns'].includes(k) || k.includes('.')) continue;
+      if (k === 'or') { if (!orGroup(base, raw.replace(/^\(|\)$/g, ''))) keep = false; continue; }
+      if (!cond(base, `${k}.${raw}`)) keep = false;
+    }
+    if (keep) out.push(row);
+  }
+  const order = params.get('order');
+  if (order) {
+    const keys = order.split(',').map((o) => o.split('.'));
+    out.sort((x, y) => {
+      for (const [col, dir] of keys) {
+        const a = String(x[col] ?? '');
+        const b = String(y[col] ?? '');
+        if (a !== b) return (a < b ? -1 : 1) * (dir === 'desc' ? -1 : 1);
+      }
+      return 0;
+    });
+  }
+  const limit = Number(params.get('limit') || 0);
+  return limit ? out.slice(0, limit) : out;
+}
+
+function clashOf(table: string, row: Row, except?: Row): { row: Row; keys: string[] } | null {
+  for (const keys of UNIQUE[table] || []) {
+    const hit = (db[table] || []).find((r) => r !== except && keys.every((k) => r[k] != null && String(r[k]) === String(row[k])));
+    if (hit) return { row: hit, keys };
+  }
+  return null;
+}
+
+const supa = http.createServer((req, res) => {
+  let raw = '';
+  req.on('data', (c) => (raw += c));
+  req.on('end', () => {
+    const url = new URL(req.url || '/', 'http://x');
+    const method = req.method || 'GET';
+    const body = raw ? JSON.parse(raw) : undefined;
+    const send = (status: number, payload: any, headers: Record<string, string> = {}) => {
+      res.writeHead(status, { 'Content-Type': 'application/json', ...headers });
+      res.end(payload === undefined ? '' : JSON.stringify(payload));
+    };
+    try {
+      const m = url.pathname.match(/^\/rest\/v1\/(rpc\/)?([a-z_]+)$/);
+      if (!m) return send(404, { message: 'no route' });
+      if (m[1]) return send(200, []);
+      const table = m[2];
+      const rows = (db[table] ||= []);
+      const wantsObject = String(req.headers.accept || '').includes('vnd.pgrst.object');
+      const prefer = String(req.headers.prefer || '');
+      const one = (list: Row[], status = 200) => {
+        if (!wantsObject) return send(status, list);
+        if (list.length !== 1) return send(406, { code: 'PGRST116', message: 'JSON object requested, multiple (or no) rows returned', details: `${list.length} rows` });
+        return send(status, list[0]);
+      };
+
+      if (method === 'GET' || method === 'HEAD') {
+        const list = query(table, url.searchParams);
+        if (prefer.includes('count=exact')) return send(200, method === 'HEAD' ? undefined : list, { 'Content-Range': `0-${Math.max(0, list.length - 1)}/${list.length}` });
+        return one(list);
+      }
+      if (method === 'POST') {
+        const upsert = prefer.includes('resolution=');
+        const onConflict = url.searchParams.get('on_conflict')?.split(',');
+        const written: Row[] = [];
+        for (const r of Array.isArray(body) ? body : [body]) {
+          const item: Row = { id: crypto.randomUUID(), created_at: nowStamp(), updated_at: nowStamp(), ...r };
+          let target: Row | undefined;
+          if (upsert && onConflict) target = rows.find((x) => onConflict.every((k) => String(x[k]) === String(item[k])));
+          if (target) {
+            const { id: _id, created_at: _c, ...patch } = item;
+            const next = { ...target, ...patch };
+            if (clashOf(table, next, target)) return send(409, { code: '23505', message: 'duplicate key value violates unique constraint' });
+            Object.assign(target, patch);
+            written.push(target);
+            continue;
+          }
+          const clash = clashOf(table, item);
+          if (clash) {
+            if (!upsert) return send(409, { code: '23505', message: 'duplicate key value violates unique constraint' });
+            if (!prefer.includes('ignore-duplicates')) Object.assign(clash.row, item, { id: clash.row.id });
+            written.push(clash.row);
+            continue;
+          }
+          rows.push(item);
+          written.push(item);
+        }
+        if (!prefer.includes('return=representation')) return send(201, undefined);
+        const sel = url.searchParams.get('select');
+        const shaped = sel && embeds(sel).size ? written.map((w) => query(table, new URLSearchParams({ select: sel, id: `eq.${w.id}` }))[0]) : written;
+        return one(shaped, 201);
+      }
+      if (method === 'PATCH') {
+        const hit = query(table, url.searchParams).map((r) => rows.find((x) => x.id === r.id)!);
+        for (const r of hit) {
+          Object.assign(r, body);
+          if (table === 'contacts' || table === 'user_integrations') r.updated_at = nowStamp(); // the updated_at trigger
+        }
+        if (!prefer.includes('return=representation')) return send(204, undefined);
+        const sel = url.searchParams.get('select');
+        const shaped = sel && embeds(sel).size ? hit.map((w) => query(table, new URLSearchParams({ select: sel, id: `eq.${w.id}` }))[0]) : hit;
+        return one(shaped);
+      }
+      if (method === 'DELETE') {
+        const gone = new Set(query(table, url.searchParams).map((r) => r.id));
+        db[table] = rows.filter((r) => !gone.has(r.id));
+        return send(204, undefined);
+      }
+      send(405, { message: 'method' });
+    } catch (err: any) {
+      console.error('fake db error:', err.message);
+      send(500, { message: err.message });
+    }
+  });
+});
+
+/* ── A fake HubSpot ──────────────────────────────────────────────────── */
+
+const hs = {
+  contacts: new Map<string, { id: string; properties: Record<string, any> }>(),
+  notes: [] as { body: string; contact: string }[],
+  deals: new Map<string, { id: string; properties: Record<string, any>; contact: string }>(),
+  unsubscribed: [] as { email: string; sub: string }[],
+  lists: new Map<string, string[]>(),
+  calls: [] as string[],
+  failNotesOnce: false,
+  nextId: 1000,
+};
+const hsTouch = (props: Record<string, any>, at = Date.now()) => { props.lastmodifieddate = new Date(at).toISOString(); };
+
+function hsSearch(items: { id: string; properties: Record<string, any> }[], body: any) {
+  const f = body.filterGroups[0].filters[0];
+  const since = Number(f.value);
+  const list = items
+    .filter((c) => Date.parse(c.properties[f.propertyName]) >= since)
+    .sort((a, b) => Date.parse(a.properties[f.propertyName]) - Date.parse(b.properties[f.propertyName]));
+  const start = Number(body.after || 0);
+  const page = list.slice(start, start + body.limit);
+  return {
+    total: list.length,
+    results: page.map((c) => ({ id: c.id, properties: Object.fromEntries((body.properties as string[]).map((p) => [p, c.properties[p] ?? null])) })),
+    ...(start + body.limit < list.length ? { paging: { next: { after: String(start + body.limit) } } } : {}),
+  };
+}
+
+const hubspot = http.createServer((req, res) => {
+  let raw = '';
+  req.on('data', (c) => (raw += c));
+  req.on('end', () => {
+    const url = new URL(req.url || '/', 'http://x');
+    const method = req.method || 'GET';
+    const body = raw ? JSON.parse(raw) : undefined;
+    const p = url.pathname;
+    hs.calls.push(`${method} ${p}`);
+    const send = (status: number, payload: any) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(payload)); };
+    if (req.headers.authorization !== 'Bearer pat-test') return send(401, { message: 'bad token' });
+
+    if (method === 'POST' && p === '/crm/v3/objects/contacts/batch/upsert') {
+      const input = body.inputs[0];
+      let c = [...hs.contacts.values()].find((x) => x.properties.email === input.id);
+      const isNew = !c;
+      if (!c) { c = { id: String(hs.nextId++), properties: {} }; hs.contacts.set(c.id, c); }
+      Object.assign(c.properties, input.properties);
+      hsTouch(c.properties);
+      return send(200, { results: [{ id: c.id, new: isNew, properties: c.properties }] });
+    }
+    let m = p.match(/^\/crm\/v3\/objects\/contacts\/(\d+)$/);
+    if (m && method === 'PATCH') {
+      const c = hs.contacts.get(m[1]);
+      if (!c) return send(404, { message: 'not found' });
+      Object.assign(c.properties, body.properties);
+      hsTouch(c.properties);
+      return send(200, c);
+    }
+    if (method === 'POST' && p === '/crm/v3/objects/contacts/search') return send(200, hsSearch([...hs.contacts.values()], body));
+    if (method === 'POST' && p === '/crm/v3/objects/contacts/batch/read') {
+      return send(200, { results: body.inputs.map((i: any) => hs.contacts.get(i.id)).filter(Boolean).map((c: any) => ({ id: c.id, properties: Object.fromEntries(body.properties.map((k: string) => [k, c.properties[k] ?? null])) })) });
+    }
+    if (method === 'POST' && p === '/crm/v3/objects/notes') {
+      if (hs.failNotesOnce) { hs.failNotesOnce = false; return send(502, { message: 'upstream hiccup' }); }
+      hs.notes.push({ body: body.properties.hs_note_body, contact: body.associations[0].to.id });
+      return send(201, { id: String(hs.nextId++) });
+    }
+    if (method === 'GET' && p === '/crm/v3/pipelines/deals') {
+      return send(200, { results: [
+        { id: 'default', label: 'Sales', stages: [{ id: 'appointmentscheduled', label: 'Appointment', displayOrder: 0 }, { id: 'closedwon', label: 'Won', displayOrder: 5 }] },
+        { id: 'p2', label: 'Outbound', stages: [{ id: 's2b', label: 'Booked', displayOrder: 1 }, { id: 's2a', label: 'New', displayOrder: 0 }] },
+      ] });
+    }
+    if (method === 'POST' && p === '/crm/v3/objects/deals') {
+      const d = { id: String(hs.nextId++), properties: { ...body.properties }, contact: body.associations[0].to.id };
+      hsTouch(d.properties);
+      d.properties.hs_lastmodifieddate = d.properties.lastmodifieddate;
+      hs.deals.set(d.id, d);
+      return send(201, { id: d.id, properties: d.properties });
+    }
+    if (method === 'POST' && p === '/crm/v3/objects/deals/search') return send(200, hsSearch([...hs.deals.values()], body));
+    if (method === 'POST' && p === '/crm/v4/associations/deals/contacts/batch/read') {
+      return send(200, { results: body.inputs.map((i: any) => ({ from: { id: i.id }, to: [{ toObjectId: Number(hs.deals.get(i.id)?.contact) }] })) });
+    }
+    if (method === 'GET' && p === '/communication-preferences/v3/definitions') {
+      return send(200, { subscriptionDefinitions: [{ id: 11, isActive: true }, { id: 12, isActive: true }, { id: 13, isActive: false }] });
+    }
+    if (method === 'POST' && p === '/communication-preferences/v3/unsubscribe') {
+      hs.unsubscribed.push({ email: body.emailAddress, sub: body.subscriptionId });
+      return send(200, { status: 'NOT_SUBSCRIBED' });
+    }
+    if (method === 'GET' && p === '/crm/v3/properties/contacts') {
+      return send(403, { status: 'error', category: 'MISSING_SCOPES', message: 'This app hasn\'t been granted all required scopes', errors: [{ context: { requiredGranularScopes: ['crm.schemas.contacts.read'] } }] });
+    }
+    if (method === 'POST' && p === '/crm/v3/lists/search') {
+      return send(200, { lists: [...hs.lists.keys()].map((id) => ({ listId: id, name: `List ${id}`, objectTypeId: '0-1', additionalProperties: { hs_list_size: String(hs.lists.get(id)!.length) } })).concat([{ listId: '99', name: 'Companies', objectTypeId: '0-2', additionalProperties: {} } as any]), hasMore: false, offset: 0 });
+    }
+    m = p.match(/^\/crm\/v3\/lists\/(\d+)\/memberships$/);
+    if (m && method === 'GET') {
+      const ids = hs.lists.get(m[1]) || [];
+      const after = Number(url.searchParams.get('after') || 0);
+      const size = 1; // one per page, so paging is exercised
+      return send(200, { results: ids.slice(after, after + size).map((id) => ({ recordId: id })), ...(after + size < ids.length ? { paging: { next: { after: String(after + size) } } } : {}) });
+    }
+    send(404, { message: `fake hubspot: no route ${method} ${p}` });
+  });
+});
+
+/* ── A fake Pipedrive ────────────────────────────────────────────────── */
+
+const pdTime = (t = Date.now()) => new Date(t).toISOString().slice(0, 19).replace('T', ' ');
+const pd = {
+  persons: new Map<number, Row>(),
+  orgs: new Map<number, { id: number; name: string }>(),
+  notes: [] as { content: string; person_id: number }[],
+  deals: new Map<number, Row>(),
+  filters: new Map<number, number[]>(),
+  nextId: 500,
+  campaigns: true,
+};
+const pipedrive = http.createServer((req, res) => {
+  let raw = '';
+  req.on('data', (c) => (raw += c));
+  req.on('end', () => {
+    const url = new URL(req.url || '/', 'http://x');
+    const method = req.method || 'GET';
+    const body = raw ? JSON.parse(raw) : undefined;
+    const p = url.pathname;
+    const q = url.searchParams;
+    const send = (status: number, payload: any) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(payload)); };
+    if (q.get('api_token') !== 'a1b2c3d4e5f6a7b8c9d0e1f2') return send(401, { success: false, error: 'unauthorized' });
+    const ok = (data: any, extra: any = {}) => send(200, { success: true, data, ...extra });
+    const view = (x: Row) => ({ ...x, org_name: x.org_id ? pd.orgs.get(x.org_id)?.name ?? null : null, org_id: x.org_id ? { value: x.org_id, name: pd.orgs.get(x.org_id)?.name } : null });
+
+    if (method === 'GET' && p === '/v1/persons/search') {
+      const hit = [...pd.persons.values()].find((x) => x.email.some((e: any) => e.value === q.get('term')));
+      return ok({ items: hit ? [{ item: { id: hit.id } }] : [] });
+    }
+    if (method === 'GET' && p === '/v1/organizations/search') {
+      const hit = [...pd.orgs.values()].find((o) => o.name === q.get('term'));
+      return ok({ items: hit ? [{ item: { id: hit.id } }] : [] });
+    }
+    if (method === 'POST' && p === '/v1/organizations') {
+      const o = { id: pd.nextId++, name: body.name };
+      pd.orgs.set(o.id, o);
+      return ok(o);
+    }
+    if (method === 'POST' && p === '/v1/persons') {
+      const x = { id: pd.nextId++, marketing_status: 'subscribed', ...body, update_time: pdTime(), active_flag: true };
+      pd.persons.set(x.id, x);
+      return ok(view(x));
+    }
+    let m = p.match(/^\/v1\/persons\/(\d+)$/);
+    if (m && method === 'PUT') {
+      const x = pd.persons.get(Number(m[1]));
+      if (!x) return send(404, { success: false, error: 'not found' });
+      const patch = { ...body };
+      if ('marketing_status' in patch && !pd.campaigns) delete patch.marketing_status;
+      Object.assign(x, patch, { update_time: pdTime() });
+      return ok(view(x));
+    }
+    if (m && method === 'GET') {
+      const x = pd.persons.get(Number(m[1]));
+      return x ? ok(view(x)) : send(404, { success: false, error: 'not found' });
+    }
+    if (method === 'POST' && p === '/v1/notes') { pd.notes.push(body); return ok({ id: pd.nextId++ }); }
+    if (method === 'POST' && p === '/v1/deals') {
+      const d = { id: pd.nextId++, status: 'open', ...body, update_time: pdTime() };
+      pd.deals.set(d.id, d);
+      return ok(d);
+    }
+    if (method === 'GET' && p === '/v1/recents') {
+      const since = q.get('since_timestamp')!;
+      const kind = q.get('items');
+      const source = kind === 'person' ? [...pd.persons.values()].map(view) : [...pd.deals.values()];
+      const items = source.filter((x) => x.update_time >= since).sort((a, b) => (a.update_time < b.update_time ? -1 : 1));
+      return ok(items.map((x) => ({ item: kind, id: x.id, data: x })), { additional_data: { pagination: { start: 0, limit: 500, more_items_in_collection: false }, last_timestamp_on_page: items.length ? items[items.length - 1].update_time : null } });
+    }
+    if (method === 'GET' && p === '/v1/pipelines') return ok([{ id: 1, name: 'Main' }, { id: 2, name: 'Outbound' }]);
+    if (method === 'GET' && p === '/v1/stages') return ok([{ id: 21, name: 'Booked', pipeline_id: 2, order_nr: 2 }, { id: 20, name: 'New', pipeline_id: 2, order_nr: 1 }, { id: 10, name: 'Lead', pipeline_id: 1, order_nr: 1 }]);
+    if (method === 'GET' && p === '/v1/filters') return ok([...pd.filters.keys()].map((id) => ({ id, name: `Filter ${id}` })));
+    if (method === 'GET' && p === '/v1/personFields') return ok([{ key: 'first_name', name: 'First name', edit_flag: false }, { key: 'email', name: 'Email', edit_flag: false }, { key: 'abc123', name: 'Lead source', edit_flag: true }]);
+    if (method === 'GET' && p === '/v1/persons' && q.get('filter_id')) {
+      const ids = pd.filters.get(Number(q.get('filter_id'))) || [];
+      return ok(ids.map((id) => view(pd.persons.get(id)!)), { additional_data: { pagination: { start: 0, limit: 500, more_items_in_collection: false } } });
+    }
+    send(404, { success: false, error: `fake pipedrive: no route ${method} ${p}` });
+  });
+});
+
+for (const s of [supa, hubspot, pipedrive]) await new Promise<void>((r) => s.listen(0, '127.0.0.1', () => r()));
+const urlOf = (s: http.Server) => `http://127.0.0.1:${(s.address() as AddressInfo).port}`;
+
+process.env.SUPABASE_URL = urlOf(supa);
+process.env.SUPABASE_SERVICE_ROLE_KEY ||= 'stub';
+process.env.SUPABASE_ANON_KEY ||= 'stub';
+process.env.ENCRYPTION_KEY ||= 'a'.repeat(64);
+process.env.TRACKING_SECRET ||= 'audit-secret-at-least-16';
+process.env.CLIENT_URL ||= 'https://app.sincerely.io';
+process.env.API_BASE_URL ||= 'https://api.sincerely.io';
+
+const { overrideCrmHost } = await import('../src/services/crm-sync/http.js');
+overrideCrmHost('api.hubapi.com', urlOf(hubspot));
+overrideCrmHost('api.pipedrive.com', urlOf(pipedrive));
+const { dispatchEvent } = await import('../src/services/integrations.service.js');
+const { runCrmSync, crmSyncService, reconcile } = await import('../src/services/crm-sync.service.js');
+const { contactsService } = await import('../src/services/contacts.service.js');
+const shared = await import('@lemlist/shared');
+
+// Imports are their own well-tested path; here they only need to land in the fake database.
+const imported: Row[][] = [];
+(contactsService as any).bulkCreate = async (userId: string, rows: Row[], listId: string) => {
+  imported.push(rows);
+  let created = 0;
+  let updated = 0;
+  for (const r of rows) {
+    const existing = db.contacts.find((c) => c.user_id === userId && c.email === r.email);
+    if (existing) {
+      for (const [k, v] of Object.entries(r)) if (existing[k] == null || existing[k] === '') existing[k] = v;
+      updated++;
+    } else {
+      db.contacts.push({ id: crypto.randomUUID(), user_id: userId, custom_fields: {}, is_unsubscribed: false, is_bounced: false, updated_at: nowStamp(), ...r });
+      created++;
+    }
+    (db.list_contacts ||= []).push({ list_id: listId, email: r.email });
+  }
+  return { total: rows.length, imported: rows.length, created, updated, errors: 0, error_details: [] };
+};
+
+/* ── Fixtures ────────────────────────────────────────────────────────── */
+
+const U = crypto.randomUUID();
+const OTHER = crypto.randomUUID();
+const HS = crypto.randomUUID();
+const PD = crypto.randomUUID();
+const CAMP = crypto.randomUUID();
+const LIST = crypto.randomUUID();
+const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
+
+const person = (email: string, extra: Row = {}): Row => ({
+  id: crypto.randomUUID(), user_id: U, email, first_name: null, last_name: null, company: null, job_title: null, phone: null,
+  website: null, linkedin_url: null, city: null, state: null, country: null, industry: null, custom_fields: {},
+  is_unsubscribed: false, is_bounced: false, updated_at: ago(60 * 60_000), ...extra,
+});
+
+const jane = person('jane@acme.test', { first_name: 'Jane', last_name: 'Doe', company: 'Acme', job_title: 'Head of Ops', city: 'Leeds', custom_fields: { tier: 'gold' } });
+const bob = person('bob@acme.test', { first_name: 'Bob', company: 'Acme' });
+const cara = person('cara@beta.test', { first_name: 'Cara', company: 'Beta' });
+const dan = person('dan@beta.test', { first_name: 'Dan', company: 'Beta' });
+const notMine = { ...person('jane@acme.test'), user_id: OTHER };
+db.contacts = [jane, bob, cara, dan, notMine];
+db.campaigns = [{ id: CAMP, user_id: U, name: 'Q4 outbound' }];
+db.campaign_contacts = [
+  { id: crypto.randomUUID(), campaign_id: CAMP, contact_id: jane.id, status: 'active', next_send_at: ago(-60_000) },
+  { id: crypto.randomUUID(), campaign_id: CAMP, contact_id: bob.id, status: 'active', next_send_at: ago(-60_000) },
+  { id: crypto.randomUUID(), campaign_id: CAMP, contact_id: cara.id, status: 'active', next_send_at: ago(-60_000) },
+  { id: crypto.randomUUID(), campaign_id: CAMP, contact_id: dan.id, status: 'active', next_send_at: ago(-60_000) },
+];
+db.contact_lists = [{ id: LIST, user_id: U, name: 'From HubSpot' }];
+db.webhook_endpoints = [];
+db.suppression_list = [];
+db.crm_links = [];
+db.crm_sync_log = [];
+db.crm_list_syncs = [];
+db.integration_activity = [];
+db.user_integrations = [
+  {
+    id: HS, user_id: U, provider: 'hubspot', is_active: true,
+    config: { access_token: 'pat-test', create_deals: 'yes' },
+    events: ['email.sent', 'email.replied', 'sara.intent_classified', 'email.bounced', 'lead.unsubscribed'],
+    sync_settings: { deal_pipeline: 'p2', deal_stage: '' }, sync_cursors: {}, last_sync_at: null, next_sync_at: null, last_sync_error: null,
+  },
+];
+
+const hsContact = (email: string) => [...hs.contacts.values()].find((c) => c.properties.email === email);
+const link = (integration: string, contactId: string) => db.crm_links.find((l) => l.integration_id === integration && l.contact_id === contactId);
+const contactRow = (id: string) => db.contacts.find((c) => c.id === id)!;
+const enrolment = (contactId: string) => db.campaign_contacts.find((c) => c.contact_id === contactId)!;
+/** Let fire-and-forget event dispatch finish. */
+const settle = () => sleep(150);
+/** CRM edits are "later" than anything before them. */
+const tick = () => sleep(15);
+
+/* ── Pure: the conflict rule ─────────────────────────────────────────── */
+
+console.log('\nreconcile (who wins)');
+{
+  const m = [
+    { sincerely: 'first_name', crm: 'firstname', direction: 'both' as const },
+    { sincerely: 'company', crm: 'company', direction: 'both' as const },
+    { sincerely: 'city', crm: 'city', direction: 'to_crm' as const },
+    { sincerely: 'job_title', crm: 'jobtitle', direction: 'from_crm' as const },
+  ];
+  const snap = { 'first_name|firstname': 'Jo', 'company|company': 'Acme', 'city|city': 'Leeds', 'job_title|jobtitle': 'CTO' };
+  const c = { id: 'c', email: 'x', updated_at: '2026-01-01T10:00:00.000Z', first_name: 'Joanna', company: 'Acme', city: 'Leeds', job_title: 'CEO' } as any;
+  const p = (vals: Row, at: string) => ({ id: 'p', email: 'x', values: vals, updatedAt: at, optedOut: false, bounced: false });
+  let r = reconcile(m, c, p({ firstname: 'Jo', company: 'Acme Ltd', city: 'York', jobtitle: 'CTO' }, '2026-01-01T09:00:00.000Z'), snap);
+  check('edited only here: goes to the CRM', r.remote.firstname === 'Joanna' && !('first_name' in r.local), r);
+  check('edited only in the CRM: comes here', r.local.company === 'Acme Ltd' && !('company' in r.remote), r);
+  check('a to-CRM-only field edited in the CRM is not overwritten and not taken', !('city' in r.remote) && !('city' in r.local), r);
+  check('a from-CRM-only field edited here is not sent', !('jobtitle' in r.remote) && !('job_title' in r.local), r);
+  check('agreed values move with the changes', r.snapshot['company|company'] === 'Acme Ltd' && r.snapshot['first_name|firstname'] === 'Joanna' && r.snapshot['city|city'] === 'Leeds', r.snapshot);
+  r = reconcile(m, c, p({ firstname: 'Josie', company: 'Acme', city: 'Leeds', jobtitle: 'CTO' }, '2026-01-01T11:00:00.000Z'), snap);
+  check('both edited: the CRM edit is newer, the CRM wins', r.local.first_name === 'Josie' && !('firstname' in r.remote), r);
+  r = reconcile(m, c, p({ firstname: 'Josie', company: 'Acme', city: 'Leeds', jobtitle: 'CTO' }, '2026-01-01T08:00:00.000Z'), snap);
+  check('both edited: the Sincerely edit is newer, Sincerely wins', r.remote.firstname === 'Joanna' && !('first_name' in r.local), r);
+  r = reconcile(m, { ...c, first_name: null }, p({ firstname: 'Jo' }, '2026-01-01T08:00:00.000Z'), {});
+  check('never agreed, blank here: the CRM fills it', r.local.first_name === 'Jo', r);
+  r = reconcile(m, { ...c, first_name: 'Ann' }, p({ firstname: null }, '2026-01-01T08:00:00.000Z'), {});
+  check('never agreed, blank in the CRM: Sincerely fills it', r.remote.firstname === 'Ann', r);
+}
+
+console.log('\nsettings');
+{
+  const s = shared.sanitizeCrmSyncSettings('hubspot', {
+    push_when: 'whenever', pull_updates: 'yes',
+    mapping: [
+      { sincerely: 'first_name', crm: 'firstname', direction: 'both' },
+      { sincerely: 'first_name', crm: 'other', direction: 'both' },
+      { sincerely: 'company', crm: 'email', direction: 'both' },
+      { sincerely: 'is_unsubscribed', crm: 'x', direction: 'both' },
+      { sincerely: 'custom:Tier', crm: 'tier', direction: 'sideways' },
+      { sincerely: 'job_title', crm: 'bad key!', direction: 'both' },
+    ],
+    deal_pipeline: 'p2', on_deal_won: 'explode',
+  });
+  check('unknown values fall back to defaults', s.push_when === 'replied' && s.pull_updates === true && s.on_deal_won === 'stop', s);
+  check('a mapping keeps each field once, never email, never internal columns, never a bad key', JSON.stringify(s.mapping) === JSON.stringify([
+    { sincerely: 'first_name', crm: 'firstname', direction: 'both' },
+    { sincerely: 'custom:Tier', crm: 'tier', direction: 'both' },
+  ]), s.mapping);
+}
+
+/* ── HubSpot: Sincerely -> HubSpot, as things happen ─────────────────── */
+
+console.log('\nHubSpot: events');
+await dispatchEvent(U, 'email.sent', { contact_id: jane.id, campaign_id: CAMP, subject: 'Quick question', to: jane.email });
+check('an email sent to someone HubSpot does not have creates nobody (push when they reply)', hs.contacts.size === 0 && !link(HS, jane.id));
+
+await dispatchEvent(U, 'email.replied', { contact_id: jane.id, campaign_id: CAMP, subject: 'Re: Quick question', excerpt: 'Sounds good, tell me more' });
+const hj = hsContact('jane@acme.test');
+check('a reply creates them in HubSpot with the mapped fields', hj && hj.properties.firstname === 'Jane' && hj.properties.company === 'Acme' && hj.properties.jobtitle === 'Head of Ops' && hj.properties.city === 'Leeds', hj?.properties);
+check('the link remembers the HubSpot record and the agreed values', link(HS, jane.id)?.external_id === hj?.id && link(HS, jane.id)?.snapshot['company|company'] === 'Acme', link(HS, jane.id));
+check('the reply is on their HubSpot timeline, with the campaign and what they said', hs.notes.length === 1 && hs.notes[0].contact === hj?.id && /replied - Re: Quick question/.test(hs.notes[0].body) && /Q4 outbound/.test(hs.notes[0].body) && /Sounds good/.test(hs.notes[0].body), hs.notes);
+check('the note is HTML-escaped', !/<script/.test(hs.notes[0].body));
+check('logged as created, then as activity', db.crm_sync_log.some((l) => l.kind === 'contact' && /Created Jane Doe in HubSpot/.test(l.summary)) && db.crm_sync_log.some((l) => l.kind === 'activity' && l.status === 'ok'));
+check('the connection card gets a summary', db.integration_activity.some((a) => a.integration_id === HS && a.success && /jane@acme.test/.test(a.summary)), db.integration_activity);
+
+await dispatchEvent(U, 'email.sent', { contact_id: jane.id, campaign_id: CAMP, subject: 'Follow-up <script>', to: jane.email });
+check('once linked, every email sent goes on the timeline (escaped)', hs.notes.length === 2 && /email sent - Follow-up &lt;script&gt;/.test(hs.notes[1].body), hs.notes[1]);
+
+await dispatchEvent(U, 'sara.intent_classified', { contact_id: jane.id, campaign_id: CAMP, intent: 'interested', confidence: 0.92 });
+const deal = [...hs.deals.values()][0];
+check('an interested reply opens a deal in the chosen pipeline, first stage by display order', hs.deals.size === 1 && deal.properties.pipeline === 'p2' && deal.properties.dealstage === 's2a' && deal.contact === hj?.id, deal);
+check('deal named after the person and company', deal?.properties.dealname === 'Jane Doe (Acme) - Sincerely', deal?.properties);
+check('the Relay read is on the timeline too', hs.notes.some((n) => /reads as interested \(92% sure\)/.test(n.body)));
+await dispatchEvent(U, 'sara.intent_classified', { contact_id: jane.id, campaign_id: CAMP, intent: 'meeting' });
+check('a second positive read does not open a second deal while one is open', hs.deals.size === 1);
+
+// A failure, kept with what is needed to send it again, then retried: the note is posted once.
+const callsBeforeOpen = hs.calls.length;
+await dispatchEvent(U, 'email.opened', { contact_id: jane.id, campaign_id: CAMP });
+check('an event the connection does not take (opens are off by default) is not sent', hs.calls.length === callsBeforeOpen, hs.calls.slice(callsBeforeOpen));
+hs.failNotesOnce = true;
+const notesBefore = hs.notes.length;
+await dispatchEvent(U, 'email.bounced', { contact_id: jane.id, campaign_id: CAMP, reason: '550 mailbox full' });
+const failed = db.crm_sync_log.find((l) => l.status === 'failed' && l.kind === 'activity');
+check('a failed timeline note is logged as failed, with the reason and a retry', failed && failed.retry && /upstream hiccup/.test(failed.error), failed);
+check('the connection shows the failure, in plain words', /^Adding to the HubSpot timeline failed \(502\): upstream hiccup$/.test(db.user_integrations[0].last_error || ''), db.user_integrations[0].last_error);
+const retried = await crmSyncService.retry(U, HS, failed!.id);
+check('retrying it sends it', retried.ok && hs.notes.length === notesBefore + 1 && /email bounced/.test(hs.notes[hs.notes.length - 1].body), { retried, notes: hs.notes.length });
+check('the failed row is settled and not retryable', db.crm_sync_log.find((l) => l.id === failed!.id)?.status === 'ok' && !db.crm_sync_log.find((l) => l.id === failed!.id)?.retry);
+check('the retry did not open a second deal or re-post other notes', hs.deals.size === 1 && hs.notes.filter((n) => /email bounced/.test(n.body)).length === 1);
+
+/* ── HubSpot: the scheduled run, both ways ───────────────────────────── */
+
+console.log('\nHubSpot: sync runs');
+let run = await runCrmSync(U, HS);
+check('the first run starts every cursor at now (no history is replayed)', run.error === null && !!db.user_integrations[0].sync_cursors.people && !!db.user_integrations[0].sync_cursors.out && !!db.user_integrations[0].sync_cursors.deals, { run, cursors: db.user_integrations[0].sync_cursors });
+check('the run sets the next run 15 minutes out', Date.parse(db.user_integrations[0].next_sync_at) - Date.now() > 14 * 60_000);
+
+await tick();
+hj!.properties.jobtitle = 'VP Operations';
+hsTouch(hj!.properties);
+run = await runCrmSync(U, HS);
+check('an edit in HubSpot comes into Sincerely', contactRow(jane.id).job_title === 'VP Operations' && run.people_updated === 1, { run, job: contactRow(jane.id).job_title });
+check('...logged as from HubSpot', db.crm_sync_log.some((l) => l.direction === 'from_crm' && /Updated Jane Doe from HubSpot: job title/.test(l.summary)));
+const patchesBefore = hs.calls.filter((c) => c.startsWith('PATCH')).length;
+
+await tick();
+contactRow(jane.id).company = 'Acme Group';
+contactRow(jane.id).updated_at = nowStamp();
+run = await runCrmSync(U, HS);
+check('an edit in Sincerely goes to HubSpot', hj!.properties.company === 'Acme Group' && run.pushed >= 1, { run, company: hj!.properties.company });
+await tick();
+run = await runCrmSync(U, HS);
+check('...and does not bounce back and forth (our own write is read back as no change)', hs.calls.filter((c) => c.startsWith('PATCH')).length === patchesBefore + 1 && run.people_updated === 0 && run.pushed === 0, { run, patches: hs.calls.filter((c) => c.startsWith('PATCH')).length - patchesBefore });
+
+// Both edited: the newer wins.
+await tick();
+contactRow(jane.id).phone = '+44 111';
+contactRow(jane.id).updated_at = nowStamp();
+await tick();
+hj!.properties.phone = '+44 222';
+hsTouch(hj!.properties);
+run = await runCrmSync(U, HS);
+check('both edited, HubSpot newer: HubSpot wins on both sides', contactRow(jane.id).phone === '+44 222' && hj!.properties.phone === '+44 222', { here: contactRow(jane.id).phone, there: hj!.properties.phone });
+await tick();
+hj!.properties.phone = '+44 333';
+hsTouch(hj!.properties);
+await tick();
+contactRow(jane.id).phone = '+44 444';
+contactRow(jane.id).updated_at = nowStamp();
+run = await runCrmSync(U, HS);
+check('both edited, Sincerely newer: Sincerely wins on both sides', contactRow(jane.id).phone === '+44 444' && hj!.properties.phone === '+44 444', { here: contactRow(jane.id).phone, there: hj!.properties.phone });
+
+// Custom field mapping, saved through the settings API.
+await crmSyncService.updateSettings(U, HS, {
+  mapping: [...shared.CRM_DEFAULT_MAPPING.hubspot.filter((m) => m.sincerely !== 'city'), { sincerely: 'city', crm: 'city', direction: 'to_crm' }, { sincerely: 'custom:tier', crm: 'customer_tier', direction: 'both' }],
+});
+await tick();
+hj!.properties.city = 'Manchester';
+hj!.properties.customer_tier = 'platinum';
+hsTouch(hj!.properties);
+run = await runCrmSync(U, HS);
+check('a custom field maps both ways (here: into custom fields, others kept)', contactRow(jane.id).custom_fields.tier === 'platinum' && Object.keys(contactRow(jane.id).custom_fields).length === 1, contactRow(jane.id).custom_fields);
+check('a Sincerely-to-HubSpot field edited in HubSpot is left alone on both sides', contactRow(jane.id).city === 'Leeds' && hj!.properties.city === 'Manchester', { here: contactRow(jane.id).city, there: hj!.properties.city });
+
+// A bulk edit gives many people the same updated_at: none may be skipped.
+await dispatchEvent(U, 'email.replied', { contact_id: bob.id, campaign_id: CAMP, subject: 'Re: hi' });
+await dispatchEvent(U, 'email.replied', { contact_id: cara.id, campaign_id: CAMP, subject: 'Re: hi' });
+run = await runCrmSync(U, HS);
+await tick();
+const same = nowStamp();
+for (const c of [bob, cara]) { contactRow(c.id).industry = 'Software'; contactRow(c.id).updated_at = same; }
+await crmSyncService.updateSettings(U, HS, { mapping: [...(db.user_integrations[0].sync_settings.mapping), { sincerely: 'industry', crm: 'industry', direction: 'both' }] });
+run = await runCrmSync(U, HS);
+check('two people edited in the same instant both reach HubSpot', hsContact('bob@acme.test')?.properties.industry === 'Software' && hsContact('cara@beta.test')?.properties.industry === 'Software', [hsContact('bob@acme.test')?.properties.industry, hsContact('cara@beta.test')?.properties.industry]);
+
+// A deal won in HubSpot ends the sequence.
+await tick();
+deal.properties.hs_is_closed_won = 'true';
+deal.properties.hs_is_closed = 'true';
+deal.properties.hs_lastmodifieddate = nowStamp();
+run = await runCrmSync(U, HS);
+check('a deal won in HubSpot ends their sequence (shown as ended by hand)', enrolment(jane.id).status === 'paused' && enrolment(jane.id).error_message === 'Paused by hand in HubSpot: deal won' && enrolment(jane.id).next_send_at === null, enrolment(jane.id));
+check('...and says so in the log', db.crm_sync_log.some((l) => l.kind === 'deal' && /Deal won in HubSpot for Jane Doe: 1 sequence ended/.test(l.summary)));
+check('the stop is the one Sincerely already understands as ended', shared.isManualPause(enrolment(jane.id)));
+const dealLogs = db.crm_sync_log.filter((l) => l.kind === 'deal' && l.direction === 'from_crm').length;
+await tick();
+deal.properties.hs_lastmodifieddate = nowStamp();
+run = await runCrmSync(U, HS);
+check('the same won deal read again is not acted on twice', db.crm_sync_log.filter((l) => l.kind === 'deal' && l.direction === 'from_crm').length === dealLogs);
+
+// Opted out in HubSpot.
+const hb = hsContact('bob@acme.test')!;
+await tick();
+hb.properties.hs_email_optout = 'true';
+hsTouch(hb.properties);
+const unsubCallsBefore = hs.unsubscribed.length;
+run = await runCrmSync(U, HS);
+await settle();
+check('an opt-out in HubSpot unsubscribes them here', contactRow(bob.id).is_unsubscribed === true);
+check('...stops their sequences', enrolment(bob.id).status === 'unsubscribed');
+check('...and suppresses the address', db.suppression_list.some((s) => s.email === 'bob@acme.test' && s.reason === 'unsubscribed' && s.user_id === U));
+check('...without sending the unsubscribe straight back to HubSpot', hs.unsubscribed.length === unsubCallsBefore, hs.unsubscribed);
+
+// Hard bounce recorded in HubSpot.
+const hc = hsContact('cara@beta.test')!;
+await tick();
+hc.properties.hs_email_hard_bounce_reason_enum = 'MAILBOX_DOESNT_EXIST';
+hsTouch(hc.properties);
+run = await runCrmSync(U, HS);
+check('a hard bounce in HubSpot marks them bounced and stops their sequences', contactRow(cara.id).is_bounced === true && enrolment(cara.id).status === 'bounced' && db.suppression_list.some((s) => s.email === 'cara@beta.test' && s.reason === 'bounced'));
+
+// Unsubscribed in Sincerely.
+await dispatchEvent(U, 'lead.unsubscribed', { contact_id: jane.id, source: 'link' });
+check('an unsubscribe here opts them out of every active HubSpot subscription', hs.unsubscribed.filter((u) => u.email === 'jane@acme.test').map((u) => u.sub).join(',') === '11,12', hs.unsubscribed);
+check('...and is on their timeline', hs.notes.some((n) => /unsubscribed from emails/.test(n.body)));
+
+// Someone HubSpot changes who is in Sincerely but was never linked: linked by email.
+await tick();
+const hd = { id: String(hs.nextId++), properties: { email: 'dan@beta.test', firstname: 'Daniel', company: 'Beta' } as Row };
+hsTouch(hd.properties);
+hs.contacts.set(hd.id, hd);
+run = await runCrmSync(U, HS);
+check('a HubSpot edit to someone already in Sincerely links them by email and fills what was blank', link(HS, dan.id)?.external_id === hd.id, link(HS, dan.id));
+check('...their own values meet the HubSpot ones by the most-recent rule', ['Dan', 'Daniel'].includes(contactRow(dan.id).first_name));
+check('another account with the same address is never touched', db.contacts.find((c) => c.id === notMine.id)!.first_name === null);
+
+// Unknown people in HubSpot are not imported by an edit.
+await tick();
+const stranger = { id: String(hs.nextId++), properties: { email: 'stranger@zeta.test', firstname: 'Zed' } as Row };
+hsTouch(stranger.properties);
+hs.contacts.set(stranger.id, stranger);
+run = await runCrmSync(U, HS);
+check('a HubSpot person nobody asked for is not pulled in by an edit', !db.contacts.some((c) => c.email === 'stranger@zeta.test'));
+
+// Lists.
+hs.lists.set('7', [stranger.id, hd.id]);
+const opts = await crmSyncService.options(U, HS);
+check('options: pipelines with stages in order', opts.pipelines.find((p) => p.id === 'p2')?.stages.map((s) => s.id).join(',') === 's2a,s2b', opts.pipelines);
+check('options: contact lists only', opts.lists.length === 1 && opts.lists[0].id === '7' && opts.lists[0].size === 2, opts.lists);
+check('options: a missing permission is named, with the common fields offered instead', opts.warnings.some((w) => /crm\.schemas\.contacts\.read/.test(w)) && opts.fields.some((f) => f.key === 'firstname'), opts);
+const ls = await crmSyncService.addListSync(U, HS, { external_id: '7', external_name: 'List 7', list_id: LIST });
+check('pulling a list in imports its people into the Sincerely list (paged)', imported.length === 1 && imported[0].map((r) => r.email).sort().join(',') === 'dan@beta.test,stranger@zeta.test', imported);
+check('...with the mapped fields', imported[0].find((r) => r.email === 'stranger@zeta.test')?.first_name === 'Zed');
+check('...and links them for two-way sync', !!link(HS, db.contacts.find((c) => c.email === 'stranger@zeta.test')!.id));
+check('...and reports what it did', ls.last_status === '1 added, 1 updated' && ls.list_name === 'From HubSpot', ls);
+let dup: any = null;
+try { await crmSyncService.addListSync(U, HS, { external_id: '7', external_name: 'List 7', list_id: LIST }); } catch (e) { dup = e; }
+check('the same list cannot be pulled in twice', dup?.statusCode === 409 || /already/.test(dup?.message), dup?.message);
+
+// Overview, log, ownership.
+const ov = await crmSyncService.overview(U, HS);
+check('overview counts', ov.linked >= 5 && ov.moved_24h.to_crm > 0 && ov.moved_24h.from_crm > 0 && ov.list_syncs.length === 1 && ov.settings.deal_pipeline === 'p2', ov);
+const lg = await crmSyncService.log(U, HS, { status: 'ok', direction: 'from_crm', limit: 3 });
+check('log filters and pages', lg.data.length === 3 && lg.has_more && lg.data.every((r) => r.status === 'ok' && r.direction === 'from_crm') && !('retry' in lg.data[0]), lg);
+let denied: any = null;
+try { await crmSyncService.overview(OTHER, HS); } catch (e) { denied = e; }
+check("someone else's connection is not found", denied?.statusCode === 404, denied?.message);
+
+/* ── Pipedrive ───────────────────────────────────────────────────────── */
+
+console.log('\nPipedrive');
+db.user_integrations.push({
+  id: PD, user_id: U, provider: 'pipedrive', is_active: true,
+  config: { api_token: 'a1b2c3d4e5f6a7b8c9d0e1f2' },
+  events: ['email.replied', 'sara.intent_classified', 'lead.unsubscribed'],
+  sync_settings: { deal_pipeline: '2', deal_stage: '21', on_deal_lost: 'stop' }, sync_cursors: {}, last_sync_at: null, next_sync_at: null, last_sync_error: null,
+});
+const eve = person('eve@gamma.test', { first_name: 'Eve', last_name: 'Stone', company: 'Gamma', phone: '+1 555' });
+db.contacts.push(eve);
+db.campaign_contacts.push({ id: crypto.randomUUID(), campaign_id: CAMP, contact_id: eve.id, status: 'active', next_send_at: ago(-60_000) });
+
+await dispatchEvent(U, 'email.replied', { contact_id: eve.id, campaign_id: CAMP, subject: 'Re: intro' });
+const pe = [...pd.persons.values()].find((x) => x.email?.[0]?.value === 'eve@gamma.test');
+check('a reply creates the Pipedrive person with name, email, phone', pe && pe.name === 'Eve Stone' && pe.first_name === 'Eve' && pe.phone?.[0]?.value === '+1 555', pe);
+check('...in their organization, created by name', pe && pd.orgs.get(pe.org_id)?.name === 'Gamma', [...pd.orgs.values()]);
+check('...with the reply as a note', pd.notes.some((n) => n.person_id === pe?.id && /replied - Re: intro/.test(n.content)));
+await dispatchEvent(U, 'sara.intent_classified', { contact_id: eve.id, campaign_id: CAMP, intent: 'meeting' });
+const pdeal = [...pd.deals.values()][0];
+check('a meeting reply opens a deal in the chosen stage', pdeal && pdeal.stage_id === 21 && pdeal.person_id === pe?.id && pdeal.title === 'Eve Stone (Gamma) - Sincerely', pdeal);
+
+await runCrmSync(U, PD); // starts the cursors
+await sleep(1100); // Pipedrive times are to the second
+pe!.first_name = 'Evelyn';
+pe!.name = 'Evelyn Stone';
+pe!.update_time = pdTime();
+pdeal.status = 'lost';
+pdeal.update_time = pdTime();
+run = await runCrmSync(U, PD);
+check('an edit in Pipedrive comes into Sincerely', contactRow(eve.id).first_name === 'Evelyn', { run, first: contactRow(eve.id).first_name });
+check('a lost deal ends their sequence when chosen', enrolment(eve.id).status === 'paused' && /in Pipedrive: deal lost/.test(enrolment(eve.id).error_message), enrolment(eve.id));
+
+await sleep(1100);
+contactRow(eve.id).company = 'Gamma Labs';
+contactRow(eve.id).updated_at = nowStamp();
+run = await runCrmSync(U, PD);
+check('a company edit in Sincerely moves them to that organization in Pipedrive', pd.orgs.get(pe!.org_id)?.name === 'Gamma Labs', { org: pd.orgs.get(pe!.org_id) });
+
+await dispatchEvent(U, 'lead.unsubscribed', { contact_id: eve.id, source: 'link' });
+check('an unsubscribe sets their Pipedrive marketing status', pe!.marketing_status === 'unsubscribed');
+pd.campaigns = false;
+const frank = person('frank@gamma.test', { first_name: 'Frank' });
+db.contacts.push(frank);
+await dispatchEvent(U, 'email.replied', { contact_id: frank.id, subject: 'Re: x' });
+await dispatchEvent(U, 'lead.unsubscribed', { contact_id: frank.id, source: 'link' });
+check('without Campaigns by Pipedrive the unsubscribe is skipped with the reason, not failed', db.crm_sync_log.some((l) => l.integration_id === PD && l.kind === 'optout' && l.status === 'skipped' && /Campaigns by Pipedrive/.test(l.error)));
+
+pd.filters.set(3, [pe!.id]);
+const popts = await crmSyncService.options(U, PD);
+check('Pipedrive options: filters, pipelines with ordered stages, editable fields', popts.lists[0]?.id === '3' && popts.pipelines.find((p) => p.id === '2')?.stages.map((s) => s.id).join(',') === '20,21' && popts.fields.some((f) => f.key === 'abc123') && popts.fields.some((f) => f.key === 'org_name'), popts);
+
+// A bad token stops the run with a clear reason, recorded on the connection.
+db.user_integrations[1].config.api_token = 'ffffffffffffffffffffffff';
+run = await runCrmSync(U, PD);
+check('a rejected token is reported on the connection', /rejected the API token/.test(db.user_integrations[1].last_sync_error || ''), db.user_integrations[1].last_sync_error);
+
+/* ── Done ────────────────────────────────────────────────────────────── */
+
+for (const s of [supa, hubspot, pipedrive]) s.close();
+console.log(`\n${passes} passed, ${failures} failed`);
+process.exit(failures ? 1 : 0);

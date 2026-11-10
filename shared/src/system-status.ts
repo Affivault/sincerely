@@ -20,7 +20,7 @@ export type JobId =
   | 'sending' | 'inbox' | 'autopilot' | 'warmup_send' | 'warmup_engage' | 'verification'
   | 'booking_reminders' | 'placement' | 'standing_searches' | 'ab_promote'
   | 'sse_maintenance' | 'domain_reverify' | 'watchdog' | 'digest' | 'reply_check' | 'improve' | 'signals'
-  | 'inbox_reminders' | 'campaign_guard' | 'engagement' | 'sheet_sync' | 'drive_backup' | 'mailbox_signin';
+  | 'inbox_reminders' | 'campaign_guard' | 'engagement' | 'sheet_sync' | 'drive_backup' | 'mailbox_signin' | 'crm_sync';
 
 export interface JobDef {
   id: JobId;
@@ -56,6 +56,7 @@ export const JOBS: JobDef[] = [
   { id: 'mailbox_signin', label: 'Microsoft sign-in check', what: 'Microsoft mailboxes are checked daily, so a revoked sign-in is caught before a campaign needs it', everyMs: 3 * H, core: false },
   { id: 'drive_backup', label: 'Backups', what: 'Changes reach your backups in Google Drive, OneDrive, Dropbox or S3', everyMs: M, core: false },
   { id: 'sheet_sync', label: 'Google Sheets sync', what: 'Synced sheets bring their new rows into your lists', everyMs: 15 * M, core: false },
+  { id: 'crm_sync', label: 'HubSpot and Pipedrive sync', what: 'Edits, deals, opt-outs and lists travel between Sincerely and your CRM', everyMs: 2 * M, core: false },
   { id: 'campaign_guard', label: 'Open-rate guard', what: 'A campaign whose opens collapse is paused before it does more damage', everyMs: 30 * M, core: false },
   { id: 'reply_check', label: 'Daily reply check', what: 'Proves once a day that a reply stops a sequence', everyMs: H, core: false },
 ];

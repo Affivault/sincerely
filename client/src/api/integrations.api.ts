@@ -7,6 +7,11 @@ import type {
   IntegrationTestResult,
   IntegrationResourcesResult,
   OAuthAvailability,
+  CrmSyncOverview,
+  CrmSyncSettings,
+  CrmSyncOptions,
+  CrmSyncLogEntry,
+  CrmListSync,
 } from '@lemlist/shared';
 
 export const integrationsApi = {
@@ -62,5 +67,58 @@ export const integrationsApi = {
   ): Promise<IntegrationResourcesResult> => {
     const { data } = await apiClient.post(`/integrations/${provider}/resources`, { config });
     return data;
+  },
+
+  // ── Two-way HubSpot / Pipedrive sync ─────────────────────────────
+  sync: {
+    overview: async (id: string): Promise<CrmSyncOverview> => {
+      const { data } = await apiClient.get(`/integrations/${id}/sync`);
+      return data;
+    },
+    saveSettings: async (id: string, settings: Partial<CrmSyncSettings>): Promise<CrmSyncSettings> => {
+      const { data } = await apiClient.patch(`/integrations/${id}/sync`, settings);
+      return data;
+    },
+    options: async (id: string): Promise<CrmSyncOptions> => {
+      const { data } = await apiClient.get(`/integrations/${id}/sync/options`);
+      return data;
+    },
+    run: async (id: string): Promise<{ people_updated: number; pushed: number; deals: number; error: string | null }> => {
+      const { data } = await apiClient.post(`/integrations/${id}/sync/run`);
+      return data;
+    },
+    log: async (
+      id: string,
+      params: { status?: string; direction?: string; before?: string; limit?: number } = {},
+    ): Promise<{ data: CrmSyncLogEntry[]; has_more: boolean; unavailable?: boolean }> => {
+      const { data } = await apiClient.get(`/integrations/${id}/sync/log`, { params });
+      return data;
+    },
+    retry: async (id: string, logId: string): Promise<{ ok: boolean; error?: string }> => {
+      const { data } = await apiClient.post(`/integrations/${id}/sync/log/${logId}/retry`);
+      return data;
+    },
+    retryAll: async (id: string): Promise<{ retried: number; fixed: number }> => {
+      const { data } = await apiClient.post(`/integrations/${id}/sync/retry-failed`);
+      return data;
+    },
+    addList: async (
+      id: string,
+      input: { external_id: string; external_name: string; list_id?: string; new_list_name?: string },
+    ): Promise<CrmListSync> => {
+      const { data } = await apiClient.post(`/integrations/${id}/sync/lists`, input);
+      return data;
+    },
+    updateList: async (id: string, listSyncId: string, input: { enabled?: boolean; list_id?: string }): Promise<CrmListSync> => {
+      const { data } = await apiClient.patch(`/integrations/${id}/sync/lists/${listSyncId}`, input);
+      return data;
+    },
+    removeList: async (id: string, listSyncId: string): Promise<void> => {
+      await apiClient.delete(`/integrations/${id}/sync/lists/${listSyncId}`);
+    },
+    runList: async (id: string, listSyncId: string): Promise<{ added: number; updated: number; total: number }> => {
+      const { data } = await apiClient.post(`/integrations/${id}/sync/lists/${listSyncId}/run`);
+      return data;
+    },
   },
 };
