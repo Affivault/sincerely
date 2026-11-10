@@ -113,7 +113,7 @@ jobs:
         run: |
           npm ci
           npm run build:shared
-          npm ci --prefix integrations/n8n
+          (cd integrations/n8n && npm ci)
           npm ci --prefix integrations/zapier
 
       - name: Lint (n8n's community node rules)
