@@ -57,7 +57,15 @@ export interface CrmAdapter {
   /** Deals changed since the cursor, with the people on them. */
   changedDeals(cursor: string): Promise<CrmChanges<CrmDeal>>;
   logActivity(personId: string, activity: CrmActivity): Promise<void>;
-  createDeal(personId: string, input: { title: string; pipeline: string; stage: string }): Promise<{ id: string }>;
+  createDeal(personId: string, input: { title: string; pipeline: string; stage: string; ownerId?: string }): Promise<{ id: string }>;
+  /** Give people an owner in the CRM (only ever done when Sincerely created them). */
+  assignOwner(personIds: string[], ownerId: string): Promise<void>;
+  /** Move a person forward to a lifecycle stage. 'unsupported' when the CRM has none, or refuses (it never moves backwards). */
+  setLifecycle(personId: string, stage: 'lead' | 'salesqualifiedlead' | 'opportunity'): Promise<'done' | 'unsupported'>;
+  /** A to-do for the owner, tied to the person. */
+  createTask(personId: string, input: { subject: string; body: string; dueAt: string; ownerId?: string }): Promise<void>;
+  /** Attach the person to their company, found by domain or created. 'unsupported' where the CRM does this another way. */
+  linkCompany(personId: string, company: { domain: string; name: string }): Promise<'done' | 'unsupported'>;
   /** Opt the person out of email in the CRM. 'unsupported' when the account cannot (a plan or a permission). */
   optOut(personId: string, email: string): Promise<'done' | 'unsupported'>;
   /** Ids of the people in a list (HubSpot) or filter (Pipedrive), a page at a time. */

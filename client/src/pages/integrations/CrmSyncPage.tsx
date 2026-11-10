@@ -17,10 +17,12 @@ import {
   MinusCircle,
 } from 'lucide-react';
 import {
+  INTEGRATION_CATALOG,
   CRM_SINCERELY_FIELDS,
   CRM_SYNC_KIND_LABEL,
   formatDateTime,
   type CrmBackfill,
+  type CrmListSync,
   type CrmFieldDirection,
   type CrmFieldMap,
   type CrmSyncLogEntry,
@@ -29,6 +31,7 @@ import {
 } from '@lemlist/shared';
 import { integrationsApi } from '../../api/integrations.api';
 import { listsApi } from '../../api/contacts.api';
+import { campaignsApi } from '../../api/campaigns.api';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { Notice } from '../../components/ui/Notice';
 import { PageSkeleton, SkeletonList } from '../../components/ui/Skeleton';
@@ -268,7 +271,6 @@ export function CrmSyncPage() {
               />
               <p className="text-caption text-[var(--text-tertiary)]">
                 Everyone {crm} has (matched by email) gets their emails, replies and Relay's read on the {crm} timeline either way.
-                Choose which events go on it under Manage on the Integrations page.
               </p>
               {overview.backfill && overview.backfill.setup_done_at && overview.backfill.status !== 'running' && (
                 <button
@@ -286,6 +288,7 @@ export function CrmSyncPage() {
               checked={draft.pull_updates}
               onChange={(v) => setDraft({ ...draft, pull_updates: v })}
             />
+            <TimelineEvents integrationId={id} crm={crm} />
             <ToggleRow
               label="Unsubscribes and bounces both ways"
               hint={`Unsubscribing here opts them out in ${crm}; an opt-out${provider === 'hubspot' ? ' or hard bounce' : ''} in ${crm} unsubscribes them here and stops their sequences.`}
@@ -297,9 +300,7 @@ export function CrmSyncPage() {
           {/* Deals */}
           <section className={CARD}>
             <h2 className="text-strong font-semibold text-[var(--text-primary)]">Deals</h2>
-            <p className="text-body text-[var(--text-secondary)]">
-              An interested or meeting reply opens a deal for them (switch it off under Manage on the Integrations page).
-            </p>
+            <DealSwitch integrationId={id} crm={crm} />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <label className="space-y-1">
                 <span className="block text-body font-medium text-[var(--text-secondary)]">Pipeline</span>
@@ -330,6 +331,28 @@ export function CrmSyncPage() {
                 </select>
               </label>
               <label className="space-y-1">
+                <span className="block text-body font-medium text-[var(--text-secondary)]">Stage for a meeting request</span>
+                <select
+                  className={cn(SELECT, 'w-full')}
+                  value={draft.deal_stage_meeting}
+                  disabled={!draft.deal_pipeline}
+                  onChange={(e) => setDraft({ ...draft, deal_stage_meeting: e.target.value })}
+                >
+                  <option value="">Same as an interested reply</option>
+                  {(options?.pipelines.find((p) => p.id === draft.deal_pipeline)?.stages || []).map((s) => (
+                    <option key={s.id} value={s.id}>{s.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="space-y-1">
+                <span className="block text-body font-medium text-[var(--text-secondary)]">Owner of new people and deals</span>
+                <select className={cn(SELECT, 'w-full')} value={draft.owner_id} onChange={(e) => setDraft({ ...draft, owner_id: e.target.value })}>
+                  <option value="">Nobody ({crm} leaves them unassigned)</option>
+                  {(options?.owners || []).map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                  {draft.owner_id && !options?.owners.some((o) => o.id === draft.owner_id) && <option value={draft.owner_id}>Owner {draft.owner_id}</option>}
+                </select>
+              </label>
+              <label className="space-y-1">
                 <span className="block text-body font-medium text-[var(--text-secondary)]">When a deal is won in {crm}</span>
                 <select className={cn(SELECT, 'w-full')} value={draft.on_deal_won} onChange={(e) => setDraft({ ...draft, on_deal_won: e.target.value as any })}>
                   <option value="stop">End their sequences</option>
@@ -344,6 +367,28 @@ export function CrmSyncPage() {
                 </select>
               </label>
             </div>
+            <ToggleRow
+              label="Create a follow-up task"
+              hint={`An interested or meeting reply puts a task, due today, in the owner's ${crm} to-do list.`}
+              checked={draft.create_tasks}
+              onChange={(v) => setDraft({ ...draft, create_tasks: v })}
+            />
+            {provider === 'hubspot' && (
+              <>
+                <ToggleRow
+                  label="Move people through lifecycle stages"
+                  hint="A reply makes them a Lead, interest a Sales Qualified Lead, a meeting request an Opportunity. HubSpot never moves anyone backwards."
+                  checked={draft.lifecycle}
+                  onChange={(v) => setDraft({ ...draft, lifecycle: v })}
+                />
+                <ToggleRow
+                  label="Attach people to their company"
+                  hint="New people are linked to their HubSpot company, found by website or work email domain, or created. Personal addresses like Gmail are left alone."
+                  checked={draft.companies}
+                  onChange={(v) => setDraft({ ...draft, companies: v })}
+                />
+              </>
+            )}
           </section>
 
           {/* Field mapping */}
@@ -521,7 +566,7 @@ function ListSyncs({
 }: {
   integrationId: string;
   provider: CrmSyncProvider;
-  listSyncs: { id: string; external_id: string; external_name: string; list_id: string | null; list_name: string | null; enabled: boolean; last_run_at: string | null; last_status: string | null; last_error: string | null }[];
+  listSyncs: CrmListSync[];
   crmLists: { id: string; name: string; size: number | null }[];
   sincerelyLists: { id: string; name: string }[];
   disabled: boolean;
@@ -557,6 +602,16 @@ function ListSyncs({
     onSuccess: (r) => { onChanged(); toast.success(`${r.added} added, ${r.updated} updated`); },
     onError: (err) => { onChanged(); toast.error(errorOf(err, 'The pull failed')); },
   });
+  const campaignsQuery = useQuery({ queryKey: ['campaigns', 'crm-picker'], queryFn: () => campaignsApi.list({ limit: 100 }), staleTime: 60_000 });
+  const campaigns = ((campaignsQuery.data as any)?.data || []) as { id: string; name: string; status: string }[];
+  const setCampaign = useMutation({
+    mutationFn: ({ lsId, campaignId }: { lsId: string; campaignId: string | null }) => integrationsApi.sync.updateList(integrationId, lsId, { campaign_id: campaignId }),
+    onSuccess: (ls) => {
+      onChanged();
+      toast.success(ls.campaign_id ? `New people from ${ls.external_name} will also go into ${ls.campaign_name || 'the campaign'}` : `${ls.external_name} no longer feeds a campaign`);
+    },
+    onError: (err) => toast.error(errorOf(err, 'Could not change it')),
+  });
   const toggle = useMutation({
     mutationFn: ({ lsId, enabled }: { lsId: string; enabled: boolean }) => integrationsApi.sync.updateList(integrationId, lsId, { enabled }),
     onSuccess: onChanged,
@@ -574,6 +629,7 @@ function ListSyncs({
         <h2 className="text-strong font-semibold text-[var(--text-primary)]">{crm} {word}s in Sincerely</h2>
         <p className="text-body text-[var(--text-secondary)]">
           Pull a {crm} {word} into a Sincerely list. It is checked every 6 hours: new people are added, nobody is removed.
+          It can also put them straight into a campaign.
         </p>
       </div>
 
@@ -590,6 +646,17 @@ function ListSyncs({
                   {ls.last_error || (ls.last_run_at ? `${ls.last_status} · ${formatDateTime(ls.last_run_at)}` : 'Not pulled yet')}
                 </p>
               </div>
+              <select
+                aria-label={`Campaign that new people from ${ls.external_name} go into`}
+                className={cn(SELECT, 'max-w-[220px] text-caption')}
+                value={ls.campaign_id || ''}
+                onChange={(e) => setCampaign.mutate({ lsId: ls.id, campaignId: e.target.value || null })}
+                disabled={setCampaign.isPending}
+              >
+                <option value="">No campaign</option>
+                {campaigns.map((c) => <option key={c.id} value={c.id}>Also add to: {c.name}</option>)}
+                {ls.campaign_id && !campaigns.some((c) => c.id === ls.campaign_id) && <option value={ls.campaign_id}>Also add to: {ls.campaign_name || 'a campaign'}</option>}
+              </select>
               <Toggle size="sm" checked={ls.enabled} onChange={(v) => toggle.mutate({ lsId: ls.id, enabled: v })} aria-label={`Keep ${ls.external_name} in step`} />
               <button
                 onClick={() => runList.mutate(ls.id)}
@@ -932,5 +999,78 @@ function FirstSyncProgress({ integrationId, crm, backfill, onChanged }: { integr
       {backfill.error && <p className="text-caption text-[var(--text-tertiary)]">{backfill.error}</p>}
       <p className="text-caption text-[var(--text-tertiary)]">You can leave this page: it carries on in the background.</p>
     </section>
+  );
+}
+
+/* ─── Saved straight away: what goes on the timeline, and deals on or off ── */
+
+const TIMELINE_LABEL: Record<string, string> = {
+  'email.sent': 'Emails sent',
+  'email.opened': 'Opens',
+  'email.clicked': 'Link clicks',
+  'email.replied': 'Replies',
+  'sara.intent_classified': "Relay's read of each reply",
+  'email.bounced': 'Bounces',
+  'lead.unsubscribed': 'Unsubscribes',
+};
+
+function useConnection(integrationId: string) {
+  const queryClient = useQueryClient();
+  const { data } = useQuery({ queryKey: ['integrations'], queryFn: integrationsApi.list, staleTime: 30_000 });
+  const row = (data || []).find((r) => r.id === integrationId) || null;
+  const update = useMutation({
+    mutationFn: (input: { events?: string[]; config?: Record<string, string> }) => integrationsApi.update(integrationId, input),
+    onSuccess: (fresh) => {
+      queryClient.setQueryData(['integrations'], (old: any[] | undefined) => (old || []).map((r) => (r.id === fresh.id ? fresh : r)));
+      toast.success('Saved');
+    },
+    onError: (err) => toast.error(errorOf(err, 'Could not save')),
+  });
+  return { row, update };
+}
+
+function TimelineEvents({ integrationId, crm }: { integrationId: string; crm: string }) {
+  const { row, update } = useConnection(integrationId);
+  if (!row) return null;
+  const meta = INTEGRATION_CATALOG.find((m) => m.id === row.provider);
+  const supported = meta?.supportedEvents || [];
+  const on = new Set(row.events || []);
+  return (
+    <div className="space-y-1.5">
+      <p className="text-body font-medium text-[var(--text-primary)]">On the {crm} timeline</p>
+      <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+        {supported.map((e) => (
+          <label key={e} className="inline-flex items-center gap-1.5 text-body text-[var(--text-secondary)] cursor-pointer">
+            <input
+              type="checkbox"
+              className="accent-[var(--indigo)]"
+              checked={on.has(e)}
+              disabled={update.isPending}
+              onChange={() => {
+                const next = new Set(on);
+                if (next.has(e)) next.delete(e); else next.add(e);
+                update.mutate({ events: supported.filter((x) => next.has(x)) });
+              }}
+            />
+            {TIMELINE_LABEL[e] || e}
+          </label>
+        ))}
+      </div>
+      <p className="text-caption text-[var(--text-tertiary)]">Opens are often a mail scanner, so they are off unless you want them. Unsubscribes and bounces must be on for them to reach {crm}.</p>
+    </div>
+  );
+}
+
+function DealSwitch({ integrationId, crm }: { integrationId: string; crm: string }) {
+  const { row, update } = useConnection(integrationId);
+  if (!row) return null;
+  const on = row.config?.create_deals !== 'no';
+  return (
+    <ToggleRow
+      label={`Open a deal in ${crm} for interested and meeting replies`}
+      hint="One deal per person while it is open; it goes where you choose below."
+      checked={on}
+      onChange={(v) => update.mutate({ config: { create_deals: v ? 'yes' : 'no' } })}
+    />
   );
 }

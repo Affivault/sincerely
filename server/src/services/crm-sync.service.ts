@@ -38,6 +38,7 @@ import { listsService } from './lists.service.js';
 import { unsubscribeContact, markContactBounced } from './optout.service.js';
 import { fireEvent } from './webhook.service.js';
 import { chunk } from '../utils/batch.js';
+import { campaignContactsService } from './campaign-contacts.service.js';
 import { hubspotAdapter } from './crm-sync/hubspot.js';
 import { pipedriveAdapter } from './crm-sync/pipedrive.js';
 import { CrmHttpError } from './crm-sync/http.js';
@@ -45,6 +46,8 @@ import type { CrmAdapter, CrmActivity, CrmActivityKind, CrmPerson, CrmAccount } 
 import { recordUrl } from './crm-sync/types.js';
 import {
   MANUAL_PAUSE_PREFIX,
+  emailDomain,
+  isFreeMailDomain,
   isCrmSyncProvider,
   sanitizeCrmSyncSettings,
   type CrmFieldMap,
@@ -357,7 +360,56 @@ async function ensurePerson(ctx: Ctx, contact: ContactRow, link: LinkRow | null)
     direction: 'to_crm', kind: 'contact', status: 'ok', contact_id: contact.id, email: contact.email,
     summary: `${created ? 'Created' : 'Matched'} ${displayName(contact)} in ${ctx.label}`,
   });
+  if (created) await afterCreate(ctx, [{ personId: id, contact }]);
   return { id: '', contact_id: contact.id, external_id: id, snapshot, deal_id: null, deal_status: null };
+}
+
+/** The company a contact belongs to, by website or a work email's domain. */
+function companyOf(contact: ContactRow): { domain: string; name: string } | null {
+  let domain = '';
+  const site = norm(contact.website);
+  if (site) {
+    try { domain = new URL(/^https?:\/\//i.test(site) ? site : `https://${site}`).hostname.replace(/^www\./i, '').toLowerCase(); } catch { /* not a URL */ }
+  }
+  if (!domain && contact.email) {
+    const d = emailDomain(contact.email);
+    if (d && !isFreeMailDomain(d)) domain = d;
+  }
+  if (!domain || !/^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain)) return null;
+  return { domain, name: norm(contact.company) || domain };
+}
+
+/**
+ * For people Sincerely just created in the CRM: give them the chosen owner,
+ * and (HubSpot) attach them to their company. Neither is ever done to
+ * someone who was already there: their owner and company are the CRM's.
+ * A failure here is logged, never fatal: the person is in the CRM.
+ */
+async function afterCreate(ctx: Ctx, created: { personId: string; contact: ContactRow }[]): Promise<void> {
+  if (created.length === 0) return;
+  if (ctx.settings.owner_id) {
+    try {
+      await ctx.adapter.assignOwner(created.map((c) => c.personId), ctx.settings.owner_id);
+    } catch (err) {
+      await log(ctx, { direction: 'to_crm', kind: 'contact', status: 'failed', summary: `Could not set the ${ctx.label} owner for ${created.length === 1 ? displayName(created[0].contact) : `${created.length} people`}`, error: errText(err) });
+    }
+  }
+  if (ctx.settings.companies) {
+    for (const c of created) {
+      const company = companyOf(c.contact);
+      if (!company) continue;
+      try {
+        await ctx.adapter.linkCompany(c.personId, company);
+      } catch (err) {
+        await log(ctx, {
+          direction: 'to_crm', kind: 'contact', status: 'skipped', contact_id: c.contact.id, email: c.contact.email,
+          summary: `Could not attach ${displayName(c.contact)} to ${company.name} in ${ctx.label}`, error: errText(err),
+        });
+        // A missing permission will not fix itself for the next person: stop trying this run.
+        if (err instanceof CrmHttpError && (err.status === 401 || err.status === 403)) break;
+      }
+    }
+  }
 }
 
 // ── Sincerely -> CRM: events ──────────────────────────────────────
@@ -457,7 +509,7 @@ async function runEvent(ctx: Ctx, eventType: string, data: Record<string, any>, 
 
   // A retry of one step does that step only: a note is never posted twice.
   const only = typeof data._only === 'string' ? data._only : null;
-  const doing = (step: 'activity' | 'deal' | 'optout') => !only || only === step;
+  const doing = (step: 'activity' | 'deal' | 'optout' | 'lifecycle' | 'task') => !only || only === step;
 
   // On the timeline.
   const activity = doing('activity') && ctx.events.includes(eventType) ? activityFor(eventType, data, await campaignNameFor(ctx.userId, data, campaignName)) : null;
@@ -481,7 +533,8 @@ async function runEvent(ctx: Ctx, eventType: string, data: Record<string, any>, 
   if (positive && doing('deal') && ctx.config.create_deals !== 'no' && !(link.deal_id && link.deal_status === 'open')) {
     const title = `${displayName(contact)}${contact.company ? ` (${contact.company})` : ''} - Sincerely`;
     try {
-      const deal = await ctx.adapter.createDeal(link.external_id, { title, pipeline: ctx.settings.deal_pipeline, stage: ctx.settings.deal_stage });
+      const stage = data.intent === 'meeting' && ctx.settings.deal_stage_meeting ? ctx.settings.deal_stage_meeting : ctx.settings.deal_stage;
+      const deal = await ctx.adapter.createDeal(link.external_id, { title, pipeline: ctx.settings.deal_pipeline, stage, ownerId: ctx.settings.owner_id || undefined });
       await saveLink(ctx, contact.id, link.external_id, { deal_id: deal.id, deal_status: 'open' });
       done.push('deal created');
       await log(ctx, { direction: 'to_crm', kind: 'deal', status: 'ok', contact_id: contact.id, email: contact.email, summary: `Deal created: ${title}` });
@@ -491,6 +544,48 @@ async function runEvent(ctx: Ctx, eventType: string, data: Record<string, any>, 
         direction: 'to_crm', kind: 'deal', status: 'failed', contact_id: contact.id, email: contact.email,
         summary: `Could not create the deal "${title}"`, error: errText(err),
         retry: retryable(err) ? { step: 'event', event_type: eventType, data: { ...data, _only: 'deal' } } : null,
+      });
+    }
+  }
+
+  // HubSpot lifecycle: a reply makes them a lead, interest an SQL, a meeting request an opportunity.
+  const stageFor = eventType === 'email.replied' ? 'lead'
+    : eventType === 'sara.intent_classified' && data.intent === 'interested' ? 'salesqualifiedlead'
+      : eventType === 'sara.intent_classified' && data.intent === 'meeting' ? 'opportunity' : null;
+  if (stageFor && ctx.settings.lifecycle && doing('lifecycle')) {
+    try {
+      if ((await ctx.adapter.setLifecycle(link.external_id, stageFor)) === 'done') done.push(`lifecycle ${stageFor}`);
+    } catch (err) {
+      await log(ctx, {
+        direction: 'to_crm', kind: 'contact', status: 'failed', contact_id: contact.id, email: contact.email,
+        summary: `Could not set the ${ctx.label} lifecycle stage for ${displayName(contact)}`, error: errText(err),
+        retry: retryable(err) ? { step: 'event', event_type: eventType, data: { ...data, _only: 'lifecycle' } } : null,
+      });
+    }
+  }
+
+  // A follow-up task for the owner when someone is interested or wants to meet.
+  if (positive && ctx.settings.create_tasks && doing('task')) {
+    const subject = `Follow up with ${displayName(contact)}: ${data.intent === 'meeting' ? 'asked for a meeting' : 'interested'}`;
+    try {
+      await ctx.adapter.createTask(link.external_id, {
+        subject,
+        body: [
+          `Sincerely Relay read their reply as ${INTENT_LABEL[data.intent] || data.intent}.`,
+          campaignName || data.campaign?.name ? `Campaign: ${campaignName || data.campaign?.name}` : '',
+          contact.company ? `Company: ${contact.company}` : '',
+        ].filter(Boolean).join('\n'),
+        dueAt: new Date().toISOString(),
+        ownerId: ctx.settings.owner_id || undefined,
+      });
+      done.push('task created');
+      await log(ctx, { direction: 'to_crm', kind: 'activity', status: 'ok', contact_id: contact.id, email: contact.email, summary: `Task: ${subject}` });
+    } catch (err) {
+      failures.push(errText(err));
+      await log(ctx, {
+        direction: 'to_crm', kind: 'activity', status: 'failed', contact_id: contact.id, email: contact.email,
+        summary: `Could not create the task "${subject}"`, error: errText(err),
+        retry: retryable(err) ? { step: 'event', event_type: eventType, data: { ...data, _only: 'task' } } : null,
       });
     }
   }
@@ -787,7 +882,7 @@ async function pullDeals(ctx: Ctx, cursors: Record<string, string>): Promise<num
  * edits travel both ways from then on. An opt-out recorded in the CRM is
  * applied here.
  */
-async function importPeople(ctx: Ctx, people: CrmPerson[], listId: string, source: string): Promise<{ added: number; updated: number; withEmail: CrmPerson[] }> {
+async function importPeople(ctx: Ctx, people: CrmPerson[], listId: string, source: string): Promise<{ added: number; updated: number; withEmail: CrmPerson[]; contactIds: string[] }> {
   const withEmail = people.filter((p) => p.email);
   const rows = withEmail.map((p) => {
     const row: Record<string, any> = { email: p.email };
@@ -813,9 +908,11 @@ async function importPeople(ctx: Ctx, people: CrmPerson[], listId: string, sourc
   }
 
   const byEmail = new Map(withEmail.map((p) => [p.email!, p]));
+  const contactIds: string[] = [];
   for (const slice of chunk([...byEmail.keys()], 200)) {
     const { data, error } = await supabaseAdmin.from('contacts').select('id, email, is_unsubscribed').eq('user_id', ctx.userId).in('email', slice);
     if (error) throw error;
+    contactIds.push(...((data || []) as any[]).map((c) => c.id as string));
     const existing = await supabaseAdmin.from('crm_links').select('contact_id').eq('integration_id', ctx.integrationId).in('contact_id', (data || []).map((c: any) => c.id));
     if (existing.error) throw existing.error;
     const linked = new Set((existing.data || []).map((l: any) => l.contact_id));
@@ -828,11 +925,11 @@ async function importPeople(ctx: Ctx, people: CrmPerson[], listId: string, sourc
       }
     }
   }
-  return { added, updated, withEmail };
+  return { added, updated, withEmail, contactIds };
 }
 
 /** Step 4: lists and filters pulled into Sincerely lists. */
-export async function runListSync(ctx: Ctx, ls: { id: string; external_id: string; external_name: string; list_id: string | null }): Promise<{ added: number; updated: number; total: number }> {
+export async function runListSync(ctx: Ctx, ls: { id: string; external_id: string; external_name: string; list_id: string | null; campaign_id?: string | null }): Promise<{ added: number; updated: number; total: number; enrolled?: number }> {
   const now = new Date().toISOString();
   try {
     if (!ls.list_id) throw new AppError('The Sincerely list it fills was deleted. Choose a list for it again.', 400);
@@ -846,12 +943,13 @@ export async function runListSync(ctx: Ctx, ls: { id: string; external_id: strin
       if (!cursor) break;
     }
 
-    const { added, updated, withEmail } = await importPeople(ctx, people, ls.list_id, `${ctx.label}: ${ls.external_name}`);
+    const { added, updated, withEmail, contactIds } = await importPeople(ctx, people, ls.list_id, `${ctx.label}: ${ls.external_name}`);
+    const enrolled = ls.campaign_id ? await enrolFromList(ctx, ls.campaign_id, contactIds, ls.external_name) : 0;
 
-    const status = `${added.toLocaleString('en-GB')} added, ${updated.toLocaleString('en-GB')} updated${people.length > withEmail.length ? `, ${(people.length - withEmail.length).toLocaleString('en-GB')} without an email skipped` : ''}${cursor ? ' (more next run)' : ''}`;
+    const status = `${added.toLocaleString('en-GB')} added, ${updated.toLocaleString('en-GB')} updated${enrolled ? `, ${enrolled.toLocaleString('en-GB')} put in the campaign` : ''}${people.length > withEmail.length ? `, ${(people.length - withEmail.length).toLocaleString('en-GB')} without an email skipped` : ''}${cursor ? ' (more next run)' : ''}`;
     await supabaseAdmin.from('crm_list_syncs').update({ last_run_at: now, last_status: status, last_error: null }).eq('id', ls.id);
     await log(ctx, { direction: 'from_crm', kind: 'list', status: 'ok', summary: `${ls.external_name}: ${status}` });
-    return { added, updated, total: people.length };
+    return { added, updated, total: people.length, enrolled };
   } catch (err) {
     await supabaseAdmin.from('crm_list_syncs').update({ last_run_at: now, last_status: 'failed', last_error: errText(err).slice(0, 300) }).eq('id', ls.id);
     await log(ctx, { direction: 'from_crm', kind: 'list', status: 'failed', summary: `Could not sync ${ls.external_name}`, error: errText(err) });
@@ -859,10 +957,33 @@ export async function runListSync(ctx: Ctx, ls: { id: string; external_id: strin
   }
 }
 
+/**
+ * Put people a list brought in into its campaign. The campaign's own rules
+ * decide who it can take (already in it, unsubscribed, bounced, suppressed
+ * are skipped), exactly as adding them by hand would.
+ */
+async function enrolFromList(ctx: Ctx, campaignId: string, contactIds: string[], listName: string): Promise<number> {
+  if (contactIds.length === 0) return 0;
+  const { data: camp } = await supabaseAdmin.from('campaigns').select('id, name').eq('id', campaignId).eq('user_id', ctx.userId).maybeSingle();
+  if (!camp) return 0;
+  let added = 0;
+  for (const slice of chunk(contactIds, 500)) {
+    try {
+      const r = await campaignContactsService.add(campaignId, slice);
+      added += r.added;
+    } catch (err) {
+      await log(ctx, { direction: 'from_crm', kind: 'list', status: 'failed', summary: `Could not add people from ${listName} to ${(camp as any).name}`, error: errText(err) });
+      return added;
+    }
+  }
+  if (added) await log(ctx, { direction: 'from_crm', kind: 'list', status: 'ok', summary: `${added.toLocaleString('en-GB')} from ${listName} put in the campaign ${(camp as any).name}` });
+  return added;
+}
+
 async function runDueListSyncs(ctx: Ctx, force: boolean): Promise<void> {
   const { data, error } = await supabaseAdmin
     .from('crm_list_syncs')
-    .select('id, external_id, external_name, list_id, last_run_at')
+    .select('*')
     .eq('integration_id', ctx.integrationId)
     .eq('enabled', true);
   if (error) throw error;
@@ -1152,13 +1273,17 @@ async function sendBatch(ctx: Ctx, contacts: ContactRow[]): Promise<{ sent: numb
   let sent = 0;
   let created = 0;
   let failed = 0;
+  const newlyCreated: { personId: string; contact: ContactRow }[] = [];
   for (let i = 0; i < prepared.length; i++) {
     const p = prepared[i];
     const r = results[i];
     if (r?.id) {
       await saveLink(ctx, p.contact.id, r.id, { snapshot: p.snapshot });
       sent++;
-      if (r.created) created++;
+      if (r.created) {
+        created++;
+        newlyCreated.push({ personId: r.id, contact: p.contact });
+      }
     } else {
       failed++;
       await log(ctx, {
@@ -1168,6 +1293,7 @@ async function sendBatch(ctx: Ctx, contacts: ContactRow[]): Promise<{ sent: numb
       });
     }
   }
+  await afterCreate(ctx, newlyCreated);
   return { sent, created, failed };
 }
 
@@ -1338,7 +1464,18 @@ function shapeList(r: any): CrmListSync {
     last_run_at: r.last_run_at,
     last_status: r.last_status,
     last_error: r.last_error,
+    campaign_id: r.campaign_id ?? null,
+    campaign_name: r.campaign_name ?? null,
   };
+}
+
+/** Campaign names for list syncs that feed one (read separately: before migration 120 there is no column). */
+async function withCampaignNames(rows: any[]): Promise<any[]> {
+  const ids = [...new Set(rows.map((r) => r.campaign_id).filter(Boolean))];
+  if (ids.length === 0) return rows;
+  const { data } = await supabaseAdmin.from('campaigns').select('id, name').in('id', ids);
+  const names = new Map(((data || []) as any[]).map((c) => [c.id, c.name]));
+  return rows.map((r) => ({ ...r, campaign_name: names.get(r.campaign_id) ?? null }));
 }
 
 async function countLog(integrationId: string, f: (q: any) => any): Promise<number> {
@@ -1401,7 +1538,7 @@ export const crmSyncService = {
         moved_24h: { to_crm: toCrm24, from_crm: fromCrm24 },
         failed_24h: failed24,
         retryable: retry,
-        list_syncs: (lists.data || []).map(shapeList),
+        list_syncs: (await withCampaignNames(lists.data || [])).map(shapeList),
       };
     } catch (err: any) {
       if (isMissing(err)) return { ...base, unavailable: true };
@@ -1672,7 +1809,7 @@ export const crmSyncService = {
     const ctx = await buildCtx(row);
     await runListSync(ctx, data as any).catch(() => undefined);
     const { data: fresh } = await supabaseAdmin.from('crm_list_syncs').select('*, contact_lists(name)').eq('id', (data as any).id).single();
-    return shapeList(fresh || data);
+    return shapeList((await withCampaignNames([fresh || data]))[0]);
   },
 
   async updateListSync(userId: string, integrationId: string, id: string, input: any): Promise<CrmListSync> {
@@ -1684,12 +1821,24 @@ export const crmSyncService = {
       if (!list) throw new AppError('That Sincerely list was not found.', 404);
       patch.list_id = input.list_id;
     }
+    if (input && 'campaign_id' in input) {
+      if (input.campaign_id) {
+        const { data: camp } = await supabaseAdmin.from('campaigns').select('id').eq('id', String(input.campaign_id)).eq('user_id', userId).maybeSingle();
+        if (!camp) throw new AppError('That campaign was not found.', 404);
+        patch.campaign_id = String(input.campaign_id);
+      } else {
+        patch.campaign_id = null;
+      }
+    }
     const { data, error } = await supabaseAdmin.from('crm_list_syncs').update(patch)
       .eq('id', id).eq('integration_id', integrationId).eq('user_id', userId)
       .select('*, contact_lists(name)').maybeSingle();
-    if (error) throw new AppError(error.message, 500);
+    if (error) {
+      if (isMissing(error)) throw new AppError('Feeding a campaign needs the latest database update (migration 120).', 503);
+      throw new AppError(error.message, 500);
+    }
     if (!data) throw new AppError('Not found', 404);
-    return shapeList(data);
+    return shapeList((await withCampaignNames([data]))[0]);
   },
 
   async removeListSync(userId: string, integrationId: string, id: string): Promise<{ deleted: true }> {

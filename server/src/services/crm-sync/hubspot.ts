@@ -13,6 +13,7 @@ const HOST = 'api.hubapi.com';
 /** HubSpot's own association type ids. */
 const NOTE_TO_CONTACT = 202;
 const DEAL_TO_CONTACT = 3;
+const TASK_TO_CONTACT = 204;
 const PAGES_PER_RUN = 5;
 
 /** Read on every pull besides the mapped properties. */
@@ -55,6 +56,8 @@ function missingScope(res: CrmResponse): string | undefined {
 
 export function hubspotAdapter(accessToken: string): CrmAdapter {
   const headers = { Authorization: `Bearer ${accessToken.trim()}` };
+  /** Domain -> company id, for one adapter's life (one run): a first sync meets the same company many times. */
+  const companyCache = new Map<string, string>();
 
   async function call(method: Method, path: string, body?: unknown, what = 'HubSpot'): Promise<any> {
     const res = await crmRequest(HOST, method, path, { headers, body });
@@ -220,7 +223,7 @@ export function hubspotAdapter(accessToken: string): CrmAdapter {
     async createDeal(personId, input) {
       const where = input.stage && input.pipeline ? { pipeline: input.pipeline, stage: input.stage } : await firstStage(input.pipeline);
       const json = await call('POST', '/crm/v3/objects/deals', {
-        properties: { dealname: input.title, pipeline: where.pipeline, dealstage: where.stage },
+        properties: { dealname: input.title, pipeline: where.pipeline, dealstage: where.stage, ...(input.ownerId ? { hubspot_owner_id: input.ownerId } : {}) },
         associations: [{ to: { id: personId }, types: [{ associationCategory: 'HUBSPOT_DEFINED', associationTypeId: DEAL_TO_CONTACT }] }],
       }, 'Creating the HubSpot deal');
       if (!json?.id) throw new CrmHttpError('HubSpot did not return the deal it created.', 502);
@@ -344,8 +347,63 @@ export function hubspotAdapter(accessToken: string): CrmAdapter {
       }
     },
 
+    async assignOwner(personIds, ownerId) {
+      for (let i = 0; i < personIds.length; i += 100) {
+        await call('POST', '/crm/v3/objects/contacts/batch/update', {
+          inputs: personIds.slice(i, i + 100).map((id) => ({ id, properties: { hubspot_owner_id: ownerId } })),
+        }, 'Assigning the HubSpot owner');
+      }
+    },
+
+    async setLifecycle(personId, stage) {
+      const res = await crmRequest(HOST, 'PATCH', `/crm/v3/objects/contacts/${encodeURIComponent(personId)}`, {
+        headers, body: { properties: { lifecyclestage: stage } },
+      });
+      if (res.status >= 200 && res.status < 300) return 'done';
+      // HubSpot refuses to move a stage backwards (someone already further on): nothing to do.
+      if (res.status === 400) return 'unsupported';
+      if (res.status === 401) throw new CrmHttpError('HubSpot rejected the access token. Reconnect HubSpot on the Integrations page.', 401);
+      throw new CrmHttpError(`Setting the HubSpot lifecycle stage failed (${res.status}): ${crmErrorMessage(res)}`, res.status, missingScope(res));
+    },
+
+    async createTask(personId, input) {
+      await call('POST', '/crm/v3/objects/tasks', {
+        properties: {
+          hs_timestamp: input.dueAt,
+          hs_task_subject: input.subject.slice(0, 250),
+          hs_task_body: escapeHtml(input.body),
+          hs_task_status: 'NOT_STARTED',
+          hs_task_priority: 'HIGH',
+          hs_task_type: 'EMAIL',
+          ...(input.ownerId ? { hubspot_owner_id: input.ownerId } : {}),
+        },
+        associations: [{ to: { id: personId }, types: [{ associationCategory: 'HUBSPOT_DEFINED', associationTypeId: TASK_TO_CONTACT }] }],
+      }, 'Creating the HubSpot task');
+    },
+
+    async linkCompany(personId, company) {
+      const domain = company.domain.toLowerCase();
+      let companyId = companyCache.get(domain);
+      if (!companyId) {
+        const found = await call('POST', '/crm/v3/objects/companies/search', {
+          filterGroups: [{ filters: [{ propertyName: 'domain', operator: 'EQ', value: domain }] }],
+          properties: ['domain', 'name'],
+          limit: 1,
+        }, 'Finding the HubSpot company');
+        companyId = found?.results?.[0]?.id ? String(found.results[0].id) : undefined;
+        if (!companyId) {
+          const created = await call('POST', '/crm/v3/objects/companies', { properties: { domain, name: company.name || domain } }, 'Creating the HubSpot company');
+          if (!created?.id) throw new CrmHttpError('HubSpot did not return the company it created.', 502);
+          companyId = String(created.id);
+        }
+        companyCache.set(domain, companyId);
+      }
+      await call('PUT', `/crm/v4/objects/contacts/${encodeURIComponent(personId)}/associations/default/companies/${encodeURIComponent(companyId)}`, undefined, 'Linking the HubSpot company');
+      return 'done';
+    },
+
     async options(): Promise<CrmSyncOptions> {
-      const out: CrmSyncOptions = { fields: [], pipelines: [], lists: [], warnings: [] };
+      const out: CrmSyncOptions = { fields: [], pipelines: [], lists: [], owners: [], warnings: [] };
       const why = (err: unknown) => (err instanceof Error ? err.message : String(err));
       await Promise.all([
         (async () => {
@@ -358,6 +416,23 @@ export function hubspotAdapter(accessToken: string): CrmAdapter {
           } catch (err) {
             out.fields = COMMON_FIELDS;
             out.warnings.push(`${why(err)} The common HubSpot fields are listed instead.`);
+          }
+        })(),
+        (async () => {
+          try {
+            let after: string | undefined;
+            for (let page = 0; page < 5; page++) {
+              const json = await call('GET', `/crm/v3/owners?limit=100${after ? `&after=${encodeURIComponent(after)}` : ''}`, undefined, 'Reading owners');
+              for (const o of json?.results || []) {
+                if (o.archived) continue;
+                const name = [o.firstName, o.lastName].filter(Boolean).join(' ') || o.email || String(o.id);
+                out.owners.push({ id: String(o.id), name: o.email && name !== o.email ? `${name} (${o.email})` : name });
+              }
+              after = json?.paging?.next?.after;
+              if (!after) break;
+            }
+          } catch (err) {
+            out.warnings.push(why(err));
           }
         })(),
         (async () => {
