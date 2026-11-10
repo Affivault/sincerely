@@ -84,3 +84,11 @@ export function signatureProblems(html: string | null | undefined): SignaturePro
   }
   return out;
 }
+
+/** The setting from Gmail's two switches: on new emails, on replies and forwards. */
+export function signatureUseFrom(onNew: boolean, onReplies: boolean): SignatureUse {
+  if (onNew && onReplies) return 'all';
+  if (onNew) return 'new';
+  if (onReplies) return 'replies';
+  return 'none';
+}

@@ -7,7 +7,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Modal } from '../../components/ui/Modal';
-import { Segmented } from '../../components/ui/Segmented';
+import { Toggle } from '../../components/ui/Toggle';
 import { SignatureStudio } from '../../components/signature/SignatureStudio';
 import { signatureText } from '../../components/signature/signatureHtml';
 import { MicrosoftConnectCard, looksMicrosoft } from '../../components/mailbox/MicrosoftConnect';
@@ -27,7 +27,7 @@ import {
   missingFields, mailboxLabel, serverSummary, sendingSummary, limitAdvice, sectionsToOpen,
   providerGuide, isSendOnlyProvider, isFreeMailDomain,
   RECOMMENDED_DAILY_LIMIT, RECOMMENDED_GAP, DAILY_LIMIT_PRESETS, GAP_PRESETS, formatGap, gapCapacityPerDay, gapProblem,
-  SIGNATURE_USES, resolveSignatureUse, type SignatureUse,
+  resolveSignatureUse, signatureAppliesTo, signatureUseFrom, type SignatureUse,
 } from '@lemlist/shared';
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -1214,46 +1214,59 @@ export function SmtpAccountModal({
   );
 
   const sigUse: SignatureUse = form.signature_use || 'all';
+  const sigOnNew = signatureAppliesTo(sigUse, 'new');
+  const sigOnReplies = signatureAppliesTo(sigUse, 'reply');
   const sigHasContent = !!signatureText(form.signature_html);
   const signatureField = (
     <Group icon={Signature} title="Signature" subtitle="added to emails from this inbox">
       <div className="space-y-3" data-signature-field>
         {sigHasContent ? (
+          <>
+            <button
+              type="button"
+              onClick={() => setStudioOpen(true)}
+              title="Edit signature"
+              className="group relative block w-full overflow-hidden rounded-xl border border-[var(--border-subtle)] text-left transition-shadow hover:shadow-md"
+            >
+              <div
+                className="pointer-events-none max-h-36 overflow-hidden px-4 py-3 [&_img]:max-w-full"
+                style={{ background: '#ffffff', color: '#1f2328', fontFamily: 'Arial, Helvetica, sans-serif', fontSize: 13, lineHeight: 1.45 }}
+                dangerouslySetInnerHTML={{ __html: form.signature_html || '' }}
+              />
+              <span className="absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-lg bg-[var(--text-primary)] px-2.5 py-1 text-caption font-medium text-[var(--bg-app)] opacity-0 shadow-sm transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                <PenLine className="h-3 w-3" /> Edit
+              </span>
+            </button>
+            <div className="divide-y divide-[var(--border-subtle)] rounded-xl border border-[var(--border-subtle)]">
+              <label className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+                <span className="text-body text-[var(--text-primary)]">Add to new emails</span>
+                <Toggle size="sm" checked={sigOnNew} onChange={(v) => updateField('signature_use', signatureUseFrom(v, sigOnReplies))} aria-label="Add to new emails" />
+              </label>
+              <label className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+                <span className="text-body text-[var(--text-primary)]">Add to replies and forwards</span>
+                <Toggle size="sm" checked={sigOnReplies} onChange={(v) => updateField('signature_use', signatureUseFrom(sigOnNew, v))} aria-label="Add to replies and forwards" />
+              </label>
+            </div>
+            {!sigOnNew && !sigOnReplies && (
+              <p className="text-caption text-[var(--text-tertiary)]">You can still add it to any email from the signature button in the composer.</p>
+            )}
+          </>
+        ) : (
           <button
             type="button"
             onClick={() => setStudioOpen(true)}
-            title="Edit signature"
-            className="group relative block w-full overflow-hidden rounded-lg border border-[var(--border-subtle)] text-left"
+            className="flex w-full flex-col items-center gap-1 rounded-xl border border-dashed border-[var(--border-default)] px-4 py-5 text-center transition-colors hover:bg-[var(--bg-hover)]"
           >
-            <div
-              className="pointer-events-none max-h-40 overflow-hidden px-3 py-2.5 [&_img]:max-w-full"
-              style={{ background: '#ffffff', color: '#1f2328', fontFamily: 'Arial, Helvetica, sans-serif', fontSize: 13, lineHeight: 1.45 }}
-              dangerouslySetInnerHTML={{ __html: form.signature_html || '' }}
-            />
-            <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 py-1 text-caption font-medium text-[var(--text-secondary)] shadow-sm">
-              <PenLine className="h-3 w-3" /> Edit and preview
-            </span>
+            <span className="inline-flex items-center gap-1.5 text-strong font-medium text-[var(--text-primary)]"><PenLine className="h-3.5 w-3.5" /> Create a signature</span>
+            <span className="text-caption text-[var(--text-tertiary)]">Takes a minute. Add your logo and a booking link if you like.</span>
           </button>
-        ) : (
-          <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-[var(--border-default)] px-3 py-3">
-            <p className="text-caption text-[var(--text-tertiary)]">No signature yet. Build one from your details in a minute, with a logo and a booking button.</p>
-            <button type="button" onClick={() => setStudioOpen(true)} className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-[var(--indigo)] px-3 text-caption font-medium text-white">
-              <PenLine className="h-3.5 w-3.5" /> Create signature
-            </button>
-          </div>
         )}
-        <div>
-          <p className="mb-1.5 text-caption font-medium text-[var(--text-secondary)]">Add it on its own to</p>
-          <Segmented size="sm" label="Add the signature to" options={SIGNATURE_USES} value={sigUse} onChange={(v) => updateField('signature_use', v)} />
-          <p className="mt-1 text-micro text-[var(--text-tertiary)]">{SIGNATURE_USES.find((u) => u.value === sigUse)?.hint}</p>
-        </div>
       </div>
       <SignatureStudio
         isOpen={studioOpen}
         onClose={() => setStudioOpen(false)}
         initialHtml={form.signature_html || ''}
-        initialUse={sigUse}
-        onSave={(html, use) => { updateField('signature_html', html); updateField('signature_use', use); }}
+        onSave={(html) => updateField('signature_html', html)}
         fromName={form.from_name || ''}
         fromEmail={form.email_address || ''}
         accountId={editId || connected?.id || null}
