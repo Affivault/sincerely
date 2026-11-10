@@ -3,6 +3,7 @@ import { env } from '../config/env.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { assertSafeWebhookUrl, pinnedPost } from './webhook.service.js';
 import { ensureFreshHubspotToken } from './integrations-oauth.service.js';
+import { handleCrmEvent } from './crm-sync.service.js';
 import {
   getIntegrationMeta,
   type IntegrationProviderId,
@@ -381,7 +382,9 @@ interface ProviderRuntime {
     config: Record<string, string>,
     eventType: string,
     data: Record<string, any>,
-    ctx?: EventContext
+    ctx?: EventContext,
+    /** The connection itself, for providers that keep state (the two-way CRM sync). */
+    integration?: Record<string, any>
   ): Promise<string | null>;
 }
 
@@ -611,64 +614,9 @@ const hubspotRuntime: ProviderRuntime = {
       return { success: false, detail: err.message };
     }
   },
-  async handleEvent(userId, config, eventType, data, ctx) {
-    if (!crmShouldSync(eventType, data)) return null;
-    const contact = await loadEventContact(userId, data, ctx);
-    if (!contact?.email) return null;
-
-    const properties: Record<string, string> = { email: contact.email };
-    if (contact.first_name) properties.firstname = contact.first_name;
-    if (contact.last_name) properties.lastname = contact.last_name;
-    if (contact.company) properties.company = contact.company;
-    if (contact.job_title) properties.jobtitle = contact.job_title;
-    if (contact.phone) properties.phone = contact.phone;
-    if (contact.website) properties.website = contact.website;
-
-    const auth = { Authorization: `Bearer ${config.access_token.trim()}` };
-    const res = await httpJson('POST', 'https://api.hubapi.com/crm/v3/objects/contacts/batch/upsert', {
-      headers: auth,
-      body: { inputs: [{ idProperty: 'email', id: contact.email, properties }] },
-    });
-    if (res.status < 200 || res.status >= 300) {
-      throw new Error(`HubSpot upsert failed (${res.status}): ${res.json?.message || res.text.slice(0, 160)}`);
-    }
-    let summary = `Synced ${contact.email} to HubSpot — ${crmNoteText(eventType, data)}`;
-
-    // Positive intent → open a deal in the default pipeline, associated to
-    // the contact. A deal failure downgrades to a warning rather than
-    // failing the delivery: the contact sync above already succeeded.
-    const positiveIntent =
-      eventType === 'sara.intent_classified' && (data.intent === 'interested' || data.intent === 'meeting');
-    if (positiveIntent && config.create_deals !== 'no') {
-      const hubspotContactId = res.json?.results?.[0]?.id;
-      const name = [contact.first_name, contact.last_name].filter(Boolean).join(' ') || contact.email;
-      const dealRes = await httpJson('POST', 'https://api.hubapi.com/crm/v3/objects/deals', {
-        headers: auth,
-        body: {
-          properties: {
-            dealname: `${name}${contact.company ? ` (${contact.company})` : ''} — Sincerely`,
-            pipeline: 'default',
-            dealstage: 'appointmentscheduled',
-          },
-          ...(hubspotContactId
-            ? {
-                associations: [
-                  {
-                    to: { id: hubspotContactId },
-                    types: [{ associationCategory: 'HUBSPOT_DEFINED', associationTypeId: 3 }],
-                  },
-                ],
-              }
-            : {}),
-        },
-      });
-      if (dealRes.status >= 200 && dealRes.status < 300) {
-        summary += ' · deal created';
-      } else {
-        summary += ` · deal creation failed (${dealRes.status}: ${dealRes.json?.message || 'check deal scopes'})`;
-      }
-    }
-    return summary;
+  async handleEvent(userId, config, eventType, data, ctx, integration) {
+    if (!integration) return null;
+    return handleCrmEvent({ ...(integration as any), user_id: userId }, config, eventType, data, ctx?.campaignName);
   },
 };
 
@@ -692,65 +640,9 @@ const pipedriveRuntime: ProviderRuntime = {
       return { success: false, detail: err.message };
     }
   },
-  async handleEvent(userId, config, eventType, data, ctx) {
-    if (!crmShouldSync(eventType, data)) return null;
-    const contact = await loadEventContact(userId, data, ctx);
-    if (!contact?.email) return null;
-
-    const token = encodeURIComponent(config.api_token.trim());
-    const base = 'https://api.pipedrive.com/v1';
-
-    // Find an existing person by email, else create one.
-    let personId: number | undefined;
-    const search = await httpJson(
-      'GET',
-      `${base}/persons/search?term=${encodeURIComponent(contact.email)}&fields=email&exact_match=true&api_token=${token}`
-    );
-    if (search.status === 200 && search.json?.success) {
-      personId = search.json.data?.items?.[0]?.item?.id;
-    }
-    let action = 'Updated';
-    if (!personId) {
-      const name = [contact.first_name, contact.last_name].filter(Boolean).join(' ') || contact.email;
-      const created = await httpJson('POST', `${base}/persons?api_token=${token}`, {
-        body: {
-          name,
-          email: [{ value: contact.email, primary: true }],
-          ...(contact.phone ? { phone: [{ value: contact.phone, primary: true }] } : {}),
-        },
-      });
-      if (!(created.status >= 200 && created.status < 300 && created.json?.success)) {
-        throw new Error(`Pipedrive person create failed (${created.status}): ${created.json?.error || created.text.slice(0, 160)}`);
-      }
-      personId = created.json.data?.id;
-      action = 'Created';
-    }
-    if (!personId) throw new Error('Pipedrive did not return a person id');
-
-    const note = await httpJson('POST', `${base}/notes?api_token=${token}`, {
-      body: { content: crmNoteText(eventType, data), person_id: personId },
-    });
-    if (!(note.status >= 200 && note.status < 300 && note.json?.success)) {
-      throw new Error(`Pipedrive note failed (${note.status}): ${note.json?.error || note.text.slice(0, 160)}`);
-    }
-    let summary = `${action} ${contact.email} in Pipedrive and attached a note`;
-
-    // Positive intent → open a deal tied to the person (same downgrade-to-
-    // warning semantics as HubSpot).
-    const positiveIntent =
-      eventType === 'sara.intent_classified' && (data.intent === 'interested' || data.intent === 'meeting');
-    if (positiveIntent && config.create_deals !== 'no') {
-      const name = [contact.first_name, contact.last_name].filter(Boolean).join(' ') || contact.email;
-      const deal = await httpJson('POST', `${base}/deals?api_token=${token}`, {
-        body: { title: `${name}${contact.company ? ` (${contact.company})` : ''} — Sincerely`, person_id: personId },
-      });
-      if (deal.status >= 200 && deal.status < 300 && deal.json?.success) {
-        summary += ' · deal created';
-      } else {
-        summary += ` · deal creation failed (${deal.status}: ${deal.json?.error || 'unknown'})`;
-      }
-    }
-    return summary;
+  async handleEvent(userId, config, eventType, data, ctx, integration) {
+    if (!integration) return null;
+    return handleCrmEvent({ ...(integration as any), user_id: userId }, config, eventType, data, ctx?.campaignName);
   },
 };
 
@@ -972,7 +864,9 @@ function redact(row: UserIntegration): UserIntegration {
     const safe = (field && !field.secret) || SAFE_META_KEYS.has(key);
     config[key] = safe ? String(value) : maskValue(String(value));
   }
-  return { ...row, config };
+  // How far the CRM sync has read is the server's business, not the page's.
+  const { sync_cursors: _cursors, ...rest } = row as UserIntegration & { sync_cursors?: unknown };
+  return { ...rest, config };
 }
 
 // ============================================
@@ -1085,6 +979,13 @@ export async function connectIntegration(
     .select()
     .single();
   if (error) throw error;
+  if (meta.id === 'hubspot' || meta.id === 'pipedrive') {
+    // The first two-way sync a minute from now. Before migration 118 the column is not there; that is fine.
+    await supabaseAdmin.from('user_integrations')
+      .update({ next_sync_at: new Date(Date.now() + 60_000).toISOString() })
+      .eq('id', data.id).is('next_sync_at', null)
+      .then(() => undefined, () => undefined);
+  }
   return { integration: redact(data), test };
 }
 
@@ -1321,7 +1222,7 @@ export async function dispatchEvent(
       if (!runtime) return;
       try {
         const config = await prepareConfig(row.provider, row.id, row.config || {});
-        const summary = await runtime.handleEvent(userId, config, eventType, data, ctx);
+        const summary = await runtime.handleEvent(userId, config, eventType, data, ctx, row);
         if (summary === null) return; // event not relevant for this provider
         await logActivity(row.id, eventType, summary, true);
         await supabaseAdmin

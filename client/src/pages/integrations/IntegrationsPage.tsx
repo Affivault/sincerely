@@ -300,6 +300,15 @@ export function IntegrationsPage() {
                         {connected ? 'Manage' : 'Connect'}
                       </button>
                     )}
+                    {connected && (meta.id === 'hubspot' || meta.id === 'pipedrive') && (
+                      <Link
+                        to={`/integrations/${connected.id}/sync`}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-body font-semibold bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-primary)] hover:border-[var(--border-default)]"
+                      >
+                        <RefreshCw className="h-3.5 w-3.5" />
+                        Two-way sync
+                      </Link>
+                    )}
                     {connected && (
                       <button
                         onClick={() =>

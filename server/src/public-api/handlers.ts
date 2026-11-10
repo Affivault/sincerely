@@ -20,8 +20,9 @@ import { listsService } from '../services/lists.service.js';
 import { campaignsService } from '../services/campaigns.service.js';
 import { campaignContactsService } from '../services/campaign-contacts.service.js';
 import { suppressionService } from '../services/suppression.service.js';
-import { assertSafeWebhookUrl, fireEvent } from '../services/webhook.service.js';
-import { chunk, selectInChunks } from '../utils/batch.js';
+import { unsubscribeContact as unsubscribeContactShared } from '../services/optout.service.js';
+import { assertSafeWebhookUrl } from '../services/webhook.service.js';
+import { selectInChunks } from '../utils/batch.js';
 import {
   PublicApiError, bodyBool, bodyString, bodyStringArray, bodyUuidArray, invalid, isUuid, keyset, missing,
   notFound, onlyKeys, pageArgs, pageInMemory, pageOf, pathId, queryString, queryTime, queryUuid,
@@ -341,25 +342,8 @@ async function contactRef(req: ApiReq, name: string): Promise<string> {
 
 /** Unsubscribe one contact the way the unsubscribe link does: flagged, sequences stopped, address suppressed. */
 async function unsubscribeContact(userId: string, id: string): Promise<void> {
-  const row = await readContactRow(userId, id);
-  const already = !!(row as any).is_unsubscribed;
-
-  const { error } = await supabaseAdmin.from('contacts').update({ is_unsubscribed: true }).eq('id', id).eq('user_id', userId);
-  if (error) throw error;
-
-  // Stop every sequence they are in, as the unsubscribe link does.
-  const { data: live, error: liveErr } = await supabaseAdmin
-    .from('campaign_contacts')
-    .select('id, campaign_id, campaigns!inner(user_id)')
-    .eq('contact_id', id).eq('campaigns.user_id', userId)
-    .in('status', ['pending', 'active', 'paused']);
-  if (liveErr) throw liveErr;
-  for (const slice of chunk((live || []).map((r: any) => r.id))) {
-    const { error: stopErr } = await supabaseAdmin.from('campaign_contacts').update({ status: 'unsubscribed', next_send_at: null }).in('id', slice);
-    if (stopErr) throw stopErr;
-  }
-  await suppressionService.add(userId, (row as any).email, 'unsubscribed', 'Unsubscribed through the API');
-  if (!already) fireEvent(userId, 'lead.unsubscribed', { contact_id: id, source: 'api' }).catch(() => {});
+  await readContactRow(userId, id); // 404 for someone else's or a missing contact
+  await unsubscribeContactShared(userId, id, { source: 'api', note: 'Unsubscribed through the API' });
 }
 
 const contactsUnsubscribe: Handler = async (req) => {

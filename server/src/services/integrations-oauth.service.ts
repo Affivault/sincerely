@@ -187,6 +187,9 @@ const hubspotOAuth: OAuthProviderDef = {
       redirect_uri: redirectUri,
       state,
     });
+    // Lists, the field picker and unsubscribes (two-way sync), when the HubSpot app offers them.
+    const optional = env.HUBSPOT_OPTIONAL_SCOPES.trim().split(/\s+/).filter((x) => /^[a-z0-9_.-]+$/i.test(x));
+    if (optional.length) q.set('optional_scope', optional.join(' '));
     return `https://app.hubspot.com/oauth/authorize?${q}`;
   },
   async exchange(code, redirectUri) {
