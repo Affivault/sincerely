@@ -33,7 +33,7 @@ import {
   RefreshCw,
   Key,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { platformQuery } from '../../lib/platform';
 import { cn } from '../../lib/utils';
 import { useOverlayStack } from '../../hooks/useOverlayStack';
@@ -121,6 +121,7 @@ function connectionMeta(row: UserIntegration): string | null {
 
 export function IntegrationsPage() {
   const queryClient = useQueryClient();
+  const navigateTo = useNavigate();
   const [openProviderId, setOpenProviderId] = useState<string | null>(null);
 
   const { data: integrations, isLoading } = useQuery({
@@ -144,6 +145,12 @@ export function IntegrationsPage() {
     const message = params.get('message');
     if (status === 'ok') {
       toast.success(`${provider.charAt(0).toUpperCase()}${provider.slice(1)} connected!`);
+      if (provider === 'hubspot' || provider === 'pipedrive') {
+        integrationsApi.list().then((rows) => {
+          const row = rows.find((r) => r.provider === provider);
+          if (row) navigateTo(`/integrations/${row.id}/sync`);
+        }).catch(() => undefined);
+      }
     } else if (status === 'setup') {
       toast(message || 'One more step to finish connecting', { icon: '👉' });
       setOpenProviderId(provider);
@@ -156,7 +163,7 @@ export function IntegrationsPage() {
     const url = new URL(window.location.href);
     ['oauth', 'status', 'message'].forEach((k) => url.searchParams.delete(k));
     window.history.replaceState(window.history.state, '', url.toString());
-  }, [queryClient]);
+  }, [queryClient, navigateTo]);
 
   const byProvider = new Map<string, UserIntegration>();
   for (const row of integrations || []) byProvider.set(row.provider, row);
@@ -386,13 +393,16 @@ function ProviderModal({
 
   const hasPickers = meta.fields.some((f) => f.picker);
   const isOAuthConnected = existing?.config.auth_kind === 'oauth';
+  const navigate = useNavigate();
 
   const connectMutation = useMutation({
     mutationFn: () => integrationsApi.connect(meta.id, { config, events }),
-    onSuccess: ({ test }) => {
+    onSuccess: ({ test, integration }) => {
       queryClient.invalidateQueries({ queryKey: ['integrations'] });
       toast.success(test.detail || `${meta.name} connected`);
       onClose();
+      // A new CRM connection goes straight to its setup: what to sync first.
+      if (!existing && (meta.id === 'hubspot' || meta.id === 'pipedrive')) navigate(`/integrations/${integration.id}/sync`);
     },
     onError: (err: any) => toast.error(err.response?.data?.error || `Could not connect ${meta.name}`),
   });

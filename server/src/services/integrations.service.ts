@@ -853,7 +853,7 @@ function maskValue(value: string): string {
  * show readable — the connected workspace/channel names make the UI say
  * "Connected to #wins in Acme" instead of a masked string.
  */
-const SAFE_META_KEYS = new Set(['auth_kind', 'channel', 'workspace', 'guild', 'expires_at']);
+const SAFE_META_KEYS = new Set(['auth_kind', 'channel', 'workspace', 'guild', 'expires_at', 'portal_id', 'ui_domain', 'company_domain']);
 
 /** Secrets never leave the server readable — the client gets a preview only. */
 function redact(row: UserIntegration): UserIntegration {

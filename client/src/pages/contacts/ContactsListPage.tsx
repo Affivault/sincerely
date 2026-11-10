@@ -5,6 +5,7 @@ import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useDebounce } from '../../hooks/useDebounce';
 import { usePopover } from '../../hooks/usePopover';
 import { useAriaSort } from '../../components/table/TableParts';
+import { integrationsApi } from '../../api/integrations.api';
 import { contactsApi, listsApi, tagsApi } from '../../api/contacts.api';
 import {
   UNLISTED_LIST_ID, UNLISTED_LIST_NAME, LIFECYCLE_LABEL, LEAD_OUTREACH_LABEL, LEAD_OUTREACH_HINT, LEAD_OUTREACH_STATES,
@@ -953,6 +954,24 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
   }
 
   // Distinct companies (with counts) for the "view by company" filter
+  // Connected HubSpot / Pipedrive: picked people can be sent there from the bulk bar.
+  const { data: integrationRows } = useQuery({ queryKey: ['integrations'], queryFn: integrationsApi.list, staleTime: 60_000 });
+  const crmConnections = (integrationRows || []).filter((r) => r.is_active && (r.provider === 'hubspot' || r.provider === 'pipedrive'));
+  const sendToCrm = useMutation({
+    mutationFn: ({ integrationId, ids }: { integrationId: string; provider: string; ids: string[] }) => integrationsApi.sync.send(integrationId, ids),
+    onSuccess: (r, v) => {
+      const crm = v.provider === 'hubspot' ? 'HubSpot' : 'Pipedrive';
+      if (r.queued) {
+        toast.success(`Sending ${r.total.toLocaleString()} to ${crm} in the background. Progress is on the ${crm} sync page.`);
+      } else if (r.failed) {
+        toast.error(`${r.sent} sent to ${crm}, ${r.failed} could not be sent (see the ${crm} sync page)`);
+      } else {
+        toast.success(r.sent ? `${r.sent} sent to ${crm}` : `Already in ${crm}: nothing new to send`);
+      }
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.error || 'Could not send them'),
+  });
+
   const { data: companyOptions } = useQuery({
     queryKey: ['contact-companies'],
     queryFn: contactsApi.companies,
@@ -2337,6 +2356,14 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                 {
                   label: 'More', icon: PenLine, items: [
                     { label: 'Edit fields', icon: PenLine, onSelect: () => setShowBulkEdit(true), hint: 'Set or clear a field, a custom field or tags on everyone selected' },
+                    ...crmConnections.map((r) => {
+                      const crm = r.provider === 'hubspot' ? 'HubSpot' : 'Pipedrive';
+                      return {
+                        label: `Send to ${crm}`, icon: Send, disabled: sendToCrm.isPending,
+                        onSelect: () => sendToCrm.mutate({ integrationId: r.id, provider: r.provider, ids: ids() }),
+                        hint: `Create or update them in ${crm}, matched by email, and keep them in step from now on`,
+                      };
+                    }),
                     ...(listKind === 'lead'
                       ? [{ label: 'Convert to contact', icon: Contact2, disabled: busyLifecycle, onSelect: () => lifecycleMutation.mutate({ ids: ids(), to: 'contact' }), hint: 'They have a relationship with you now: they move to the Contacts page' }]
                       : [

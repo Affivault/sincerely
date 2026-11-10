@@ -186,6 +186,8 @@ export interface CrmSyncOverview {
   /** Failures that can still be retried. */
   retryable: number;
   list_syncs: CrmListSync[];
+  /** The first sync, or a "send these people" run. Null before migration 119. */
+  backfill: CrmBackfill | null;
   /** Set when the database has not had migration 118 yet. */
   unavailable?: boolean;
 }
@@ -207,3 +209,52 @@ export const CRM_SYNC_KIND_LABEL: Record<CrmSyncKind, string> = {
   list: 'List',
   sync: 'Sync',
 };
+
+// ── The first sync (and "Send to HubSpot" for picked people) ─────
+
+export type CrmToScope = 'all' | 'list' | 'ids' | 'none';
+export type CrmFromScope = 'all' | 'list' | 'none';
+
+export interface CrmBackfillSide {
+  scope: string;
+  total: number | null;
+  done: number;
+  failed?: number;
+  added?: number;
+}
+
+export interface CrmBackfill {
+  status: 'idle' | 'running' | 'done' | 'failed';
+  /** When the setup on the sync page was finished; until then the page shows it. */
+  setup_done_at: string | null;
+  to_crm: (CrmBackfillSide & { list_id?: string | null }) | null;
+  from_crm: (CrmBackfillSide & { external_id?: string | null; external_name?: string | null; list_id?: string | null }) | null;
+  started_at: string | null;
+  finished_at: string | null;
+  error: string | null;
+}
+
+export interface CrmBackfillInput {
+  to_crm: { scope: Exclude<CrmToScope, 'ids'>; list_id?: string };
+  from_crm: {
+    scope: CrmFromScope;
+    /** The CRM list (HubSpot) or filter (Pipedrive), for scope 'list'. */
+    external_id?: string;
+    external_name?: string;
+    /** The Sincerely list they go into; empty = a new list named after the CRM one. */
+    list_id?: string;
+  };
+}
+
+/** One person, as the contact page shows them in a connected CRM. */
+export interface CrmContactStatus {
+  integration_id: string;
+  provider: CrmSyncProvider;
+  linked: boolean;
+  external_id: string | null;
+  /** Opens the record in the CRM, when the account address is known. */
+  url: string | null;
+  synced_at: string | null;
+  deal: { id: string; status: string | null; url: string | null } | null;
+  recent: { summary: string; status: 'ok' | 'failed' | 'skipped'; created_at: string }[];
+}

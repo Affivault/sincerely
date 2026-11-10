@@ -1,6 +1,6 @@
 import type { CrmSyncOptions } from '@lemlist/shared';
 import { crmRequest, crmErrorMessage, CrmHttpError, type CrmResponse, type Method } from './http.js';
-import type { CrmAdapter, CrmPerson, CrmDeal, CrmActivity, CrmChanges } from './types.js';
+import type { CrmAdapter, CrmPerson, CrmDeal, CrmActivity, CrmChanges, CrmAccount } from './types.js';
 import { nowIso } from './types.js';
 
 /**
@@ -259,6 +259,89 @@ export function hubspotAdapter(accessToken: string): CrmAdapter {
         ids: (json?.results || []).map((r: any) => String(r.recordId)),
         next: json?.paging?.next?.after ? String(json.paging.next.after) : null,
       };
+    },
+
+    async upsertPeople(items) {
+      const out: { email: string; id?: string; created?: boolean; error?: string }[] = [];
+      for (let i = 0; i < items.length; i += 100) {
+        const slice = items.slice(i, i + 100);
+        try {
+          const json = await call('POST', '/crm/v3/objects/contacts/batch/upsert', {
+            inputs: slice.map((it) => ({ idProperty: 'email', id: it.email, properties: { ...it.values, email: it.email } })),
+          }, 'Saving HubSpot contacts');
+          const byEmail = new Map<string, any>();
+          for (const r of json?.results || []) {
+            const e = String(r?.properties?.email || '').toLowerCase();
+            if (e) byEmail.set(e, r);
+          }
+          for (const it of slice) {
+            const r = byEmail.get(it.email.toLowerCase());
+            if (r?.id) {
+              out.push({ email: it.email, id: String(r.id), created: r.new === true });
+              continue;
+            }
+            // Never guess which record is whose by position: ask for this one on its own.
+            try {
+              const one = await this.upsertPerson(it.email, it.values);
+              out.push({ email: it.email, id: one.id, created: one.created });
+            } catch (e) {
+              out.push({ email: it.email, error: e instanceof Error ? e.message : String(e) });
+            }
+          }
+        } catch (err) {
+          // One bad row fails HubSpot's whole batch: try each one, so only the bad one fails.
+          if (!(err instanceof CrmHttpError) || err.status !== 400 || slice.length === 1) {
+            if (err instanceof CrmHttpError && (err.status === 401 || err.status === 403 || err.transient)) throw err;
+            for (const it of slice) out.push({ email: it.email, error: err instanceof Error ? err.message : String(err) });
+            continue;
+          }
+          for (const it of slice) {
+            try {
+              const r = await this.upsertPerson(it.email, it.values);
+              out.push({ email: it.email, id: r.id, created: r.created });
+            } catch (e) {
+              out.push({ email: it.email, error: e instanceof Error ? e.message : String(e) });
+            }
+          }
+        }
+      }
+      return out;
+    },
+
+    async allPeople(cursor, properties) {
+      const q = new URLSearchParams({ limit: '100', archived: 'false' });
+      for (const p of [...new Set([...BASE_PROPS, ...properties])]) q.append('properties', p);
+      if (cursor) q.set('after', cursor);
+      const json = await call('GET', `/crm/v3/objects/contacts?${q}`, undefined, 'Reading HubSpot contacts');
+      return {
+        people: (json?.results || []).map(toPerson),
+        next: json?.paging?.next?.after ? String(json.paging.next.after) : null,
+      };
+    },
+
+    async countPeople(listId) {
+      try {
+        if (listId) {
+          const json = await call('GET', `/crm/v3/lists/${encodeURIComponent(listId)}?includeFilters=false`, undefined, 'Reading the HubSpot list');
+          const n = Number(json?.list?.size ?? json?.list?.additionalProperties?.hs_list_size);
+          return Number.isFinite(n) ? n : null;
+        }
+        const json = await call('POST', '/crm/v3/objects/contacts/search', { limit: 1, properties: ['email'] }, 'Counting HubSpot contacts');
+        const n = Number(json?.total);
+        return Number.isFinite(n) ? n : null;
+      } catch {
+        return null;
+      }
+    },
+
+    async account(): Promise<CrmAccount | null> {
+      try {
+        const json = await call('GET', '/account-info/v3/details', undefined, 'Reading the HubSpot account');
+        if (!json?.portalId) return null;
+        return { portal_id: String(json.portalId), ...(json.uiDomain ? { ui_domain: String(json.uiDomain) } : {}) };
+      } catch {
+        return null;
+      }
     },
 
     async options(): Promise<CrmSyncOptions> {

@@ -1,5 +1,5 @@
 import { supabaseAdmin } from '../../config/supabase.js';
-import { runCrmSync, dueCrmSyncs, CRM_SYNC_EVERY_MS } from '../../services/crm-sync.service.js';
+import { runCrmSync, dueCrmSyncs, driveBackfill, runningBackfills, CRM_SYNC_EVERY_MS } from '../../services/crm-sync.service.js';
 import { beat } from '../../utils/heartbeat.js';
 
 /**
@@ -7,18 +7,21 @@ import { beat } from '../../utils/heartbeat.js';
  *
  * Cross-tenant, so a scheduler and never a route. Each due connection is
  * claimed first - its next run moved forward only if nobody else moved it -
+ * (a sweep a minute, each connection every two minutes)
  * so two server instances never sync the same connection at once. The run
  * itself sets the real next time when it finishes.
  */
 
-const SWEEP_MS = 2 * 60 * 1000;
-const PER_SWEEP = 10;
+const SWEEP_MS = 60 * 1000;
+const PER_SWEEP = 25;
 
 let timer: ReturnType<typeof setInterval> | null = null;
 let running = false;
 
 export async function runCrmSyncSweep(): Promise<number> {
   let ran = 0;
+  // First syncs still going (after a restart, or a big account): carry on in the background.
+  for (const id of await runningBackfills()) driveBackfill(id).catch(() => undefined);
   for (const due of await dueCrmSyncs(PER_SWEEP)) {
     const { data: claimed } = await supabaseAdmin.from('user_integrations')
       .update({ next_sync_at: new Date(Date.now() + CRM_SYNC_EVERY_MS * 2).toISOString() })

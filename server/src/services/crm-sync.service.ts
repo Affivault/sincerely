@@ -10,7 +10,7 @@
        and stage;
      - an unsubscribe opts them out of email in the CRM.
 
-   Both ways, on a schedule (runCrmSync, every 15 minutes and on "Sync now"):
+   Both ways, on a schedule (runCrmSync, every 2 minutes and on "Sync now"):
      - people edited in the CRM since the last run are read back; people
        edited in Sincerely since the last run are written out. Each linked
        person keeps a snapshot of the mapped values both sides last agreed
@@ -41,7 +41,8 @@ import { chunk } from '../utils/batch.js';
 import { hubspotAdapter } from './crm-sync/hubspot.js';
 import { pipedriveAdapter } from './crm-sync/pipedrive.js';
 import { CrmHttpError } from './crm-sync/http.js';
-import type { CrmAdapter, CrmActivity, CrmActivityKind, CrmPerson } from './crm-sync/types.js';
+import type { CrmAdapter, CrmActivity, CrmActivityKind, CrmPerson, CrmAccount } from './crm-sync/types.js';
+import { recordUrl } from './crm-sync/types.js';
 import {
   MANUAL_PAUSE_PREFIX,
   isCrmSyncProvider,
@@ -54,11 +55,13 @@ import {
   type CrmSyncOverview,
   type CrmSyncProvider,
   type CrmSyncSettings,
+  type CrmBackfillInput,
+  type CrmContactStatus,
 } from '@lemlist/shared';
 
 // ── Constants ─────────────────────────────────────────────────────
 
-export const CRM_SYNC_EVERY_MS = 15 * 60 * 1000;
+export const CRM_SYNC_EVERY_MS = 2 * 60 * 1000;
 const LIST_SYNC_EVERY_MS = 6 * 60 * 60 * 1000;
 const LOG_KEEP_DAYS = 30;
 const AUTO_RETRY_MAX_ATTEMPTS = 4;
@@ -118,7 +121,8 @@ interface Ctx {
 /** What to do again for a failed item. */
 type RetryPayload =
   | { step: 'event'; event_type: string; data: Record<string, any> }
-  | { step: 'push'; contact_id: string };
+  | { step: 'push'; contact_id: string }
+  | { step: 'send'; contact_id: string };
 
 // ── Adapters ──────────────────────────────────────────────────────
 
@@ -777,6 +781,56 @@ async function pullDeals(ctx: Ctx, cursors: Record<string, string>): Promise<num
   return acted;
 }
 
+/**
+ * Bring CRM people into a Sincerely list: new people are added, people
+ * already here only have blanks filled, and everyone is linked so their
+ * edits travel both ways from then on. An opt-out recorded in the CRM is
+ * applied here.
+ */
+async function importPeople(ctx: Ctx, people: CrmPerson[], listId: string, source: string): Promise<{ added: number; updated: number; withEmail: CrmPerson[] }> {
+  const withEmail = people.filter((p) => p.email);
+  const rows = withEmail.map((p) => {
+    const row: Record<string, any> = { email: p.email };
+    for (const m of ctx.settings.mapping) {
+      if (!fromCrm(m)) continue;
+      const v = norm(p.values[m.crm]);
+      if (v === null) continue;
+      if (m.sincerely.startsWith('custom:')) {
+        row.custom_fields = { ...(row.custom_fields || {}), [m.sincerely.slice(7)]: v };
+      } else {
+        row[m.sincerely] = v;
+      }
+    }
+    return row;
+  });
+
+  let added = 0;
+  let updated = 0;
+  for (let i = 0; i < rows.length; i += IMPORT_BATCH) {
+    const r = await contactsService.bulkCreate(ctx.userId, rows.slice(i, i + IMPORT_BATCH), listId, source, undefined, { mode: 'fill' });
+    added += r.created ?? 0;
+    updated += r.updated ?? 0;
+  }
+
+  const byEmail = new Map(withEmail.map((p) => [p.email!, p]));
+  for (const slice of chunk([...byEmail.keys()], 200)) {
+    const { data, error } = await supabaseAdmin.from('contacts').select('id, email, is_unsubscribed').eq('user_id', ctx.userId).in('email', slice);
+    if (error) throw error;
+    const existing = await supabaseAdmin.from('crm_links').select('contact_id').eq('integration_id', ctx.integrationId).in('contact_id', (data || []).map((c: any) => c.id));
+    if (existing.error) throw existing.error;
+    const linked = new Set((existing.data || []).map((l: any) => l.contact_id));
+    for (const c of (data || []) as any[]) {
+      const p = byEmail.get(String(c.email).toLowerCase());
+      if (!p) continue;
+      if (!linked.has(c.id)) await saveLink(ctx, c.id, p.id, { snapshot: {}, remote_updated_at: p.updatedAt });
+      if (ctx.settings.sync_optouts && p.optedOut && !c.is_unsubscribed) {
+        await unsubscribeContact(ctx.userId, c.id, { source: ctx.provider, note: `Opted out in ${ctx.label}` });
+      }
+    }
+  }
+  return { added, updated, withEmail };
+}
+
 /** Step 4: lists and filters pulled into Sincerely lists. */
 export async function runListSync(ctx: Ctx, ls: { id: string; external_id: string; external_name: string; list_id: string | null }): Promise<{ added: number; updated: number; total: number }> {
   const now = new Date().toISOString();
@@ -792,47 +846,7 @@ export async function runListSync(ctx: Ctx, ls: { id: string; external_id: strin
       if (!cursor) break;
     }
 
-    const withEmail = people.filter((p) => p.email);
-    const rows = withEmail.map((p) => {
-      const row: Record<string, any> = { email: p.email };
-      for (const m of ctx.settings.mapping) {
-        if (!fromCrm(m)) continue;
-        const v = norm(p.values[m.crm]);
-        if (v === null) continue;
-        if (m.sincerely.startsWith('custom:')) {
-          row.custom_fields = { ...(row.custom_fields || {}), [m.sincerely.slice(7)]: v };
-        } else {
-          row[m.sincerely] = v;
-        }
-      }
-      return row;
-    });
-
-    let added = 0;
-    let updated = 0;
-    for (let i = 0; i < rows.length; i += IMPORT_BATCH) {
-      const r = await contactsService.bulkCreate(ctx.userId, rows.slice(i, i + IMPORT_BATCH), ls.list_id, `${ctx.label}: ${ls.external_name}`, undefined, { mode: 'fill' });
-      added += r.created ?? 0;
-      updated += r.updated ?? 0;
-    }
-
-    // Link everyone, so their edits travel both ways from now on.
-    const byEmail = new Map(withEmail.map((p) => [p.email!, p]));
-    for (const slice of chunk([...byEmail.keys()], 200)) {
-      const { data, error } = await supabaseAdmin.from('contacts').select('id, email, is_unsubscribed').eq('user_id', ctx.userId).in('email', slice);
-      if (error) throw error;
-      const existing = await supabaseAdmin.from('crm_links').select('contact_id').eq('integration_id', ctx.integrationId).in('contact_id', (data || []).map((c: any) => c.id));
-      if (existing.error) throw existing.error;
-      const linked = new Set((existing.data || []).map((l: any) => l.contact_id));
-      for (const c of (data || []) as any[]) {
-        const p = byEmail.get(String(c.email).toLowerCase());
-        if (!p) continue;
-        if (!linked.has(c.id)) await saveLink(ctx, c.id, p.id, { snapshot: {}, remote_updated_at: p.updatedAt });
-        if (ctx.settings.sync_optouts && p.optedOut && !c.is_unsubscribed) {
-          await unsubscribeContact(ctx.userId, c.id, { source: ctx.provider, note: `Opted out in ${ctx.label}` });
-        }
-      }
-    }
+    const { added, updated, withEmail } = await importPeople(ctx, people, ls.list_id, `${ctx.label}: ${ls.external_name}`);
 
     const status = `${added.toLocaleString('en-GB')} added, ${updated.toLocaleString('en-GB')} updated${people.length > withEmail.length ? `, ${(people.length - withEmail.length).toLocaleString('en-GB')} without an email skipped` : ''}${cursor ? ' (more next run)' : ''}`;
     await supabaseAdmin.from('crm_list_syncs').update({ last_run_at: now, last_status: status, last_error: null }).eq('id', ls.id);
@@ -898,6 +912,9 @@ async function retryOne(baseCtx: Ctx, logId: string): Promise<{ ok: boolean; err
     if (payload.step === 'event') {
       const r = await runEvent(ctx, payload.event_type, payload.data);
       if (r.failures.length) failure = r.failures[0];
+    } else if (payload.step === 'send') {
+      const contact = await loadContact(ctx.userId, payload.contact_id);
+      if (contact) await ensurePerson(ctx, contact, await linkForContact(ctx, contact.id));
     } else {
       const contact = await loadContact(ctx.userId, payload.contact_id);
       const link = contact ? await linkForContact(ctx, contact.id) : null;
@@ -958,7 +975,7 @@ export async function runCrmSync(
       } catch (err) {
         const msg = `${name}: ${errText(err)}`;
         errors.push(msg);
-        // Once, not every 15 minutes: a missing permission stays missing until someone adds it.
+        // Once, not every run: a missing permission stays missing until someone adds it.
         if (!(row.last_sync_error || '').includes(msg)) {
           await log(ctx, { direction: 'from_crm', kind: 'sync', status: 'failed', summary: `${name} did not run`, error: errText(err) });
         }
@@ -1008,6 +1025,306 @@ export async function dueCrmSyncs(limit = 10): Promise<Array<{ id: string; user_
   return (data || []) as any;
 }
 
+// ── The first sync, and "send these people" ──────────────────────
+
+/** How long one push of the first sync works before saving and handing back. */
+const BACKFILL_BUDGET_MS = 4 * 60_000;
+const BACKFILL_LEASE_MS = 5 * 60_000;
+const BACKFILL_BATCH = 100;
+/** Up to this many picked people are sent straight away; more go through the background run. */
+const SEND_NOW_MAX = 25;
+const MAX_IDS = 10_000;
+
+interface BackfillState {
+  status: 'idle' | 'running' | 'done' | 'failed';
+  setup_done_at: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  error: string | null;
+  lease_until?: string | null;
+  to_crm: null | {
+    scope: 'all' | 'list' | 'ids' | 'none';
+    list_id?: string | null;
+    ids?: string[];
+    total: number | null;
+    done: number;
+    failed: number;
+    cursor: string | null;
+    finished: boolean;
+  };
+  from_crm: null | {
+    scope: 'all' | 'list' | 'none';
+    external_id?: string | null;
+    external_name?: string | null;
+    list_id?: string | null;
+    total: number | null;
+    done: number;
+    added: number;
+    cursor: string | null;
+    finished: boolean;
+  };
+}
+
+function readBackfill(raw: unknown): BackfillState {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Partial<BackfillState>;
+  return {
+    status: r.status === 'running' || r.status === 'done' || r.status === 'failed' ? r.status : 'idle',
+    setup_done_at: r.setup_done_at ?? null,
+    started_at: r.started_at ?? null,
+    finished_at: r.finished_at ?? null,
+    error: r.error ?? null,
+    lease_until: r.lease_until ?? null,
+    to_crm: r.to_crm ?? null,
+    from_crm: r.from_crm ?? null,
+  };
+}
+
+/** What the page sees: progress, never the id list or cursors. */
+export function publicBackfill(raw: unknown) {
+  const b = readBackfill(raw);
+  return {
+    status: b.status,
+    setup_done_at: b.setup_done_at,
+    started_at: b.started_at,
+    finished_at: b.finished_at,
+    error: b.error,
+    to_crm: b.to_crm && b.to_crm.scope !== 'none'
+      ? { scope: b.to_crm.scope, list_id: b.to_crm.list_id ?? null, total: b.to_crm.total, done: b.to_crm.done, failed: b.to_crm.failed }
+      : null,
+    from_crm: b.from_crm && b.from_crm.scope !== 'none'
+      ? { scope: b.from_crm.scope, external_id: b.from_crm.external_id ?? null, external_name: b.from_crm.external_name ?? null, list_id: b.from_crm.list_id ?? null, total: b.from_crm.total, done: b.from_crm.done, added: b.from_crm.added }
+      : null,
+  };
+}
+
+async function saveBackfill(integrationId: string, state: BackfillState): Promise<void> {
+  const { error } = await supabaseAdmin.from('user_integrations').update({ sync_backfill: state }).eq('id', integrationId);
+  if (error) {
+    if (isMissing(error)) throw new AppError('The first sync needs the latest database update (migration 119).', 503);
+    throw new AppError(error.message, 500);
+  }
+}
+
+/** The next contacts to send: after the cursor, with an email, not already in the CRM. */
+async function nextToSend(ctx: Ctx, side: NonNullable<BackfillState['to_crm']>): Promise<{ contacts: ContactRow[]; cursor: string | null; seen: number; end: boolean }> {
+  let ids: string[] = [];
+  let end = false;
+  let cursor = side.cursor;
+  if (side.scope === 'ids') {
+    const all = side.ids || [];
+    const from = Number(cursor || 0);
+    ids = all.slice(from, from + BACKFILL_BATCH);
+    cursor = String(from + ids.length);
+    end = from + ids.length >= all.length;
+  } else if (side.scope === 'list') {
+    let q = supabaseAdmin.from('list_contacts').select('contact_id').eq('list_id', side.list_id!).order('contact_id', { ascending: true }).limit(BACKFILL_BATCH);
+    if (cursor) q = q.gt('contact_id', cursor);
+    const { data, error } = await q;
+    if (error) throw error;
+    ids = (data || []).map((r: any) => r.contact_id as string);
+    end = ids.length < BACKFILL_BATCH;
+    if (ids.length) cursor = ids[ids.length - 1];
+  } else {
+    let q = supabaseAdmin.from('contacts').select('id').eq('user_id', ctx.userId).not('email', 'is', null).order('id', { ascending: true }).limit(BACKFILL_BATCH);
+    if (cursor) q = q.gt('id', cursor);
+    const { data, error } = await q;
+    if (error) throw error;
+    ids = (data || []).map((r: any) => r.id as string);
+    end = ids.length < BACKFILL_BATCH;
+    if (ids.length) cursor = ids[ids.length - 1];
+  }
+  if (ids.length === 0) return { contacts: [], cursor, seen: 0, end: true };
+
+  const { data: rows, error } = await supabaseAdmin.from('contacts').select(CONTACT_FIELDS).eq('user_id', ctx.userId).in('id', ids);
+  if (error) throw error;
+  const { data: links, error: lErr } = await supabaseAdmin.from('crm_links').select('contact_id').eq('integration_id', ctx.integrationId).in('contact_id', ids);
+  if (lErr) throw lErr;
+  const linked = new Set((links || []).map((l: any) => l.contact_id));
+  const contacts = ((rows || []) as unknown as ContactRow[]).filter((c) => c.email && !linked.has(c.id));
+  return { contacts, cursor, seen: ids.length, end };
+}
+
+/** Send one batch to the CRM in as few calls as it allows. */
+async function sendBatch(ctx: Ctx, contacts: ContactRow[]): Promise<{ sent: number; created: number; failed: number }> {
+  if (contacts.length === 0) return { sent: 0, created: 0, failed: 0 };
+  const prepared = contacts.map((c) => ({ contact: c, ...outboundValues(ctx.settings.mapping, c) }));
+  const results = await ctx.adapter.upsertPeople(prepared.map((p) => ({ email: p.contact.email!, values: p.values })));
+  let sent = 0;
+  let created = 0;
+  let failed = 0;
+  for (let i = 0; i < prepared.length; i++) {
+    const p = prepared[i];
+    const r = results[i];
+    if (r?.id) {
+      await saveLink(ctx, p.contact.id, r.id, { snapshot: p.snapshot });
+      sent++;
+      if (r.created) created++;
+    } else {
+      failed++;
+      await log(ctx, {
+        direction: 'to_crm', kind: 'contact', status: 'failed', contact_id: p.contact.id, email: p.contact.email,
+        summary: `Could not send ${displayName(p.contact)} to ${ctx.label}`, error: r?.error || 'No answer for this person',
+        retry: { step: 'send', contact_id: p.contact.id },
+      });
+    }
+  }
+  return { sent, created, failed };
+}
+
+/** Make sure a Sincerely list exists for what comes in; returns its id. */
+async function ensureIncomingList(ctx: Ctx, side: NonNullable<BackfillState['from_crm']>): Promise<string> {
+  if (side.list_id) {
+    const { data } = await supabaseAdmin.from('contact_lists').select('id').eq('id', side.list_id).eq('user_id', ctx.userId).maybeSingle();
+    if (data) return side.list_id;
+  }
+  const base = side.scope === 'list' && side.external_name ? `${ctx.label}: ${side.external_name}` : `From ${ctx.label}`;
+  for (let n = 1; n <= 20; n++) {
+    try {
+      const list = await listsService.create(ctx.userId, { name: n === 1 ? base : `${base} (${n})` } as any);
+      return (list as any).id;
+    } catch (err) {
+      if (!(err instanceof AppError && err.statusCode === 409)) throw err;
+    }
+  }
+  throw new AppError('Could not create a list for the people coming in.', 500);
+}
+
+/**
+ * Work on a running first sync until it is done or the time budget runs
+ * out, saving progress after every batch. Safe to call again: it resumes
+ * from the saved cursors, and a lease keeps two workers off the same one.
+ */
+export async function driveBackfill(integrationId: string): Promise<void> {
+  const key = `backfill:${integrationId}`;
+  if (running.has(key)) return;
+  running.add(key);
+  try {
+    const row = await loadIntegration(null, integrationId);
+    let state = readBackfill((row as any).sync_backfill);
+    if (state.status !== 'running') return;
+    if (state.lease_until && Date.parse(state.lease_until) > Date.now()) return;
+    const ctx = await buildCtx(row);
+    const deadline = Date.now() + BACKFILL_BUDGET_MS;
+    state.lease_until = new Date(Date.now() + BACKFILL_LEASE_MS).toISOString();
+    await saveBackfill(row.id, state);
+
+    try {
+      // CRM people first: whoever comes in is linked, so the send below skips them.
+      const from = state.from_crm;
+      if (from && from.scope !== 'none' && !from.finished) {
+        from.list_id = await ensureIncomingList(ctx, from);
+        const properties = [...new Set(ctx.settings.mapping.map((m) => m.crm))];
+        while (!from.finished && Date.now() < deadline) {
+          const page = from.scope === 'list'
+            ? await ctx.adapter.listMembers(from.external_id!, from.cursor)
+            : { ...(await ctx.adapter.allPeople(from.cursor, properties)), ids: [] as string[] };
+          const people = (page as any).people ?? (page.ids.length ? await ctx.adapter.getPeople(page.ids, properties) : []);
+          const r = await importPeople(ctx, people, from.list_id, `${ctx.label}${from.external_name ? `: ${from.external_name}` : ''}`);
+          from.done += people.length;
+          from.added += r.added;
+          from.cursor = page.next;
+          from.finished = !page.next;
+          state = await refreshed(row.id, state);
+          if (state.status !== 'running') return;
+          await saveBackfill(row.id, state);
+        }
+        if (from.finished && from.scope === 'list' && from.external_id) {
+          // Kept in step from now on, like any list pulled in from the sync page.
+          const { error } = await supabaseAdmin.from('crm_list_syncs').upsert({
+            user_id: ctx.userId, integration_id: ctx.integrationId, external_id: from.external_id,
+            external_name: from.external_name || from.external_id, list_id: from.list_id, enabled: true,
+            last_run_at: new Date().toISOString(), last_status: `${from.added.toLocaleString('en-GB')} added by the first sync`,
+          }, { onConflict: 'integration_id,external_id' });
+          if (error && !isMissing(error)) throw error;
+        }
+      }
+
+      const to = state.to_crm;
+      if (to && to.scope !== 'none' && !to.finished && (!from || from.scope === 'none' || from.finished)) {
+        while (!to.finished && Date.now() < deadline) {
+          const batch = await nextToSend(ctx, to);
+          const r = await sendBatch(ctx, batch.contacts);
+          to.done += batch.seen;
+          to.failed += r.failed;
+          to.cursor = batch.cursor;
+          to.finished = batch.end;
+          if (r.sent) {
+            await log(ctx, {
+              direction: 'to_crm', kind: 'contact', status: 'ok',
+              summary: `Sent ${r.sent.toLocaleString('en-GB')} ${r.sent === 1 ? 'person' : 'people'} to ${ctx.label} (${r.created.toLocaleString('en-GB')} new, ${(r.sent - r.created).toLocaleString('en-GB')} already there)`,
+            });
+          }
+          state = await refreshed(row.id, state);
+          if (state.status !== 'running') return;
+          await saveBackfill(row.id, state);
+        }
+      }
+
+      const fromDone = !state.from_crm || state.from_crm.scope === 'none' || state.from_crm.finished;
+      const toDone = !state.to_crm || state.to_crm.scope === 'none' || state.to_crm.finished;
+      if (fromDone && toDone) {
+        state.status = 'done';
+        state.finished_at = new Date().toISOString();
+        const parts: string[] = [];
+        if (state.from_crm && state.from_crm.scope !== 'none') parts.push(`${state.from_crm.added.toLocaleString('en-GB')} added from ${ctx.label}`);
+        if (state.to_crm && state.to_crm.scope !== 'none') parts.push(`${(state.to_crm.done - state.to_crm.failed).toLocaleString('en-GB')} checked and sent to ${ctx.label}${state.to_crm.failed ? `, ${state.to_crm.failed} failed` : ''}`);
+        await log(ctx, { direction: 'to_crm', kind: 'sync', status: 'ok', summary: `First sync finished: ${parts.join('; ') || 'nothing to move'}` });
+      }
+      state.lease_until = null;
+      await saveBackfill(row.id, state);
+      // More to do: carry straight on rather than waiting for the scheduler.
+      if (state.status === 'running') setTimeout(() => { driveBackfill(integrationId).catch(() => undefined); }, 1_000);
+    } catch (err) {
+      const transient = !(err instanceof CrmHttpError) || err.transient;
+      state.lease_until = null;
+      if (transient) {
+        // Kept running: the scheduler picks it up again in a minute or two.
+        state.error = `Paused for a moment: ${errText(err)}`;
+      } else {
+        state.status = 'failed';
+        state.error = errText(err);
+        state.finished_at = new Date().toISOString();
+        await log(ctx, { direction: 'to_crm', kind: 'sync', status: 'failed', summary: 'The first sync stopped', error: errText(err) });
+      }
+      await saveBackfill(row.id, state).catch(() => undefined);
+    }
+  } catch (err) {
+    console.warn(`[CrmSync] first sync ${integrationId}: ${errText(err)}`);
+  } finally {
+    running.delete(key);
+  }
+}
+
+/** Progress so far, unless someone stopped it in the meantime. */
+async function refreshed(integrationId: string, state: BackfillState): Promise<BackfillState> {
+  const { data } = await supabaseAdmin.from('user_integrations').select('sync_backfill').eq('id', integrationId).maybeSingle();
+  const now = readBackfill((data as any)?.sync_backfill);
+  if (now.status !== 'running') return now;
+  state.error = null;
+  return state;
+}
+
+/** For the scheduler: first syncs still running (a restart, or more than one budget's worth). */
+export async function runningBackfills(limit = 10): Promise<string[]> {
+  const { data, error } = await supabaseAdmin
+    .from('user_integrations')
+    .select('id')
+    .in('provider', ['hubspot', 'pipedrive'])
+    .eq('is_active', true)
+    .eq('sync_backfill->>status', 'running')
+    .limit(limit);
+  if (error) {
+    if (!isMissing(error)) console.warn('[CrmSync] backfills:', error.message);
+    return [];
+  }
+  return (data || []).map((r: any) => r.id);
+}
+
+async function startBackfill(row: IntegrationRow, state: BackfillState): Promise<void> {
+  await saveBackfill(row.id, state);
+  driveBackfill(row.id).catch(() => undefined);
+}
+
 // ── For the status page ───────────────────────────────────────────
 
 function shapeList(r: any): CrmListSync {
@@ -1030,6 +1347,24 @@ async function countLog(integrationId: string, f: (q: any) => any): Promise<numb
   return count || 0;
 }
 
+/** Where the account lives in the CRM's own app, read once and kept on the connection. */
+async function accountFor(row: IntegrationRow): Promise<CrmAccount | null> {
+  const c = row.config || {};
+  if (c.portal_id || c.company_domain) return { portal_id: c.portal_id, ui_domain: c.ui_domain, company_domain: c.company_domain };
+  try {
+    const ctx = await buildCtx(row);
+    const account = await ctx.adapter.account();
+    if (!account) return null;
+    // The connection's current credentials (a HubSpot sign-in may have just been refreshed), plus the account.
+    const config = { ...ctx.config, ...Object.fromEntries(Object.entries(account).filter(([, v]) => v)) };
+    await supabaseAdmin.from('user_integrations').update({ config }).eq('id', row.id);
+    row.config = config;
+    return account;
+  } catch {
+    return null;
+  }
+}
+
 export const crmSyncService = {
   async overview(userId: string, integrationId: string): Promise<CrmSyncOverview> {
     const row = await loadIntegration(userId, integrationId);
@@ -1046,6 +1381,7 @@ export const crmSyncService = {
       failed_24h: 0,
       retryable: 0,
       list_syncs: [],
+      backfill: 'sync_backfill' in row ? (publicBackfill((row as any).sync_backfill) as any) : null,
     };
     if (!('sync_cursors' in row)) return { ...base, unavailable: true };
     try {
@@ -1147,6 +1483,165 @@ export const crmSyncService = {
       if (res.ok) fixed++;
     }
     return { retried: (data || []).length, fixed };
+  },
+
+  /** The setup on the sync page: what goes each way first. */
+  async startFirstSync(userId: string, integrationId: string, input: CrmBackfillInput) {
+    const row = await loadIntegration(userId, integrationId);
+    if (!('sync_backfill' in row)) throw new AppError('The first sync needs the latest database update (migration 119).', 503);
+    if (!row.is_active) throw new AppError('This connection is paused. Turn it on first.', 400);
+    const current = readBackfill((row as any).sync_backfill);
+    if (current.status === 'running') throw new AppError('A sync is already running. Wait for it to finish, or stop it.', 409);
+    const ctx = await buildCtx(row);
+
+    const toScope = (['all', 'list', 'none'] as const).includes(input?.to_crm?.scope as any) ? input.to_crm.scope : 'none';
+    const fromScope = (['all', 'list', 'none'] as const).includes(input?.from_crm?.scope as any) ? input.from_crm.scope : 'none';
+    const uuid = /^[0-9a-f-]{36}$/i;
+
+    let toList: string | null = null;
+    if (toScope === 'list') {
+      toList = String(input.to_crm.list_id || '');
+      if (!uuid.test(toList)) throw new AppError('Choose the Sincerely list to send.', 400);
+      const { data } = await supabaseAdmin.from('contact_lists').select('id').eq('id', toList).eq('user_id', userId).maybeSingle();
+      if (!data) throw new AppError('That Sincerely list was not found.', 404);
+    }
+    let fromList: string | null = null;
+    if (fromScope !== 'none' && input.from_crm.list_id) {
+      fromList = String(input.from_crm.list_id);
+      if (!uuid.test(fromList)) throw new AppError('That Sincerely list was not found.', 404);
+      const { data } = await supabaseAdmin.from('contact_lists').select('id').eq('id', fromList).eq('user_id', userId).maybeSingle();
+      if (!data) throw new AppError('That Sincerely list was not found.', 404);
+    }
+    const externalId = fromScope === 'list' ? String(input.from_crm.external_id || '').trim().slice(0, 100) : null;
+    if (fromScope === 'list' && !externalId) throw new AppError(`Choose the ${ctx.label} ${ctx.provider === 'hubspot' ? 'list' : 'filter'} to bring in.`, 400);
+
+    // Totals for the progress bar, where they can be known up front.
+    let toTotal: number | null = null;
+    if (toScope === 'all') {
+      const { count } = await supabaseAdmin.from('contacts').select('id', { count: 'exact', head: true }).eq('user_id', userId).not('email', 'is', null);
+      toTotal = count ?? null;
+    } else if (toScope === 'list') {
+      const { count } = await supabaseAdmin.from('list_contacts').select('contact_id', { count: 'exact', head: true }).eq('list_id', toList!);
+      toTotal = count ?? null;
+    }
+    const fromTotal = fromScope === 'none' ? null : await ctx.adapter.countPeople(externalId || undefined);
+
+    const now = new Date().toISOString();
+    const state: BackfillState = {
+      status: toScope === 'none' && fromScope === 'none' ? 'done' : 'running',
+      setup_done_at: now,
+      started_at: now,
+      finished_at: toScope === 'none' && fromScope === 'none' ? now : null,
+      error: null,
+      lease_until: null,
+      to_crm: { scope: toScope, list_id: toList, total: toTotal, done: 0, failed: 0, cursor: null, finished: toScope === 'none' },
+      from_crm: {
+        scope: fromScope, external_id: externalId, external_name: fromScope === 'list' ? String(input.from_crm.external_name || externalId).slice(0, 200) : null,
+        list_id: fromList, total: fromTotal, done: 0, added: 0, cursor: null, finished: fromScope === 'none',
+      },
+    };
+    await startBackfill(row, state);
+    return publicBackfill(state);
+  },
+
+  /** Stop a running first sync. What already moved stays. */
+  async stopFirstSync(userId: string, integrationId: string) {
+    const row = await loadIntegration(userId, integrationId);
+    const state = readBackfill((row as any).sync_backfill);
+    if (state.status !== 'running') return publicBackfill(state);
+    state.status = 'done';
+    state.error = 'Stopped. What had already moved stays.';
+    state.finished_at = new Date().toISOString();
+    state.lease_until = null;
+    await saveBackfill(row.id, state);
+    return publicBackfill(state);
+  },
+
+  /** Picked people, sent to the CRM: straight away for a few, in the background for many. */
+  async sendPeople(userId: string, integrationId: string, contactIds: unknown): Promise<{ queued: boolean; sent: number; failed: number; total: number }> {
+    const ids = [...new Set((Array.isArray(contactIds) ? contactIds : []).filter((x) => typeof x === 'string' && /^[0-9a-f-]{36}$/i.test(x)))] as string[];
+    if (ids.length === 0) throw new AppError('Pick at least one person.', 400);
+    if (ids.length > MAX_IDS) throw new AppError(`Send up to ${MAX_IDS.toLocaleString('en-GB')} at a time.`, 400);
+    const row = await loadIntegration(userId, integrationId);
+    if (!row.is_active) throw new AppError('This connection is paused. Turn it on first.', 400);
+    const ctx = await buildCtx(row);
+
+    if (ids.length <= SEND_NOW_MAX) {
+      const side = { scope: 'ids' as const, ids, total: ids.length, done: 0, failed: 0, cursor: null, finished: false };
+      const batch = await nextToSend(ctx, side);
+      const r = await sendBatch(ctx, batch.contacts);
+      if (r.sent) await log(ctx, { direction: 'to_crm', kind: 'contact', status: 'ok', summary: `Sent ${r.sent} ${r.sent === 1 ? 'person' : 'people'} to ${ctx.label} (${r.created} new, ${r.sent - r.created} already there)` });
+      return { queued: false, sent: r.sent, failed: r.failed, total: ids.length };
+    }
+
+    if (!('sync_backfill' in row)) throw new AppError('Sending many people at once needs the latest database update (migration 119).', 503);
+    const current = readBackfill((row as any).sync_backfill);
+    if (current.status === 'running') throw new AppError(`A sync with ${ctx.label} is already running. Try again when it finishes.`, 409);
+    const now = new Date().toISOString();
+    await startBackfill(row, {
+      status: 'running', setup_done_at: current.setup_done_at ?? now, started_at: now, finished_at: null, error: null, lease_until: null,
+      to_crm: { scope: 'ids', ids, total: ids.length, done: 0, failed: 0, cursor: null, finished: false },
+      from_crm: { scope: 'none', total: null, done: 0, added: 0, cursor: null, finished: true },
+    });
+    return { queued: true, sent: 0, failed: 0, total: ids.length };
+  },
+
+  /** How one contact stands in each connected CRM, for the contact page. */
+  async contactStatus(userId: string, contactId: string): Promise<CrmContactStatus[]> {
+    const { data: rows, error } = await supabaseAdmin
+      .from('user_integrations').select('*').eq('user_id', userId).eq('is_active', true).in('provider', ['hubspot', 'pipedrive']);
+    if (error) throw new AppError(error.message, 500);
+    const out: CrmContactStatus[] = [];
+    for (const row of (rows || []) as IntegrationRow[]) {
+      const provider = row.provider as CrmSyncProvider;
+      const { data: link, error: lErr } = await supabaseAdmin
+        .from('crm_links').select('external_id, synced_at, deal_id, deal_status').eq('integration_id', row.id).eq('contact_id', contactId).maybeSingle();
+      if (lErr && !isMissing(lErr)) throw new AppError(lErr.message, 500);
+      const account = await accountFor(row);
+      const { data: recent } = await supabaseAdmin
+        .from('crm_sync_log').select('summary, status, created_at').eq('integration_id', row.id).eq('contact_id', contactId)
+        .order('created_at', { ascending: false }).limit(3);
+      const l = link as any;
+      out.push({
+        integration_id: row.id,
+        provider,
+        linked: !!l,
+        external_id: l?.external_id ?? null,
+        url: l ? recordUrl(provider, account, 'person', l.external_id) : null,
+        synced_at: l?.synced_at ?? null,
+        deal: l?.deal_id ? { id: l.deal_id, status: l.deal_status ?? null, url: recordUrl(provider, account, 'deal', l.deal_id) } : null,
+        recent: ((recent || []) as any[]).map((r) => ({ summary: r.summary, status: r.status, created_at: r.created_at })),
+      });
+    }
+    return out;
+  },
+
+  /** "Sync now" on one contact: send them (creating them if needed), then read them back. */
+  async syncContactNow(userId: string, integrationId: string, contactId: string): Promise<CrmContactStatus | null> {
+    const row = await loadIntegration(userId, integrationId);
+    if (!row.is_active) throw new AppError('This connection is paused. Turn it on first.', 400);
+    const ctx = await buildCtx(row);
+    const contact = await loadContact(userId, contactId);
+    if (!contact) throw new AppError('Not found', 404);
+    if (!contact.email) throw new AppError('This contact has no email address to match in the CRM.', 400);
+    let link = await linkForContact(ctx, contact.id);
+    if (!link) {
+      link = await ensurePerson(ctx, contact, null);
+    } else {
+      await pushChanged(ctx, contact, link);
+      const [person] = await ctx.adapter.getPeople([link.external_id], [...new Set(ctx.settings.mapping.map((m) => m.crm))]);
+      if (person) {
+        const fresh = await loadContact(userId, contactId);
+        const links = new Map([[link.external_id, { ...link, snapshot: (await linkForContact(ctx, contact.id))?.snapshot ?? link.snapshot }]]);
+        if (fresh) await pullPerson(ctx, person, links);
+      } else {
+        // Gone from the CRM (deleted or merged away): make them again.
+        await supabaseAdmin.from('crm_links').delete().eq('integration_id', ctx.integrationId).eq('contact_id', contact.id);
+        await ensurePerson(ctx, contact, null);
+      }
+    }
+    const all = await crmSyncService.contactStatus(userId, contactId);
+    return all.find((s) => s.integration_id === integrationId) ?? null;
   },
 
   async addListSync(userId: string, integrationId: string, input: any): Promise<CrmListSync> {

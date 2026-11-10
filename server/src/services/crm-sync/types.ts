@@ -64,6 +64,35 @@ export interface CrmAdapter {
   listMembers(listId: string, cursor: string | null): Promise<{ ids: string[]; people?: CrmPerson[]; next: string | null }>;
   /** Choices for the settings form. Never throws: what cannot be read is a warning. */
   options(): Promise<CrmSyncOptions>;
+  /** Create or update many people at once, matched by email. One result per input, in order. */
+  upsertPeople(items: { email: string; values: Record<string, string> }[]): Promise<{ email: string; id?: string; created?: boolean; error?: string }[]>;
+  /** Everyone in the CRM, a page at a time. */
+  allPeople(cursor: string | null, properties: string[]): Promise<{ people: CrmPerson[]; next: string | null }>;
+  /** How many people the CRM holds, or are in a list; null when it will not say. */
+  countPeople(listId?: string): Promise<number | null>;
+  /** Where records live in the CRM's own app, for links. Null when it cannot be read. */
+  account(): Promise<CrmAccount | null>;
+}
+
+export interface CrmAccount {
+  /** HubSpot portal (hub) id. */
+  portal_id?: string;
+  /** HubSpot app host, e.g. app.hubspot.com or app-eu1.hubspot.com. */
+  ui_domain?: string;
+  /** Pipedrive company subdomain. */
+  company_domain?: string;
+}
+
+export function recordUrl(provider: 'hubspot' | 'pipedrive', account: CrmAccount | null, kind: 'person' | 'deal', id: string): string | null {
+  if (!account || !id) return null;
+  const safe = encodeURIComponent(id);
+  if (provider === 'hubspot') {
+    if (!account.portal_id || !/^\d+$/.test(account.portal_id)) return null;
+    const host = account.ui_domain && /^app(-[a-z0-9]+)?\.hubspot\.com$/.test(account.ui_domain) ? account.ui_domain : 'app.hubspot.com';
+    return `https://${host}/contacts/${account.portal_id}/record/${kind === 'person' ? '0-1' : '0-3'}/${safe}`;
+  }
+  if (!account.company_domain || !/^[a-z0-9-]+$/i.test(account.company_domain)) return null;
+  return `https://${account.company_domain}.pipedrive.com/${kind === 'person' ? 'person' : 'deal'}/${safe}`;
 }
 
 /** Cursor helpers: a cursor is an ISO time, or '' for "start from now". */
