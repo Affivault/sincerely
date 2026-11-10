@@ -260,6 +260,9 @@ const hs = {
   nextId: 1000,
   batchSizes: [] as number[],
   batchWithoutEmail: false,
+  tasks: [] as Row[],
+  companies: new Map<string, Row>(),
+  companyLinks: [] as [string, string][],
 };
 const hsTouch = (props: Record<string, any>, at = Date.now()) => { props.lastmodifieddate = new Date(at).toISOString(); };
 
@@ -315,6 +318,27 @@ const hubspot = http.createServer((req, res) => {
         ...(after + lim < all.length ? { paging: { next: { after: String(after + lim) } } } : {}),
       });
     }
+    if (method === 'POST' && p === '/crm/v3/objects/contacts/batch/update') {
+      for (const i of body.inputs) { const c = hs.contacts.get(i.id); if (c) Object.assign(c.properties, i.properties); }
+      return send(200, { results: body.inputs });
+    }
+    if (method === 'GET' && p === '/crm/v3/owners') return send(200, { results: [{ id: '77', firstName: 'Olive', lastName: 'Owner', email: 'olive@acme.test' }, { id: '78', email: 'gone@acme.test', archived: true }] });
+    if (method === 'POST' && p === '/crm/v3/objects/tasks') {
+      hs.tasks.push({ ...body.properties, contact: body.associations[0].to.id });
+      return send(201, { id: String(hs.nextId++) });
+    }
+    if (method === 'POST' && p === '/crm/v3/objects/companies/search') {
+      const want = body.filterGroups[0].filters[0].value;
+      const hit = [...hs.companies.values()].find((c) => c.domain === want);
+      return send(200, { total: hit ? 1 : 0, results: hit ? [{ id: hit.id, properties: hit }] : [] });
+    }
+    if (method === 'POST' && p === '/crm/v3/objects/companies') {
+      const c = { id: String(hs.nextId++), ...body.properties };
+      hs.companies.set(c.id, c);
+      return send(201, { id: c.id, properties: c });
+    }
+    m = p.match(/^\/crm\/v4\/objects\/contacts\/(\d+)\/associations\/default\/companies\/(\d+)$/);
+    if (m && method === 'PUT') { hs.companyLinks.push([m[1], m[2]]); return send(200, {}); }
     if (method === 'GET' && p === '/account-info/v3/details') return send(200, { portalId: 4455, uiDomain: 'app-eu1.hubspot.com' });
     m = p.match(/^\/crm\/v3\/lists\/(\d+)$/);
     if (m && method === 'GET') return send(200, { list: { listId: m[1], size: (hs.lists.get(m[1]) || []).length } });
@@ -390,6 +414,7 @@ const pd = {
   filters: new Map<number, number[]>(),
   nextId: 500,
   campaigns: true,
+  activities: [] as Row[],
 };
 const pipedrive = http.createServer((req, res) => {
   let raw = '';
@@ -453,6 +478,8 @@ const pipedrive = http.createServer((req, res) => {
     if (method === 'GET' && p === '/v1/stages') return ok([{ id: 21, name: 'Booked', pipeline_id: 2, order_nr: 2 }, { id: 20, name: 'New', pipeline_id: 2, order_nr: 1 }, { id: 10, name: 'Lead', pipeline_id: 1, order_nr: 1 }]);
     if (method === 'GET' && p === '/v1/filters') return ok([...pd.filters.keys()].map((id) => ({ id, name: `Filter ${id}` })));
     if (method === 'GET' && p === '/v1/personFields') return ok([{ key: 'first_name', name: 'First name', edit_flag: false }, { key: 'email', name: 'Email', edit_flag: false }, { key: 'abc123', name: 'Lead source', edit_flag: true }]);
+    if (method === 'GET' && p === '/v1/users') return ok([{ id: 9, name: 'Paula', email: 'paula@acme.test', active_flag: true }, { id: 8, name: 'Old', active_flag: false }]);
+    if (method === 'POST' && p === '/v1/activities') { pd.activities.push(body); return ok({ id: pd.nextId++ }); }
     if (method === 'GET' && p === '/v1/users/me') return ok({ id: 1, name: 'Owner', company_domain: 'acme-sales' });
     if (method === 'GET' && p === '/v1/persons/summary') return ok({ total_count: pd.persons.size });
     if (method === 'GET' && p === '/v1/persons' && !q.get('filter_id')) {
@@ -509,6 +536,13 @@ const imported: Row[][] = [];
     (db.list_contacts ||= []).push({ id: crypto.randomUUID(), list_id: listId, contact_id: id });
   }
   return { total: rows.length, imported: rows.length, created, updated, errors: 0, error_details: [] };
+};
+
+const { campaignContactsService } = await import('../src/services/campaign-contacts.service.js');
+const enrolled: { campaignId: string; ids: string[] }[] = [];
+(campaignContactsService as any).add = async (campaignId: string, ids: string[]) => {
+  enrolled.push({ campaignId, ids });
+  return { added: ids.length, skipped: 0, total: ids.length, reasons: {}, skipped_sample: [] };
 };
 
 /* ── Fixtures ────────────────────────────────────────────────────────── */
@@ -952,6 +986,90 @@ db.user_integrations.find((r) => r.id === PD).config.api_token = 'a1b2c3d4e5f6a7
 const pst = await crmSyncService.contactStatus(U, eve.id);
 const pdst = pst.find((x) => x.provider === 'pipedrive');
 check('Pipedrive: a link to the person and their deal', pdst?.url === `https://acme-sales.pipedrive.com/person/${pe!.id}` && pdst?.deal?.url === `https://acme-sales.pipedrive.com/deal/${pdeal.id}` && pdst?.deal?.status === 'lost', pdst);
+
+console.log('\nowners, stages, tasks, companies, lists into campaigns');
+{
+  const U3 = crypto.randomUUID();
+  const HS3 = crypto.randomUUID();
+  db.user_integrations.push({
+    id: HS3, user_id: U3, provider: 'hubspot', is_active: true,
+    config: { access_token: 'pat-test' }, events: ['email.replied', 'sara.intent_classified'],
+    sync_settings: { owner_id: '77', deal_pipeline: 'p2', deal_stage: 's2a', deal_stage_meeting: 's2b' },
+    sync_cursors: {}, sync_backfill: {}, last_sync_at: null, next_sync_at: null, last_sync_error: null,
+  });
+  const camp3 = crypto.randomUUID();
+  db.campaigns.push({ id: camp3, user_id: U3, name: 'Webinar follow-up' });
+  const kim = { ...person('kim@northwind.test', { first_name: 'Kim', company: 'Northwind' }), user_id: U3 };
+  const lee = { ...person('lee@northwind.test', { first_name: 'Lee', company: 'Northwind', website: 'https://www.northwind.test/about' }), user_id: U3 };
+  const gmail = { ...person('sam.solo@gmail.com', { first_name: 'Sam' }), user_id: U3 };
+  db.contacts.push(kim, lee, gmail);
+
+  await dispatchEvent(U3, 'email.replied', { contact_id: kim.id, subject: 'Re: hi' });
+  const hk = hsContact('kim@northwind.test')!;
+  check('a person Sincerely creates gets the chosen owner', hk?.properties.hubspot_owner_id === '77', hk?.properties);
+  check('...and their lifecycle stage moves to lead on a reply', hk?.properties.lifecyclestage === 'lead');
+  const nw = [...hs.companies.values()].find((c) => c.domain === 'northwind.test');
+  check('...and they are attached to their company, created from their work email domain', nw?.name === 'Northwind' && hs.companyLinks.some(([p, c]) => p === hk.id && c === nw.id), { nw, links: hs.companyLinks });
+  await dispatchEvent(U3, 'email.replied', { contact_id: lee.id, subject: 'Re: hi' });
+  check('a colleague is attached to the same company, not a second one', [...hs.companies.values()].filter((c) => c.domain === 'northwind.test').length === 1 && hs.companyLinks.some(([p]) => p === hsContact('lee@northwind.test')!.id));
+  await dispatchEvent(U3, 'email.replied', { contact_id: gmail.id, subject: 'Re: hi' });
+  check('a personal email address gets no company', !hs.companyLinks.some(([p]) => p === hsContact('sam.solo@gmail.com')!.id) && ![...hs.companies.values()].some((c) => c.domain === 'gmail.com'));
+  const already = { id: String(hs.nextId++), properties: { email: 'pat@northwind.test', hubspot_owner_id: '12' } as Row };
+  hsTouch(already.properties); hs.contacts.set(already.id, already);
+  const pat = { ...person('pat@northwind.test', { first_name: 'Pat' }), user_id: U3 };
+  db.contacts.push(pat);
+  await dispatchEvent(U3, 'email.replied', { contact_id: pat.id, subject: 'Re: hi' });
+  check('someone already in HubSpot keeps their own owner', already.properties.hubspot_owner_id === '12');
+
+  await dispatchEvent(U3, 'sara.intent_classified', { contact_id: kim.id, intent: 'interested', confidence: 0.9 });
+  const kd = [...hs.deals.values()].find((d) => d.contact === hk.id)!;
+  check('interest: lifecycle moves to SQL, the deal goes to the interested stage with the owner', hk.properties.lifecyclestage === 'salesqualifiedlead' && kd?.properties.dealstage === 's2a' && kd?.properties.hubspot_owner_id === '77', { life: hk.properties.lifecyclestage, deal: kd?.properties });
+  const task = hs.tasks.find((t) => t.contact === hk.id);
+  check('...and the owner gets a follow-up task', task?.hs_task_subject === 'Follow up with Kim: interested' && task?.hubspot_owner_id === '77' && task?.hs_task_status === 'NOT_STARTED', task);
+  await dispatchEvent(U3, 'sara.intent_classified', { contact_id: lee.id, intent: 'meeting' });
+  const ld = [...hs.deals.values()].find((d) => d.contact === hsContact('lee@northwind.test')!.id);
+  check('a meeting request goes to its own stage and makes them an opportunity', ld?.properties.dealstage === 's2b' && hsContact('lee@northwind.test')!.properties.lifecyclestage === 'opportunity', ld?.properties);
+
+  const o3 = await crmSyncService.options(U3, HS3);
+  check('owners are offered, archived ones left out', o3.owners.length === 1 && o3.owners[0].id === '77' && o3.owners[0].name === 'Olive Owner (olive@acme.test)', o3.owners);
+
+  // A HubSpot list that feeds a campaign.
+  const n1 = { id: String(hs.nextId++), properties: { email: 'new1@contoso.test', firstname: 'Nia' } as Row };
+  hsTouch(n1.properties); hs.contacts.set(n1.id, n1);
+  hs.lists.set('31', [n1.id, hk.id]);
+  const list3 = crypto.randomUUID();
+  db.contact_lists.push({ id: list3, user_id: U3, name: 'Webinar' });
+  const ls3 = await crmSyncService.addListSync(U3, HS3, { external_id: '31', external_name: 'Webinar', list_id: list3 });
+  let foreignCamp: any = null;
+  try { await crmSyncService.updateListSync(U3, HS3, ls3.id, { campaign_id: CAMP }); } catch (e) { foreignCamp = e; }
+  check("a list cannot feed someone else's campaign", foreignCamp?.statusCode === 404);
+  const upd = await crmSyncService.updateListSync(U3, HS3, ls3.id, { campaign_id: camp3 });
+  check('a list can be set to feed a campaign, and says which', upd.campaign_id === camp3 && upd.campaign_name === 'Webinar follow-up', upd);
+  enrolled.length = 0;
+  const ran = await crmSyncService.runListNow(U3, HS3, ls3.id);
+  const nia = db.contacts.find((c) => c.user_id === U3 && c.email === 'new1@contoso.test');
+  check('pulling it in puts its people in the campaign', enrolled.length === 1 && enrolled[0].campaignId === camp3 && enrolled[0].ids.includes(nia?.id) && enrolled[0].ids.includes(kim.id) && ran.enrolled === 2, { enrolled, ran });
+  check('...and says so', db.crm_list_syncs.find((x) => x.id === ls3.id)?.last_status === '0 added, 2 updated, 2 put in the campaign', db.crm_list_syncs.find((x) => x.id === ls3.id)?.last_status);
+  const off = await crmSyncService.updateListSync(U3, HS3, ls3.id, { campaign_id: null });
+  check('...and can stop feeding it', off.campaign_id === null);
+
+  // Pipedrive: owner on the deal, a task as an activity.
+  const pdRow = db.user_integrations.find((r) => r.id === PD);
+  pdRow.sync_settings = { ...pdRow.sync_settings, owner_id: '9' };
+  pdRow.config.api_token = 'a1b2c3d4e5f6a7b8c9d0e1f2';
+  const gus = { ...person('gus@delta.test', { first_name: 'Gus' }), user_id: U };
+  db.contacts.push(gus);
+  await dispatchEvent(U, 'email.replied', { contact_id: gus.id, subject: 'Re: x' });
+  const pg = [...pd.persons.values()].find((x) => x.email?.[0]?.value === 'gus@delta.test');
+  check('Pipedrive: a person Sincerely creates gets the chosen owner', pg?.owner_id === 9, pg);
+  await dispatchEvent(U, 'sara.intent_classified', { contact_id: gus.id, intent: 'interested' });
+  const gd = [...pd.deals.values()].find((d) => d.person_id === pg?.id);
+  check('Pipedrive: the deal belongs to the owner', gd?.user_id === 9, gd);
+  const act = pd.activities.find((a) => a.person_id === pg?.id);
+  check('Pipedrive: the follow-up is a task activity for the owner, due today', act?.type === 'task' && act?.user_id === 9 && act?.due_date === new Date().toISOString().slice(0, 10) && /Follow up with Gus/.test(act?.subject), act);
+  const po = await crmSyncService.options(U, PD);
+  check('Pipedrive: active users are offered as owners', po.owners.length === 1 && po.owners[0].id === '9', po.owners);
+}
 
 /* ── Done ────────────────────────────────────────────────────────────── */
 

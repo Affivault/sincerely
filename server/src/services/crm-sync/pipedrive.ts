@@ -221,6 +221,7 @@ export function pipedriveAdapter(apiToken: string): CrmAdapter {
 
     async createDeal(personId, input) {
       const body: Record<string, unknown> = { title: input.title, person_id: Number(personId) };
+      if (input.ownerId) body.user_id = Number(input.ownerId);
       if (input.stage) body.stage_id = Number(input.stage);
       else if (input.pipeline) body.pipeline_id = Number(input.pipeline);
       const json = await call('POST', '/v1/deals', body, 'Creating the Pipedrive deal');
@@ -297,8 +298,33 @@ export function pipedriveAdapter(apiToken: string): CrmAdapter {
       }
     },
 
+    async assignOwner(personIds, ownerId) {
+      for (const id of personIds) {
+        await call('PUT', `/v1/persons/${encodeURIComponent(id)}`, { owner_id: Number(ownerId) }, 'Assigning the Pipedrive owner');
+      }
+    },
+
+    async setLifecycle() {
+      return 'unsupported'; // Pipedrive has no lifecycle stages on people
+    },
+
+    async createTask(personId, input) {
+      await call('POST', '/v1/activities', {
+        subject: input.subject.slice(0, 250),
+        type: 'task',
+        due_date: input.dueAt.slice(0, 10),
+        person_id: Number(personId),
+        note: escapeHtml(input.body),
+        ...(input.ownerId ? { user_id: Number(input.ownerId) } : {}),
+      }, 'Creating the Pipedrive activity');
+    },
+
+    async linkCompany() {
+      return 'unsupported'; // the organization comes from the company field mapping
+    },
+
     async options(): Promise<CrmSyncOptions> {
-      const out: CrmSyncOptions = { fields: [], pipelines: [], lists: [], warnings: [] };
+      const out: CrmSyncOptions = { fields: [], pipelines: [], lists: [], owners: [], warnings: [] };
       const why = (err: unknown) => (err instanceof Error ? err.message : String(err));
       await Promise.all([
         (async () => {
@@ -334,6 +360,16 @@ export function pipedriveAdapter(apiToken: string): CrmAdapter {
               label: String(p.name || p.id),
               stages: (stages.get(String(p.id)) || []).map(({ id, label }) => ({ id, label })),
             }));
+          } catch (err) {
+            out.warnings.push(why(err));
+          }
+        })(),
+        (async () => {
+          try {
+            const json = await call('GET', '/v1/users', undefined, 'Reading users');
+            out.owners = ((json?.data as any[]) || [])
+              .filter((u) => u && u.active_flag !== false)
+              .map((u) => ({ id: String(u.id), name: u.email && u.name !== u.email ? `${u.name} (${u.email})` : String(u.name || u.email || u.id) }));
           } catch (err) {
             out.warnings.push(why(err));
           }

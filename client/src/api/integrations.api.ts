@@ -112,7 +112,7 @@ export const integrationsApi = {
       const { data } = await apiClient.post(`/integrations/${id}/sync/lists`, input);
       return data;
     },
-    updateList: async (id: string, listSyncId: string, input: { enabled?: boolean; list_id?: string }): Promise<CrmListSync> => {
+    updateList: async (id: string, listSyncId: string, input: { enabled?: boolean; list_id?: string; campaign_id?: string | null }): Promise<CrmListSync> => {
       const { data } = await apiClient.patch(`/integrations/${id}/sync/lists/${listSyncId}`, input);
       return data;
     },

@@ -72,6 +72,16 @@ export interface CrmSyncSettings {
   deal_stage: string;
   on_deal_won: CrmDealAction;
   on_deal_lost: CrmDealAction;
+  /** A meeting request goes to its own stage. Empty = the same stage as an interested reply. */
+  deal_stage_meeting: string;
+  /** The CRM user who owns the people and deals Sincerely creates. Empty = left unassigned. */
+  owner_id: string;
+  /** An interested or meeting reply creates a follow-up task for the owner. */
+  create_tasks: boolean;
+  /** HubSpot: move people forward through lifecycle stages (lead, SQL, opportunity) as they engage. */
+  lifecycle: boolean;
+  /** HubSpot: attach people to their company, found by domain or created. */
+  companies: boolean;
 }
 
 export function defaultCrmSyncSettings(provider: CrmSyncProvider): CrmSyncSettings {
@@ -84,6 +94,11 @@ export function defaultCrmSyncSettings(provider: CrmSyncProvider): CrmSyncSettin
     deal_stage: '',
     on_deal_won: 'stop',
     on_deal_lost: 'stop',
+    deal_stage_meeting: '',
+    owner_id: '',
+    create_tasks: true,
+    lifecycle: provider === 'hubspot',
+    companies: provider === 'hubspot',
   };
 }
 
@@ -136,6 +151,11 @@ export function sanitizeCrmSyncSettings(provider: CrmSyncProvider, raw: unknown)
     deal_stage: str(r.deal_stage),
     on_deal_won: action(r.on_deal_won, d.on_deal_won),
     on_deal_lost: action(r.on_deal_lost, d.on_deal_lost),
+    deal_stage_meeting: str(r.deal_stage_meeting),
+    owner_id: str(r.owner_id),
+    create_tasks: bool(r.create_tasks, d.create_tasks),
+    lifecycle: provider === 'hubspot' && bool(r.lifecycle, d.lifecycle),
+    companies: provider === 'hubspot' && bool(r.companies, d.companies),
   };
 }
 
@@ -170,6 +190,9 @@ export interface CrmListSync {
   last_run_at: string | null;
   last_status: string | null;
   last_error: string | null;
+  /** New people from it are also added to this campaign. */
+  campaign_id: string | null;
+  campaign_name: string | null;
 }
 
 export interface CrmSyncOverview {
@@ -197,6 +220,8 @@ export interface CrmSyncOptions {
   fields: { key: string; label: string }[];
   pipelines: { id: string; label: string; stages: { id: string; label: string }[] }[];
   lists: { id: string; name: string; size: number | null }[];
+  /** People who can own records in the CRM. */
+  owners: { id: string; name: string }[];
   /** What could not be read, and why (often a missing permission). */
   warnings: string[];
 }
