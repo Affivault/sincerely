@@ -351,7 +351,7 @@ function Stat({ label, value, icon, tone, action }: { label: string; value: stri
         <span className="truncate">{label}</span>
       </div>
       <div className="mt-1 flex items-baseline justify-between gap-2">
-        <span className={cn('text-xl font-semibold tabular-nums', tone === 'bad' ? 'text-[var(--error)]' : 'text-[var(--text-primary)]')}>{value}</span>
+        <span className={cn('text-title font-semibold tabular-nums', tone === 'bad' ? 'text-[var(--error)]' : 'text-[var(--text-primary)]')}>{value}</span>
         {action}
       </div>
     </div>
