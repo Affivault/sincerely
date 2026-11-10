@@ -95,6 +95,38 @@ jobs:
       - name: Test
         run: npm test --prefix integrations/make
 
+  n8n:
+    name: n8n node
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            integrations/n8n/package-lock.json
+
+      - name: Install
+        run: |
+          npm ci
+          npm run build:shared
+          npm ci --prefix integrations/n8n
+          npm ci --prefix integrations/zapier
+
+      - name: Lint (n8n's community node rules)
+        run: npm run lint --prefix integrations/n8n
+
+      # Unit tests on the built node, then the node driving the real API.
+      - name: Build and test
+        run: npm test --prefix integrations/n8n
+
+      - name: The node against the API
+        working-directory: server
+        run: npx tsx scripts/public-api-check.mts
+
   extension:
     name: Extension suites
     runs-on: ubuntu-latest

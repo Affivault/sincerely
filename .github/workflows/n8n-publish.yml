@@ -1,0 +1,92 @@
+name: Publish the n8n node
+
+# Publishes integrations/n8n to npm as n8n-nodes-sincerely whenever its
+# version in package.json is not on npm yet, with an npm provenance
+# statement. n8n requires provenance (a signed record that this exact
+# workflow built the package from this repository) to verify a community
+# node for n8n Cloud.
+#
+# The first publish needs a token. In GitHub > Settings > Secrets and
+# variables > Actions, add:
+#   secret NPM_TOKEN   an npm Granular Access Token with read and write
+#                      access to packages, and "Bypass 2FA" ticked
+#
+# After the first publish you can switch to npm Trusted Publishing, which
+# needs no stored token: on npmjs.com open n8n-nodes-sincerely > Settings >
+# Trusted Publisher > GitHub Actions, with owner Affivault, repository
+# sincerely and workflow n8n-publish.yml. Then delete the NPM_TOKEN secret.
+#
+# To release a change, raise "version" in integrations/n8n/package.json.
+
+on:
+  push:
+    branches: [main]
+    paths: ['integrations/n8n/**', '.github/workflows/n8n-publish.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  # Needed to sign the provenance statement, and for Trusted Publishing.
+  id-token: write
+
+concurrency:
+  group: n8n-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Test and publish to npm
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: integrations/n8n
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # n8n's node CLI and npm Trusted Publishing want a current Node and npm.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          cache: npm
+          cache-dependency-path: integrations/n8n/package-lock.json
+
+      - name: Is there a new version to publish?
+        id: ready
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          ON_NPM=$(npm view "n8n-nodes-sincerely@$VERSION" version 2>/dev/null || true)
+          ANY=$(npm view n8n-nodes-sincerely version 2>/dev/null || true)
+          if [ "$ON_NPM" = "$VERSION" ]; then
+            echo "::notice title=Nothing to publish::n8n-nodes-sincerely $VERSION is already on npm. Raise the version in integrations/n8n/package.json to release a change."
+            echo "go=false" >> "$GITHUB_OUTPUT"
+          elif [ -z "$ANY" ] && [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "::notice title=n8n publish waiting for a token::Add the NPM_TOKEN secret for the first publish of n8n-nodes-sincerely."
+            echo "go=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Publishing n8n-nodes-sincerely $VERSION"
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install
+        if: steps.ready.outputs.go == 'true'
+        run: npm ci
+
+      - name: Lint (n8n's community node rules)
+        if: steps.ready.outputs.go == 'true'
+        run: npm run lint
+
+      - name: Build and test
+        if: steps.ready.outputs.go == 'true'
+        run: npm test
+
+      # Trusted Publishing needs npm 11.5.1 or later.
+      - name: Update npm
+        if: steps.ready.outputs.go == 'true'
+        run: npm install -g npm@11.6.2
+
+      - name: Publish with provenance
+        if: steps.ready.outputs.go == 'true'
+        run: npm publish --provenance --access public
