@@ -255,9 +255,9 @@ export const INTEGRATION_CATALOG: IntegrationProviderMeta[] = [
     description:
       'Two-way sync: people and field edits both ways, every email on the HubSpot timeline, deals for interested replies, won or lost deals end the sequence, HubSpot lists kept in step with Sincerely lists.',
     setupSteps: [
-      'In HubSpot go to Settings → Integrations → Private Apps and click “Create a private app”.',
-      'Name it (e.g. “Sincerely”), then under Scopes tick: crm.objects.contacts.read, crm.objects.contacts.write, crm.objects.deals.read, crm.objects.deals.write, crm.lists.read, crm.schemas.contacts.read and communication_preferences.read_write.',
-      'Create the app and copy the access token (starts with pat-).',
+      'In HubSpot open Development (in the left menu, or the gear icon → Integrations on older accounts) → Legacy Apps → Create legacy app → Private. Older accounts show this as Private Apps → Create a private app.',
+      'Name it “Sincerely”. On the Scopes tab tick crm.objects.contacts.read and .write, crm.objects.deals.read and .write, crm.lists.read, crm.schemas.contacts.read and communication_preferences.read_write (contacts are required; the rest turn on deals, list sync, the field picker and unsubscribes).',
+      'Click Create app, then on the Auth tab click Show token and copy it (starts with pat-).',
       'Paste the token below — Sincerely verifies it live before saving.',
     ],
     docsUrl: 'https://developers.hubspot.com/docs/api/private-apps',
