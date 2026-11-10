@@ -64,15 +64,18 @@
      * The ink. Still called --indigo because eleven hundred places read it
      * by that name; what it holds is a blue-black, not a screen indigo.
      */
-    --indigo: #2F3F9C;
-    --indigo-hover: #25327F;
-    /* The ink when it is the colour of words. Same as --indigo on paper; in
-       dark the fill colour is only 3.7:1 as text, so words get a lighter one. */
-    --indigo-text: #2F3F9C;
-    --indigo-subtle: rgba(47, 63, 156, 0.07);
+    /* One fill for both themes: buttons, toggles and bars are the same blue
+       in light and dark, and only the paper behind them changes. */
+    --indigo: #5A6BD4;
+    --indigo-hover: #4B5BC2;
+    /* The ink when it is the colour of words. The fill is a little light for
+       small text on white, so words on paper keep the deeper blue; in dark
+       they get a lighter one. */
+    --indigo-text: #3F50B8;
+    --indigo-subtle: rgba(90, 107, 212, 0.08);
     /* Flat. A sheen on a button is what a stock button looks like. */
-    --indigo-grad: #2F3F9C;
-    --indigo-grad-hover: #25327F;
+    --indigo-grad: #5A6BD4;
+    --indigo-grad-hover: #4B5BC2;
 
     /*
      * The focus ring, and the lift under a primary button.
@@ -83,7 +86,7 @@
      * thing it was focusing. Tokens, so there is one of each and it
      * follows the theme like everything else.
      */
-    --ring-focus: 0 0 0 3px rgba(47, 63, 156, 0.14);
+    --ring-focus: 0 0 0 3px rgba(90, 107, 212, 0.18);
     /* The same ring around a field that is wrong. It was inline too, and
        in one colour for both themes. */
     --ring-error: 0 0 0 3px rgba(178, 58, 48, 0.12);

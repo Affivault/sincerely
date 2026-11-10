@@ -3,7 +3,9 @@ import { Link } from 'react-router-dom';
 import { setupApi } from '../../api/setup.api';
 import type { SetupStep } from '@lemlist/shared';
 import { cn } from '../../lib/utils';
-import { AlertTriangle, ArrowRight, Check } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Check, X } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { useSetupChecklistHidden } from '../../lib/setupChecklistPref';
 
 /* ═══════════════════════════════════════════════════════════════════════
    The first ten minutes.
@@ -17,7 +19,8 @@ import { AlertTriangle, ArrowRight, Check } from 'lucide-react';
    Five steps, in dependency order, each reading its real state from the
    API. It cannot congratulate you for something you have not done, and it
    cannot nag you about something you did elsewhere. When the last one is
-   true it stops rendering, permanently, with nothing to dismiss.
+   true it stops rendering, permanently. Before then it can be hidden from
+   its own header, and brought back from Settings > Preferences.
    ═══════════════════════════════════════════════════════════════════════ */
 
 function StepRow({ step, index }: { step: SetupStep; index: number }) {
@@ -108,6 +111,8 @@ function StepRow({ step, index }: { step: SetupStep; index: number }) {
 }
 
 export function SetupChecklist() {
+  const { user } = useAuth();
+  const [hidden, setHidden] = useSetupChecklistHidden(user?.id);
   const { data, isLoading } = useQuery({
     queryKey: ['setup-state'],
     queryFn: setupApi.get,
@@ -116,13 +121,16 @@ export function SetupChecklist() {
     staleTime: 0,
     refetchOnWindowFocus: true,
     meta: { silentError: true },
+    enabled: !hidden,
   });
+
+  if (hidden) return null;
 
   if (isLoading) return <div className="h-40 rounded-xl bg-[var(--bg-elevated)] animate-pulse" />;
 
-  // Nothing to show, and nothing to dismiss: the checklist retires on the
-  // strength of the account's own state, so it can never come back to haunt
-  // someone who is already sending.
+  // Once everything is done the checklist retires on the strength of the
+  // account's own state, so it can never come back to haunt someone who is
+  // already sending.
   if (!data || data.complete) return null;
 
   const pct = Math.round((data.done_count / data.steps.length) * 100);
@@ -149,6 +157,16 @@ export function SetupChecklist() {
             <Link to="/start" className="inline-flex items-center gap-1 rounded-lg bg-[var(--indigo)] px-2.5 h-7 text-caption font-semibold text-white hover:bg-[var(--indigo-hover)]" data-guided-start>
               Guided setup <ArrowRight className="h-3 w-3" />
             </Link>
+            <button
+              type="button"
+              onClick={() => setHidden(true)}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-[var(--text-tertiary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+              aria-label="Hide setup checklist"
+              title="Hide - bring it back from Settings > Preferences"
+              data-hide-setup-checklist
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
           </div>
         </div>
 
