@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
-  Bold, Italic, Underline, Strikethrough, Link2, Unlink, ImagePlus, Minus, AlignLeft, AlignCenter,
-  AlignRight, List, Eraser, Undo2, Redo2, Palette, Trash2, Upload, Loader2, X,
+  Bold, Italic, Underline, Link2, ImagePlus, Minus, AlignLeft, AlignCenter,
+  AlignRight, Eraser, Palette, Trash2, Upload, Loader2, X, MoreHorizontal, Code2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { cn } from '../../lib/utils';
@@ -110,7 +110,7 @@ function Btn({ title, onClick, active, children, disabled }: { title: string; on
       onMouseDown={(e) => e.preventDefault()}
       onClick={onClick}
       className={cn(
-        'inline-flex h-7 w-7 items-center justify-center rounded-md transition-colors disabled:opacity-30',
+        'inline-flex h-8 w-8 items-center justify-center rounded-lg transition-colors disabled:opacity-30',
         active ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-tertiary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
       )}
     >
@@ -123,7 +123,7 @@ function Sep() {
   return <span aria-hidden className="mx-0.5 h-5 w-px bg-[var(--border-subtle)]" />;
 }
 
-function Popover({ children, onClose, wide }: { children: ReactNode; onClose: () => void; wide?: boolean }) {
+function Popover({ children, onClose, wide, align = 'left' }: { children: ReactNode; onClose: () => void; wide?: boolean; align?: 'left' | 'right' }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const down = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) onClose(); };
@@ -133,7 +133,7 @@ function Popover({ children, onClose, wide }: { children: ReactNode; onClose: ()
     return () => { document.removeEventListener('mousedown', down); document.removeEventListener('keydown', key, true); };
   }, [onClose]);
   return (
-    <div ref={ref} className={cn('absolute left-0 top-full z-50 mt-1 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-2.5 shadow-lg', wide ? 'w-72' : 'w-56')}>
+    <div ref={ref} className={cn('absolute top-full z-50 mt-1 rounded-xl', align === 'right' ? 'right-0' : 'left-0', 'border border-[var(--border-default)] bg-[var(--bg-surface)] p-2.5 shadow-lg', wide ? 'w-72' : 'w-56')}>
       {children}
     </div>
   );
@@ -149,7 +149,8 @@ export function SignatureEditor({ value, onChange, minHeight = 180 }: { value: s
   const lastEmitted = useRef<string | null>(null);
   const range = useRef<Range | null>(null);
   const [active, setActive] = useState<Active>(NO_ACTIVE);
-  const [open, setOpen] = useState<null | 'colour' | 'link' | 'image'>(null);
+  const [open, setOpen] = useState<null | 'colour' | 'link' | 'image' | 'more'>(null);
+  const [source, setSource] = useState(false);
   const [selImg, setSelImg] = useState<HTMLImageElement | null>(null);
   const [, force] = useState(0);
   const [uploading, setUploading] = useState(false);
@@ -158,8 +159,6 @@ export function SignatureEditor({ value, onChange, minHeight = 180 }: { value: s
   const [linkText, setLinkText] = useState('');
   const [linkHref, setLinkHref] = useState('');
   const [imgUrl, setImgUrl] = useState('');
-  const [imgWidth, setImgWidth] = useState(120);
-  const [imgAlt, setImgAlt] = useState('');
 
   const emit = useCallback(() => {
     const html = ref.current?.innerHTML || '';
@@ -271,7 +270,7 @@ export function SignatureEditor({ value, onChange, minHeight = 180 }: { value: s
     setUploading(true);
     try {
       const url = await uploadSignatureImage(file);
-      insertImage(url, imgWidth, imgAlt || file.name.replace(/\.[a-z0-9]+$/i, ''));
+      insertImage(url, 120, file.name.replace(/\.[a-z0-9]+$/i, '').replace(/[-_]+/g, ' '));
       setOpen(null);
       toast.success('Image uploaded');
     } catch (err: any) {
@@ -307,36 +306,12 @@ export function SignatureEditor({ value, onChange, minHeight = 180 }: { value: s
 
   return (
     <div className="overflow-visible rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
-      <div className="flex flex-wrap items-center gap-0.5 border-b border-[var(--border-subtle)] px-1.5 py-1">
-        <Btn title="Undo" onClick={() => exec('undo')}><Undo2 className="h-3.5 w-3.5" /></Btn>
-        <Btn title="Redo" onClick={() => exec('redo')}><Redo2 className="h-3.5 w-3.5" /></Btn>
-        <Sep />
-        <select
-          aria-label="Font"
-          defaultValue=""
-          onMouseDown={() => { const s = window.getSelection(); if (s && s.rangeCount && inside(s.anchorNode)) range.current = s.getRangeAt(0).cloneRange(); }}
-          onChange={(e) => { if (e.target.value) exec('fontName', e.target.value); e.target.value = ''; }}
-          className="h-7 !min-h-0 max-w-28 rounded-md border-0 !bg-transparent py-0 pl-1.5 pr-6 text-caption text-[var(--text-secondary)]"
-        >
-          <option value="" disabled>Font</option>
-          {EMAIL_FONTS.map((f) => <option key={f.label} value={f.value}>{f.label}</option>)}
-        </select>
-        <select
-          aria-label="Text size"
-          defaultValue=""
-          onChange={(e) => { if (e.target.value) exec('fontSize', e.target.value); e.target.value = ''; }}
-          className="h-7 !min-h-0 max-w-24 rounded-md border-0 !bg-transparent py-0 pl-1.5 pr-6 text-caption text-[var(--text-secondary)]"
-        >
-          <option value="" disabled>Size</option>
-          {SIZES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-        </select>
-        <Sep />
-        <Btn title="Bold" active={active.bold} onClick={() => exec('bold')}><Bold className="h-3.5 w-3.5" /></Btn>
-        <Btn title="Italic" active={active.italic} onClick={() => exec('italic')}><Italic className="h-3.5 w-3.5" /></Btn>
-        <Btn title="Underline" active={active.underline} onClick={() => exec('underline')}><Underline className="h-3.5 w-3.5" /></Btn>
-        <Btn title="Strikethrough" active={active.strike} onClick={() => exec('strikeThrough')}><Strikethrough className="h-3.5 w-3.5" /></Btn>
+      <div className="flex items-center gap-0.5 border-b border-[var(--border-subtle)] px-2 py-1.5">
+        <Btn title="Bold" active={active.bold} onClick={() => exec('bold')} disabled={source}><Bold className="h-4 w-4" /></Btn>
+        <Btn title="Italic" active={active.italic} onClick={() => exec('italic')} disabled={source}><Italic className="h-4 w-4" /></Btn>
+        <Btn title="Underline" active={active.underline} onClick={() => exec('underline')} disabled={source}><Underline className="h-4 w-4" /></Btn>
         <span className="relative">
-          <Btn title="Text colour" active={open === 'colour'} onClick={() => setOpen(open === 'colour' ? null : 'colour')}><Palette className="h-3.5 w-3.5" /></Btn>
+          <Btn title="Text colour" active={open === 'colour'} onClick={() => setOpen(open === 'colour' ? null : 'colour')} disabled={source}><Palette className="h-4 w-4" /></Btn>
           {open === 'colour' && (
             <Popover onClose={() => setOpen(null)}>
               <div className="grid grid-cols-6 gap-1.5">
@@ -348,24 +323,20 @@ export function SignatureEditor({ value, onChange, minHeight = 180 }: { value: s
                     aria-label={`Colour ${c}`}
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => { exec('foreColor', c); setOpen(null); }}
-                    className="h-6 w-6 rounded-md border border-[var(--border-default)]"
+                    className="h-6 w-6 rounded-full border border-[var(--border-default)] transition-transform hover:scale-110"
                     style={{ background: c }}
                   />
                 ))}
               </div>
-              <label className="mt-2 flex items-center justify-between gap-2 text-caption text-[var(--text-secondary)]">
-                Any colour
-                <input type="color" defaultValue="#2F3F9C" onChange={(e) => exec('foreColor', e.target.value)} className="h-7 w-10 cursor-pointer rounded border border-[var(--border-subtle)] bg-transparent" />
-              </label>
             </Popover>
           )}
         </span>
         <Sep />
         <span className="relative">
-          <Btn title="Link" active={open === 'link'} onClick={() => (open === 'link' ? setOpen(null) : openLink())}><Link2 className="h-3.5 w-3.5" /></Btn>
+          <Btn title="Add a link" active={open === 'link'} onClick={() => (open === 'link' ? setOpen(null) : openLink())} disabled={source}><Link2 className="h-4 w-4" /></Btn>
           {open === 'link' && (
             <Popover onClose={() => setOpen(null)} wide>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 {!(range.current && !range.current.collapsed) && (
                   <input value={linkText} onChange={(e) => setLinkText(e.target.value)} placeholder="Text to show" aria-label="Text to show" className={inputCls} />
                 )}
@@ -374,63 +345,89 @@ export function SignatureEditor({ value, onChange, minHeight = 180 }: { value: s
                   value={linkHref}
                   onChange={(e) => setLinkHref(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); applyLink(); } }}
-                  placeholder="Web address, email or phone"
+                  placeholder="Website, email or phone number"
                   aria-label="Link address"
                   className={inputCls}
                 />
-                <p className="text-micro text-[var(--text-tertiary)]">An email address opens a new email, a phone number dials.</p>
-                <div className="flex justify-end gap-1.5">
-                  <button type="button" onClick={() => setOpen(null)} className="h-7 rounded-md px-2.5 text-caption text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]">Cancel</button>
-                  <button type="button" onClick={applyLink} className="h-7 rounded-md bg-[var(--indigo)] px-2.5 text-caption font-medium text-white">Apply</button>
+                <div className="flex justify-end">
+                  <button type="button" onClick={applyLink} className="h-7 rounded-md bg-[var(--indigo)] px-3 text-caption font-medium text-white">Add link</button>
                 </div>
               </div>
             </Popover>
           )}
         </span>
-        <Btn title="Remove link" onClick={() => exec('unlink')}><Unlink className="h-3.5 w-3.5" /></Btn>
         <span className="relative">
-          <Btn title="Image" active={open === 'image'} onClick={() => setOpen(open === 'image' ? null : 'image')}><ImagePlus className="h-3.5 w-3.5" /></Btn>
+          <Btn title="Add an image" active={open === 'image'} onClick={() => setOpen(open === 'image' ? null : 'image')} disabled={source}><ImagePlus className="h-4 w-4" /></Btn>
           {open === 'image' && (
             <Popover onClose={() => setOpen(null)} wide>
               <div className="space-y-2">
-                <label className={cn('flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-dashed border-[var(--border-default)] text-caption font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]', uploading && 'pointer-events-none opacity-60')}>
-                  {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                <label className={cn('flex h-16 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-[var(--border-default)] text-caption font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]', uploading && 'pointer-events-none opacity-60')}>
+                  {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
                   {uploading ? 'Uploading...' : 'Upload a logo or photo'}
                   <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" className="sr-only" onChange={(e) => { onUpload(e.target.files?.[0]); e.target.value = ''; }} />
                 </label>
-                <p className="text-center text-micro text-[var(--text-tertiary)]">or link one already online</p>
-                <input value={imgUrl} onChange={(e) => setImgUrl(e.target.value)} placeholder="https://example.com/logo.png" aria-label="Image address" className={inputCls} />
-                <div className="flex items-center gap-2">
-                  <label className="flex-1 text-micro text-[var(--text-tertiary)]">
-                    Width (px)
-                    <input type="number" min={16} max={600} value={imgWidth} onChange={(e) => setImgWidth(Number(e.target.value))} className={inputCls} />
-                  </label>
-                  <label className="flex-[2] text-micro text-[var(--text-tertiary)]">
-                    Description
-                    <input value={imgAlt} onChange={(e) => setImgAlt(e.target.value)} placeholder="Company logo" className={inputCls} />
-                  </label>
-                </div>
-                <div className="flex justify-end">
+                <div className="flex gap-1.5">
+                  <input value={imgUrl} onChange={(e) => setImgUrl(e.target.value)} placeholder="or paste an image link" aria-label="Image address" className={inputCls} />
                   <button
                     type="button"
                     disabled={!/^https:\/\//i.test(imgUrl.trim())}
-                    onClick={() => { insertImage(imgUrl.trim(), imgWidth, imgAlt); setImgUrl(''); setOpen(null); }}
-                    className="h-7 rounded-md bg-[var(--indigo)] px-2.5 text-caption font-medium text-white disabled:opacity-40"
+                    onClick={() => { insertImage(imgUrl.trim(), 120, ''); setImgUrl(''); setOpen(null); }}
+                    className="h-8 shrink-0 rounded-md bg-[var(--indigo)] px-3 text-caption font-medium text-white disabled:opacity-40"
                   >
-                    Insert
+                    Add
                   </button>
                 </div>
               </div>
             </Popover>
           )}
         </span>
-        <Btn title="Divider line" onClick={() => insertHtml('<hr style="border:0;border-top:1px solid #dadce0;margin:8px 0;">')}><Minus className="h-3.5 w-3.5" /></Btn>
-        <Sep />
-        <Btn title="Align left" active={active.align === 'left'} onClick={() => exec('justifyLeft')}><AlignLeft className="h-3.5 w-3.5" /></Btn>
-        <Btn title="Centre" active={active.align === 'center'} onClick={() => exec('justifyCenter')}><AlignCenter className="h-3.5 w-3.5" /></Btn>
-        <Btn title="Align right" active={active.align === 'right'} onClick={() => exec('justifyRight')}><AlignRight className="h-3.5 w-3.5" /></Btn>
-        <Btn title="Bulleted list" active={active.list} onClick={() => exec('insertUnorderedList')}><List className="h-3.5 w-3.5" /></Btn>
-        <Btn title="Clear formatting" onClick={() => exec('removeFormat')}><Eraser className="h-3.5 w-3.5" /></Btn>
+        <span className="flex-1" />
+        <span className="relative">
+          <Btn title="More formatting" active={open === 'more' || source} onClick={() => setOpen(open === 'more' ? null : 'more')}><MoreHorizontal className="h-4 w-4" /></Btn>
+          {open === 'more' && (
+            <Popover onClose={() => setOpen(null)} align="right">
+              <div className="space-y-2.5">
+                <div className="grid grid-cols-2 gap-1.5">
+                  <select
+                    aria-label="Font"
+                    defaultValue=""
+                    disabled={source}
+                    onChange={(e) => { if (e.target.value) exec('fontName', e.target.value); e.target.value = ''; }}
+                    className="h-8 text-caption"
+                  >
+                    <option value="" disabled>Font</option>
+                    {EMAIL_FONTS.map((f) => <option key={f.label} value={f.value}>{f.label}</option>)}
+                  </select>
+                  <select
+                    aria-label="Text size"
+                    defaultValue=""
+                    disabled={source}
+                    onChange={(e) => { if (e.target.value) exec('fontSize', e.target.value); e.target.value = ''; }}
+                    className="h-8 text-caption"
+                  >
+                    <option value="" disabled>Size</option>
+                    {SIZES.map((sz) => <option key={sz.value} value={sz.value}>{sz.label}</option>)}
+                  </select>
+                </div>
+                <div className="flex items-center gap-0.5">
+                  <Btn title="Align left" active={active.align === 'left'} onClick={() => exec('justifyLeft')} disabled={source}><AlignLeft className="h-4 w-4" /></Btn>
+                  <Btn title="Centre" active={active.align === 'center'} onClick={() => exec('justifyCenter')} disabled={source}><AlignCenter className="h-4 w-4" /></Btn>
+                  <Btn title="Align right" active={active.align === 'right'} onClick={() => exec('justifyRight')} disabled={source}><AlignRight className="h-4 w-4" /></Btn>
+                  <Sep />
+                  <Btn title="Divider line" onClick={() => insertHtml('<hr style="border:0;border-top:1px solid #dadce0;margin:8px 0;">')} disabled={source}><Minus className="h-4 w-4" /></Btn>
+                  <Btn title="Clear formatting" onClick={() => exec('removeFormat')} disabled={source}><Eraser className="h-4 w-4" /></Btn>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { if (source) onChange(sanitizeSignatureHtml(value)); setSource(!source); setOpen(null); }}
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-caption text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
+                >
+                  <Code2 className="h-3.5 w-3.5" /> {source ? 'Back to the editor' : 'Edit as HTML'}
+                </button>
+              </div>
+            </Popover>
+          )}
+        </span>
       </div>
 
       {selImg && inside(selImg) && (
@@ -446,14 +443,13 @@ export function SignatureEditor({ value, onChange, minHeight = 180 }: { value: s
               onChange={(e) => setImgAttr((img) => { const w = e.target.value; img.setAttribute('width', w); img.style.width = `${w}px`; img.style.height = 'auto'; })}
               className="w-28 accent-[var(--indigo)]"
             />
-            <span className="w-12 tabular-nums">{Number(selImg.getAttribute('width')) || selImg.width}px</span>
+            <span className="w-10 tabular-nums">{Number(selImg.getAttribute('width')) || selImg.width}px</span>
           </label>
           <label className="flex items-center gap-1.5">
             Round
             <input type="checkbox" checked={/border-radius:\s*50%/.test(selImg.getAttribute('style') || '')} onChange={(e) => setImgAttr((img) => { img.style.borderRadius = e.target.checked ? '50%' : ''; })} />
           </label>
-          <input defaultValue={selImg.getAttribute('alt') || ''} key={`alt-${selImg.src}`} onChange={(e) => setImgAttr((img) => img.setAttribute('alt', e.target.value))} placeholder="Description" aria-label="Image description" className="h-7 w-32 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 text-caption" />
-          <input defaultValue={selImgLink} key={`href-${selImg.src}`} onBlur={(e) => setSelImgLink(e.target.value)} placeholder="Link (optional)" aria-label="Image link" className="h-7 w-40 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 text-caption" />
+          <input defaultValue={selImgLink} key={`href-${selImg.src}`} onBlur={(e) => setSelImgLink(e.target.value)} placeholder="Link it to a website" aria-label="Image link" className="h-7 w-44 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 text-caption" />
           <button type="button" onClick={() => { const img = selImg; setSelImg(null); (img.parentElement?.tagName === 'A' && img.parentElement.childNodes.length === 1 ? img.parentElement : img).remove(); emit(); }} className="ml-auto inline-flex items-center gap-1 rounded-md px-2 py-1 text-rose-600 hover:bg-[var(--bg-hover)]">
             <Trash2 className="h-3.5 w-3.5" /> Remove
           </button>
@@ -461,6 +457,16 @@ export function SignatureEditor({ value, onChange, minHeight = 180 }: { value: s
         </div>
       )}
 
+      {source && (
+        <textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          spellCheck={false}
+          aria-label="Signature HTML"
+          className="block w-full resize-y rounded-b-xl border-0 bg-[var(--bg-elevated)] p-3 font-mono text-caption text-[var(--text-primary)] outline-none"
+          style={{ minHeight }}
+        />
+      )}
       {/* The writing area is always white, as the email will be: what you see is what is sent. */}
       <div
         ref={ref}
@@ -488,7 +494,7 @@ export function SignatureEditor({ value, onChange, minHeight = 180 }: { value: s
           const file = Array.from(e.dataTransfer.files || []).find((f) => f.type.startsWith('image/'));
           if (file) { e.preventDefault(); onUpload(file); }
         }}
-        className="overflow-auto rounded-b-xl px-4 py-3 outline-none [&_a]:cursor-text [&_img]:cursor-pointer [&_img]:inline-block"
+        className={cn('overflow-auto rounded-b-xl px-5 py-4 outline-none [&_a]:cursor-text [&_img]:cursor-pointer [&_img]:inline-block', source && 'hidden')}
         style={{ minHeight, background: '#ffffff', color: '#1f2328', fontFamily: 'Arial, Helvetica, sans-serif', fontSize: 13, lineHeight: 1.45 }}
       />
     </div>
