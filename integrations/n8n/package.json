@@ -1,0 +1,52 @@
+{
+  "name": "n8n-nodes-sincerely",
+  "version": "0.1.0",
+  "description": "Sincerely for n8n: cold email outreach. Instant triggers for replies Relay reads as interested, new contacts and unsubscribes, and actions for contacts, campaigns and lists.",
+  "license": "MIT",
+  "homepage": "https://usesincerely.com",
+  "keywords": [
+    "n8n-community-node-package",
+    "sincerely",
+    "cold email",
+    "outreach"
+  ],
+  "author": {
+    "name": "Sincerely",
+    "email": "info@affivault.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Affivault/sincerely.git",
+    "directory": "integrations/n8n"
+  },
+  "scripts": {
+    "build": "n8n-node build",
+    "lint": "n8n-node lint",
+    "lint:fix": "n8n-node lint --fix",
+    "test": "npm run build && node --test test/*.test.js"
+  },
+  "files": [
+    "dist",
+    "!dist/tsconfig.tsbuildinfo"
+  ],
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "strict": true,
+    "credentials": [
+      "dist/credentials/SincerelyApi.credentials.js"
+    ],
+    "nodes": [
+      "dist/nodes/Sincerely/Sincerely.node.js",
+      "dist/nodes/Sincerely/SincerelyTrigger.node.js"
+    ]
+  },
+  "devDependencies": {
+    "@n8n/node-cli": "0.55.5",
+    "eslint": "9.39.4",
+    "prettier": "3.8.3",
+    "typescript": "5.9.3"
+  },
+  "peerDependencies": {
+    "n8n-workflow": "*"
+  }
+}

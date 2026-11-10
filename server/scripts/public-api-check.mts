@@ -522,6 +522,84 @@ console.log('\nThe Zapier app, driving this server');
   }
 }
 
+console.log('\nThe n8n node, driving this server');
+{
+  // The built node from integrations/n8n, with a stand-in for n8n's runtime that makes real HTTP calls here.
+  const { createRequire } = await import('node:module');
+  const { fileURLToPath } = await import('node:url');
+  const n8nDir = fileURLToPath(new URL('../../integrations/n8n/', import.meta.url));
+  const nreq = createRequire(`${n8nDir}package.json`);
+  let N: any;
+  let T: any;
+  try {
+    N = nreq('./dist/nodes/Sincerely/Sincerely.node.js');
+    T = nreq('./dist/nodes/Sincerely/SincerelyTrigger.node.js');
+  } catch {
+    console.log('  skip the n8n node is not built here (npm ci && npm run build in integrations/n8n); CI builds and runs it');
+  }
+  if (N && T) {
+    const NODE = { id: 'n1', name: 'Sincerely', type: 'n8n-nodes-sincerely.sincerely', typeVersion: 1, position: [0, 0], parameters: {} };
+    const ctx = (params: Record<string, any>, staticData: Record<string, any> = {}) => ({
+      getInputData: () => [{ json: {} }],
+      getNodeParameter: (name: string, _i?: any, fallback?: any) => (params[name] !== undefined ? params[name] : (typeof _i === 'number' ? fallback : _i)),
+      getCredentials: async () => ({ apiKey: KEY, baseUrl: base }),
+      getNode: () => NODE,
+      continueOnFail: () => false,
+      getWorkflowStaticData: () => staticData,
+      getNodeWebhookUrl: () => 'https://203.0.113.10/webhook/abc/webhook',
+      getWorkflow: () => ({ name: 'Interested replies' }),
+      helpers: {
+        // What n8n's helper does for this credential: add the bearer header, send JSON, throw on >= 400.
+        httpRequestWithAuthentication: async (_cred: string, o: any) => {
+          const url = new URL(o.url);
+          for (const [k, v] of Object.entries(o.qs || {})) if (v !== undefined) url.searchParams.set(k, String(v));
+          const res = await fetch(url, { method: o.method, headers: { ...(o.headers || {}), Authorization: `Bearer ${KEY}`, ...(o.body !== undefined ? { 'Content-Type': 'application/json' } : {}) }, body: o.body !== undefined ? JSON.stringify(o.body) : undefined });
+          const data = await res.json().catch(() => ({}));
+          if (res.status >= 400) throw Object.assign(new Error(`Request failed with status code ${res.status}`), { response: { status: res.status, data } });
+          return data;
+        },
+        returnJsonArray: (items: any[]) => items.map((json) => ({ json })),
+      },
+    });
+    const node = new N.Sincerely();
+    const exec = async (params: Record<string, any>) => (await node.execute.call(ctx(params)))[0].map((o: any) => o.json);
+
+    db.contacts = [];
+    const [made] = await exec({ resource: 'contact', operation: 'upsert', email: 'Hopper@Example.com', updateExisting: true, additionalFields: { first_name: 'Grace', company: '', tags: 'navy, cobol' } });
+    const row = db.contacts.find((c) => c.email === 'hopper@example.com');
+    is('n8n: Create or Update makes a lead from the API, writing nothing blank', made?.email === 'hopper@example.com' && row?.source === 'api' && !('company' in row), JSON.stringify(made)?.slice(0, 160));
+
+    const got = await exec({ resource: 'contact', operation: 'get', contactId: 'hopper@example.com' });
+    is('n8n: Get by email finds the contact through the list filter', got.length === 1 && got[0].id === row?.id);
+
+    db.suppression_list = [];
+    const [un] = await exec({ resource: 'contact', operation: 'unsubscribe', email: 'nobody@example.com' });
+    is('n8n: Unsubscribe is one call, for a non-contact too', un?.object === 'unsubscribe' && un?.was_contact === false && db.suppression_list.some((x) => x.email === 'nobody@example.com'));
+
+    let failed: any = null;
+    try { await exec({ resource: 'campaign', operation: 'get', campaignId: '99999999-9999-4999-8999-999999999999' }); } catch (e) { failed = e; }
+    is('n8n: an API error shows Sincerely\'s sentence, and its reference in the description', /No such campaign/.test(failed?.message || '') && /req_[0-9a-f]{20}/.test(failed?.description || ''), `${failed?.message} | ${failed?.description}`);
+
+    // The trigger's whole life: activate, check, deactivate.
+    const trig = new T.SincerelyTrigger();
+    const data: Record<string, any> = {};
+    db.webhook_endpoints = [];
+    await trig.webhookMethods.default.create.call(ctx({ events: ['reply.interested', 'contact.unsubscribed'] }, data));
+    const hook = db.webhook_endpoints[0];
+    is('n8n trigger: activating makes one v1 webhook for the chosen events, marked as n8n\'s',
+      hook?.format === 'v1' && hook?.source === 'n8n' && JSON.stringify(hook?.events) === '["reply.interested","contact.unsubscribed"]' && data.webhookId === hook?.id && /^whsec_/.test(data.webhookSecret || ''), JSON.stringify(hook));
+    is('n8n trigger: it is recognised as still in place', (await trig.webhookMethods.default.checkExists.call(ctx({ events: ['contact.unsubscribed', 'reply.interested'] }, data))) === true);
+    is('n8n trigger: deactivating deletes it', (await trig.webhookMethods.default.delete.call(ctx({}, data))) === true && db.webhook_endpoints.length === 0 && !data.webhookId);
+    is('n8n trigger: after a delete it reports gone, so n8n makes a new one', (await trig.webhookMethods.default.checkExists.call(ctx({ events: ['reply.interested'] }, { webhookId: hook?.id }))) === false);
+
+    // A delivery signed by this server verifies in the node.
+    const { signV1: sign } = await import('../src/public-api/events.js');
+    const body = JSON.stringify({ id: 'evt_1', type: 'reply.interested', data: {} });
+    is('n8n trigger: a signature made by Sincerely verifies in n8n', T.verifySignature('whsec_abc', body, sign('whsec_abc', body)) === true);
+    is('n8n: its calls are named as n8n in the request log', (db.api_request_log || []).some((r) => /n8n/.test(r.user_agent || '')));
+  }
+}
+
 server.close();
 fake.close();
 console.log(`\n${passed} passed, ${failed} failed`);
