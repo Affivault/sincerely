@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext';
+import { useSetupChecklistHidden } from '../../lib/setupChecklistPref';
 import { useTheme } from '../../context/ThemeContext';
 import { settingsApi, type UserSettings } from '../../api/settings.api';
 import { Button } from '../../components/ui/Button';
@@ -84,6 +85,7 @@ const TAB_IDS = tabs.map((t) => t.id);
 export function SettingsPage() {
   const { user, signOut } = useAuth();
   const { mode: themeMode, setMode: setThemeMode } = useTheme();
+  const [setupChecklistHidden, setSetupChecklistHidden] = useSetupChecklistHidden(user?.id);
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const location = useLocation();
@@ -798,6 +800,15 @@ export function SettingsPage() {
                     ))}
                   </div>
                 </div>
+
+                {/* Saved straight away, like the theme: it is a view preference
+                    in this browser, not part of the account form. */}
+                <ToggleSetting
+                  label="Show the setup checklist on Home"
+                  description="The launch steps on your Home page. Hide them if you would rather finish setup in your own order; they leave by themselves once every step is done."
+                  checked={!setupChecklistHidden}
+                  onChange={(on) => setSetupChecklistHidden(!on)}
+                />
 
                 <div>
                   <label htmlFor="settings-default-email-signature" className="block text-strong font-medium text-[var(--text-secondary)] mb-1.5">

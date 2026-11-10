@@ -115,8 +115,15 @@ console.log('\nthe tokens really do change with the theme');
   const pick = (block: string, name: string) =>
     (block.match(new RegExp(`${name}:\\s*([^;]+);`)) || [])[1]?.trim();
 
-  is('--indigo differs between light and dark',
-     !!pick(light, '--indigo') && pick(light, '--indigo') !== pick(dark, '--indigo'),
+  is('--indigo-text differs between light and dark',
+     !!pick(light, '--indigo-text') && pick(light, '--indigo-text') !== pick(dark, '--indigo-text'),
+     `${pick(light, '--indigo-text')} vs ${pick(dark, '--indigo-text')}`);
+
+  // The one exception, and on purpose: the button fill is the same blue in
+  // both themes. Only the paper behind it changes (owner's call, 2026-11).
+  is('but the --indigo fill is one blue in both themes',
+     !!pick(light, '--indigo') && pick(light, '--indigo') === pick(dark, '--indigo')
+       && pick(light, '--indigo-hover') === pick(dark, '--indigo-hover'),
      `${pick(light, '--indigo')} vs ${pick(dark, '--indigo')}`);
 
   is('and so does the focus ring',
