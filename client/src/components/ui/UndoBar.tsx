@@ -2,7 +2,7 @@ import {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { Undo2, Trash2 } from 'lucide-react';
+import { Undo2, Trash2, Send } from 'lucide-react';
 import { UndoQueue, undoSecondsLeft, type PendingUndo, type UndoEntry } from '@lemlist/shared';
 import toast from 'react-hot-toast';
 
@@ -49,16 +49,19 @@ const UndoContext = createContext<UndoApi | null>(null);
  * different, a toast in one place and this in another. The same gesture
  * wearing two faces reads as two features, so both render this.
  */
-export function UndoBarShell({ label, onUndo, secondsLeft, action = 'Undo' }: {
+export function UndoBarShell({ label, onUndo, secondsLeft, action = 'Undo', kind = 'delete' }: {
   label: string;
   onUndo: () => void;
   /** Omitted when the action has already happened and is merely reversible. */
   secondsLeft?: number;
   action?: string;
+  /** A held send shows a paper plane, not a bin. */
+  kind?: 'delete' | 'send';
 }) {
+  const Icon = kind === 'send' ? Send : Trash2;
   return (
     <div className="flex items-center gap-3 rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] py-2 pl-3.5 pr-2 shadow-[var(--shadow-xl)]">
-      <Trash2 className="h-3.5 w-3.5 flex-shrink-0 text-[var(--text-tertiary)]" />
+      <Icon className="h-3.5 w-3.5 flex-shrink-0 text-[var(--text-tertiary)]" />
       <span className="text-body font-medium text-[var(--text-primary)]">{label}</span>
       <button
         type="button"
@@ -158,6 +161,7 @@ export function UndoProvider({ children }: { children: React.ReactNode }) {
             label={pending.label}
             onUndo={() => queue.undo(pending.id)}
             secondsLeft={secondsLeft}
+            kind={pending.kind}
           />
         </div>,
         document.body,

@@ -10,10 +10,12 @@ import { useFocusTrap } from '../../hooks/useFocusTrap';
    Replies, one at a time, on a phone.
 
    Each card is one person: what they said, and Relay's answer ready to
-   edit. Swipe right (or tap Send) to send it; swipe left (or tap Not now)
-   to bring it back tomorrow morning. Nothing is sent without a draft
-   that has words in it, and every send goes through the same path as
-   the Today list.
+   edit. Tap Send to send it; swipe left (or tap Not now) to bring it back
+   tomorrow morning. There is no swipe to send: a flick of the thumb is too
+   easy to do by accident, and a reply cannot be taken back once it has
+   gone. Nothing is sent without a draft that has words in it, and every
+   send goes through the same path as the Today list - held for a few
+   seconds in the undo bar first.
    ═══════════════════════════════════════════════════════════════════════ */
 
 const SWIPE = 90;
@@ -49,18 +51,20 @@ export function ReplyDeck({ items, onSend, onSnooze, onOpen, onClose }: {
     if (!start.current) return;
     const mx = e.clientX - start.current.x;
     if (Math.abs(e.clientY - start.current.y) > Math.abs(mx)) return;
-    setDx(mx);
+    // Only leftwards moves the card: right does nothing, so nothing hints
+    // that a swipe might send.
+    setDx(Math.min(0, mx));
   };
   const onPointerUp = () => {
     if (!start.current) return;
     start.current = null;
-    if (dx > SWIPE && text.trim()) send();
-    else if (dx < -SWIPE) later();
+    if (dx < -SWIPE) later();
     else setDx(0);
   };
 
+  // z-65: under the undo bar (z-70), so a held send can be taken back from here.
   return createPortal(
-    <div ref={panelRef} tabIndex={-1} className="fixed inset-0 z-[80] flex flex-col bg-[var(--bg-app)] focus:outline-none" role="dialog" aria-modal="true" aria-label="Replies, one at a time" data-reply-deck>
+    <div ref={panelRef} tabIndex={-1} className="fixed inset-0 z-[65] flex flex-col bg-[var(--bg-app)] focus:outline-none" role="dialog" aria-modal="true" aria-label="Replies, one at a time" data-reply-deck>
       <div className="flex items-center gap-2 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2.5">
         <button onClick={onClose} className="icon-btn" aria-label="Close"><ArrowLeft className="h-4 w-4" /></button>
         <span className="flex-1 text-strong font-semibold text-[var(--text-primary)]">Replies</span>
@@ -83,7 +87,6 @@ export function ReplyDeck({ items, onSend, onSnooze, onOpen, onClose }: {
             onPointerCancel={onPointerUp}
             data-reply-card
           >
-            {dx > 30 && <span className="absolute left-4 top-4 z-10 rounded-md border-2 border-emerald-500 px-2 py-0.5 text-caption font-bold text-emerald-600 dark:text-emerald-400">SEND</span>}
             {dx < -30 && <span className="absolute right-4 top-4 z-10 rounded-md border-2 border-amber-500 px-2 py-0.5 text-caption font-bold text-amber-600">TOMORROW</span>}
             <div className="border-b border-[var(--border-subtle)] px-4 py-3">
               <div className="flex items-center gap-2">
@@ -127,7 +130,7 @@ export function ReplyDeck({ items, onSend, onSnooze, onOpen, onClose }: {
               <Send className="h-4 w-4" /> Send
             </button>
           </div>
-          <p className="mt-2 text-center text-micro text-[var(--text-tertiary)]">Swipe right to send, left for tomorrow.</p>
+          <p className="mt-2 text-center text-micro text-[var(--text-tertiary)]">Swipe left for tomorrow. Replies only go when you tap Send.</p>
         </div>
       )}
     </div>,

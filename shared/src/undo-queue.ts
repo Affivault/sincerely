@@ -44,6 +44,8 @@ export interface UndoEntry {
   commit: () => Promise<unknown> | unknown;
   /** Put the optimistic change back. Called on undo, and on a failed commit. */
   revert: () => void;
+  /** What kind of action is waiting, for the bar's icon. A delete unless said. */
+  kind?: 'delete' | 'send';
 }
 
 export interface PendingUndo extends UndoEntry {

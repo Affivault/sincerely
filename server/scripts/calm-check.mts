@@ -79,7 +79,12 @@ console.log('\npolish');
   is('preview in Gmail, Outlook or on a phone', /\(\['gmail', 'outlook', 'phone'\] as const\)/.test(builder));
   is('the inbox row comes first: sender, subject, first words', /data-preview-row/.test(builder) && /const preheader = /.test(builder));
   const deck = cli('components/flow/ReplyDeck.tsx');
-  is('replies one at a time on a phone, swipe to send or for tomorrow', /const SWIPE = 90;/.test(deck) && /if \(dx > SWIPE && text\.trim\(\)\) send\(\);/.test(deck) && /else if \(dx < -SWIPE\) later\(\);/.test(deck));
+  is('replies one at a time on a phone, swipe left for tomorrow', /const SWIPE = 90;/.test(deck) && /if \(dx < -SWIPE\) later\(\);/.test(deck));
+  is('no swipe sends a reply: only a tap on Send does', !/dx > SWIPE/.test(deck) && /setDx\(Math\.min\(0, mx\)\)/.test(deck));
+  const today = cli('components/flow/TodayQueue.tsx');
+  is('Home takes no keyboard shortcuts', /if \(mode === 'home'\) return;/.test(today));
+  is('no key sends a reply from the Today list', !/metaKey \|\| e\.ctrlKey\)\) \{ e\.preventDefault\(\); onPrimary/.test(today) && !/sendDraft/.test(today) && /if \(text && text\.trim\(\)\) setOpen\(item\.key\);/.test(today));
+  is('a reply sends from the button under its draft, held in the undo bar', /data-send-reply/.test(today) && /kind: 'send'/.test(today));
   is('nothing is sent without words in it', /disabled=\{!text\.trim\(\)\}/.test(deck));
   is('the deck opens from the Today list on a phone', /data-open-deck/.test(cli('components/flow/TodayQueue.tsx')) && /md:hidden/.test(cli('components/flow/TodayQueue.tsx')));
   for (const page of ['pages/campaigns/CampaignsListPage.tsx', 'pages/assets/AssetBuilderPage.tsx']) {

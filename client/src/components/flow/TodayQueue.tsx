@@ -4,24 +4,31 @@
    Replies waiting on you, deals going quiet, the next meeting and the one
    that just ended, the tasks due, and the moments worth writing about:
    ranked together, each with the next move prepared. It is the list on
-   Home, and the same list full-screen in focus mode (/flow). Built to be
-   worked top to bottom by keyboard:
+   Home, and the same list full-screen in focus mode (/flow).
+
+   Focus mode can be worked top to bottom by keyboard:
 
      j / k   move          enter   do the prepared thing
      d       done           s       not now (back tomorrow)
      o       open it        e       edit the draft
      p       peek at the person or deal behind it
 
-   Anything with a cost - completing a task, marking a reply handled - goes
-   through the undo bar, so moving fast is never a risk.
+   Home has no keys at all. It is a page you glance at and type elsewhere
+   on, and a stray Enter there must never do anything.
+
+   A reply is never sent from the keyboard, in either mode. Enter on a
+   reply opens its draft to read; the only way out is the Send button
+   under the text, and even that is held for a few seconds in the undo
+   bar. Anything else with a cost - completing a task, marking a reply
+   handled - goes through the undo bar too.
    ═══════════════════════════════════════════════════════════════════════ */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import {
-  CalendarClock, CheckCircle2, MailWarning, Plug, Clock, Handshake, Inbox, Keyboard, ListChecks, Loader2,
+  CalendarClock, CheckCircle2, MailWarning, Plug, Clock, Handshake, Inbox, Keyboard, ListChecks,
   MessageSquareReply, RefreshCw, Send, Sparkles, Sun, Video, Waves, Zap, Maximize2,
 } from 'lucide-react';
 import {
@@ -164,12 +171,30 @@ export function TodayQueue({ mode }: { mode: 'home' | 'focus' }) {
     });
   }, []);
 
-  const sendDraft = useMutation({
-    mutationFn: ({ id, text }: { id: string; text: string }) => saraApi.approve(id, text),
-    onMutate: ({ id }) => hide(`reply:${id}`),
-    onSuccess: () => { toast.success('Reply sent'); qc.invalidateQueries({ queryKey: ['reply-queue'] }); },
-    onError: (e: any, { id }) => { unhide(`reply:${id}`); toast.error(e?.response?.data?.error || 'Could not send that reply'); },
-  });
+  /*
+   * Send a reply - only ever from a click on Send, never from a key.
+   *
+   * Held in the undo bar first, so a send you regret is a send that never
+   * happened. A failed send puts the row back with its draft (the undo
+   * queue reports the error).
+   */
+  const sendReply = useCallback((item: FlowItem, text: string) => {
+    const r = item.reply;
+    if (!r || !text.trim()) return;
+    hide(item.key);
+    setOpen((o) => (o === item.key ? null : o));
+    setEditing(null);
+    offer({
+      id: `send:${item.key}`,
+      kind: 'send',
+      label: `Sending reply to ${r.contact_name || r.from_email}`,
+      commit: () => saraApi.approve(r.message_id, text).then(() => {
+        toast.success('Reply sent');
+        qc.invalidateQueries({ queryKey: ['reply-queue'] });
+      }),
+      revert: () => unhide(item.key),
+    });
+  }, [hide, unhide, offer, qc]);
 
   const done = useCallback((item: FlowItem) => {
     if (item.kind === 'task' && item.task) {
@@ -217,8 +242,10 @@ export function TodayQueue({ mode }: { mode: 'home' | 'focus' }) {
 
   const primary = useCallback((item: FlowItem) => {
     if (item.kind === 'reply' && item.reply) {
+      // Never a send. With a draft, show it to be read; without one, go
+      // and write it in the conversation.
       const text = drafts[item.key] ?? item.reply.draft;
-      if (text && text.trim()) sendDraft.mutate({ id: item.reply.message_id, text });
+      if (text && text.trim()) setOpen(item.key);
       else openItem(item);
     } else if (item.kind === 'meeting') {
       setOpen((o) => (o === item.key ? null : item.key));
@@ -229,9 +256,11 @@ export function TodayQueue({ mode }: { mode: 'home' | 'focus' }) {
     } else {
       openItem(item);
     }
-  }, [drafts, sendDraft, openItem, done]);
+  }, [drafts, openItem, done]);
 
   useEffect(() => {
+    // Home takes no keys: see the note at the top of the file.
+    if (mode === 'home') return;
     const onKey = (e: KeyboardEvent) => {
       if (!acceptsShortcut(e.target) || e.metaKey || e.ctrlKey || e.altKey) return;
       if (isControlActivation(e)) return;
@@ -261,7 +290,7 @@ export function TodayQueue({ mode }: { mode: 'home' | 'focus' }) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [current, visible.length, primary, done, snooze, openItem, refetch, openPeek]);
+  }, [mode, current, visible.length, primary, done, snooze, openItem, refetch, openPeek]);
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
@@ -342,11 +371,12 @@ export function TodayQueue({ mode }: { mode: 'home' | 'focus' }) {
           expanded={open === item.key || (i === cursor && item.kind === 'reply' && !!(item.reply?.draft))}
           draft={drafts[item.key] ?? item.reply?.draft ?? ''}
           editing={editing === item.key}
-          sending={sendDraft.isPending && sendDraft.variables?.id === item.reply?.message_id}
+          showKeys={mode === 'focus'}
           onSelect={() => setCursor(i)}
           onDraft={(t) => setDrafts((d) => ({ ...d, [item.key]: t }))}
           onEditDone={() => setEditing(null)}
           onPrimary={() => primary(item)}
+          onSend={() => sendReply(item, drafts[item.key] ?? item.reply?.draft ?? '')}
           onDone={() => done(item)}
           onSnooze={() => snooze(item)}
           onOpen={() => openItem(item)}
@@ -379,7 +409,7 @@ export function TodayQueue({ mode }: { mode: 'home' | 'focus' }) {
   const deckView = deck ? (
     <ReplyDeck
       items={replies}
-      onSend={(item, text) => sendDraft.mutate({ id: item.reply!.message_id, text })}
+      onSend={(item, text) => sendReply(item, text)}
       onSnooze={(item) => snooze(item)}
       onOpen={(item) => { setDeck(false); openItem(item); }}
       onClose={() => setDeck(false)}
@@ -404,7 +434,7 @@ export function TodayQueue({ mode }: { mode: 'home' | 'focus' }) {
             <h2 className="text-heading font-semibold text-[var(--text-primary)]">Today</h2>
             <p className="text-caption text-[var(--text-tertiary)]">{summary}</p>
           </div>
-          <Link to="/flow" className="inline-flex items-center gap-1.5 text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]" title="The same list, full screen, by keyboard">
+          <Link to="/flow" className="inline-flex items-center gap-1.5 text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]" title="The same list, full screen, with keyboard shortcuts">
             <Maximize2 className="h-3.5 w-3.5" /> Focus mode
           </Link>
         </div>
@@ -441,7 +471,7 @@ export function TodayQueue({ mode }: { mode: 'home' | 'focus' }) {
           {chips}
           <span className="ml-auto hidden items-center gap-1.5 text-caption text-[var(--text-tertiary)] md:inline-flex">
             <Keyboard className="h-3.5 w-3.5" />
-            <kbd>j</kbd>/<kbd>k</kbd> move · <kbd>enter</kbd> do it · <kbd>d</kbd> done · <kbd>s</kbd> tomorrow · <kbd>p</kbd> peek · <kbd>o</kbd> open
+            <kbd>j</kbd>/<kbd>k</kbd> move · <kbd>enter</kbd> do it · <kbd>d</kbd> done · <kbd>s</kbd> tomorrow · <kbd>p</kbd> peek · <kbd>o</kbd> open · replies only send by click
           </span>
         </div>
         <div className="mb-3">{deckButton}</div>
@@ -471,14 +501,17 @@ function Kbd({ children, on }: { children: React.ReactNode; on: boolean }) {
 const QUIET_UNTIL_CHOSEN = '[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100';
 
 function FlowCard({
-  item, selected, expanded, draft, editing, sending,
-  onSelect, onDraft, onEditDone, onPrimary, onDone, onSnooze, onOpen, onToggle, onOutcomeSaved,
+  item, selected, expanded, draft, editing, showKeys,
+  onSelect, onDraft, onEditDone, onPrimary, onSend, onDone, onSnooze, onOpen, onToggle, onOutcomeSaved,
 }: {
-  item: FlowItem; selected: boolean; expanded: boolean; draft: string; editing: boolean; sending: boolean;
+  item: FlowItem; selected: boolean; expanded: boolean; draft: string; editing: boolean;
+  /** Key hints only where the keys work: focus mode, not Home. */
+  showKeys: boolean;
   onSelect: () => void; onDraft: (t: string) => void; onEditDone: () => void;
-  onPrimary: () => void; onDone: () => void; onSnooze: () => void; onOpen: () => void; onToggle: () => void;
+  onPrimary: () => void; onSend: () => void; onDone: () => void; onSnooze: () => void; onOpen: () => void; onToggle: () => void;
   onOutcomeSaved: () => void;
 }) {
+  const keys = selected && showKeys;
   const meta = KIND_META[item.kind];
   const Icon = meta.icon;
 
@@ -493,8 +526,9 @@ function FlowCard({
     title = r.contact_name ? `${r.contact_name}${r.company ? ` · ${r.company}` : ''}` : r.from_email;
     // What they said, not the subject line every reply in a thread shares.
     sub = r.snippet ? <span title={r.subject || undefined}>{r.snippet}</span> : <span>{r.subject || '(no subject)'}</span>;
-    primaryLabel = draft.trim() ? 'Send reply' : 'Write reply';
-    PrimaryIcon = draft.trim() ? Send : MessageSquareReply;
+    // The row never sends. It shows the draft; Send sits under the text.
+    primaryLabel = draft.trim() ? 'Review reply' : 'Write reply';
+    PrimaryIcon = MessageSquareReply;
     doneLabel = 'Handled';
   } else if (item.deal) {
     const d = item.deal;
@@ -595,7 +629,7 @@ function FlowCard({
             className={cn('hidden h-8 px-2.5 rounded-lg text-caption font-medium text-[var(--text-tertiary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] sm:inline-flex sm:items-center transition-opacity', !selected && QUIET_UNTIL_CHOSEN)}
             title="Not now - back tomorrow morning (s)"
           >
-            Tomorrow<Kbd on={selected}>s</Kbd>
+            Tomorrow<Kbd on={keys}>s</Kbd>
           </button>
           {item.kind !== 'deal' && item.kind !== 'mailbox' && !(item.meeting && !item.meeting.needs_outcome) && item.kind !== 'task' && (
             <button
@@ -603,12 +637,15 @@ function FlowCard({
               className={cn('hidden h-8 px-2.5 rounded-lg text-caption font-medium text-[var(--text-tertiary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] sm:inline-flex sm:items-center transition-opacity', !selected && QUIET_UNTIL_CHOSEN)}
               title={item.kind === 'reply' ? 'Dealt with elsewhere - nobody is waiting (d)' : `${doneLabel} (d)`}
             >
-              {doneLabel}<Kbd on={selected}>d</Kbd>
+              {doneLabel}<Kbd on={keys}>d</Kbd>
             </button>
           )}
+          {/* An open draft has its own Send button right under it, so the
+              row's button would only repeat it - and invite a send of text
+              nobody has read. */}
+          {!(item.reply && expanded && draft.trim()) && (
           <button
             onClick={onPrimary}
-            disabled={sending}
             className={cn(
               'inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-caption font-semibold transition-colors disabled:opacity-60',
               // One filled action on the list at a time: the row you are on.
@@ -619,9 +656,10 @@ function FlowCard({
                 : 'border border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-primary)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-hover)]',
             )}
           >
-            {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PrimaryIcon className="h-3.5 w-3.5" />}
-            {primaryLabel}<Kbd on={selected}>enter</Kbd>
+            <PrimaryIcon className="h-3.5 w-3.5" />
+            {primaryLabel}<Kbd on={keys}>enter</Kbd>
           </button>
+          )}
         </div>
       </div>
 
@@ -629,7 +667,7 @@ function FlowCard({
         <div className="border-t border-[var(--border-subtle)] px-3.5 pb-3.5 pt-3" onClick={(e) => e.stopPropagation()}>
           <p className="mb-1.5 flex items-center gap-1.5 text-caption font-medium text-[var(--text-tertiary)]">
             <Sparkles className="h-3 w-3" /> Relay's draft
-            <span className="font-normal">- edit, then send</span>
+            <span className="font-normal">- read it, edit it, then press Send</span>
           </p>
           <textarea
             aria-label="Reply draft"
@@ -638,15 +676,25 @@ function FlowCard({
             onBlur={onEditDone}
             autoFocus={editing}
             rows={Math.min(10, Math.max(3, draft.split('\n').length + 1))}
+            // No key sends this. Enter is a new line, and so is Cmd/Ctrl+Enter.
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); onPrimary(); }
               if (e.key === 'Escape') { (e.target as HTMLTextAreaElement).blur(); }
             }}
             className="w-full resize-y rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2 text-body text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none focus:ring-2 focus:ring-[var(--indigo-subtle)]"
           />
-          <div className="mt-1.5 flex items-center justify-between text-caption text-[var(--text-tertiary)]">
-            <span>Cmd/Ctrl + Enter sends · Esc stops editing</span>
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-caption text-[var(--text-tertiary)]">
             <button onClick={onOpen} className="inline-flex min-h-6 items-center font-medium text-[var(--indigo-text)] hover:underline">Open the conversation</button>
+            <div className="flex items-center gap-2.5">
+              <span className="hidden sm:inline">You get a few seconds to undo</span>
+              <button
+                onClick={onSend}
+                disabled={!draft.trim()}
+                className="inline-flex h-8 items-center gap-1.5 rounded-md bg-[var(--indigo)] px-3 text-caption font-semibold text-white transition-colors hover:bg-[var(--indigo-hover)] disabled:opacity-50"
+                data-send-reply
+              >
+                <Send className="h-3.5 w-3.5" /> Send reply
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -676,7 +724,7 @@ function FlowCard({
           onClick={(e) => { e.stopPropagation(); onToggle(); }}
           className="min-h-6 w-full border-t border-[var(--border-subtle)] py-1.5 text-caption text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
         >
-          {item.meeting ? (item.meeting.needs_outcome ? 'Log how it went' : 'Show the brief') : 'Why is this here?'} <Kbd on={selected}>space</Kbd>
+          {item.meeting ? (item.meeting.needs_outcome ? 'Log how it went' : 'Show the brief') : 'Why is this here?'} <Kbd on={keys}>space</Kbd>
         </button>
       )}
     </div>
