@@ -17,6 +17,7 @@ import { AddToCampaignModal } from '../../components/shared/AddToCampaignModal';
 import { ContactHistory, ContactOrigin } from '../../components/crm/ContactHistory';
 import { WhereWeAre } from '../../components/crm/WhereWeAre';
 import { EngagementPanel } from '../../components/contacts/Engagement';
+import { CrmContactPanel } from '../../components/integrations/CrmContactPanel';
 import { ContactDuplicatesSection } from '../../components/contacts/Duplicates';
 import { Profile360 } from '../../components/contacts/Profile360';
 import { verificationApi } from '../../api/verification.api';
@@ -527,6 +528,9 @@ export function ContactDetailPage() {
             <h2 className="text-caption font-bold text-[var(--text-tertiary)] mb-2.5">Engagement</h2>
             <EngagementPanel contactId={contact.id} />
           </div>
+
+          {/* Where they stand in a connected HubSpot or Pipedrive (nothing when none is). */}
+          <CrmContactPanel contactId={contact.id} hasEmail={!!contact.email} />
 
           <div className="record-section">
             <h2 className="text-caption font-bold text-[var(--text-tertiary)] mb-3">Contact info</h2>

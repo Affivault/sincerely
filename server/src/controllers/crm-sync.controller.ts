@@ -37,5 +37,10 @@ export const crmSyncController = {
   addList: wrap((req) => crmSyncService.addListSync(req.userId!, id(req.params.id), req.body || {}), 201),
   updateList: wrap((req) => crmSyncService.updateListSync(req.userId!, id(req.params.id), id(req.params.listSyncId), req.body || {})),
   removeList: wrap((req) => crmSyncService.removeListSync(req.userId!, id(req.params.id), id(req.params.listSyncId))),
+  startFirstSync: wrap((req) => crmSyncService.startFirstSync(req.userId!, id(req.params.id), req.body || {})),
+  stopFirstSync: wrap((req) => crmSyncService.stopFirstSync(req.userId!, id(req.params.id))),
+  sendPeople: wrap((req) => crmSyncService.sendPeople(req.userId!, id(req.params.id), req.body?.contact_ids)),
+  contactStatus: wrap((req) => crmSyncService.contactStatus(req.userId!, id(req.params.contactId))),
+  syncContact: wrap((req) => crmSyncService.syncContactNow(req.userId!, id(req.params.id), id(req.params.contactId))),
   runList: wrap((req) => crmSyncService.runListNow(req.userId!, id(req.params.id), id(req.params.listSyncId))),
 };

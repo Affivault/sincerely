@@ -5,6 +5,8 @@ import { crmSyncController } from '../controllers/crm-sync.controller.js';
 export const integrationsRoutes = Router();
 
 integrationsRoutes.get('/', integrationsController.list);
+// How one contact stands in each connected CRM (the contact page's CRM panel).
+integrationsRoutes.get('/crm/contacts/:contactId', crmSyncController.contactStatus);
 // Which providers offer one-click OAuth (depends on server env config).
 integrationsRoutes.get('/oauth-availability', integrationsController.oauthAvailability);
 // Authorize URL for a one-click OAuth connect (browser then navigates there).
@@ -30,3 +32,7 @@ integrationsRoutes.post('/:id/sync/lists', crmSyncController.addList);
 integrationsRoutes.patch('/:id/sync/lists/:listSyncId', crmSyncController.updateList);
 integrationsRoutes.delete('/:id/sync/lists/:listSyncId', crmSyncController.removeList);
 integrationsRoutes.post('/:id/sync/lists/:listSyncId/run', crmSyncController.runList);
+integrationsRoutes.post('/:id/sync/first-sync', crmSyncController.startFirstSync);
+integrationsRoutes.post('/:id/sync/first-sync/stop', crmSyncController.stopFirstSync);
+integrationsRoutes.post('/:id/sync/send', crmSyncController.sendPeople);
+integrationsRoutes.post('/:id/sync/contacts/:contactId', crmSyncController.syncContact);

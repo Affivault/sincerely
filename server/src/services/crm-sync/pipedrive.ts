@@ -1,6 +1,6 @@
 import type { CrmSyncOptions } from '@lemlist/shared';
 import { crmRequest, crmErrorMessage, CrmHttpError, type Method } from './http.js';
-import type { CrmAdapter, CrmPerson, CrmDeal, CrmActivity, CrmChanges } from './types.js';
+import type { CrmAdapter, CrmPerson, CrmDeal, CrmActivity, CrmChanges, CrmAccount } from './types.js';
 import { nowIso } from './types.js';
 
 /**
@@ -249,6 +249,52 @@ export function pipedriveAdapter(apiToken: string): CrmAdapter {
         people,
         next: pg?.more_items_in_collection ? String(pg.next_start ?? Number(cursor || 0) + 500) : null,
       };
+    },
+
+    async upsertPeople(items) {
+      // Pipedrive has no batch write for people: one at a time, which also keeps within its rate limits.
+      const out: { email: string; id?: string; created?: boolean; error?: string }[] = [];
+      for (const it of items) {
+        try {
+          const r = await this.upsertPerson(it.email, it.values);
+          out.push({ email: it.email, id: r.id, created: r.created });
+        } catch (err) {
+          if (err instanceof CrmHttpError && (err.status === 401 || err.transient)) throw err;
+          out.push({ email: it.email, error: err instanceof Error ? err.message : String(err) });
+        }
+      }
+      return out;
+    },
+
+    async allPeople(cursor) {
+      const q = new URLSearchParams({ start: cursor || '0', limit: '500' });
+      const json = await call('GET', `/v1/persons?${q}`, undefined, 'Reading Pipedrive people');
+      const pg = json?.additional_data?.pagination;
+      return {
+        people: ((json?.data as any[]) || []).filter((p) => p?.id).map(toPerson),
+        next: pg?.more_items_in_collection ? String(pg.next_start ?? Number(cursor || 0) + 500) : null,
+      };
+    },
+
+    async countPeople(listId) {
+      if (listId) return null; // Pipedrive does not say how many a filter holds
+      try {
+        const json = await call('GET', '/v1/persons/summary', undefined, 'Counting Pipedrive people');
+        const n = Number(json?.data?.total_count);
+        return Number.isFinite(n) ? n : null;
+      } catch {
+        return null;
+      }
+    },
+
+    async account(): Promise<CrmAccount | null> {
+      try {
+        const json = await call('GET', '/v1/users/me', undefined, 'Reading the Pipedrive account');
+        const d = json?.data?.company_domain;
+        return d ? { company_domain: String(d) } : null;
+      } catch {
+        return null;
+      }
     },
 
     async options(): Promise<CrmSyncOptions> {

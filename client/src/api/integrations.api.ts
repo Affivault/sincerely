@@ -12,6 +12,9 @@ import type {
   CrmSyncOptions,
   CrmSyncLogEntry,
   CrmListSync,
+  CrmBackfill,
+  CrmBackfillInput,
+  CrmContactStatus,
 } from '@lemlist/shared';
 
 export const integrationsApi = {
@@ -115,6 +118,26 @@ export const integrationsApi = {
     },
     removeList: async (id: string, listSyncId: string): Promise<void> => {
       await apiClient.delete(`/integrations/${id}/sync/lists/${listSyncId}`);
+    },
+    startFirstSync: async (id: string, input: CrmBackfillInput): Promise<CrmBackfill> => {
+      const { data } = await apiClient.post(`/integrations/${id}/sync/first-sync`, input);
+      return data;
+    },
+    stopFirstSync: async (id: string): Promise<CrmBackfill> => {
+      const { data } = await apiClient.post(`/integrations/${id}/sync/first-sync/stop`);
+      return data;
+    },
+    send: async (id: string, contactIds: string[]): Promise<{ queued: boolean; sent: number; failed: number; total: number }> => {
+      const { data } = await apiClient.post(`/integrations/${id}/sync/send`, { contact_ids: contactIds });
+      return data;
+    },
+    contactStatus: async (contactId: string): Promise<CrmContactStatus[]> => {
+      const { data } = await apiClient.get(`/integrations/crm/contacts/${contactId}`);
+      return data;
+    },
+    syncContact: async (id: string, contactId: string): Promise<CrmContactStatus | null> => {
+      const { data } = await apiClient.post(`/integrations/${id}/sync/contacts/${contactId}`);
+      return data;
     },
     runList: async (id: string, listSyncId: string): Promise<{ added: number; updated: number; total: number }> => {
       const { data } = await apiClient.post(`/integrations/${id}/sync/lists/${listSyncId}/run`);

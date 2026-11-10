@@ -20,6 +20,7 @@ import {
   CRM_SINCERELY_FIELDS,
   CRM_SYNC_KIND_LABEL,
   formatDateTime,
+  type CrmBackfill,
   type CrmFieldDirection,
   type CrmFieldMap,
   type CrmSyncLogEntry,
@@ -35,7 +36,7 @@ import { Toggle } from '../../components/ui/Toggle';
 import { Segmented } from '../../components/ui/Segmented';
 import { Button } from '../../components/ui/Button';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
-import { cn } from '../../lib/utils';
+import { cn, formatRelativeTime } from '../../lib/utils';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Two-way HubSpot / Pipedrive sync: what travels, the field mapping, the
@@ -70,8 +71,10 @@ export function CrmSyncPage() {
   const overviewQuery = useQuery({
     queryKey: ['crm-sync', id],
     queryFn: () => integrationsApi.sync.overview(id),
-    refetchInterval: 60_000,
+    // Every 2 seconds while the first sync runs, so the bar moves.
+    refetchInterval: (q) => (q.state.data?.backfill?.status === 'running' ? 2_000 : 30_000),
   });
+  const [reopenSetup, setReopenSetup] = useState(false);
   const overview = overviewQuery.data;
   const provider = overview?.provider ?? 'hubspot';
   const crm = NAME[provider];
@@ -148,16 +151,17 @@ export function CrmSyncPage() {
         icon={ArrowLeftRight}
         title={`${crm} two-way sync`}
         breadcrumbs={[{ label: 'Integrations', href: '/integrations' }, { label: `${crm} sync` }]}
-        description={`People, edits, activity, deals, unsubscribes and ${LIST_WORD[provider]}s between Sincerely and ${crm}. Runs every 15 minutes.`}
+        description={`People, edits, activity, deals, unsubscribes and ${LIST_WORD[provider]}s between Sincerely and ${crm}. Checks for changes every 2 minutes.`}
         meta={
           <>
-            <span>{overview.last_sync_at ? `Last sync ${formatDateTime(overview.last_sync_at)}` : 'Not synced yet'}</span>
-            {overview.next_sync_at && (
-              <>
-                <span className="text-[var(--text-tertiary)]">·</span>
-                <span>Next {formatDateTime(overview.next_sync_at)}</span>
-              </>
-            )}
+            <span className="inline-flex items-center gap-1.5">
+              <span className={cn('h-1.5 w-1.5 rounded-full', overview.last_sync_error ? 'bg-[var(--error)]' : overview.last_sync_at ? 'bg-[var(--success)]' : 'bg-[var(--text-tertiary)]')} />
+              {overview.last_sync_at ? `Synced ${formatRelativeTime(overview.last_sync_at)}` : 'Not synced yet'}
+            </span>
+            <span className="text-[var(--text-tertiary)]">·</span>
+            <span>{overview.linked.toLocaleString()} {overview.linked === 1 ? 'person' : 'people'} in step</span>
+            <span className="text-[var(--text-tertiary)]">·</span>
+            <span>{overview.retryable ? `${overview.retryable} waiting to retry` : 'nothing waiting'}</span>
           </>
         }
         actions={
@@ -172,6 +176,36 @@ export function CrmSyncPage() {
         <Notice tone="attention" title="One database update to go">
           Two-way sync needs migration 118 run in Supabase. Until then, replies and interested leads are still sent to {crm} as before.
         </Notice>
+      )}
+
+      {!overview.unavailable && !overview.backfill && (
+        <Notice tone="attention" title="One database update to go">
+          The first sync and sending people from the Leads page need migration 119 run in Supabase. Everything else on this page works already.
+        </Notice>
+      )}
+
+      {overview.backfill && !overview.unavailable && (
+        overview.backfill.status === 'running' ? (
+          <FirstSyncProgress integrationId={id} crm={crm} backfill={overview.backfill} onChanged={refresh} />
+        ) : (!overview.backfill.setup_done_at || reopenSetup) ? (
+          <FirstSyncSetup
+            integrationId={id}
+            provider={provider}
+            crmLists={options?.lists || []}
+            sincerelyLists={(listsQuery.data || []).map((l: any) => ({ id: l.id as string, name: l.name as string }))}
+            canCancel={!!overview.backfill.setup_done_at}
+            onCancel={() => setReopenSetup(false)}
+            onStarted={() => { setReopenSetup(false); refresh(); }}
+          />
+        ) : overview.backfill.status === 'failed' ? (
+          <Notice tone="negative" title="The first sync stopped" action={<Button size="sm" variant="secondary" onClick={() => setReopenSetup(true)}>Start again</Button>}>
+            {overview.backfill.error} What had already moved stays.
+          </Notice>
+        ) : overview.backfill.finished_at && Date.now() - Date.parse(overview.backfill.finished_at) < 86_400_000 ? (
+          <Notice tone={overview.backfill.error ? 'neutral' : 'positive'} icon={CheckCircle2} title={overview.backfill.to_crm?.scope === 'ids' ? (overview.backfill.error ? `Sending to ${crm} stopped` : `Picked people sent to ${crm}`) : overview.backfill.error ? 'First sync stopped' : 'First sync finished'}>
+            {firstSyncSummary(overview.backfill, crm)}
+          </Notice>
+        ) : null
       )}
 
       {overview.last_sync_error && !overview.unavailable && (
@@ -236,6 +270,15 @@ export function CrmSyncPage() {
                 Everyone {crm} has (matched by email) gets their emails, replies and Relay's read on the {crm} timeline either way.
                 Choose which events go on it under Manage on the Integrations page.
               </p>
+              {overview.backfill && overview.backfill.setup_done_at && overview.backfill.status !== 'running' && (
+                <button
+                  type="button"
+                  onClick={() => { setReopenSetup(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                  className="inline-flex items-center gap-1.5 text-body font-medium text-[var(--indigo-text)] hover:underline"
+                >
+                  <ArrowLeftRight className="h-3.5 w-3.5" /> Copy people across in bulk again
+                </button>
+              )}
             </div>
             <ToggleRow
               label={`Edits in ${crm} come back into Sincerely`}
@@ -650,7 +693,9 @@ function SyncLog({ integrationId, crm }: { integrationId: string; crm: string })
         <SkeletonList rows={4} />
       ) : rows.length === 0 ? (
         <p className="text-body text-[var(--text-tertiary)]">
-          {status === 'failed' ? 'Nothing has failed.' : `Nothing has moved yet. Replies, Relay reads and the 15-minute sync will show here.`}
+          {status === 'failed'
+            ? 'Nothing has failed.'
+            : `Nothing has moved yet. People go to ${crm} when they reply (or as chosen under What syncs), edits travel every 2 minutes, and a first sync copies everyone across at once.`}
         </p>
       ) : (
         <ul className="divide-y divide-[var(--border-subtle)]">
@@ -692,6 +737,200 @@ function SyncLog({ integrationId, crm }: { integrationId: string; crm: string })
           {logQuery.isFetchingNextPage ? 'Fetching older…' : 'Show older'}
         </button>
       )}
+    </section>
+  );
+}
+
+/* ─── The first sync ─────────────────────────────────────────────── */
+
+function firstSyncSummary(b: CrmBackfill, crm: string): string {
+  const parts: string[] = [];
+  if (b.from_crm) parts.push(`${(b.from_crm.added ?? 0).toLocaleString()} new ${b.from_crm.added === 1 ? 'person' : 'people'} from ${crm} (${b.from_crm.done.toLocaleString()} checked)`);
+  if (b.to_crm) parts.push(`${(b.to_crm.done - (b.to_crm.failed ?? 0)).toLocaleString()} sent to ${crm}${b.to_crm.failed ? `, ${b.to_crm.failed.toLocaleString()} failed (retry them below)` : ''}`);
+  const text = parts.length ? `${parts.join('; ')}.` : 'Nothing to copy across.';
+  return b.error ? `${b.error} ${text}` : `${text} From now on, changes on either side travel every 2 minutes.`;
+}
+
+function FirstSyncSetup({
+  integrationId,
+  provider,
+  crmLists,
+  sincerelyLists,
+  canCancel,
+  onCancel,
+  onStarted,
+}: {
+  integrationId: string;
+  provider: CrmSyncProvider;
+  crmLists: { id: string; name: string; size: number | null }[];
+  sincerelyLists: { id: string; name: string }[];
+  canCancel: boolean;
+  onCancel: () => void;
+  onStarted: () => void;
+}) {
+  const crm = NAME[provider];
+  const word = LIST_WORD[provider];
+  const [toScope, setToScope] = useState<'all' | 'list' | 'none'>('all');
+  const [toList, setToList] = useState('');
+  const [fromScope, setFromScope] = useState<'all' | 'list' | 'none'>(crmLists.length ? 'list' : 'none');
+  const [touched, setTouched] = useState(false);
+  // The CRM's lists arrive after the page: once they do, bringing one in is the suggested start.
+  useEffect(() => {
+    if (!touched && crmLists.length && fromScope === 'none') setFromScope('list');
+  }, [crmLists.length, touched, fromScope]);
+  const [fromList, setFromList] = useState('');
+  const [into, setInto] = useState('');
+
+  const start = useMutation({
+    mutationFn: () => {
+      const picked = crmLists.find((l) => l.id === fromList);
+      return integrationsApi.sync.startFirstSync(integrationId, {
+        to_crm: toScope === 'list' ? { scope: 'list', list_id: toList } : { scope: toScope },
+        from_crm: fromScope === 'none'
+          ? { scope: 'none' }
+          : { scope: fromScope, ...(fromScope === 'list' ? { external_id: fromList, external_name: picked?.name } : {}), ...(into ? { list_id: into } : {}) },
+      });
+    },
+    onSuccess: (b) => {
+      toast.success(b.status === 'running' ? 'First sync started. You can leave this page; it carries on.' : 'Saved. Changes will travel from now on.');
+      onStarted();
+    },
+    onError: (err) => toast.error(errorOf(err, 'The first sync did not start')),
+  });
+
+  const blockedBy =
+    toScope === 'list' && !toList ? 'Choose the Sincerely list to send'
+      : fromScope === 'list' && !fromList ? `Choose the ${crm} ${word} to bring in`
+        : null;
+
+  const Option = ({ checked, onSelect, title, hint, children }: { checked: boolean; onSelect: () => void; title: string; hint?: string; children?: React.ReactNode }) => (
+    <label className={cn('flex items-start gap-2.5 rounded-lg border p-3 cursor-pointer transition-colors', checked ? 'border-[var(--indigo)] bg-[rgba(47,63,156,0.04)]' : 'border-[var(--border-subtle)] hover:border-[var(--border-default)]')}>
+      <input type="radio" className="mt-0.5 accent-[var(--indigo)]" checked={checked} onChange={onSelect} />
+      <span className="min-w-0 flex-1 space-y-1.5">
+        <span className="block text-body font-medium text-[var(--text-primary)]">{title}</span>
+        {hint && <span className="block text-caption text-[var(--text-tertiary)]">{hint}</span>}
+        {checked && children}
+      </span>
+    </label>
+  );
+
+  return (
+    <section className={cn(CARD, 'border-[rgba(47,63,156,0.35)]')}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-heading font-semibold text-[var(--text-primary)]">Set up your sync</h2>
+          <p className="text-body text-[var(--text-secondary)]">
+            Choose who to copy across now. People are matched by email, so nobody is duplicated, and nothing is ever deleted on either side.
+          </p>
+        </div>
+        {canCancel && <Button variant="ghost" size="sm" onClick={onCancel}>Cancel</Button>}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <p className="text-strong font-semibold text-[var(--text-primary)]">1. Sincerely to {crm}</p>
+          <Option checked={toScope === 'all'} onSelect={() => setToScope('all')} title="All my Sincerely contacts" hint={`Everyone with an email address, leads and contacts, created or matched in ${crm}`} />
+          <Option checked={toScope === 'list'} onSelect={() => setToScope('list')} title="One Sincerely list">
+            <select aria-label="Sincerely list to send" className={cn(SELECT, 'w-full')} value={toList} onChange={(e) => setToList(e.target.value)}>
+              <option value="">Choose a list…</option>
+              {sincerelyLists.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+            </select>
+          </Option>
+          <Option checked={toScope === 'none'} onSelect={() => setToScope('none')} title="Nobody for now" hint={`People still go to ${crm} when they reply`} />
+        </div>
+
+        <div className="space-y-2">
+          <p className="text-strong font-semibold text-[var(--text-primary)]">2. {crm} to Sincerely</p>
+          <Option checked={fromScope === 'list'} onSelect={() => { setTouched(true); setFromScope('list'); }} title={`One ${crm} ${word}`} hint={`Kept in step afterwards: new people in it are added every 6 hours`}>
+            <select aria-label={`${crm} ${word}`} className={cn(SELECT, 'w-full')} value={fromList} onChange={(e) => setFromList(e.target.value)}>
+              <option value="">Choose a {word}…</option>
+              {crmLists.map((l) => <option key={l.id} value={l.id}>{l.name}{l.size !== null ? ` (${l.size.toLocaleString()})` : ''}</option>)}
+            </select>
+            {crmLists.length === 0 && (
+              <span className="block text-caption text-[var(--text-tertiary)]">
+                No {word}s found in {crm}{provider === 'hubspot' ? ' (the connection needs the crm.lists.read permission to see them)' : ''}.
+              </span>
+            )}
+          </Option>
+          <Option checked={fromScope === 'all'} onSelect={() => { setTouched(true); setFromScope('all'); }} title={`Everyone in ${crm}`} hint="Every person with an email address, once" />
+          <Option checked={fromScope === 'none'} onSelect={() => { setTouched(true); setFromScope('none'); }} title="Nobody for now" hint={`Edits to people already in both still travel`} />
+          {fromScope !== 'none' && (
+            <label className="block space-y-1 pt-1">
+              <span className="block text-caption font-medium text-[var(--text-secondary)]">Into</span>
+              <select aria-label="Sincerely list they go into" className={cn(SELECT, 'w-full')} value={into} onChange={(e) => setInto(e.target.value)}>
+                <option value="">A new list named after it</option>
+                {sincerelyLists.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+              </select>
+            </label>
+          )}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border-subtle)] pt-3">
+        <p className="text-caption text-[var(--text-tertiary)]">3. It runs in the background. You can leave this page, and changes on either side travel every 2 minutes after.</p>
+        <Button onClick={() => start.mutate()} disabled={start.isPending} blockedBy={blockedBy}>
+          {start.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ArrowLeftRight className="h-3.5 w-3.5" />}
+          {start.isPending ? 'Starting…' : toScope === 'none' && fromScope === 'none' ? 'Save' : 'Start sync'}
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+function ProgressBar({ label, done, total, detail }: { label: string; done: number; total: number | null; detail?: string }) {
+  const pct = total ? Math.min(100, Math.round((done / Math.max(1, total)) * 100)) : null;
+  return (
+    <div className="space-y-1">
+      <div className="flex items-baseline justify-between gap-3 text-body">
+        <span className="font-medium text-[var(--text-primary)]">{label}</span>
+        <span className="tabular-nums text-[var(--text-secondary)]">
+          {done.toLocaleString()}{total !== null ? ` of ${total.toLocaleString()}` : ''}{pct !== null ? ` · ${pct}%` : ''}
+        </span>
+      </div>
+      <div className="h-2 rounded-full bg-[var(--bg-elevated)] overflow-hidden" role="progressbar" aria-label={label} aria-valuenow={pct ?? undefined} aria-valuemin={0} aria-valuemax={100}>
+        <div
+          className={cn('h-full rounded-full bg-[var(--indigo)] transition-[width] duration-500', pct === null && 'w-1/3 animate-pulse')}
+          style={pct !== null ? { width: `${Math.max(2, pct)}%` } : undefined}
+        />
+      </div>
+      {detail && <p className="text-caption text-[var(--text-tertiary)]">{detail}</p>}
+    </div>
+  );
+}
+
+function FirstSyncProgress({ integrationId, crm, backfill, onChanged }: { integrationId: string; crm: string; backfill: CrmBackfill; onChanged: () => void }) {
+  const stop = useMutation({
+    mutationFn: () => integrationsApi.sync.stopFirstSync(integrationId),
+    onSuccess: () => { onChanged(); toast.success('Stopped. What had already moved stays.'); },
+    onError: (err) => toast.error(errorOf(err, 'Could not stop it')),
+  });
+  return (
+    <section className={cn(CARD, 'border-[rgba(47,63,156,0.35)]')} aria-live="polite">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Loader2 className="h-4 w-4 animate-spin text-[var(--indigo)]" />
+          <h2 className="text-heading font-semibold text-[var(--text-primary)]">Copying people across</h2>
+        </div>
+        <Button variant="ghost" size="sm" onClick={() => stop.mutate()} disabled={stop.isPending}>Stop</Button>
+      </div>
+      {backfill.from_crm && (
+        <ProgressBar
+          label={`From ${crm}${backfill.from_crm.external_name ? `: ${backfill.from_crm.external_name}` : ''}`}
+          done={backfill.from_crm.done}
+          total={backfill.from_crm.total}
+          detail={`${(backfill.from_crm.added ?? 0).toLocaleString()} new in Sincerely so far`}
+        />
+      )}
+      {backfill.to_crm && (
+        <ProgressBar
+          label={`To ${crm}`}
+          done={backfill.to_crm.done}
+          total={backfill.to_crm.total}
+          detail={backfill.to_crm.failed ? `${backfill.to_crm.failed.toLocaleString()} could not be sent (they are in the log below, with retry)` : backfill.from_crm ? `Starts once the people from ${crm} are in` : undefined}
+        />
+      )}
+      {backfill.error && <p className="text-caption text-[var(--text-tertiary)]">{backfill.error}</p>}
+      <p className="text-caption text-[var(--text-tertiary)]">You can leave this page: it carries on in the background.</p>
     </section>
   );
 }

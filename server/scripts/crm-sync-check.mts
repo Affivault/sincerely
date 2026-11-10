@@ -84,14 +84,16 @@ function test(cell: any, op: string, v: string): boolean {
   throw new Error(`fake db: operator ${op} not supported`);
 }
 function cond(row: Row, expr: string): boolean {
-  // "col.op.value", "col.not.op.value"
+  // "col.op.value", "col.not.op.value", "json->>key.op.value"
   const a = expr.indexOf('.');
   const col = expr.slice(0, a);
   let rest = expr.slice(a + 1);
   let neg = false;
   if (rest.startsWith('not.')) { neg = true; rest = rest.slice(4); }
   const b = rest.indexOf('.');
-  const r = test(row[col], rest.slice(0, b), rest.slice(b + 1));
+  const [jcol, jkey] = col.split('->>');
+  const cell = jkey ? row[jcol]?.[jkey] : row[col];
+  const r = test(cell, rest.slice(0, b), rest.slice(b + 1));
   return neg ? !r : r;
 }
 function orGroup(row: Row, inner: string): boolean {
@@ -256,6 +258,8 @@ const hs = {
   calls: [] as string[],
   failNotesOnce: false,
   nextId: 1000,
+  batchSizes: [] as number[],
+  batchWithoutEmail: false,
 };
 const hsTouch = (props: Record<string, any>, at = Date.now()) => { props.lastmodifieddate = new Date(at).toISOString(); };
 
@@ -283,19 +287,38 @@ const hubspot = http.createServer((req, res) => {
     const body = raw ? JSON.parse(raw) : undefined;
     const p = url.pathname;
     hs.calls.push(`${method} ${p}`);
+    let m: RegExpMatchArray | null = null;
     const send = (status: number, payload: any) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(payload)); };
     if (req.headers.authorization !== 'Bearer pat-test') return send(401, { message: 'bad token' });
 
     if (method === 'POST' && p === '/crm/v3/objects/contacts/batch/upsert') {
-      const input = body.inputs[0];
-      let c = [...hs.contacts.values()].find((x) => x.properties.email === input.id);
-      const isNew = !c;
-      if (!c) { c = { id: String(hs.nextId++), properties: {} }; hs.contacts.set(c.id, c); }
-      Object.assign(c.properties, input.properties);
-      hsTouch(c.properties);
-      return send(200, { results: [{ id: c.id, new: isNew, properties: c.properties }] });
+      hs.batchSizes.push(body.inputs.length);
+      if (body.inputs.some((i: any) => /invalid/.test(i.id))) return send(400, { message: 'Property values were not valid: email' });
+      const results = body.inputs.map((input: any) => {
+        let c = [...hs.contacts.values()].find((x) => x.properties.email === input.id);
+        const isNew = !c;
+        if (!c) { c = { id: String(hs.nextId++), properties: {} }; hs.contacts.set(c.id, c); }
+        Object.assign(c.properties, input.properties);
+        hsTouch(c.properties);
+        return { id: c.id, new: isNew, properties: hs.batchWithoutEmail ? {} : { ...c.properties } };
+      });
+      // HubSpot does not promise the order: answer in reverse to prove matching is by email.
+      return send(200, { results: results.reverse() });
     }
-    let m = p.match(/^\/crm\/v3\/objects\/contacts\/(\d+)$/);
+    if (method === 'GET' && p === '/crm/v3/objects/contacts') {
+      const all = [...hs.contacts.values()].sort((a, b) => Number(a.id) - Number(b.id));
+      const after = Number(url.searchParams.get('after') || 0);
+      const lim = Number(url.searchParams.get('limit') || 100);
+      const props = url.searchParams.getAll('properties');
+      return send(200, {
+        results: all.slice(after, after + lim).map((c) => ({ id: c.id, properties: Object.fromEntries(props.map((k) => [k, c.properties[k] ?? null])) })),
+        ...(after + lim < all.length ? { paging: { next: { after: String(after + lim) } } } : {}),
+      });
+    }
+    if (method === 'GET' && p === '/account-info/v3/details') return send(200, { portalId: 4455, uiDomain: 'app-eu1.hubspot.com' });
+    m = p.match(/^\/crm\/v3\/lists\/(\d+)$/);
+    if (m && method === 'GET') return send(200, { list: { listId: m[1], size: (hs.lists.get(m[1]) || []).length } });
+    m = p.match(/^\/crm\/v3\/objects\/contacts\/(\d+)$/);
     if (m && method === 'PATCH') {
       const c = hs.contacts.get(m[1]);
       if (!c) return send(404, { message: 'not found' });
@@ -303,7 +326,10 @@ const hubspot = http.createServer((req, res) => {
       hsTouch(c.properties);
       return send(200, c);
     }
-    if (method === 'POST' && p === '/crm/v3/objects/contacts/search') return send(200, hsSearch([...hs.contacts.values()], body));
+    if (method === 'POST' && p === '/crm/v3/objects/contacts/search') {
+      if (!body.filterGroups) return send(200, { total: hs.contacts.size, results: [] });
+      return send(200, hsSearch([...hs.contacts.values()], body));
+    }
     if (method === 'POST' && p === '/crm/v3/objects/contacts/batch/read') {
       return send(200, { results: body.inputs.map((i: any) => hs.contacts.get(i.id)).filter(Boolean).map((c: any) => ({ id: c.id, properties: Object.fromEntries(body.properties.map((k: string) => [k, c.properties[k] ?? null])) })) });
     }
@@ -427,6 +453,14 @@ const pipedrive = http.createServer((req, res) => {
     if (method === 'GET' && p === '/v1/stages') return ok([{ id: 21, name: 'Booked', pipeline_id: 2, order_nr: 2 }, { id: 20, name: 'New', pipeline_id: 2, order_nr: 1 }, { id: 10, name: 'Lead', pipeline_id: 1, order_nr: 1 }]);
     if (method === 'GET' && p === '/v1/filters') return ok([...pd.filters.keys()].map((id) => ({ id, name: `Filter ${id}` })));
     if (method === 'GET' && p === '/v1/personFields') return ok([{ key: 'first_name', name: 'First name', edit_flag: false }, { key: 'email', name: 'Email', edit_flag: false }, { key: 'abc123', name: 'Lead source', edit_flag: true }]);
+    if (method === 'GET' && p === '/v1/users/me') return ok({ id: 1, name: 'Owner', company_domain: 'acme-sales' });
+    if (method === 'GET' && p === '/v1/persons/summary') return ok({ total_count: pd.persons.size });
+    if (method === 'GET' && p === '/v1/persons' && !q.get('filter_id')) {
+      const all = [...pd.persons.values()];
+      const start = Number(q.get('start') || 0);
+      const lim = Number(q.get('limit') || 500);
+      return ok(all.slice(start, start + lim).map(view), { additional_data: { pagination: { start, limit: lim, more_items_in_collection: start + lim < all.length, next_start: start + lim } } });
+    }
     if (method === 'GET' && p === '/v1/persons' && q.get('filter_id')) {
       const ids = pd.filters.get(Number(q.get('filter_id'))) || [];
       return ok(ids.map((id) => view(pd.persons.get(id)!)), { additional_data: { pagination: { start: 0, limit: 500, more_items_in_collection: false } } });
@@ -462,14 +496,17 @@ const imported: Row[][] = [];
   let updated = 0;
   for (const r of rows) {
     const existing = db.contacts.find((c) => c.user_id === userId && c.email === r.email);
+    let id: string;
     if (existing) {
       for (const [k, v] of Object.entries(r)) if (existing[k] == null || existing[k] === '') existing[k] = v;
       updated++;
+      id = existing.id;
     } else {
-      db.contacts.push({ id: crypto.randomUUID(), user_id: userId, custom_fields: {}, is_unsubscribed: false, is_bounced: false, updated_at: nowStamp(), ...r });
+      id = crypto.randomUUID();
+      db.contacts.push({ id, user_id: userId, custom_fields: {}, is_unsubscribed: false, is_bounced: false, updated_at: nowStamp(), ...r });
       created++;
     }
-    (db.list_contacts ||= []).push({ list_id: listId, email: r.email });
+    (db.list_contacts ||= []).push({ id: crypto.randomUUID(), list_id: listId, contact_id: id });
   }
   return { total: rows.length, imported: rows.length, created, updated, errors: 0, error_details: [] };
 };
@@ -624,7 +661,7 @@ check('the retry did not open a second deal or re-post other notes', hs.deals.si
 console.log('\nHubSpot: sync runs');
 let run = await runCrmSync(U, HS);
 check('the first run starts every cursor at now (no history is replayed)', run.error === null && !!db.user_integrations[0].sync_cursors.people && !!db.user_integrations[0].sync_cursors.out && !!db.user_integrations[0].sync_cursors.deals, { run, cursors: db.user_integrations[0].sync_cursors });
-check('the run sets the next run 15 minutes out', Date.parse(db.user_integrations[0].next_sync_at) - Date.now() > 14 * 60_000);
+check('the run sets the next run 2 minutes out', Math.abs(Date.parse(db.user_integrations[0].next_sync_at) - Date.now() - 2 * 60_000) < 10_000, db.user_integrations[0].next_sync_at);
 
 await tick();
 hj!.properties.jobtitle = 'VP Operations';
@@ -823,6 +860,98 @@ check('Pipedrive options: filters, pipelines with ordered stages, editable field
 db.user_integrations[1].config.api_token = 'ffffffffffffffffffffffff';
 run = await runCrmSync(U, PD);
 check('a rejected token is reported on the connection', /rejected the API token/.test(db.user_integrations[1].last_sync_error || ''), db.user_integrations[1].last_sync_error);
+
+/* ── The first sync, sending picked people, one contact ─────────────── */
+
+console.log('\nfirst sync');
+const U2 = crypto.randomUUID();
+const HS2 = crypto.randomUUID();
+db.user_integrations.push({
+  id: HS2, user_id: U2, provider: 'hubspot', is_active: true,
+  config: { access_token: 'pat-test' }, events: ['email.replied'],
+  sync_settings: {}, sync_cursors: {}, sync_backfill: {}, last_sync_at: null, next_sync_at: null, last_sync_error: null,
+});
+const many: Row[] = [];
+for (let i = 0; i < 230; i++) many.push({ ...person(`p${String(i).padStart(3, '0')}@first.test`, { first_name: `P${i}` }), user_id: U2 });
+const badOne = { ...person('invalid@first.test', { first_name: 'Bad' }), user_id: U2 };
+db.contacts.push(...many, badOne);
+// Already in HubSpot, in a list: one of them is also in Sincerely.
+const w1 = { id: String(hs.nextId++), properties: { email: 'p000@first.test', firstname: 'Pat', company: 'Webco' } as Row };
+const w2 = { id: String(hs.nextId++), properties: { email: 'web2@first.test', firstname: 'Wendy', company: 'Webco' } as Row };
+const w3 = { id: String(hs.nextId++), properties: { email: 'web3@first.test', firstname: 'Walt', hs_email_optout: 'true' } as Row };
+for (const w of [w1, w2, w3]) { hsTouch(w.properties); hs.contacts.set(w.id, w); }
+hs.lists.set('21', [w1.id, w2.id, w3.id]);
+hs.batchSizes.length = 0;
+
+const started = await crmSyncService.startFirstSync(U2, HS2, { to_crm: { scope: 'all' }, from_crm: { scope: 'list', external_id: '21', external_name: 'Webinar' } });
+check('starting it answers at once with what it will do, totals included', started.status === 'running' && started.to_crm?.total === 231 && started.from_crm?.total === 3, started);
+let notTwice: any = null;
+try { await crmSyncService.startFirstSync(U2, HS2, { to_crm: { scope: 'all' }, from_crm: { scope: 'none' } }); } catch (e) { notTwice = e; }
+check('a second start while one runs is refused', notTwice?.statusCode === 409, notTwice?.message);
+for (let i = 0; i < 100 && db.user_integrations.find((r) => r.id === HS2).sync_backfill.status === 'running'; i++) await sleep(100);
+const bf = db.user_integrations.find((r) => r.id === HS2).sync_backfill;
+check('it finishes in the background', bf.status === 'done' && !!bf.finished_at, bf.status);
+const webList = db.contact_lists.find((l) => l.user_id === U2 && l.name === 'HubSpot: Webinar');
+check('the HubSpot list comes into a new Sincerely list named after it', !!webList && bf.from_crm.list_id === webList.id && bf.from_crm.done === 3 && bf.from_crm.added === 2, { bf: bf.from_crm, lists: db.contact_lists.map((l) => l.name) });
+check('...everyone in it linked, including the one already here', [w1, w2, w3].every((w) => db.crm_links.some((l) => l.integration_id === HS2 && l.external_id === w.id)));
+check('...an opt-out in HubSpot is applied on the way in', db.contacts.find((c) => c.user_id === U2 && c.email === 'web3@first.test')?.is_unsubscribed === true);
+check('...and the list is kept in step from then on', db.crm_list_syncs.some((x) => x.integration_id === HS2 && x.external_id === '21' && x.list_id === webList?.id && x.enabled));
+check('Sincerely contacts go to HubSpot in batches of up to 100, not one call each', hs.batchSizes.every((n) => n <= 100) && hs.batchSizes.filter((n) => n >= 90).length >= 2, hs.batchSizes);
+check('everyone with an email is checked, the one already linked is not sent again', bf.to_crm.done === 233 && !hs.calls.some(() => false), bf.to_crm);
+check('all 229 others are now in HubSpot and linked', many.slice(1).every((c) => hsContact(c.email) && link(HS2, c.id)) && !!link(HS2, many[0].id), many.slice(1).filter((c) => !hsContact(c.email)).length);
+check('a bad row fails alone, not its whole batch, and can be retried', bf.to_crm.failed === 1 && db.crm_sync_log.some((l) => l.integration_id === HS2 && l.status === 'failed' && l.contact_id === badOne.id && l.retry?.step === 'send'), bf.to_crm);
+check('it says what it did when it finishes', db.crm_sync_log.some((l) => l.integration_id === HS2 && /^First sync finished: 2 added from HubSpot; 232 checked and sent to HubSpot, 1 failed$/.test(l.summary)), db.crm_sync_log.filter((l) => l.integration_id === HS2 && l.kind === 'sync').map((l) => l.summary));
+const ov2 = await crmSyncService.overview(U2, HS2);
+check('the page sees the progress, never the id list or cursors', ov2.backfill?.status === 'done' && !!ov2.backfill.setup_done_at && !JSON.stringify(ov2.backfill).includes('cursor') && !('ids' in (ov2.backfill.to_crm || {})), ov2.backfill);
+
+console.log('\nsending picked people');
+const picked = [0, 1, 2].map((i) => ({ ...person(`pick${i}@first.test`), user_id: U2 }));
+db.contacts.push(...picked);
+let sent = await crmSyncService.sendPeople(U2, HS2, picked.map((c) => c.id));
+check('a few picked people go straight away', !sent.queued && sent.sent === 3 && picked.every((c) => hsContact(c.email) && link(HS2, c.id)), sent);
+const lots = Array.from({ length: 30 }, (_, i) => ({ ...person(`lot${i}@first.test`), user_id: U2 }));
+db.contacts.push(...lots);
+sent = await crmSyncService.sendPeople(U2, HS2, [...lots.map((c) => c.id), notMine.id]);
+check('many picked people go in the background', sent.queued && sent.total === 31, sent);
+for (let i = 0; i < 100 && db.user_integrations.find((r) => r.id === HS2).sync_backfill.status === 'running'; i++) await sleep(100);
+check('...and all arrive', lots.every((c) => hsContact(c.email) && link(HS2, c.id)));
+check("...someone else's contact in the pick is never sent", !link(HS2, notMine.id));
+check('sending keeps the setup marked as done', !!db.user_integrations.find((r) => r.id === HS2).sync_backfill.setup_done_at);
+hs.batchWithoutEmail = true;
+const blind = [0, 1].map((i) => ({ ...person(`blind${i}@first.test`), user_id: U2 }));
+db.contacts.push(...blind);
+await crmSyncService.sendPeople(U2, HS2, blind.map((c) => c.id));
+hs.batchWithoutEmail = false;
+check('a batch answer that does not say who is who is never matched by position', blind.every((c) => link(HS2, c.id)?.external_id === hsContact(c.email)?.id), blind.map((c) => [link(HS2, c.id)?.external_id, hsContact(c.email)?.id]));
+let none: any = null;
+try { await crmSyncService.sendPeople(U2, HS2, []); } catch (e) { none = e; }
+check('sending nobody is refused', none?.statusCode === 400);
+
+console.log('\none contact');
+const st = await crmSyncService.contactStatus(U2, many[5].id);
+const hp5 = hsContact(many[5].email)!;
+check('the contact page sees them as in HubSpot, with a link to the record', st.length === 1 && st[0].linked && st[0].url === `https://app-eu1.hubspot.com/contacts/4455/record/0-1/${hp5.id}`, st);
+check('the account is read once and kept on the connection', db.user_integrations.find((r) => r.id === HS2).config.portal_id === '4455' && db.user_integrations.find((r) => r.id === HS2).config.access_token === 'pat-test');
+const loose = { ...person('loose@first.test', { first_name: 'Lou' }), user_id: U2 };
+db.contacts.push(loose);
+check('someone not in HubSpot shows as not linked', (await crmSyncService.contactStatus(U2, loose.id))[0].linked === false);
+let one = await crmSyncService.syncContactNow(U2, HS2, loose.id);
+check('Sync now on someone not in HubSpot puts them there', one?.linked === true && hsContact('loose@first.test')?.properties.firstname === 'Lou', one);
+contactRow(loose.id).company = 'Lou & Co';
+await tick();
+hsContact('loose@first.test')!.properties.jobtitle = 'Founder';
+hsTouch(hsContact('loose@first.test')!.properties);
+one = await crmSyncService.syncContactNow(U2, HS2, loose.id);
+check('Sync now sends their Sincerely edits', hsContact('loose@first.test')?.properties.company === 'Lou & Co');
+check('...and brings their HubSpot edits back', contactRow(loose.id).job_title === 'Founder', contactRow(loose.id).job_title);
+check('...and shows what happened to them', (one?.recent.length || 0) > 0, one?.recent);
+let foreign: any = null;
+try { await crmSyncService.syncContactNow(OTHER, HS2, loose.id); } catch (e) { foreign = e; }
+check("Sync now on someone else's connection is not found", foreign?.statusCode === 404);
+db.user_integrations.find((r) => r.id === PD).config.api_token = 'a1b2c3d4e5f6a7b8c9d0e1f2';
+const pst = await crmSyncService.contactStatus(U, eve.id);
+const pdst = pst.find((x) => x.provider === 'pipedrive');
+check('Pipedrive: a link to the person and their deal', pdst?.url === `https://acme-sales.pipedrive.com/person/${pe!.id}` && pdst?.deal?.url === `https://acme-sales.pipedrive.com/deal/${pdeal.id}` && pdst?.deal?.status === 'lost', pdst);
 
 /* ── Done ────────────────────────────────────────────────────────────── */
 
