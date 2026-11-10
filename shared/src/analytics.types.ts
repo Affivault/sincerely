@@ -60,6 +60,10 @@ export interface OverviewAnalytics {
   open_rate_change?: number | null;
   click_rate_change?: number | null;
   reply_rate_change?: number | null;
+  /** Meetings booked (calendar events created, not cancelled) in the period. */
+  meetings_booked?: number;
+  /** Change in meetings booked against the previous period of the same length. */
+  meetings_booked_change?: number | null;
 }
 
 export interface ContactActivityItem {

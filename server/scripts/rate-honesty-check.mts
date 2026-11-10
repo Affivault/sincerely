@@ -166,9 +166,11 @@ console.log('\nthe dashboard uses it, including for the arrow');
   is('and says "too early" rather than a figure',
      /too early for a reply rate/.test(dash));
 
-  is('the three rate cells carry their sample',
-     (dash.match(/readout=\{averageRateReadout\(/g) || []).length === 3,
-     `${(dash.match(/readout=\{averageRateReadout\(/g) || []).length} of 3 cells`);
+  // Two rate cells since opens left Home (reply and click); sent and
+  // meetings booked are counts and carry no rate.
+  is('the two rate cells carry their sample',
+     (dash.match(/readout=\{averageRateReadout\(/g) || []).length === 2,
+     `${(dash.match(/readout=\{averageRateReadout\(/g) || []).length} of 2 cells`);
 
   /*
    * The change arrow is the same fiction in a shape that looks even more

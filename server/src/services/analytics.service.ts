@@ -117,6 +117,28 @@ function bucketByDay<K extends string>(
   return [...byDate.entries()].map(([date, counts]) => ({ date, ...counts }));
 }
 
+/**
+ * Meetings booked in [since, until): calendar events created in the window
+ * that were not cancelled since. Booked, not held - the day it went in the
+ * diary is the day the outreach paid off.
+ */
+async function countMeetingsBooked(userId: string, since: string | null, until: string | null): Promise<number> {
+  let q = supabaseAdmin
+    .from('crm_events')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    // A null status predates migration 062 and was never cancelled.
+    .or('status.is.null,status.neq.cancelled');
+  if (since) q = q.gte('created_at', since);
+  if (until) q = q.lt('created_at', until);
+  const { count, error } = await q;
+  if (error) {
+    console.error('[Analytics] meetings booked count failed:', error.message);
+    return 0;
+  }
+  return count || 0;
+}
+
 const ACTIVITY_PAGE_SIZE = 1000;
 
 // Supabase caps a single select at ~1000 rows (see lists.service.ts's
@@ -319,6 +341,12 @@ export const analyticsService = {
       ]);
     }
 
+    const meetingWin = days ? periodWindows(days) : null;
+    const [meetingsNow, meetingsBefore] = await Promise.all([
+      countMeetingsBooked(userId, meetingWin?.since ?? null, null),
+      meetingWin ? countMeetingsBooked(userId, meetingWin.prevSince, meetingWin.prevUntil) : Promise.resolve(0),
+    ]);
+
     const { count: suppressedCount } = await supabaseAdmin
       .from('suppression_list')
       .select('*', { count: 'exact', head: true })
@@ -373,6 +401,8 @@ export const analyticsService = {
       open_rate_change: days ? rateChange(cur.opened, cur.contacts, prev.opened, prev.contacts) : null,
       click_rate_change: days ? rateChange(cur.clicked, cur.contacts, prev.clicked, prev.contacts) : null,
       reply_rate_change: days ? rateChange(cur.replied, cur.contacts, prev.replied, prev.contacts) : null,
+      meetings_booked: meetingsNow,
+      meetings_booked_change: days ? calcChange(meetingsNow, meetingsBefore) : null,
     };
   },
 
@@ -433,7 +463,24 @@ export const analyticsService = {
         .range(from, to)
     );
 
-    return bucketByDay(activities, days, ['sent', 'opened', 'clicked', 'replied']);
+    // Meetings booked per day, on the day they went in the diary.
+    const meetings = await fetchAllRows<{ created_at: string }>((from, to) =>
+      supabaseAdmin
+        .from('crm_events')
+        .select('created_at')
+        .eq('user_id', userId)
+        .or('status.is.null,status.neq.cancelled')
+        .gte('created_at', utcDayStart(days - 1).toISOString())
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to)
+    ).catch((err) => {
+      console.error('[Analytics] meetings trend failed:', err?.message);
+      return [] as { created_at: string }[];
+    });
+    const meetingRows = meetings.map((m) => ({ activity_type: 'meetings', occurred_at: m.created_at }));
+
+    return bucketByDay([...activities, ...meetingRows], days, ['sent', 'opened', 'clicked', 'replied', 'meetings']);
   },
 
   async campaign(userId: string, campaignId: string) {
@@ -657,7 +704,12 @@ export const analyticsService = {
 
   // ─── New deep-dive methods ──────────────────────────────────────────────────
 
-  async campaignList(userId: string) {
+  /**
+   * Every campaign with its figures. All time by default; with `days`, only
+   * the activity in that window, so a campaign that did well last year does
+   * not sit at the top of "what's working" for good.
+   */
+  async campaignList(userId: string, days?: number) {
     const { data: campaigns } = await supabaseAdmin
       .from('campaigns')
       .select('id, name, status, created_at')
@@ -668,22 +720,22 @@ export const analyticsService = {
 
     const campaignIds = campaigns.map((c: any) => c.id);
 
-    const activities = await fetchAllRows<{ campaign_id: string; campaign_contact_id: string; activity_type: string }>((from, to) =>
-      supabaseAdmin
+    const since = days ? periodWindows(days).since : null;
+    const activities = await fetchAllRows<{ campaign_id: string; campaign_contact_id: string; activity_type: string }>((from, to) => {
+      let q = supabaseAdmin
         .from('campaign_activities')
         .select('campaign_id, campaign_contact_id, activity_type, campaigns!inner(user_id)')
         .eq('campaigns.user_id', userId)
-        .in('activity_type', ['sent', 'opened', 'clicked', 'replied', 'bounced'])
-        .order('id', { ascending: true })
-        .range(from, to)
-    );
+        .in('activity_type', ['sent', 'opened', 'clicked', 'replied', 'bounced']);
+      if (since) q = q.gte('occurred_at', since);
+      return q.order('id', { ascending: true }).range(from, to);
+    });
 
     const rowsByCampaign = new Map<string, typeof activities>();
     for (const id of campaignIds) rowsByCampaign.set(id, []);
     for (const a of activities) rowsByCampaign.get(a.campaign_id)?.push(a);
 
-    // All time, whatever period the page around it is showing. Sent is
-    // emails; the rest are people, with rates over the people reached.
+    // Sent is emails; the rest are people, with rates over the people reached.
     return campaigns.map((c: any) => {
       const s = rollupPeople(rowsByCampaign.get(c.id) || []);
       return {

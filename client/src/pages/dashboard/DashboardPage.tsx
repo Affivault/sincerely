@@ -12,9 +12,10 @@ import { Skeleton } from '../../components/ui/Skeleton';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { SetupChecklist } from '../../components/setup/SetupChecklist';
 import { EmptyState } from '../../components/shared/EmptyState';
+import { PipelineSnapshot } from '../../components/dashboard/PipelineSnapshot';
 import { rateReadout, averageRateReadout, rateBarWidth, type RateReadout, formatDayMonth } from '@lemlist/shared';
 import {
-  Plus, Send, MailOpen, MousePointerClick, MessageSquare,
+  Plus, Send, MousePointerClick, MessageSquare, CalendarCheck,
   ChevronRight, ArrowUp, ArrowDown, Download, Megaphone, Activity, Sparkles,
 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
@@ -28,12 +29,14 @@ import {
 /* ═══════════════════════════════════════════════════════════════════════
    Sincerely — Dashboard
    A command center, not a report. The page answers three questions in
-   order: What needs me right now? (action queue) — How is sending going?
-   (KPIs w/ sparklines + trend + funnel) — What's working? (leaderboard,
-   live replies). One accent; length and hierarchy carry the data.
+   order: What needs me right now? (today, queue, calendar) - How is it
+   going? (one performance module: outcomes first, the period control
+   beside the chart it changes) - What's working? (active campaigns by
+   reply rate, and the pipeline they feed). Nothing is counted twice.
    ═══════════════════════════════════════════════════════════════════════ */
 
-const ACCENT = '#3B4AA3';
+// The shared ink token, so the chart follows the buttons (and dark mode).
+const ACCENT = 'var(--indigo)';
 
 /* ─── Formatters ─────────────────────────────────────── */
 const fmtNum = (n: number | undefined | null): string => {
@@ -58,10 +61,10 @@ function greeting(): string {
 }
 /* ─── Metric config ─────────────────────────────────── */
 const METRICS = {
-  sent:    { label: 'Sent',    icon: Send },
-  opened:  { label: 'Opened',  icon: MailOpen },
-  clicked: { label: 'Clicked', icon: MousePointerClick },
-  replied: { label: 'Replied', icon: MessageSquare },
+  sent:     { label: 'Sent',             icon: Send },
+  replied:  { label: 'Replied',          icon: MessageSquare },
+  meetings: { label: 'Meetings booked',  icon: CalendarCheck },
+  clicked:  { label: 'Clicked',          icon: MousePointerClick },
 } as const;
 type MetricKey = keyof typeof METRICS;
 
@@ -205,71 +208,38 @@ function PerformanceChart({ data, metric }: { data: TrendDataPoint[]; metric: Me
   );
 }
 
-/* ─── Conversion funnel — one hue, length is the data ── */
-function Funnel({ sent, opened, clicked, replied }: {
-  sent: number; opened: number; clicked: number; replied: number;
-}) {
-  const stages = [
-    { label: 'Sent to', value: sent },
-    { label: 'Opened', value: opened },
-    { label: 'Clicked', value: clicked },
-    { label: 'Replied', value: replied },
-  ];
-  const max = Math.max(sent, 1);
-  return (
-    <div className="p-4 space-y-1">
-      {stages.map((st, i) => {
-        const widthPct = Math.max((st.value / max) * 100, st.value > 0 ? 2 : 0);
-        const prev = i > 0 ? stages[i - 1].value : null;
-        const conv = prev && prev > 0 ? (st.value / prev) * 100 : null;
-        return (
-          <div key={st.label}>
-            {i > 0 && (
-              <div className="flex items-center gap-1.5 pl-[76px] py-1 text-caption text-[var(--text-tertiary)]">
-                <ArrowDown className="h-3 w-3 text-[var(--text-tertiary)]" strokeWidth={2} />
-                <span className="tabular font-medium">{conv != null ? `${conv.toFixed(1)}%` : '—'}</span>
-                <span>of {stages[i - 1].label.toLowerCase()}</span>
-              </div>
-            )}
-            <div className="flex items-center gap-3">
-              <span className="w-[64px] text-body font-medium text-[var(--text-secondary)] flex-shrink-0 text-right">{st.label}</span>
-              <div className="flex-1 h-6 rounded bg-[var(--bg-elevated)] overflow-hidden">
-                <div
-                  className="h-full rounded transition-all duration-700"
-                  style={{ width: `${widthPct}%`, background: ACCENT, opacity: 1 - i * 0.18 }}
-                />
-              </div>
-              <span className="w-[52px] text-body font-semibold tabular text-[var(--text-primary)] flex-shrink-0">{fmtNum(st.value)}</span>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 const STATUS_DOT: Record<string, string> = {
-  running: '#3F8763', active: '#3F8763', paused: '#B88124', draft: 'var(--text-muted)',
-  scheduled: '#3B4AA3', completed: 'var(--text-tertiary)', cancelled: '#B54B53',
+  running: 'var(--success)', active: 'var(--success)', paused: 'var(--warning)', draft: 'var(--text-muted)',
+  scheduled: 'var(--indigo)', completed: 'var(--text-tertiary)', cancelled: 'var(--error)',
 };
 
 
 /* ─── Loading skeleton ──────────────────────────────── */
 function DashboardSkeleton() {
+  // The same shape as the page once it loads - header, today's figures,
+  // the queue beside the calendar, the performance module - so nothing
+  // jumps when the data arrives.
   return (
-    <div className="animate-fade-in space-y-5">
-      <div className="flex items-center justify-between gap-4">
-        <div className="space-y-2"><Skeleton className="h-7 w-64" /><Skeleton className="h-4 w-80" /></div>
-        <div className="flex gap-2"><Skeleton className="h-8 w-28" /><Skeleton className="h-8 w-32" /></div>
+    <div className="animate-fade-in space-y-5" aria-busy="true">
+      <div className="flex items-end justify-between gap-4">
+        <div className="space-y-2"><Skeleton className="h-8 w-64" /><Skeleton className="h-4 w-96 max-w-full" /></div>
+        <Skeleton className="h-8 w-32" />
       </div>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="panel grid grid-cols-2 lg:grid-cols-4 gap-px overflow-hidden">
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="panel p-4 space-y-3"><Skeleton className="h-4 w-24" /><Skeleton className="h-8 w-24" /><Skeleton className="h-3 w-20" /></div>
+          <div key={i} className="p-4 space-y-2"><Skeleton className="h-3 w-20" /><Skeleton className="h-7 w-16" /><Skeleton className="h-3 w-24" /></div>
         ))}
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="panel lg:col-span-2 p-4"><Skeleton className="h-4 w-32 mb-4" /><Skeleton className="h-[280px] w-full rounded-lg" /></div>
-        <div className="panel p-4 space-y-3"><Skeleton className="h-4 w-28" /><Skeleton className="h-10 w-full" /><Skeleton className="h-16 w-full" /></div>
+        <div className="lg:col-span-2 space-y-3">
+          <Skeleton className="h-5 w-24" />
+          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-14 w-full rounded-xl" />)}
+        </div>
+        <div className="panel p-4 space-y-3"><Skeleton className="h-4 w-28" /><Skeleton className="h-12 w-full" /><Skeleton className="h-12 w-full" /></div>
+      </div>
+      <div className="panel overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3"><Skeleton className="h-4 w-28" /><Skeleton className="h-7 w-40" /></div>
+        <div className="px-4 pb-4"><Skeleton className="h-[268px] w-full rounded-lg" /></div>
       </div>
     </div>
   );
@@ -281,7 +251,7 @@ function InboxHealth({ score, verified, bounced, suppressed }: {
 }) {
   const pct = Math.max(0, Math.min(100, score));
   const tier = pct >= 80 ? 'Excellent' : pct >= 60 ? 'Healthy' : pct >= 40 ? 'Fair' : 'Needs attention';
-  const color = pct >= 60 ? ACCENT : pct >= 40 ? '#B88124' : '#B54B53';
+  const color = pct >= 60 ? ACCENT : pct >= 40 ? 'var(--warning)' : 'var(--error)';
   return (
     <div className="p-4">
       <div className="flex items-baseline justify-between">
@@ -348,10 +318,16 @@ export function DashboardPage() {
     queryKey: ['analytics', 'trend', period],
     queryFn: () => analyticsApi.trend(period),
   });
+  // All time: only to know whether anything has ever been sent.
   const { data: campaignList } = useQuery({
     // One key for this list everywhere (the analytics page uses it too).
     queryKey: ['analytics', 'campaign-list'],
     queryFn: () => analyticsApi.campaignList(),
+  });
+  // The period's own figures, for "what's working".
+  const { data: periodCampaignList } = useQuery({
+    queryKey: ['analytics', 'campaign-list', period],
+    queryFn: () => analyticsApi.campaignList(period),
   });
   const { data: userSettings } = useQuery({
     queryKey: ['settings'],
@@ -376,7 +352,27 @@ export function DashboardPage() {
   const metricTotal = trend.reduce((a, d) => a + Number(d[metric] || 0), 0);
 
   const campaigns = Array.isArray(campaignList) ? campaignList : [];
-  const topCampaigns = [...campaigns].sort((a, b) => b.sent - a.sent).slice(0, 5);
+  /*
+   * What's working: campaigns still running, by reply rate over the period.
+   * Ranked by volume over all time, an old campaign with a lot of sends sat
+   * on top for good. A rate below the sample it can support ranks after the
+   * real ones (by volume), rather than a lucky 1-of-3 leading the list.
+   * With nothing running, the campaigns that sent in the period stand in.
+   */
+  const periodCampaigns = (Array.isArray(periodCampaignList) ? periodCampaignList : [])
+    .filter((c) => Number(c.sent) > 0);
+  const running = periodCampaigns.filter((c) => c.status === 'running');
+  const pool = running.length > 0 ? running : periodCampaigns;
+  const ranked = pool.map((c) => ({ c, reply: rateReadout(c.replied, c.contacts_sent ?? c.sent, 'replies') }));
+  ranked.sort((a, b) => {
+    if (a.reply.isRate !== b.reply.isRate) return a.reply.isRate ? -1 : 1;
+    if (a.reply.isRate && b.c.reply_rate !== a.c.reply_rate) return b.c.reply_rate - a.c.reply_rate;
+    return b.c.sent - a.c.sent;
+  });
+  const topCampaigns = ranked.slice(0, 5).map((r) => r.c);
+  const leaderboardDesc = running.length > 0
+    ? `Running campaigns by reply rate, last ${period} days`
+    : `By reply rate, last ${period} days`;
   /* Whether the headline rate has enough behind it to be stated as one. */
   /* Rates are over people sent to, so the sample is people too. */
   const sentTo = Number(s.contacts_sent ?? s.total_sent) || 0;
@@ -392,6 +388,10 @@ export function DashboardPage() {
   const bounced = Number(s.bounced_contacts) || 0;
   const suppressed = Number(s.suppressed_count) || 0;
   const totalContacts = Number(s.total_contacts) || 0;
+  const listScore = Number(s.avg_dcs_score) || 0;
+  // List quality earns a panel only when it needs looking at; a healthy
+  // list is already covered by the status line staying quiet.
+  const listNeedsWork = listScore > 0 && listScore < 60;
 
   /*
    * Nothing has ever been sent: a chart of zeros, an empty leaderboard, a
@@ -420,20 +420,12 @@ export function DashboardPage() {
             {/* The headline figure only claims to be one once it can be. */}
             <span title={headlineReply.hint}>
               {headlineReply.isRate
-                ? <>, averaging a <span className="font-medium text-[var(--text-primary)] tabular">{headlineReply.label}</span> reply rate.</>
-                : <>. {fmtFull(s.total_sent)} sent, too early for a reply rate.</>}
+                ? <>, averaging a <span className="font-medium text-[var(--text-primary)] tabular">{headlineReply.label}</span> reply rate over the last {period} days.</>
+                : <>. {fmtFull(s.total_sent)} sent in the last {period} days, too early for a reply rate.</>}
             </span>
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {everSent && (
-            <>
-              <Segmented label="Period" options={PERIODS} value={period} onChange={setPeriodPersist} />
-              <button onClick={exportReport} disabled={exporting} className="btn-secondary disabled:opacity-50" title="Export CSV report">
-                <Download className="h-3.5 w-3.5" /> {exporting ? 'Exporting…' : 'Export'}
-              </button>
-            </>
-          )}
           <button className="btn-primary" onClick={() => navigate('/campaigns/new')}>
             <Plus className="h-3.5 w-3.5" /> New campaign
           </button>
@@ -470,22 +462,33 @@ export function DashboardPage() {
       </div>
 
       {everSent && (<>
-      {/* ── Row 2: one performance module — metric strip drives the chart ── */}
-      <section className={cn('panel overflow-hidden transition-opacity duration-300', refreshing && 'opacity-60')}>
+      {/* ── Row 2: one performance module — metric strip drives the chart,
+          and the period and export sit on it, beside what they change. ── */}
+      <section className={cn('panel overflow-hidden transition-opacity duration-300', refreshing && 'opacity-60')} data-performance>
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-[var(--border-subtle)]">
+          <h2 className="text-strong font-semibold text-[var(--text-primary)] tracking-[-0.01em]">Performance</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <Segmented label="Period" options={PERIODS} value={period} onChange={setPeriodPersist} />
+            <button onClick={exportReport} disabled={exporting} className="btn-secondary disabled:opacity-50" title="Export CSV report">
+              <Download className="h-3.5 w-3.5" /> {exporting ? 'Exporting…' : 'Export'}
+            </button>
+          </div>
+        </div>
+        {/* Outcomes first. Opens are left to Analytics: Apple and Gmail
+            pre-load images, so an open says little about a person. */}
         <div className="grid grid-cols-2 sm:flex sm:divide-x divide-[var(--border-subtle)] border-b border-[var(--border-subtle)]">
           <MetricCell label="Emails sent" value={fmtNum(s.total_sent)} delta={s.sent_change}
             active={metric === 'sent'} onClick={() => setMetric('sent')} />
           {/* Rate cells carry the change in the RATE, not in the count:
               more sends alone moved the old arrow. */}
-          <MetricCell label="Open rate" value={fmtPct(s.avg_open_rate)} delta={s.open_rate_change}
-            readout={averageRateReadout(s.avg_open_rate, sentTo, 'contacts')}
-            active={metric === 'opened'} onClick={() => setMetric('opened')} />
-          <MetricCell label="Click rate" value={fmtPct(s.avg_click_rate)} delta={s.click_rate_change}
-            readout={averageRateReadout(s.avg_click_rate, sentTo, 'contacts')}
-            active={metric === 'clicked'} onClick={() => setMetric('clicked')} />
           <MetricCell label="Reply rate" value={fmtPct(s.avg_reply_rate)} delta={s.reply_rate_change}
             readout={averageRateReadout(s.avg_reply_rate, sentTo, 'contacts')}
             active={metric === 'replied'} onClick={() => setMetric('replied')} />
+          <MetricCell label="Meetings booked" value={fmtNum(s.meetings_booked)} delta={s.meetings_booked_change}
+            active={metric === 'meetings'} onClick={() => setMetric('meetings')} />
+          <MetricCell label="Click rate" value={fmtPct(s.avg_click_rate)} delta={s.click_rate_change}
+            readout={averageRateReadout(s.avg_click_rate, sentTo, 'contacts')}
+            active={metric === 'clicked'} onClick={() => setMetric('clicked')} />
         </div>
         <div className="flex items-center justify-between px-4 pt-3">
           <p className="text-body text-[var(--text-tertiary)]">
@@ -503,7 +506,7 @@ export function DashboardPage() {
       {/* ── Row 3: what's working — campaigns + funnel/health rail ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <section className="panel lg:col-span-2 overflow-hidden">
-          <Head title="Campaign leaderboard" desc="All time, ranked by volume" action={<MoreLink to="/analytics" />} />
+          <Head title="What's working" desc={leaderboardDesc} action={<MoreLink to="/analytics" />} />
           {topCampaigns.length > 0 ? (
             <div className="divide-y divide-[var(--border-subtle)]">
               {topCampaigns.map((c, i) => {
@@ -538,7 +541,8 @@ export function DashboardPage() {
                         open.isRate ? 'text-[var(--text-primary)]' : 'text-caption text-[var(--text-tertiary)]')}>{open.label}</div>
                       <div className="text-caption text-[var(--text-tertiary)]">open</div>
                     </div>
-                    <div className="hidden sm:block w-12" title={reply.hint}>
+                    {/* The column the list is ranked by stays on a phone. */}
+                    <div className="w-12" title={reply.hint}>
                       <div className={cn('text-strong font-semibold tabular',
                         reply.isRate ? 'text-[var(--text-primary)]' : 'text-caption text-[var(--text-tertiary)]')}>{reply.label}</div>
                       <div className="text-caption text-[var(--text-tertiary)]">reply</div>
@@ -556,27 +560,25 @@ export function DashboardPage() {
           ) : (
             <EmptyState
               icon={Megaphone}
-              title="No campaigns yet"
-              description="Launch your first sequence to see rankings."
-              actionLabel="Create campaign"
+              title={`Nothing sent in the last ${period} days`}
+              description="Campaigns show here, best reply rate first, once they send."
+              actionLabel="New campaign"
               onAction={() => navigate('/campaigns/new')}
             />
           )}
         </section>
 
         <div className="space-y-4">
-          <section className={cn('panel overflow-hidden transition-opacity duration-300', refreshing && 'opacity-60')}>
-            <Head title="Conversion funnel" desc={`Last ${period} days`} />
-            {/* People at every stage: sent to, opened, clicked, replied. */}
-            <Funnel sent={sentTo} opened={Number(s.total_opened) || 0}
-              clicked={Number(s.total_clicked) || 0} replied={Number(s.total_replied) || 0} />
-          </section>
-          <section className="panel overflow-hidden">
-            {/* It scores the contacts, not a mailbox: "Inbox health 97" with
-                nothing sent was a claim about mail that did not exist. */}
-            <Head title="List quality" desc="How safe your contacts are to email" action={<MoreLink to="/verification" label="Details" />} />
-            <InboxHealth score={Number(s.avg_dcs_score) || 0} verified={verified} bounced={bounced} suppressed={suppressed} />
-          </section>
+          {/* The deals the outreach is for. Hidden until there is one. */}
+          <PipelineSnapshot />
+          {listNeedsWork && (
+            <section className="panel overflow-hidden" data-list-quality>
+              {/* It scores the contacts, not a mailbox: "Inbox health 97" with
+                  nothing sent was a claim about mail that did not exist. */}
+              <Head title="List quality" desc="How safe your contacts are to email" action={<MoreLink to="/verification" label="Details" />} />
+              <InboxHealth score={listScore} verified={verified} bounced={bounced} suppressed={suppressed} />
+            </section>
+          )}
         </div>
       </div>
       </>)}

@@ -28,7 +28,8 @@ export const analyticsController = {
 
   async campaignList(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const data = await analyticsService.campaignList(req.userId!);
+      const days = parseDayWindow(req.query.days);
+      const data = await analyticsService.campaignList(req.userId!, days);
       res.json(data);
     } catch (err) { next(err); }
   },
