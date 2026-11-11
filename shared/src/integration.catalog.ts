@@ -385,6 +385,70 @@ export const INTEGRATION_CATALOG: IntegrationProviderMeta[] = [
     supportedEvents: CRM_EVENTS,
     defaultEvents: CRM_EVENTS,
   },
+  {
+    id: 'calendly',
+    name: 'Calendly',
+    kind: 'scheduling',
+    description:
+      'Bookings through your own Calendly link count as meetings in Sincerely: their sequence stops, the meeting and a deal are recorded, and HubSpot or Pipedrive hears about it. Listen-only.',
+    setupSteps: [
+      'In Calendly, open Integrations (left menu) and choose API & Webhooks.',
+      'Under Personal Access Tokens, click Generate New Token, name it “Sincerely”, and copy it.',
+      'Paste it below. On a paid Calendly plan bookings arrive instantly; on the free plan Sincerely checks every 5 minutes.',
+    ],
+    docsUrl: 'https://help.calendly.com/hc/en-us/articles/223195488',
+    fields: [
+      {
+        key: 'access_token',
+        label: 'Personal access token',
+        placeholder: 'eyJraWQiOi…',
+        secret: true,
+        help: 'Calendly > Integrations > API & Webhooks > Personal Access Tokens.',
+      },
+      {
+        key: 'create_deals',
+        label: 'Open a deal in Sincerely for each booked meeting',
+        placeholder: '',
+        secret: false,
+        optional: true,
+        toggle: true,
+      },
+    ],
+    supportedEvents: [],
+    defaultEvents: [],
+  },
+  {
+    id: 'calcom',
+    name: 'Cal.com',
+    kind: 'scheduling',
+    description:
+      'Bookings through your own Cal.com link count as meetings in Sincerely: their sequence stops, the meeting and a deal are recorded, and HubSpot or Pipedrive hears about it. Listen-only.',
+    setupSteps: [
+      'In Cal.com, open Settings, then Developer, then API keys.',
+      'Click Add, name it “Sincerely”, set it to never expire (or note when it does), and copy the key (starts with cal_live_).',
+      'Paste it below. Bookings arrive the moment they are made.',
+    ],
+    docsUrl: 'https://cal.com/docs/api-reference/v2/introduction',
+    fields: [
+      {
+        key: 'api_key',
+        label: 'API key',
+        placeholder: 'cal_live_…',
+        secret: true,
+        help: 'Cal.com > Settings > Developer > API keys.',
+      },
+      {
+        key: 'create_deals',
+        label: 'Open a deal in Sincerely for each booked meeting',
+        placeholder: '',
+        secret: false,
+        optional: true,
+        toggle: true,
+      },
+    ],
+    supportedEvents: [],
+    defaultEvents: [],
+  },
 ];
 
 export function getIntegrationMeta(id: string): IntegrationProviderMeta | undefined {

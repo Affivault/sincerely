@@ -1,3 +1,4 @@
+import { handleSchedulingHook } from './services/scheduling.service.js';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -43,6 +44,19 @@ app.use(morgan('dev'));
 // Stripe webhook — must read the RAW body for signature verification, so it is
 // mounted BEFORE express.json() and outside the authenticated routes.
 app.post('/api/billing/webhook', express.raw({ type: 'application/json' }), billingController.webhook);
+
+// Calendly / Cal.com booking notifications: signed, so read raw like Stripe's.
+app.post('/api/hooks/scheduling/:provider/:id', express.raw({ type: '*/*', limit: '1mb' }), async (req, res) => {
+  try {
+    const raw = Buffer.isBuffer(req.body) ? req.body.toString('utf8') : '';
+    const out = await handleSchedulingHook(req.params.provider, req.params.id, raw, req.headers);
+    res.status(out.status).json(out.body);
+  } catch (err: any) {
+    console.error('[Scheduling] hook failed:', err?.message || err);
+    // 500 so the tool retries later; the booking is not lost.
+    res.status(500).json({ error: 'Could not record the booking' });
+  }
+});
 
 /*
  * A reply or a new message from the inbox may carry up to 10 MB of files

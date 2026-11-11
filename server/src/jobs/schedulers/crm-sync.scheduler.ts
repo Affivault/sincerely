@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '../../config/supabase.js';
 import { runCrmSync, dueCrmSyncs, driveBackfill, runningBackfills, CRM_SYNC_EVERY_MS } from '../../services/crm-sync.service.js';
 import { beat } from '../../utils/heartbeat.js';
+import { dueSchedulingChecks, checkScheduling } from '../../services/scheduling.service.js';
 
 /**
  * Runs two-way HubSpot and Pipedrive syncs that are due (migration 118).
@@ -35,6 +36,22 @@ export async function runCrmSyncSweep(): Promise<number> {
     } catch (err: any) {
       // Recorded on the connection (last_sync_error) for its owner to see.
       console.warn(`[CrmSync] ${due.id} failed: ${err?.message || err}`);
+    }
+  }
+  // Calendly / Cal.com: check for bookings where the plan sends no notifications (and a safety net where it does).
+  for (const row of await dueSchedulingChecks()) {
+    const { data: claimed } = await supabaseAdmin.from('user_integrations')
+      .update({ next_sync_at: new Date(Date.now() + 10 * 60_000).toISOString() })
+      .eq('id', row.id).eq('is_active', true)
+      .lte('next_sync_at', new Date().toISOString())
+      .select('id');
+    if (!claimed || claimed.length === 0) continue;
+    try {
+      await checkScheduling(row);
+      ran++;
+    } catch (err: any) {
+      await supabaseAdmin.from('user_integrations').update({ last_sync_error: String(err?.message || err).slice(0, 500) }).eq('id', row.id);
+      console.warn(`[Scheduling] ${row.id} check failed: ${err?.message || err}`);
     }
   }
   return ran;

@@ -1,3 +1,5 @@
+import { stopSequencesForMeeting } from './meeting-stop.service.js';
+import { notifyCrmsOfMeeting } from './crm-sync.service.js';
 import crypto from 'node:crypto';
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
@@ -933,6 +935,13 @@ export const publicBookingService = {
         ? this.logActivity(link.user_id, who.contactId, `Booked ${minutes} minutes with ${organiser} via ${link.slug} (round robin)`)
         : Promise.resolve(),
       this.logActivity(hostId, contactId, `Booked ${minutes} minutes via ${link.slug}`),
+      // Nobody gets a follow-up after putting a call in the diary.
+      stopSequencesForMeeting(hostId, contactId, 'through a Sincerely booking link'),
+      handedOn && who ? stopSequencesForMeeting(link.user_id, who.contactId, 'through a Sincerely booking link') : Promise.resolve(),
+      // And a connected HubSpot or Pipedrive hears about it.
+      contactId
+        ? notifyCrmsOfMeeting(hostId, { contact_id: contactId, title, starts_at: start.toISOString(), via: 'a Sincerely booking link', campaign_id: knownContactId && who ? who.campaignId : null })
+        : Promise.resolve(),
       link.create_deal
         ? this.openDeal({ ...link, user_id: hostId }, eventId, contactId, { name, email, company: input.company },
                         knownContactId ? who : null)

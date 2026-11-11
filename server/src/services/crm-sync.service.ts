@@ -422,6 +422,8 @@ const ACTIVITY_KIND: Record<string, CrmActivityKind> = {
   'sara.intent_classified': 'intent',
   'email.bounced': 'bounced',
   'lead.unsubscribed': 'unsubscribed',
+  // Internal: a meeting booked through a Sincerely link, Calendly or Cal.com (never on the public bus).
+  'meeting.booked': 'meeting',
 };
 
 const INTENT_LABEL: Record<string, string> = {
@@ -462,13 +464,21 @@ export function activityFor(eventType: string, data: Record<string, any>, campai
       return { kind, at, title: 'Sincerely: email bounced', lines: lines(campaign, data.reason && `Reason: ${String(data.reason).slice(0, 300)}`) };
     case 'unsubscribed':
       return { kind, at, title: 'Sincerely: unsubscribed from emails', lines: lines(data.source && data.source !== 'link' ? `Source: ${data.source}` : null) };
+    case 'meeting': {
+      const when = data.starts_at ? new Date(data.starts_at).toUTCString().replace(/:\d\d GMT$/, ' UTC') : null;
+      return {
+        kind, at,
+        title: `Sincerely: meeting booked${data.via ? ` via ${data.via}` : ''}${data.title ? ` - ${data.title}` : ''}`,
+        lines: lines(when && `When: ${when}`, campaign),
+      };
+    }
   }
 }
 
 /** Does this event put a person in the CRM who is not there yet? */
 function createsPerson(settings: CrmSyncSettings, eventType: string, data: Record<string, any>): boolean {
   if (settings.push_when === 'off') return false;
-  const engaged = eventType === 'email.replied' || (eventType === 'sara.intent_classified' && POSITIVE_INTENTS.has(data.intent));
+  const engaged = eventType === 'email.replied' || eventType === 'meeting.booked' || (eventType === 'sara.intent_classified' && POSITIVE_INTENTS.has(data.intent));
   if (settings.push_when === 'replied') return engaged;
   return engaged || eventType === 'email.sent' || eventType === 'email.opened' || eventType === 'email.clicked';
 }
@@ -512,7 +522,7 @@ async function runEvent(ctx: Ctx, eventType: string, data: Record<string, any>, 
   const doing = (step: 'activity' | 'deal' | 'optout' | 'lifecycle' | 'task') => !only || only === step;
 
   // On the timeline.
-  const activity = doing('activity') && ctx.events.includes(eventType) ? activityFor(eventType, data, await campaignNameFor(ctx.userId, data, campaignName)) : null;
+  const activity = doing('activity') && (ctx.events.includes(eventType) || eventType === 'meeting.booked') ? activityFor(eventType, data, await campaignNameFor(ctx.userId, data, campaignName)) : null;
   if (activity) {
     try {
       await ctx.adapter.logActivity(link.external_id, activity);
@@ -529,11 +539,12 @@ async function runEvent(ctx: Ctx, eventType: string, data: Record<string, any>, 
   }
 
   // A deal for an interested reply, unless one is already open.
-  const positive = eventType === 'sara.intent_classified' && POSITIVE_INTENTS.has(data.intent);
+  const booked = eventType === 'meeting.booked';
+  const positive = booked || (eventType === 'sara.intent_classified' && POSITIVE_INTENTS.has(data.intent));
   if (positive && doing('deal') && ctx.config.create_deals !== 'no' && !(link.deal_id && link.deal_status === 'open')) {
     const title = `${displayName(contact)}${contact.company ? ` (${contact.company})` : ''} - Sincerely`;
     try {
-      const stage = data.intent === 'meeting' && ctx.settings.deal_stage_meeting ? ctx.settings.deal_stage_meeting : ctx.settings.deal_stage;
+      const stage = (data.intent === 'meeting' || booked) && ctx.settings.deal_stage_meeting ? ctx.settings.deal_stage_meeting : ctx.settings.deal_stage;
       const deal = await ctx.adapter.createDeal(link.external_id, { title, pipeline: ctx.settings.deal_pipeline, stage, ownerId: ctx.settings.owner_id || undefined });
       await saveLink(ctx, contact.id, link.external_id, { deal_id: deal.id, deal_status: 'open' });
       done.push('deal created');
@@ -551,7 +562,7 @@ async function runEvent(ctx: Ctx, eventType: string, data: Record<string, any>, 
   // HubSpot lifecycle: a reply makes them a lead, interest an SQL, a meeting request an opportunity.
   const stageFor = eventType === 'email.replied' ? 'lead'
     : eventType === 'sara.intent_classified' && data.intent === 'interested' ? 'salesqualifiedlead'
-      : eventType === 'sara.intent_classified' && data.intent === 'meeting' ? 'opportunity' : null;
+      : (eventType === 'sara.intent_classified' && data.intent === 'meeting') || booked ? 'opportunity' : null;
   if (stageFor && ctx.settings.lifecycle && doing('lifecycle')) {
     try {
       if ((await ctx.adapter.setLifecycle(link.external_id, stageFor)) === 'done') done.push(`lifecycle ${stageFor}`);
@@ -565,7 +576,8 @@ async function runEvent(ctx: Ctx, eventType: string, data: Record<string, any>, 
   }
 
   // A follow-up task for the owner when someone is interested or wants to meet.
-  if (positive && ctx.settings.create_tasks && doing('task')) {
+  // (Not for a booked meeting: the meeting is the follow-up.)
+  if (positive && !booked && ctx.settings.create_tasks && doing('task')) {
     const subject = `Follow up with ${displayName(contact)}: ${data.intent === 'meeting' ? 'asked for a meeting' : 'interested'}`;
     try {
       await ctx.adapter.createTask(link.external_id, {
@@ -637,6 +649,37 @@ export async function handleCrmEvent(
   const { summary, failures } = await runEvent(ctx, eventType, data, campaignName);
   if (failures.length) throw new Error(failures[0]);
   return summary;
+}
+
+/**
+ * A meeting was booked (through a Sincerely link, Calendly or Cal.com):
+ * tell every connected HubSpot and Pipedrive. On the timeline, the deal in
+ * the meeting stage, HubSpot lifecycle to opportunity. Never throws:
+ * failures are in each connection's sync log, with a retry.
+ */
+export async function notifyCrmsOfMeeting(
+  userId: string,
+  data: { contact_id: string; title?: string; starts_at?: string; via?: string; campaign_id?: string | null },
+): Promise<void> {
+  try {
+    const { data: rows, error } = await supabaseAdmin
+      .from('user_integrations').select('*').eq('user_id', userId).eq('is_active', true).in('provider', ['hubspot', 'pipedrive']);
+    if (error || !rows) return;
+    for (const row of rows as IntegrationRow[]) {
+      try {
+        const summary = await handleCrmEvent(row, await freshConfig(row), 'meeting.booked', data);
+        if (summary) {
+          await supabaseAdmin.from('integration_activity').insert({
+            integration_id: row.id, event_type: 'meeting.booked', summary: summary.slice(0, 500), success: true,
+          });
+        }
+      } catch (err) {
+        console.warn(`[CrmSync] meeting to ${row.provider}: ${errText(err)}`);
+      }
+    }
+  } catch (err) {
+    console.warn(`[CrmSync] meeting: ${errText(err)}`);
+  }
 }
 
 // ── Sequences ─────────────────────────────────────────────────────
