@@ -475,7 +475,7 @@ export function DealDetailPage() {
           <DealSource deal={deal} />
 
           <div id="deal-people" />
-          <DealPeople deal={deal} participants={participants} contact={contact} onEmail={(email, name) => setWriteTo({ email, name })} />
+          <DealPeople deal={deal} participants={participants} onEmail={(email, name) => setWriteTo({ email, name })} />
 
           <div className="record-section">
             <p className="mb-2 text-caption font-medium text-[var(--text-tertiary)]">Journey</p>

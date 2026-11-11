@@ -75,6 +75,9 @@ console.log('\nmeetings and calls count as speaking');
     { at: ago(9), kind: 'email_out', email: 'dan@acme.io' },
     { at: ago(2), kind: 'meeting', email: 'dan@acme.io' },
   ] });
+  is('the rhythm carries both, newest first', a.rhythm.length === 2 && a.rhythm[0].kind === 'met' && a.rhythm[1].kind === 'out');
+  const old = dealContactActivity({ now, people, touches: [{ at: ago(40), kind: 'email_out', email: 'dan@acme.io' }] });
+  is('and leaves out anything older than four weeks', old.rhythm.length === 0 && old.last !== null);
   is('a meeting is the last touch', a.last?.kind === 'meeting' && a.sentence === 'Met with Dan 2 days ago', a.sentence);
   is('and counts as hearing from them', a.days_since_heard === 2 && a.engaged === 1);
 }
@@ -127,7 +130,9 @@ console.log('\nwired in');
   is('the pipeline page feeds it', /contactOf=\{contactOf\}/.test(client('pages/crm/DealsPage.tsx')));
   const page = client('pages/crm/DealDetailPage.tsx');
   is('the deal page has the panel', /<DealContactPanel activity=\{contact\}/.test(page) && /dealContactFromDetail\(/.test(page));
-  is('and each person says when we last spoke', /<PersonContactLine person=\{touch\}/.test(client('components/crm/DealPeople.tsx')));
+  const panel = client('components/crm/DealContact.tsx');
+  is('the panel lists each person with when we last spoke', /<PersonRow key=\{p\.email\} person=\{p\}/.test(panel) && /<Recency person=\{person\}/.test(panel));
+  is('and draws four weeks of back and forth', /<Rhythm rhythm=\{activity\.rhythm\}/.test(panel));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

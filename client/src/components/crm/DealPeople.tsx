@@ -2,8 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PARTICIPANT_ROLES, MIN_SEARCH_LENGTH } from '@lemlist/shared';
-import type { Deal, DealContactActivity, DealParticipant, DealPersonContact } from '@lemlist/shared';
-import { PersonContactLine } from './DealContact';
+import type { Deal, DealParticipant } from '@lemlist/shared';
 import { crmApi } from '../../api/crm.api';
 import { contactsApi } from '../../api/contacts.api';
 import { Avatar } from '../shared/Avatar';
@@ -179,10 +178,8 @@ function AddParticipant({
 /* ── One person on the deal ───────────────────────────────────────────── */
 
 function PersonRow({
-  contactId, name, email, jobTitle, company, role, primary, onRole, onRemove, onEmail, touch,
+  contactId, name, email, jobTitle, company, role, primary, onRole, onRemove, onEmail,
 }: {
-  /** When we were last in touch with them, either way. */
-  touch?: DealPersonContact | null;
   contactId: string | null;
   name: string;
   email: string | null;
@@ -236,7 +233,6 @@ function PersonRow({
                 <Mail className="h-2.5 w-2.5 flex-shrink-0" />{email}
               </span>
             )}
-            <PersonContactLine person={touch} />
           </span>
         </button>
 
@@ -306,12 +302,10 @@ function PersonRow({
 /* ── The panel ────────────────────────────────────────────────────────── */
 
 export function DealPeople({
-  deal, participants: allParticipants, onEmail, contact,
+  deal, participants: allParticipants, onEmail,
 }: {
   deal: Deal;
   participants: DealParticipant[];
-  /** Per-person last contact, from the deal page's read. */
-  contact?: DealContactActivity;
   onEmail?: (email: string, name: string) => void;
 }) {
   const qc = useQueryClient();
@@ -322,8 +316,6 @@ export function DealPeople({
   const participants = allParticipants.filter((p) => !gone.hidden(p.id));
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ['crm'] });
-  const touchOf = (email: string | null | undefined) =>
-    email ? contact?.people.find((p) => p.email === email.trim().toLowerCase()) ?? null : null;
 
   const setRole = useMutation({
     mutationFn: ({ id, role }: { id: string; role: string | null }) =>
@@ -382,7 +374,6 @@ export function DealPeople({
           company={deal.contact?.company || deal.company || null}
           role={null}
           primary
-          touch={touchOf(primaryEmail)}
           onEmail={onEmail && primaryEmail ? () => onEmail(primaryEmail, primaryName) : undefined}
         />
       ) : (
@@ -400,7 +391,6 @@ export function DealPeople({
           jobTitle={p.contact?.job_title || null}
           company={p.contact?.company || null}
           role={p.role}
-          touch={touchOf(p.contact?.email)}
           onRole={(role) => setRole.mutate({ id: p.id, role })}
           onEmail={onEmail && p.contact?.email ? () => onEmail(p.contact!.email, fullName(p.contact)) : undefined}
           onRemove={() => gone.remove(p.id, `${fullName(p.contact)} removed from the deal`, () => remove.mutateAsync(p.id))}
