@@ -32,6 +32,7 @@ import {
   Sparkles,
   RefreshCw,
   Key,
+  CalendarCheck,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { platformQuery } from '../../lib/platform';
@@ -59,12 +60,15 @@ const BRAND: Record<string, { color: string; icon: React.ElementType }> = {
   pipedrive: { color: '#08A742', icon: Kanban },
   notion:    { color: '#191919', icon: NotebookText },
   airtable:  { color: '#F82B60', icon: Table2 },
+  calendly:  { color: '#006BFF', icon: CalendarCheck },
+  calcom:    { color: '#111827', icon: CalendarCheck },
 };
 
 const KIND_LABELS: Record<string, string> = {
   notification: 'Notifications',
   automation: 'Automation',
   crm: 'CRM sync',
+  scheduling: 'Scheduling',
 };
 
 const EVENT_LABELS: Record<string, string> = {
@@ -115,6 +119,11 @@ const SOLID_BTN = 'bg-[var(--indigo)] text-white hover:opacity-90 shadow-[var(--
 
 /** "Connected to #wins · Acme" line for OAuth-connected providers. */
 function connectionMeta(row: UserIntegration): string | null {
+  if (row.provider === 'calendly' || row.provider === 'calcom') {
+    const who = row.config.account_name && !row.config.account_name.includes('…') ? ` as ${row.config.account_name}` : '';
+    if (row.config.mode === 'instant') return `Connected${who}. Bookings arrive the moment they are made, and stop that person's sequence.`;
+    if (row.config.mode === 'checking') return `Connected${who}. Checked for new bookings every 5 minutes (your plan sends no instant notifications).`;
+  }
   const parts = [row.config.channel, row.config.workspace].filter((v) => v && !v.includes('…'));
   return parts.length ? `Connected to ${parts.join(' · ')}` : null;
 }
@@ -191,6 +200,7 @@ export function IntegrationsPage() {
     { kind: 'notification', providers: INTEGRATION_CATALOG.filter((p) => p.kind === 'notification') },
     { kind: 'automation', providers: INTEGRATION_CATALOG.filter((p) => p.kind === 'automation') },
     { kind: 'crm', providers: INTEGRATION_CATALOG.filter((p) => p.kind === 'crm') },
+    { kind: 'scheduling', providers: INTEGRATION_CATALOG.filter((p) => p.kind === 'scheduling') },
   ];
 
   return (
@@ -661,7 +671,8 @@ function ProviderModal({
             )}
           </div>
 
-          {/* Event picker with presets */}
+          {/* Event picker with presets (Calendly / Cal.com are listen-only: no events to pick) */}
+          {meta.supportedEvents.length > 0 && (
           <div>
             <div className="flex items-center justify-between mb-2">
               <span id="integration-events-label" className="text-body text-[var(--text-tertiary)]">
@@ -699,6 +710,7 @@ function ProviderModal({
               ))}
             </div>
           </div>
+          )}
 
           {/* Recent activity (connected only) */}
           {existing && (
@@ -739,7 +751,7 @@ function ProviderModal({
         <div className="flex items-center gap-2 p-5 pt-0">
           <button
             onClick={() => connectMutation.mutate()}
-            disabled={!canSubmit || events.length === 0 || connectMutation.isPending}
+            disabled={!canSubmit || (meta.supportedEvents.length > 0 && events.length === 0) || connectMutation.isPending}
             className="inline-flex items-center gap-1.5 px-3.5 h-8 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold hover:opacity-90 transition-all disabled:opacity-50 shadow-[var(--glow-indigo)]"
           >
             {connectMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}

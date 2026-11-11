@@ -4,6 +4,7 @@ import { AppError } from '../middleware/error.middleware.js';
 import { assertSafeWebhookUrl, pinnedPost } from './webhook.service.js';
 import { ensureFreshHubspotToken } from './integrations-oauth.service.js';
 import { handleCrmEvent } from './crm-sync.service.js';
+import { schedulingAdapter, setUpScheduling, tearDownScheduling, isSchedulingProvider } from './scheduling.service.js';
 import {
   getIntegrationMeta,
   type IntegrationProviderId,
@@ -816,7 +817,33 @@ const airtableRuntime: ProviderRuntime = {
   },
 };
 
+/**
+ * Calendly and Cal.com are listen-only: they take no bus events. Their
+ * bookings arrive through /api/hooks/scheduling or the scheduler
+ * (scheduling.service).
+ */
+function schedulingRuntime(provider: 'calendly' | 'calcom', field: 'access_token' | 'api_key', label: string): ProviderRuntime {
+  return {
+    validate(config) {
+      if (!(config[field] || '').trim()) throw new AppError(`${label} ${field === 'api_key' ? 'API key' : 'token'} is required`, 400);
+    },
+    async test(config) {
+      try {
+        const me = await schedulingAdapter(provider, config).me();
+        return { success: true, detail: `Connected to ${label}${me.name ? ` as ${me.name}` : ''}.` };
+      } catch (err: any) {
+        return { success: false, detail: err?.message || `${label} did not answer` };
+      }
+    },
+    async handleEvent() {
+      return null;
+    },
+  };
+}
+
 const RUNTIMES: Record<IntegrationProviderId, ProviderRuntime> = {
+  calendly: schedulingRuntime('calendly', 'access_token', 'Calendly'),
+  calcom: schedulingRuntime('calcom', 'api_key', 'Cal.com'),
   slack: slackRuntime,
   discord: discordRuntime,
   telegram: telegramRuntime,
@@ -853,7 +880,7 @@ function maskValue(value: string): string {
  * show readable — the connected workspace/channel names make the UI say
  * "Connected to #wins in Acme" instead of a masked string.
  */
-const SAFE_META_KEYS = new Set(['auth_kind', 'channel', 'workspace', 'guild', 'expires_at', 'portal_id', 'ui_domain', 'company_domain']);
+const SAFE_META_KEYS = new Set(['auth_kind', 'channel', 'workspace', 'guild', 'expires_at', 'portal_id', 'ui_domain', 'company_domain', 'account_name', 'mode']);
 
 /** Secrets never leave the server readable — the client gets a preview only. */
 function redact(row: UserIntegration): UserIntegration {
@@ -920,7 +947,8 @@ export function sanitizeEvents(providerId: IntegrationProviderId, events: string
   const requested = events && events.length ? events : meta.defaultEvents;
   const supported = new Set(meta.supportedEvents);
   const filtered = requested.filter((e) => supported.has(e));
-  if (filtered.length === 0) throw new AppError('Select at least one event', 400);
+  // Listen-only providers (Calendly, Cal.com) take no events at all.
+  if (filtered.length === 0 && meta.supportedEvents.length > 0) throw new AppError('Select at least one event', 400);
   return filtered;
 }
 
@@ -979,6 +1007,20 @@ export async function connectIntegration(
     .select()
     .single();
   if (error) throw error;
+  if (isSchedulingProvider(meta.id)) {
+    // Ask for instant notifications (or fall back to checking) and pick up meetings already booked.
+    try {
+      const setup = await setUpScheduling(data as any);
+      const { data: fresh } = await supabaseAdmin.from('user_integrations').select('*').eq('id', data.id).single();
+      return { integration: redact(fresh || data), test: { success: true, detail: setup.detail } };
+    } catch (err: any) {
+      // Still useful: the scheduler checks for bookings until notifications can be set up.
+      await supabaseAdmin.from('user_integrations')
+        .update({ config: { ...data.config, mode: 'checking' }, next_sync_at: new Date(Date.now() + 60_000).toISOString() })
+        .eq('id', data.id).then(() => undefined, () => undefined);
+      return { integration: redact(data), test: { success: true, detail: `Connected, but notifications could not be set up yet: ${err?.message || err}. Sincerely will check for bookings every 5 minutes.` } };
+    }
+  }
   if (meta.id === 'hubspot' || meta.id === 'pipedrive') {
     // The first two-way sync a minute from now. Before migration 118 the column is not there; that is fine.
     await supabaseAdmin.from('user_integrations')
@@ -1028,6 +1070,9 @@ export async function updateIntegration(
 }
 
 export async function deleteIntegration(userId: string, id: string): Promise<void> {
+  // Calendly / Cal.com: stop them notifying us first (best effort).
+  const { data: row } = await supabaseAdmin.from('user_integrations').select('*').eq('id', id).eq('user_id', userId).maybeSingle();
+  if (row && isSchedulingProvider((row as any).provider)) await tearDownScheduling(row as any);
   const { error } = await supabaseAdmin
     .from('user_integrations')
     .delete()

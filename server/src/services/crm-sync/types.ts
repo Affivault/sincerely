@@ -23,7 +23,7 @@ export interface CrmDeal {
   updatedAt: string | null;
 }
 
-export type CrmActivityKind = 'sent' | 'opened' | 'clicked' | 'replied' | 'intent' | 'bounced' | 'unsubscribed';
+export type CrmActivityKind = 'sent' | 'opened' | 'clicked' | 'replied' | 'intent' | 'bounced' | 'unsubscribed' | 'meeting';
 
 export interface CrmActivity {
   kind: CrmActivityKind;

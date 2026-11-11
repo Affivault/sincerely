@@ -15,9 +15,11 @@ export type IntegrationProviderId =
   | 'hubspot'
   | 'pipedrive'
   | 'notion'
-  | 'airtable';
+  | 'airtable'
+  | 'calendly'
+  | 'calcom';
 
-export type IntegrationKind = 'notification' | 'automation' | 'crm';
+export type IntegrationKind = 'notification' | 'automation' | 'crm' | 'scheduling';
 
 /** One field the user must fill in to connect a provider. */
 export interface IntegrationConfigField {

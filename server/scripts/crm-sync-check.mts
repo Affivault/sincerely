@@ -36,6 +36,7 @@ const UNIQUE: Record<string, string[][]> = {
   suppression_list: [['user_id', 'email']],
   crm_links: [['integration_id', 'contact_id'], ['integration_id', 'external_id']],
   crm_list_syncs: [['integration_id', 'external_id']],
+  crm_events: [['user_id', 'external_source', 'external_id']],
 };
 /** parent table -> embedded name -> how they join. */
 const RELATIONS: Record<string, Record<string, { table: string; many: boolean; local: string; foreign: string }>> = {
@@ -76,6 +77,11 @@ function test(cell: any, op: string, v: string): boolean {
     case 'lte': return cell != null && String(cell) <= unquote(v);
     case 'gt': return cell != null && String(cell) > unquote(v);
     case 'gte': return cell != null && String(cell) >= unquote(v);
+    case 'like':
+    case 'ilike': {
+      const re = new RegExp(`^${unquote(v).replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/%/g, '.*')}$`, op === 'ilike' ? 'i' : '');
+      return cell != null && re.test(String(cell));
+    }
     case 'cs': {
       const want = v.replace(/^\{|\}$/g, '').split(',').map(unquote);
       return want.every((w) => (cell || []).includes(w));
@@ -496,7 +502,63 @@ const pipedrive = http.createServer((req, res) => {
   });
 });
 
-for (const s of [supa, hubspot, pipedrive]) await new Promise<void>((r) => s.listen(0, '127.0.0.1', () => r()));
+/* ── A fake Calendly and a fake Cal.com ──────────────────────────────── */
+
+const cly = { subscribeAnswer: 201, subs: [] as Row[], deleted: [] as string[], events: [] as Row[], invitees: new Map<string, Row[]>() };
+const calendly = http.createServer((req, res) => {
+  let raw = '';
+  req.on('data', (c) => (raw += c));
+  req.on('end', () => {
+    const url = new URL(req.url || '/', 'http://x');
+    const p = url.pathname;
+    const method = req.method || 'GET';
+    const body = raw ? JSON.parse(raw) : undefined;
+    const send = (status: number, payload: any) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(payload)); };
+    if (req.headers.authorization !== 'Bearer cly-test') return send(401, { message: 'Unauthenticated' });
+    if (method === 'GET' && p === '/users/me') return send(200, { resource: { uri: 'https://api.calendly.com/users/U1', name: 'Alex Owner', current_organization: 'https://api.calendly.com/organizations/O1' } });
+    if (method === 'POST' && p === '/webhook_subscriptions') {
+      if (cly.subscribeAnswer !== 201) return send(cly.subscribeAnswer, { title: 'Permission Denied', message: 'Please upgrade your Calendly account to Standard' });
+      const sub = { uri: `https://api.calendly.com/webhook_subscriptions/W${cly.subs.length + 1}`, ...body };
+      cly.subs.push(sub);
+      return send(201, { resource: sub });
+    }
+    let m = p.match(/^\/webhook_subscriptions\/(\w+)$/);
+    if (m && method === 'DELETE') { cly.deleted.push(m[1]); return send(204, {}); }
+    if (method === 'GET' && p === '/scheduled_events') {
+      const status = url.searchParams.get('status');
+      return send(200, { collection: cly.events.filter((e) => e.status === status) });
+    }
+    m = p.match(/^\/scheduled_events\/([\w-]+)\/invitees$/);
+    if (m && method === 'GET') return send(200, { collection: cly.invitees.get(m[1]) || [] });
+    send(404, { message: `fake calendly: no route ${method} ${p}` });
+  });
+});
+
+const cal = { hooks: [] as Row[], deleted: [] as string[], bookings: [] as Row[] };
+const calcom = http.createServer((req, res) => {
+  let raw = '';
+  req.on('data', (c) => (raw += c));
+  req.on('end', () => {
+    const url = new URL(req.url || '/', 'http://x');
+    const p = url.pathname;
+    const method = req.method || 'GET';
+    const body = raw ? JSON.parse(raw) : undefined;
+    const send = (status: number, payload: any) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(payload)); };
+    if (req.headers.authorization !== 'Bearer cal_live_test') return send(401, { status: 'error', error: { message: 'Invalid API key' } });
+    if (req.headers['cal-api-version'] !== '2024-08-13') return send(400, { status: 'error', message: 'missing version' });
+    if (method === 'GET' && p === '/v2/me') return send(200, { status: 'success', data: { id: 42, name: 'Alex Cal', email: 'alex@acme.test' } });
+    if (method === 'POST' && p === '/v2/webhooks') { const h = { id: `h${cal.hooks.length + 1}`, ...body }; cal.hooks.push(h); return send(201, { status: 'success', data: h }); }
+    const m = p.match(/^\/v2\/webhooks\/(\w+)$/);
+    if (m && method === 'DELETE') { cal.deleted.push(m[1]); return send(200, { status: 'success' }); }
+    if (method === 'GET' && p === '/v2/bookings') {
+      const status = url.searchParams.get('status');
+      return send(200, { status: 'success', data: cal.bookings.filter((b) => (status === 'upcoming' ? b.status === 'accepted' : b.status === 'cancelled')) });
+    }
+    send(404, { message: `fake cal.com: no route ${method} ${p}` });
+  });
+});
+
+for (const s of [supa, hubspot, pipedrive, calendly, calcom]) await new Promise<void>((r) => s.listen(0, '127.0.0.1', () => r()));
 const urlOf = (s: http.Server) => `http://127.0.0.1:${(s.address() as AddressInfo).port}`;
 
 process.env.SUPABASE_URL = urlOf(supa);
@@ -510,7 +572,11 @@ process.env.API_BASE_URL ||= 'https://api.sincerely.io';
 const { overrideCrmHost } = await import('../src/services/crm-sync/http.js');
 overrideCrmHost('api.hubapi.com', urlOf(hubspot));
 overrideCrmHost('api.pipedrive.com', urlOf(pipedrive));
-const { dispatchEvent } = await import('../src/services/integrations.service.js');
+overrideCrmHost('api.calendly.com', urlOf(calendly));
+overrideCrmHost('api.cal.com', urlOf(calcom));
+const { dispatchEvent, connectIntegration, deleteIntegration } = await import('../src/services/integrations.service.js');
+const { handleSchedulingHook, checkScheduling } = await import('../src/services/scheduling.service.js');
+const { stopSequencesForMeeting } = await import('../src/services/meeting-stop.service.js');
 const { runCrmSync, crmSyncService, reconcile } = await import('../src/services/crm-sync.service.js');
 const { contactsService } = await import('../src/services/contacts.service.js');
 const shared = await import('@lemlist/shared');
@@ -1071,8 +1137,136 @@ console.log('\nowners, stages, tasks, companies, lists into campaigns');
   check('Pipedrive: active users are offered as owners', po.owners.length === 1 && po.owners[0].id === '9', po.owners);
 }
 
+console.log('\nCalendly and Cal.com (listen-only)');
+{
+  const U5 = crypto.randomUUID();
+  db.crm_events = db.crm_events || [];
+  db.deals = db.deals || [];
+  db.crm_notes = db.crm_notes || [];
+  const camp5 = crypto.randomUUID();
+  db.campaigns.push({ id: camp5, user_id: U5, name: 'Founders outbound' });
+  const ann = { ...person('ann@acme5.test', { first_name: 'Ann', last_name: 'Lee' }), user_id: U5 };
+  db.contacts.push(ann);
+  db.campaign_contacts.push({ id: crypto.randomUUID(), campaign_id: camp5, contact_id: ann.id, status: 'active', next_send_at: ago(-60_000), created_at: nowStamp() });
+  // A HubSpot connection too, to see the meeting reach it.
+  const HS5 = crypto.randomUUID();
+  db.user_integrations.push({
+    id: HS5, user_id: U5, provider: 'hubspot', is_active: true, config: { access_token: 'pat-test' }, events: ['email.replied'],
+    sync_settings: { deal_pipeline: 'p2', deal_stage: 's2a', deal_stage_meeting: 's2b', companies: false }, sync_cursors: {}, sync_backfill: {},
+  });
+
+  // Ann already booked before Calendly was connected.
+  const soon = new Date(Date.now() + 2 * 86_400_000).toISOString();
+  cly.events.push({ uri: 'https://api.calendly.com/scheduled_events/EV1', name: 'Intro call', start_time: soon, end_time: new Date(Date.parse(soon) + 1_800_000).toISOString(), status: 'active', location: { join_url: 'https://zoom.test/j/1' } });
+  cly.invitees.set('EV1', [{ email: 'Ann@acme5.test', name: 'Ann Lee', status: 'active', timezone: 'Europe/London', questions_and_answers: [{ question: 'What do you want to cover?', answer: 'Pricing' }] }]);
+
+  const c1 = await connectIntegration(U5, 'calendly', { config: { access_token: 'cly-test' }, events: [] });
+  const CL = c1.integration.id;
+  const clRow = () => db.user_integrations.find((r) => r.id === CL);
+  check('Calendly connects and subscribes to bookings and cancellations, signed', cly.subs.length === 1 && cly.subs[0].url.endsWith(`/api/hooks/scheduling/calendly/${CL}`) && cly.subs[0].events.join() === 'invitee.created,invitee.canceled' && cly.subs[0].scope === 'user' && /^[0-9a-f]{64}$/.test(cly.subs[0].signing_key), cly.subs);
+  check('...says it is instant, and whose account', clRow().config.mode === 'instant' && clRow().config.account_name === 'Alex Owner' && /instant|moment/.test(c1.test.detail), c1.test);
+  check('...the secret never reaches the page', c1.integration.config.webhook_secret !== clRow().config.webhook_secret);
+  const annMeeting = db.crm_events.find((e) => e.user_id === U5 && e.external_id === 'EV1:ann@acme5.test');
+  check('a meeting already booked is picked up when connecting', !!annMeeting && annMeeting.status === 'confirmed' && annMeeting.contact_id === ann.id && annMeeting.location === 'https://zoom.test/j/1' && annMeeting.notes === 'What do you want to cover?: Pricing' && annMeeting.source_campaign_id === camp5, annMeeting);
+  check("...and stops that person's sequence", enrolment(ann.id).status === 'paused' && enrolment(ann.id).error_message === 'Paused by hand: booked a meeting through Calendly', enrolment(ann.id));
+  check('...a deal opens for it', db.deals.some((d) => d.user_id === U5 && d.contact_id === ann.id && d.stage === 'qualified'), db.deals.filter((d) => d.user_id === U5));
+  check('...it is on their timeline', db.crm_notes.some((n) => n.contact_id === ann.id && /Booked "Intro call" through Calendly/.test(n.body)));
+  const hAnn = hsContact('ann@acme5.test');
+  check('...and HubSpot hears about it: on the timeline, a deal in the meeting stage, lifecycle opportunity', hAnn && hs.notes.some((n) => n.contact === hAnn.id && /meeting booked via Calendly - Intro call/.test(n.body)) && [...hs.deals.values()].some((d) => d.contact === hAnn.id && d.properties.dealstage === 's2b') && hAnn.properties.lifecyclestage === 'opportunity', hAnn?.properties);
+  check('...but no follow-up task: the meeting is the follow-up', !hs.tasks.some((t) => t.contact === hAnn?.id));
+
+  // A new booking, notified instantly.
+  const secret = clRow().config.webhook_secret;
+  const sign = (body: string, s2 = secret, t = Math.floor(Date.now() / 1000)) => `t=${t},v1=${crypto.createHmac('sha256', s2).update(`${t}.${body}`).digest('hex')}`;
+  const created = (ev: string, email: string, extra: Row = {}) => JSON.stringify({
+    event: 'invitee.created', created_at: nowStamp(),
+    payload: { email, name: 'Bo Diaz', status: 'active', timezone: 'America/New_York', scheduled_event: { uri: `https://api.calendly.com/scheduled_events/${ev}`, name: 'Demo', start_time: soon, end_time: soon, location: { type: 'google_conference' } }, ...extra },
+  });
+  let body = created('EV2', 'bo@beta5.test');
+  let r = await handleSchedulingHook('calendly', CL, body, { 'calendly-webhook-signature': sign(body) });
+  const bo = db.contacts.find((c) => c.user_id === U5 && c.email === 'bo@beta5.test');
+  check('a signed notification records the booking, creating the contact', r.status === 200 && !!bo && db.crm_events.some((e) => e.external_id === 'EV2:bo@beta5.test' && e.contact_id === bo.id), r);
+  r = await handleSchedulingHook('calendly', CL, body, { 'calendly-webhook-signature': sign(body) });
+  check('the same notification twice is recorded once', r.status === 200 && db.crm_events.filter((e) => e.external_id === 'EV2:bo@beta5.test').length === 1);
+  r = await handleSchedulingHook('calendly', CL, body, { 'calendly-webhook-signature': sign(body, 'f'.repeat(64)) });
+  check('a notification not signed with our key is refused', r.status === 401);
+  r = await handleSchedulingHook('calendly', CL, body, { 'calendly-webhook-signature': sign(body, secret, Math.floor(Date.now() / 1000) - 3600) });
+  check('an old signed notification (replayed) is refused', r.status === 401);
+  r = await handleSchedulingHook('calendly', crypto.randomUUID(), body, { 'calendly-webhook-signature': sign(body) });
+  check('a notification for a connection that is gone says so (410), so Calendly stops', r.status === 410);
+
+  // Rescheduled: the old invitee's cancel is ignored, the new booking moves the meeting.
+  const later = new Date(Date.now() + 5 * 86_400_000).toISOString();
+  body = JSON.stringify({ event: 'invitee.canceled', payload: { email: 'bo@beta5.test', rescheduled: true, scheduled_event: { uri: 'https://api.calendly.com/scheduled_events/EV2', name: 'Demo', start_time: soon } } });
+  await handleSchedulingHook('calendly', CL, body, { 'calendly-webhook-signature': sign(body) });
+  check('the cancel half of a reschedule leaves the meeting alone', db.crm_events.find((e) => e.external_id === 'EV2:bo@beta5.test')?.status === 'confirmed');
+  body = JSON.stringify({ event: 'invitee.created', payload: { email: 'bo@beta5.test', name: 'Bo Diaz', old_invitee: 'https://api.calendly.com/scheduled_events/EV2/invitees/I9', scheduled_event: { uri: 'https://api.calendly.com/scheduled_events/EV3', name: 'Demo', start_time: later, end_time: later } } });
+  await handleSchedulingHook('calendly', CL, body, { 'calendly-webhook-signature': sign(body) });
+  const moved = db.crm_events.filter((e) => e.user_id === U5 && e.contact_id === bo.id);
+  check('a reschedule moves the meeting rather than adding a second', moved.length === 1 && moved[0].external_id === 'EV3:bo@beta5.test' && moved[0].starts_at === later, moved);
+  body = JSON.stringify({ event: 'invitee.canceled', payload: { email: 'bo@beta5.test', cancellation: { reason: 'Found another tool' }, scheduled_event: { uri: 'https://api.calendly.com/scheduled_events/EV3', name: 'Demo', start_time: later } } });
+  await handleSchedulingHook('calendly', CL, body, { 'calendly-webhook-signature': sign(body) });
+  check('a cancellation marks the meeting cancelled, with the reason on their timeline', moved[0].status === 'cancelled' && db.crm_notes.some((n) => n.contact_id === bo.id && /Cancelled the Calendly meeting .*Found another tool/.test(n.body)));
+
+  // Disconnecting stops the notifications.
+  await deleteIntegration(U5, CL);
+  check('disconnecting Calendly removes its subscription', cly.deleted.includes('W1'));
+
+  // Calendly's free plan: no notifications, so Sincerely checks.
+  cly.subscribeAnswer = 403;
+  const c2 = await connectIntegration(U5, 'calendly', { config: { access_token: 'cly-test' }, events: [] });
+  const CL2 = c2.integration.id;
+  const row2 = () => db.user_integrations.find((x) => x.id === CL2);
+  check('on the free plan it connects anyway and checks every 5 minutes instead', row2().config.mode === 'checking' && /every 5 minutes/.test(c2.test.detail) && Math.abs(Date.parse(row2().next_sync_at) - Date.now() - 5 * 60_000) < 15_000, { mode: row2().config.mode, next: row2().next_sync_at });
+  cly.events.push({ uri: 'https://api.calendly.com/scheduled_events/EV4', name: 'Demo', start_time: later, end_time: later, status: 'active' });
+  cly.invitees.set('EV4', [{ email: 'cy@gamma5.test', name: 'Cy', status: 'active' }]);
+  await checkScheduling(row2());
+  check('a check finds a new booking', db.crm_events.some((e) => e.external_id === 'EV4:cy@gamma5.test' && e.status === 'confirmed'));
+  cly.events.find((e) => e.uri.endsWith('EV4'))!.status = 'canceled';
+  await checkScheduling(row2());
+  check('a check finds a cancellation', db.crm_events.find((e) => e.external_id === 'EV4:cy@gamma5.test')?.status === 'cancelled');
+  await deleteIntegration(U5, CL2);
+
+  // Cal.com.
+  const c3 = await connectIntegration(U5, 'calcom', { config: { api_key: 'cal_live_test' }, events: [] });
+  const CC = c3.integration.id;
+  const ccRow = () => db.user_integrations.find((x) => x.id === CC);
+  check('Cal.com connects and subscribes to created, rescheduled and cancelled bookings', cal.hooks.length === 1 && cal.hooks[0].subscriberUrl.endsWith(`/api/hooks/scheduling/calcom/${CC}`) && cal.hooks[0].triggers.join() === 'BOOKING_CREATED,BOOKING_RESCHEDULED,BOOKING_CANCELLED' && ccRow().config.mode === 'instant', cal.hooks);
+  const csecret = ccRow().config.webhook_secret;
+  const csign = (b: string) => crypto.createHmac('sha256', csecret).update(b).digest('hex');
+  const dee = { ...person('dee@delta5.test', { first_name: 'Dee' }), user_id: U5 };
+  db.contacts.push(dee);
+  db.campaign_contacts.push({ id: crypto.randomUUID(), campaign_id: camp5, contact_id: dee.id, status: 'pending', next_send_at: ago(-60_000), created_at: nowStamp() });
+  body = JSON.stringify({ triggerEvent: 'BOOKING_CREATED', payload: { uid: 'bk1', title: '30 min meeting', startTime: soon, endTime: soon, attendees: [{ name: 'Dee', email: 'dee@delta5.test', timeZone: 'Europe/Paris' }], metadata: { videoCallUrl: 'https://cal.video/x' }, responses: { name: 'Dee', email: 'dee@delta5.test', notes: 'About onboarding' } } });
+  r = await handleSchedulingHook('calcom', CC, body, { 'x-cal-signature-256': csign(body) });
+  const dm = db.crm_events.find((e) => e.external_id === 'bk1:dee@delta5.test');
+  check('a Cal.com booking is recorded, with the video link and their notes', r.status === 200 && dm?.location === 'https://cal.video/x' && dm?.notes === 'notes: About onboarding' && dm?.invitee_timezone === 'Europe/Paris', dm);
+  check("...and stops a sequence that had not started sending yet", db.campaign_contacts.find((c) => c.contact_id === dee.id)?.status === 'paused');
+  r = await handleSchedulingHook('calcom', CC, body, { 'x-cal-signature-256': 'ab'.repeat(32) });
+  check('a Cal.com notification with the wrong signature is refused', r.status === 401);
+  body = JSON.stringify({ triggerEvent: 'BOOKING_RESCHEDULED', payload: { uid: 'bk2', rescheduleUid: 'bk1', title: '30 min meeting', startTime: later, endTime: later, attendees: [{ name: 'Dee', email: 'dee@delta5.test' }] } });
+  await handleSchedulingHook('calcom', CC, body, { 'x-cal-signature-256': csign(body) });
+  check('a Cal.com reschedule moves the meeting', dm?.external_id === 'bk2:dee@delta5.test' && dm?.starts_at === later && db.crm_events.filter((e) => e.contact_id === dee.id).length === 1);
+  body = JSON.stringify({ triggerEvent: 'BOOKING_CANCELLED', payload: { uid: 'bk2', title: '30 min meeting', startTime: later, attendees: [{ name: 'Dee', email: 'dee@delta5.test' }], cancellationReason: 'Clash' } });
+  await handleSchedulingHook('calcom', CC, body, { 'x-cal-signature-256': csign(body) });
+  check('a Cal.com cancellation marks it cancelled', dm?.status === 'cancelled');
+  body = JSON.stringify({ triggerEvent: 'PING', payload: {} });
+  r = await handleSchedulingHook('calcom', CC, body, { 'x-cal-signature-256': csign(body) });
+  check("Cal.com's test ping is answered", r.status === 200);
+  await deleteIntegration(U5, CC);
+  check('disconnecting Cal.com removes its webhook', cal.deleted.includes('h1'));
+
+  // Sincerely's own booking pages stop sequences too (the same function).
+  const eli = { ...person('eli@epsilon5.test'), user_id: U5 };
+  db.contacts.push(eli);
+  db.campaign_contacts.push({ id: crypto.randomUUID(), campaign_id: camp5, contact_id: eli.id, status: 'active', next_send_at: ago(-60_000), created_at: nowStamp() });
+  const n = await stopSequencesForMeeting(U5, eli.id, 'through a Sincerely booking link');
+  check("booking through a Sincerely link stops that person's sequences", n === 1 && db.campaign_contacts.find((c) => c.contact_id === eli.id)?.error_message === 'Paused by hand: booked a meeting through a Sincerely booking link');
+  check("...and never someone else's", (await stopSequencesForMeeting(OTHER, eli.id, 'x')) === 0);
+}
+
 /* ── Done ────────────────────────────────────────────────────────────── */
 
-for (const s of [supa, hubspot, pipedrive]) s.close();
+for (const s of [supa, hubspot, pipedrive, calendly, calcom]) s.close();
 console.log(`\n${passes} passed, ${failures} failed`);
 process.exit(failures ? 1 : 0);
