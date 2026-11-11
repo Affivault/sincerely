@@ -15,6 +15,7 @@
 
 import type { DealStage } from './crm.types.js';
 import { rotOf } from './pipeline.types.js';
+import type { DealContactActivity } from './deal-contact.js';
 
 export type DealHealthGrade = 'healthy' | 'watch' | 'at_risk';
 
@@ -43,6 +44,8 @@ export interface DealHealth {
   next_action: DealNextAction;
   /** One sentence for a tooltip or a card. */
   summary: string;
+  /** When anybody on the deal was last emailed, wrote back or was met. Filled by the server. */
+  activity?: DealContactActivity;
 }
 
 /** Everything the score reads. Gathered by the server per deal. */

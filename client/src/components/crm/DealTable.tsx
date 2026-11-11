@@ -1,8 +1,9 @@
 import { useDealHealth, DealHealthDot } from './DealHealth';
+import { DealContactCell } from './DealContact';
 import { useMemo, useState } from 'react';
 import { probabilityOf, rotOf, weightedValue, formatDayMonth, formatMoney, parseDay } from '@lemlist/shared';
 import { usePipelines } from '../../hooks/usePipelines';
-import type { Deal, DealStage } from '@lemlist/shared';
+import type { Deal, DealHealth, DealStage } from '@lemlist/shared';
 import { Avatar } from '../shared/Avatar';
 import { Checkbox } from '../ui/Checkbox';
 import { useFillViewport } from '../../hooks/useFillViewport';
@@ -20,7 +21,7 @@ import { ArrowDown, ArrowUp, Building2, Clock } from 'lucide-react';
    Every serious CRM ships both, and this is the half that was missing.
    ═══════════════════════════════════════════════════════════════════════ */
 
-export type SortKey = 'title' | 'company' | 'value' | 'weighted' | 'stage' | 'close' | 'age' | 'lead';
+export type SortKey = 'title' | 'company' | 'value' | 'weighted' | 'stage' | 'close' | 'age' | 'lead' | 'contact';
 export type SortDir = 'asc' | 'desc';
 
 function money(v: number, currency?: string | null): string {
@@ -82,9 +83,31 @@ function sortValue(d: Deal, key: SortKey, stageRank: (d: Deal) => number): strin
 
 const PHASE_RANK: Record<DealStage, number> = { lead: 0, qualified: 1, proposal: 2, won: 100, lost: 101 };
 
-export function sortDeals(deals: Deal[], key: SortKey, dir: SortDir, stageRank: (d: Deal) => number = (d) => PHASE_RANK[d.stage] ?? 0): Deal[] {
+/**
+ * Days since anybody on the deal was last spoken to. Null when there is no
+ * read for it (a closed deal) - those sort last either way, like a missing
+ * close date. A deal nobody has been contacted on counts as longest ago.
+ */
+function contactDays(d: Deal, health?: Record<string, DealHealth>): number | null {
+  const a = health?.[d.id]?.activity;
+  if (!a) return null;
+  return a.days_since ?? Number.MAX_SAFE_INTEGER;
+}
+
+export function sortDeals(
+  deals: Deal[], key: SortKey, dir: SortDir,
+  stageRank: (d: Deal) => number = (d) => PHASE_RANK[d.stage] ?? 0,
+  health?: Record<string, DealHealth>,
+): Deal[] {
   const factor = dir === 'asc' ? 1 : -1;
   return [...deals].sort((a, b) => {
+    if (key === 'contact') {
+      const ad = contactDays(a, health);
+      const bd = contactDays(b, health);
+      if ((ad === null) !== (bd === null)) return ad === null ? 1 : -1;
+      if (ad === null || bd === null || ad === bd) return (a.title || '').localeCompare(b.title || '');
+      return (ad > bd ? 1 : -1) * factor;
+    }
     if (key === 'close') {
       // Missing dates sort last regardless of direction - applying the
       // asc/desc factor to the sentinel value would otherwise flip them to
@@ -118,7 +141,7 @@ function Th({
     <th
       style={width ? { width } : undefined}
       className={cn(
-        'sticky top-0 z-10 bg-[var(--bg-surface)] px-3 py-2 text-caption font-semibold uppercase tracking-wider',
+        'sticky top-0 z-10 whitespace-nowrap bg-[var(--bg-surface)] px-3 py-2 text-caption font-semibold uppercase tracking-wider',
         'border-b border-[var(--border-subtle)] text-[var(--text-tertiary)]',
         align === 'right' ? 'text-right' : 'text-left',
       )}
@@ -177,7 +200,7 @@ export function DealTable({
     const st = pipes.stageOf(d);
     return st ? st.position : PHASE_RANK[d.stage] ?? 0;
   };
-  const rows = useMemo(() => sortDeals(deals, sortKey, sortDir, stageRank), [deals, sortKey, sortDir, pipes]);
+  const rows = useMemo(() => sortDeals(deals, sortKey, sortDir, stageRank, health), [deals, sortKey, sortDir, pipes, health]);
   const allOn = rows.length > 0 && rows.every((d) => selected.has(d.id));
   /*
    * The header row is `sticky top-0`, which only means anything if the thing
@@ -192,7 +215,7 @@ export function DealTable({
       {/* A cap rather than a fixed height: six deals should render as six
           rows, not as six rows and half a screen of empty panel. */}
       <div ref={frameRef} style={height ? { maxHeight: height } : undefined} className="overflow-auto">
-        <table className="w-full min-w-[900px] border-collapse">
+        <table className="w-full min-w-[1020px] border-collapse">
           <thead>
             <tr>
               <th className="sticky top-0 z-10 w-9 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2">
@@ -206,6 +229,7 @@ export function DealTable({
               <Th label="Weighted" sortKey="weighted" active={sortKey} dir={sortDir} onSort={onSort} align="right" width="110px" />
               <Th label="Close" sortKey="close" active={sortKey} dir={sortDir} onSort={onSort} width="120px" />
               <Th label="In stage" sortKey="age" active={sortKey} dir={sortDir} onSort={onSort} align="right" width="95px" />
+              <Th label="Last contact" sortKey="contact" active={sortKey} dir={sortDir} onSort={onSort} width="130px" />
             </tr>
           </thead>
           <tbody>
@@ -321,6 +345,10 @@ export function DealTable({
                     )}
                   >
                     {rot.days === null ? '—' : `${rot.days}d`}
+                  </td>
+
+                  <td className="px-3 py-2.5 text-body tabular-nums">
+                    <DealContactCell activity={health?.[d.id]?.activity} />
                   </td>
                 </tr>
               );

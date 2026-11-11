@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Avatar } from '../shared/Avatar';
 import { usePeek } from '../peek/usePeek';
 import { DealHealthDot } from './DealHealth';
+import { DealContactLine } from './DealContact';
 import { NextActivity, type NextStepInfo } from './NextActivity';
 import { ChecklistBadge } from './StageChecklist';
 import { usePipelines } from '../../hooks/usePipelines';
@@ -146,6 +147,13 @@ export function DealCard({
               <span className="min-w-0 truncate">{person}</span>
             )
           )}
+        </div>
+      )}
+
+      {/* When anybody on the deal was last spoken to, coloured once it cools. */}
+      {open && health?.activity && (
+        <div className="mt-1.5 flex min-w-0">
+          <DealContactLine activity={health.activity} />
         </div>
       )}
 
