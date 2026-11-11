@@ -104,6 +104,26 @@ const deals = stages.map((stage, i) => {
   };
 });
 
+/** Last contact on each deal, shaped like the server's read (shared/deal-contact). */
+const dealActivity = (d, i) => {
+  const days = [1, 4, 9, 18, 2, null, 6, 30][i];
+  const by = ['them', 'you', 'you', 'you', 'them', null, 'you', 'you'][i];
+  const name = d.contact_name;
+  const first = name.split(' ')[0];
+  const pace = days === null ? 'never' : days >= 14 ? 'quiet' : days >= 7 ? 'cooling' : 'fresh';
+  const at = days === null ? null : ago(days);
+  const sentence = days === null ? 'No emails or meetings with anyone on this deal in the last 120 days'
+    : by === 'them' ? `${first} replied ${days === 1 ? 'yesterday' : `${days} days ago`}`
+      : `You emailed ${first} ${days < 14 ? `${days} days ago` : `${Math.round(days / 7)} weeks ago`}, last heard from them ${Math.round((days + 6) / 7)} weeks ago`;
+  return {
+    last: at ? { at, by, kind: 'email', email: d.contact_email, name } : null,
+    last_heard: at ? { at: ago(by === 'them' ? days : days + 6), email: d.contact_email, name } : null,
+    days_since: days, days_since_heard: days === null ? null : by === 'them' ? days : days + 6, pace,
+    ball: by === 'them' ? 'you' : by === 'you' ? 'them' : null,
+    people: [], engaged: days === null ? 0 : 1, total: 1, sentence,
+  };
+};
+
 const tasks = [
   ['Send case study to Priya', 0, 'high', 'c3'], ['Call Tomas about pricing', -1, 'normal', 'c2'], ['Prep proposal for Northbeam', 1, 'high', 'c1'],
   ['Follow up with Jonas', 3, 'normal', 'c4'], ['LinkedIn: connect with Kenji', 0, 'low', 'c8'],
@@ -410,7 +430,7 @@ function answer(method, path, q) {
     case '/tags': return [{ id: 't1', name: 'Fintech', color: '#6366f1' }];
     case '/campaigns': return page(q.get('status') ? campaigns.filter((c) => c.status === q.get('status')) : campaigns);
     case '/crm/deals': return deals;
-    case '/crm/deals/health': return Object.fromEntries(deals.map((d, i) => [d.id, { score: [82, 64, 38, 71, 55, 90, 100, 0][i], grade: i === 2 ? 'at_risk' : i === 4 ? 'watch' : 'healthy', summary: i === 2 ? 'No reply in 9 days' : 'On track', reasons: [{ text: i === 2 ? 'No reply in 9 days' : 'Replied recently', impact: i === 2 ? -20 : 10 }], next_action: i === 2 ? 'follow_up' : 'none' }]));
+    case '/crm/deals/health': return Object.fromEntries(deals.map((d, i) => [d.id, { score: [82, 64, 38, 71, 55, 90, 100, 0][i], grade: i === 2 ? 'at_risk' : i === 4 ? 'watch' : 'healthy', summary: i === 2 ? 'No reply in 9 days' : 'On track', reasons: [{ text: i === 2 ? 'No reply in 9 days' : 'Replied recently', impact: i === 2 ? -20 : 10 }], next_action: i === 2 ? 'follow_up' : 'none', activity: dealActivity(d, i) }]));
     case '/crm/tasks': return tasks;
     case '/crm/events': return events;
     case '/crm/notes': return [];
@@ -562,7 +582,7 @@ function more(P, q, seg) {
   }
   if (/^\/crm\/deals\/d\d+\/detail$/.test(P)) {
     const d = deals.find((x) => x.id === seg[3]) || deals[0]; const ct = contacts.find((x) => x.id === d.contact_id);
-    return { deal: { ...d, contact: { id: ct.id, email: ct.email, first_name: ct.first_name, last_name: ct.last_name, company: ct.company, job_title: ct.job_title } }, participants: [{ id: 'dp1', deal_id: d.id, contact_id: 'c7', role: 'Economic buyer', note: null, created_at: ago(5), contact: { id: 'c7', email: contacts[6].email, first_name: 'Sofia', last_name: 'Marin', company: contacts[6].company, job_title: contacts[6].job_title } }], tasks: tasks.filter((t) => t.deal_id === d.id), events: events.filter((e) => e.deal_id === d.id), notes, history: history(d.id), emails: inbox.slice(0, 3).map((m) => ({ id: m.id, subject: m.subject, from_email: m.from_email, to_email: m.to_email, direction: 'inbound', received_at: m.received_at, body_text: m.body_text, is_read: true, contact_id: m.contact_id })) };
+    return { deal: { ...d, contact: { id: ct.id, email: ct.email, first_name: ct.first_name, last_name: ct.last_name, company: ct.company, job_title: ct.job_title } }, participants: [{ id: 'dp1', deal_id: d.id, contact_id: 'c7', role: 'Economic buyer', note: null, created_at: ago(5), contact: { id: 'c7', email: contacts[6].email, first_name: 'Sofia', last_name: 'Marin', company: contacts[6].company, job_title: contacts[6].job_title } }], tasks: tasks.filter((t) => t.deal_id === d.id), events: events.filter((e) => e.deal_id === d.id), notes, history: history(d.id), emails: [...inbox.slice(0, 2).map((m) => ({ ...m, from_email: ct.email })), { ...inbox[2], from_email: 'me@affivault.com', to_email: contacts[6].email, received_at: ago(16), direction: 'outbound' }].map((m) => ({ id: m.id, subject: m.subject, from_email: m.from_email, to_email: m.to_email, direction: m.direction || 'inbound', received_at: m.received_at, body_text: m.body_text, is_read: true, contact_id: m.contact_id })) };
   }
   if (/^\/placement\/pl\d+$/.test(P)) {
     const probes = ['gmail', 'gmail', 'gmail', 'outlook', 'outlook', 'outlook', 'yahoo', 'yahoo', 'yahoo', 'other'].map((provider, i) => ({ id: `pb${i}`, seed_account_id: `seed${i % 3}`, seed_email: `seed${i}@${provider}.com`, provider, placement: i === 4 ? 'spam' : 'inbox', folder: i === 4 ? 'Junk' : 'INBOX', send_error: null, found_at: ago(2) }));

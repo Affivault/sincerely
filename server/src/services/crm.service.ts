@@ -1094,7 +1094,7 @@ export const crmService = {
     const list = `(${safe.join(',')})`;
     const { data, error } = await supabaseAdmin
       .from('inbox_messages')
-      .select('id, subject, from_email, to_email, direction, received_at, body_text, is_read, contact_id')
+      .select('id, subject, from_email, to_email, direction, received_at, body_text, is_read, contact_id, auto_reply_kind')
       .eq('user_id', userId)
       .or(`from_email.in.${list},to_email.in.${list}`)
       .order('received_at', { ascending: false })

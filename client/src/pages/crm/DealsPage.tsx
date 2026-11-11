@@ -864,6 +864,9 @@ export function DealsPage() {
     [deals, pipes, active],
   );
 
+  /** When anybody on a deal was last spoken to, for the "Gone quiet" slice. */
+  const contactOf = (d: Deal) => health?.[d.id]?.activity;
+
   /** Which board column a deal sits in: its named stage, or how it ended. */
   const columnOf = (d: Deal): string =>
     d.stage === 'won' || d.stage === 'lost' ? d.stage : pipes.stageOf(d)?.id || d.stage;
@@ -883,9 +886,9 @@ export function DealsPage() {
   }, [active]);
 
   const visibleDeals = useMemo(
-    () => applyDealFilters(inPipeline, filters, query, columnOf),
+    () => applyDealFilters(inPipeline, filters, query, columnOf, contactOf),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [inPipeline, filters, query, pipes],
+    [inPipeline, filters, query, pipes, health],
   );
   /* Columns follow what is on the board. Won and lost only ever grow, and a
      board that always showed them would spend its width on history while
@@ -1041,9 +1044,9 @@ export function DealsPage() {
 
   // The forecast reads banked revenue too, so "open" there also shows won.
   const forecastDeals = useMemo(
-    () => applyDealFilters(inPipeline, { ...filters, focus: filters.focus === 'open' ? 'all' : filters.focus }, query, columnOf),
+    () => applyDealFilters(inPipeline, { ...filters, focus: filters.focus === 'open' ? 'all' : filters.focus }, query, columnOf, contactOf),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [inPipeline, filters, query, pipes],
+    [inPipeline, filters, query, pipes, health],
   );
 
   return (
@@ -1122,6 +1125,7 @@ export function DealsPage() {
           view={view}
           onView={setViewPersisted}
           stageOptions={columns.map((c) => ({ id: c.id, label: c.name }))}
+          contactOf={contactOf}
         />
       )}
 
@@ -1176,7 +1180,9 @@ export function DealsPage() {
           </p>
           <p className="mt-1 text-center text-body text-[var(--text-tertiary)]">
             {filters.focus === 'stalled'
-              ? 'Nothing has gone quiet. Every open deal has moved recently.'
+              ? 'Nothing has stalled. Every open deal has moved recently.'
+              : filters.focus === 'quiet'
+                ? 'Nothing has gone quiet. Somebody on every open deal has been spoken to in the last two weeks.'
               : filters.focus === 'overdue'
                 ? 'Nothing is past its close date.'
                 : 'Try a different filter, or clear the search.'}

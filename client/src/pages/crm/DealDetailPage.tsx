@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  DEAL_LABELS, DEAL_STAGES, daysInStage, hasEconomics, isOpen, nextStep,
+  DEAL_LABELS, DEAL_STAGES, dealContactFromDetail, daysInStage, hasEconomics, isOpen, nextStep,
   probabilityOf, revenueSplit, rotOf, weightedValue, formatDayMonth, formatMoney, parseDay, sourceLabel } from '@lemlist/shared';
 import type {
   CrmEvent, CrmTask, Deal, DealLabel, DealStage,
@@ -17,6 +17,7 @@ import { StageChecklist } from '../../components/crm/StageChecklist';
 import { usePipelines } from '../../hooks/usePipelines';
 import { DealSource } from '../../components/crm/DealSource';
 import { DealPeople } from '../../components/crm/DealPeople';
+import { DealContactPanel } from '../../components/crm/DealContact';
 import { DealTimeline, type DealRecipient } from '../../components/crm/DealTimeline';
 import { DealJourney } from '../../components/crm/DealJourney';
 import { OutcomeDialog } from '../../components/crm/OutcomeDialog';
@@ -179,6 +180,8 @@ export function DealDetailPage() {
   }
 
   const { deal, participants, tasks, events, notes, history, emails } = data;
+  // Read from what the page already has, so closed deals get it too.
+  const contact = dealContactFromDetail({ deal, participants, emails, events });
   const stageMeta = { label: pipes.stageLabel(deal) };
   const pipeline = pipes.pipelineOf(deal);
   const currentStage = pipes.stageOf(deal);
@@ -395,6 +398,7 @@ export function DealDetailPage() {
 
         {/* The details column: plain sections split by rules, not a stack of boxes. */}
         <div>
+          <DealContactPanel activity={contact} open={isOpen(deal.stage)} onWrite={(email, name) => setWriteTo({ email, name })} />
           {isOpen(deal.stage) && (
             <DealHealthPanel
               health={healthMap?.[deal.id]}
@@ -471,7 +475,7 @@ export function DealDetailPage() {
           <DealSource deal={deal} />
 
           <div id="deal-people" />
-          <DealPeople deal={deal} participants={participants} onEmail={(email, name) => setWriteTo({ email, name })} />
+          <DealPeople deal={deal} participants={participants} contact={contact} onEmail={(email, name) => setWriteTo({ email, name })} />
 
           <div className="record-section">
             <p className="mb-2 text-caption font-medium text-[var(--text-tertiary)]">Journey</p>

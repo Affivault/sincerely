@@ -427,6 +427,8 @@ export interface DealEmail {
   body_text: string | null;
   is_read: boolean | null;
   contact_id: string | null;
+  /** Set when it is an out-of-office or other robot, not a person writing back. */
+  auto_reply_kind?: string | null;
 }
 
 /* ── Companies ──────────────────────────────────────────────────────────

@@ -12,7 +12,7 @@
 
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
-import { scoreDeal, OPEN_STAGES, type DealHealth, type DealSignals } from '@lemlist/shared';
+import { scoreDeal, dealContactActivity, OPEN_STAGES, type DealHealth, type DealSignals, type DealPersonInput, type DealTouchInput } from '@lemlist/shared';
 import { chunk } from '../utils/batch.js';
 
 /** How far back the email read goes. Older than this says nothing about now. */
@@ -46,7 +46,7 @@ export function responseHours(mail: Mail[], addresses: Set<string>): number[] {
 export async function healthForDeals(userId: string, dealIds?: string[]): Promise<Record<string, DealHealth>> {
   let q = supabaseAdmin
     .from('deals')
-    .select('id, stage, created_at, stage_changed_at, expected_close_date, contact_id, contact_email, contact:contacts(email)')
+    .select('id, stage, created_at, stage_changed_at, expected_close_date, contact_id, contact_name, contact_email, contact:contacts(id, email, first_name, last_name)')
     .eq('user_id', userId)
     .in('stage', OPEN_STAGES);
   if (dealIds && dealIds.length > 0) q = q.in('id', dealIds.slice(0, 200));
@@ -57,26 +57,38 @@ export async function healthForDeals(userId: string, dealIds?: string[]): Promis
   const ids = deals.map((d: any) => d.id as string);
   const people = new Map<string, Set<string>>();
   const roles = new Map<string, string[]>();
+  /** Everybody on each deal with a name, for "last spoke to Sarah 3 days ago". */
+  const roster = new Map<string, DealPersonInput[]>();
+  const nameOf = (c: any): string | null => [c?.first_name, c?.last_name].filter(Boolean).join(' ') || null;
   for (const d of deals as any[]) {
     const set = new Set<string>();
-    for (const e of [d.contact_email, d.contact?.email]) {
-      if (e) set.add(String(e).trim().toLowerCase());
+    const list: DealPersonInput[] = [];
+    for (const e of [d.contact?.email, d.contact_email]) {
+      if (!e) continue;
+      const email = String(e).trim().toLowerCase();
+      set.add(email);
+      list.push({ email, name: nameOf(d.contact) || d.contact_name || null, contact_id: d.contact?.id ?? d.contact_id ?? null, primary: true });
     }
     people.set(d.id, set);
     roles.set(d.id, []);
+    roster.set(d.id, list);
   }
 
   const participants = await Promise.all(chunk(ids).map(async (slice) => {
     const { data, error: pErr } = await supabaseAdmin
       .from('deal_participants')
-      .select('deal_id, role, contact:contacts(email)')
+      .select('deal_id, role, contact_id, contact:contacts(email, first_name, last_name)')
       .eq('user_id', userId)
       .in('deal_id', slice);
     if (pErr) throw new AppError(pErr.message, 500);
     return data || [];
   }));
   for (const p of participants.flat() as any[]) {
-    if (p.contact?.email) people.get(p.deal_id)?.add(String(p.contact.email).trim().toLowerCase());
+    if (p.contact?.email) {
+      const email = String(p.contact.email).trim().toLowerCase();
+      people.get(p.deal_id)?.add(email);
+      roster.get(p.deal_id)?.push({ email, name: nameOf(p.contact), contact_id: p.contact_id ?? null, role: p.role ?? null });
+    }
     if (p.role) roles.get(p.deal_id)?.push(String(p.role));
   }
 
@@ -116,16 +128,28 @@ export async function healthForDeals(userId: string, dealIds?: string[]): Promis
   const nowIso = new Date().toISOString();
   const nextMeeting = new Map<string, string>();
   const overdue = new Map<string, number>();
+  /** Meetings and calls already held on each deal, inside the window. */
+  const held = new Map<string, DealTouchInput[]>();
   await Promise.all(chunk(ids).map(async (slice) => {
-    const [ev, tk] = await Promise.all([
+    const [ev, tk, past] = await Promise.all([
       supabaseAdmin.from('crm_events').select('deal_id, starts_at')
         .eq('user_id', userId).in('deal_id', slice).gte('starts_at', nowIso)
         .order('starts_at', { ascending: true }),
       supabaseAdmin.from('crm_tasks').select('deal_id')
         .eq('user_id', userId).in('deal_id', slice).eq('is_done', false).lt('due_date', nowIso),
+      supabaseAdmin.from('crm_events').select('deal_id, starts_at, type, status, contact_email')
+        .eq('user_id', userId).in('deal_id', slice).gte('starts_at', since).lt('starts_at', nowIso),
     ]);
     if (ev.error) throw new AppError(ev.error.message, 500);
     if (tk.error) throw new AppError(tk.error.message, 500);
+    if (past.error) throw new AppError(past.error.message, 500);
+    for (const e of past.data || []) {
+      // A meeting that was cancelled or that they did not turn up to is not a conversation.
+      if (!e.deal_id || e.status === 'cancelled' || e.status === 'no_show') continue;
+      held.set(e.deal_id, [...(held.get(e.deal_id) || []), {
+        at: e.starts_at, kind: e.type === 'call' ? 'call' : 'meeting', email: e.contact_email || null,
+      }]);
+    }
     for (const e of ev.data || []) if (e.deal_id && !nextMeeting.has(e.deal_id)) nextMeeting.set(e.deal_id, e.starts_at);
     for (const t of tk.data || []) if (t.deal_id) overdue.set(t.deal_id, (overdue.get(t.deal_id) || 0) + 1);
   }));
@@ -163,7 +187,15 @@ export async function healthForDeals(userId: string, dealIds?: string[]): Promis
       next_meeting_at: nextMeeting.get(d.id) || null,
       overdue_tasks: overdue.get(d.id) || 0,
     };
-    out[d.id] = scoreDeal(signals);
+    const touches: DealTouchInput[] = mail.map((m) => {
+      const from = String(m.from_email || '').toLowerCase();
+      const inbound = m.direction === 'inbound' || addrs.has(from);
+      return { at: m.received_at, kind: inbound ? 'email_in' : 'email_out', email: inbound ? from : String(m.to_email || '').toLowerCase() || null };
+    });
+    out[d.id] = {
+      ...scoreDeal(signals),
+      activity: dealContactActivity({ people: roster.get(d.id) || [], touches: [...touches, ...(held.get(d.id) || [])], windowDays: WINDOW_DAYS }),
+    };
   }
   return out;
 }

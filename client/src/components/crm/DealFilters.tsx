@@ -1,5 +1,5 @@
 import { isOpen, rotOf, parseDay } from '@lemlist/shared';
-import type { Deal } from '@lemlist/shared';
+import type { Deal, DealContactActivity } from '@lemlist/shared';
 import { cn } from '../../lib/utils';
 import { CalendarRange, KanbanSquare, Rows3, X } from 'lucide-react';
 
@@ -15,7 +15,7 @@ import { CalendarRange, KanbanSquare, Rows3, X } from 'lucide-react';
 export type DealView = 'board' | 'table' | 'forecast';
 
 /** A named slice of the pipeline. `all` is not a filter, it is the absence of one. */
-export type DealFocus = 'all' | 'open' | 'stalled' | 'overdue' | 'closing' | 'won' | 'lost';
+export type DealFocus = 'all' | 'open' | 'stalled' | 'quiet' | 'overdue' | 'closing' | 'won' | 'lost';
 
 export interface DealFilterState {
   focus: DealFocus;
@@ -31,6 +31,7 @@ const FOCUS_LABEL: Record<DealFocus, string> = {
   all: 'All',
   open: 'Open',
   stalled: 'Stalled',
+  quiet: 'Gone quiet',
   overdue: 'Past close',
   closing: 'Closing 30d',
   won: 'Won',
@@ -51,11 +52,15 @@ function today(): number {
  * produced by the same code — a chip that says 7 above a list of 5 is the
  * fastest way to lose someone's trust in the whole page.
  */
+/** When anybody on a deal was last spoken to, from the deal-health read. */
+export type ContactOf = (d: Deal) => DealContactActivity | undefined;
+
 export function applyDealFilters(
   deals: Deal[],
   f: DealFilterState,
   query: string,
   stageOf: (d: Deal) => string = (d) => d.stage,
+  contactOf?: ContactOf,
 ): Deal[] {
   const q = query.trim().toLowerCase();
   const floor = today();
@@ -66,6 +71,12 @@ export function applyDealFilters(
     if (f.focus === 'won' && d.stage !== 'won') return false;
     if (f.focus === 'lost' && d.stage !== 'lost') return false;
     if (f.focus === 'stalled' && !rotOf(d).rotting) return false;
+    if (f.focus === 'quiet') {
+      // Open deals where nobody on either side has said a word in a fortnight,
+      // or nobody on the deal has been contacted at all.
+      const pace = isOpen(d.stage) ? contactOf?.(d)?.pace : undefined;
+      if (pace !== 'quiet' && pace !== 'never') return false;
+    }
 
     if (f.focus === 'overdue' || f.focus === 'closing') {
       // Both are statements about a deal that might still close, so a closed
@@ -93,8 +104,8 @@ export function applyDealFilters(
 }
 
 /** How many deals each focus would show, ignoring the other filters. */
-function focusCount(deals: Deal[], focus: DealFocus): number {
-  return applyDealFilters(deals, { ...EMPTY_FILTERS, focus }, '').length;
+function focusCount(deals: Deal[], focus: DealFocus, contactOf?: ContactOf): number {
+  return applyDealFilters(deals, { ...EMPTY_FILTERS, focus }, '', undefined, contactOf).length;
 }
 
 export function DealFilters({
@@ -104,6 +115,7 @@ export function DealFilters({
   view,
   onView,
   stageOptions,
+  contactOf,
 }: {
   deals: Deal[];
   filters: DealFilterState;
@@ -112,8 +124,10 @@ export function DealFilters({
   onView: (v: DealView) => void;
   /** The stages of the pipeline on screen, offered as table filters. */
   stageOptions: { id: string; label: string }[];
+  /** Feeds the "Gone quiet" slice. */
+  contactOf?: ContactOf;
 }) {
-  const focuses: DealFocus[] = ['open', 'stalled', 'overdue', 'closing', 'won', 'lost', 'all'];
+  const focuses: DealFocus[] = ['open', 'stalled', 'quiet', 'overdue', 'closing', 'won', 'lost', 'all'];
   const narrowed = filters.stages.length > 0 || filters.minValue > 0;
 
   const toggleStage = (stage: string) => {
@@ -130,7 +144,7 @@ export function DealFilters({
           "Stalled 0" is an invitation to press something that does nothing. */}
       <div className="inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-lg bg-[var(--bg-elevated)] p-0.5 scrollbar-none sm:overflow-visible">
         {focuses.map((focus) => {
-          const count = focusCount(deals, focus);
+          const count = focusCount(deals, focus, contactOf);
           if (count === 0 && focus !== 'open' && focus !== 'all' && filters.focus !== focus) return null;
           const on = filters.focus === focus;
           return (
@@ -143,7 +157,7 @@ export function DealFilters({
                 on
                   ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]'
                   : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]',
-                !on && (focus === 'stalled' || focus === 'overdue') && count > 0 && 'text-rose-600 dark:text-rose-400',
+                !on && (focus === 'stalled' || focus === 'quiet' || focus === 'overdue') && count > 0 && 'text-rose-600 dark:text-rose-400',
               )}
             >
               {FOCUS_LABEL[focus]}
