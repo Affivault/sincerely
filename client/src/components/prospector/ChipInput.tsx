@@ -32,7 +32,7 @@ export function ChipInput({
         onBlur={commit}
         placeholder={placeholder}
         list={suggestions?.length ? `${a11yId}-list` : undefined}
-        className="block w-full h-8 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 text-body text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] hover:border-[var(--border-strong)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[var(--ring-focus)] transition-[border-color,box-shadow]"
+        className="block w-full h-8 rounded-md border border-[var(--border-default)] bg-[var(--bg-field)] px-2.5 text-body text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] hover:border-[var(--border-strong)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[var(--ring-focus)] transition-[border-color,box-shadow]"
       />
       {suggestions?.length ? (
         <datalist id={`${a11yId}-list`}>

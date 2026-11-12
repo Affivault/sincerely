@@ -126,7 +126,7 @@ export function InlineEdit({
       else if (e.key === 'Enter' && (!multiline || e.metaKey || e.ctrlKey)) { e.preventDefault(); commit(); }
     },
     className: cn(
-      'w-full rounded-md border border-[var(--indigo)] bg-[var(--bg-app)] px-1.5 py-0.5 -mx-1.5',
+      'w-full rounded-md border border-[var(--indigo)] bg-[var(--bg-field)] px-1.5 py-0.5 -mx-1.5',
       !inputClassName && 'text-body',
       'text-[var(--text-primary)] outline-none',
       'focus:shadow-[var(--ring-focus)] disabled:opacity-60',

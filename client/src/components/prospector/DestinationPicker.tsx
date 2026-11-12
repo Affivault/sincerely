@@ -64,14 +64,14 @@ export function DestinationPicker({ listId, onChange }: { listId: string; onChan
         {creating ? (
           <form className="flex items-center gap-1.5" onSubmit={(e) => { e.preventDefault(); if (name.trim()) create.mutate(); }}>
             <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="New list name" aria-label="New list name"
-              className="h-8 w-48 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 text-body text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[var(--ring-focus)]" />
+              className="h-8 w-48 rounded-md border border-[var(--border-default)] bg-[var(--bg-field)] px-2.5 text-body text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[var(--ring-focus)]" />
             <Button size="sm" type="submit" disabled={!name.trim() || create.isPending}><Check className="h-3 w-3" /> Create</Button>
             <button type="button" aria-label="Cancel" onClick={() => { setCreating(false); setName(''); }} className="icon-btn h-7 w-7"><X className="h-3.5 w-3.5" /></button>
           </form>
         ) : (
           <>
             <select id={id} value={listId} onChange={(e) => onChange(e.target.value)}
-              className="h-8 min-w-[220px] max-w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2 text-body text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[var(--ring-focus)]">
+              className="h-8 min-w-[220px] max-w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-field)] px-2 text-body text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[var(--ring-focus)]">
               <option value="">Leads, no list</option>
               {folders.map((folder) => {
                 const options = (byFolder.get(folder) || []).map((d) => (

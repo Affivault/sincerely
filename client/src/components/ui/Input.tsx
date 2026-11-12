@@ -44,7 +44,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? `${fid}-error` : (hint ? `${fid}-hint` : undefined)}
           className={cn(
-            'block w-full h-8 rounded-md border bg-[var(--bg-app)] px-2.5 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] transition-[border-color,box-shadow] duration-150 ease-out focus:outline-none',
+            'block w-full h-8 rounded-md border bg-[var(--bg-field)] shadow-[var(--shadow-sm)] px-2.5 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] transition-[border-color,box-shadow] duration-150 ease-out focus:outline-none',
             // 1.4.11: the field edge is --border-control (3:1). Hover darkens
             // (--border-strong is lighter than the control edge).
             error

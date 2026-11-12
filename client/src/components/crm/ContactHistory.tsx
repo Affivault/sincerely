@@ -112,13 +112,13 @@ function QuickActivity({ contactId, contactName, onDone, onDetail }: {
         onChange={(e) => setTitle(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Enter' && title.trim()) create.mutate(); }}
         placeholder={`What needs doing with ${contactName}?`}
-        className="w-full h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-3 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)]"
+        className="w-full h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-field)] px-3 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)]"
       />
       <div className="flex items-center gap-2 flex-wrap">
         <select aria-label="Activity type"
           value={type}
           onChange={(e) => setType(e.target.value as CrmTask['type'])}
-          className="h-7 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+          className="h-7 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-field)] px-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
         >
           <option value="follow_up">Follow-up</option>
           <option value="call">Call</option>
@@ -130,7 +130,7 @@ function QuickActivity({ contactId, contactName, onDone, onDetail }: {
           type="datetime-local"
           value={due}
           onChange={(e) => setDue(e.target.value)}
-          className="h-7 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+          className="h-7 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-field)] px-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
         />
         <button
           onClick={onDetail}
@@ -188,7 +188,7 @@ function QuickMeeting({ contactId, contactName, contactEmail, onDone, onDetail }
         onChange={(e) => setTitle(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Enter') create.mutate(); }}
         placeholder={`${type === 'call' ? 'Call' : 'Meeting'} — ${contactName}`}
-        className="w-full h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-3 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)]"
+        className="w-full h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-field)] px-3 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)]"
       />
       <div className="flex items-center gap-2 flex-wrap">
         <div className="inline-flex rounded-lg border border-[var(--border-subtle)] overflow-hidden">
@@ -209,7 +209,7 @@ function QuickMeeting({ contactId, contactName, contactEmail, onDone, onDetail }
           type="datetime-local"
           value={starts}
           onChange={(e) => setStarts(e.target.value)}
-          className="h-7 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+          className="h-7 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-field)] px-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
         />
         <button
           onClick={onDetail}
@@ -542,7 +542,7 @@ export function ContactHistory({
                 }}
                 rows={2}
                 placeholder={`Log a note about ${contactName || contactEmail}… (⌘↵ to save)`}
-                className="w-full resize-none rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-3 py-2 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)] focus:shadow-[var(--ring-focus)] transition-all"
+                className="w-full resize-none rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-field)] px-3 py-2 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)] focus:shadow-[var(--ring-focus)] transition-all"
               />
               <div className="flex items-center mt-2">
                 <span className="flex-1" />

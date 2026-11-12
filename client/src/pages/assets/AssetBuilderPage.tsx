@@ -396,7 +396,7 @@ export function AssetBuilderPage() {
                       type="text"
                       value={value}
                       onChange={(e) => setPreviewParams({ ...previewParams, [key]: e.target.value })}
-                      className="w-full rounded-lg bg-[var(--bg-app)] border border-[var(--border-subtle)] px-3 py-1.5 text-strong text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-default)] focus-visible:shadow-[var(--ring-focus)]"
+                      className="w-full rounded-lg bg-[var(--bg-field)] border border-[var(--border-subtle)] px-3 py-1.5 text-strong text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-default)] focus-visible:shadow-[var(--ring-focus)]"
                     />
                   </div>
                 ))}
@@ -416,7 +416,7 @@ export function AssetBuilderPage() {
                   type="text"
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className="w-full rounded-lg bg-[var(--bg-app)] border border-[var(--border-subtle)] px-3 py-2 text-strong text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-default)] focus-visible:shadow-[var(--ring-focus)]"
+                  className="w-full rounded-lg bg-[var(--bg-field)] border border-[var(--border-subtle)] px-3 py-2 text-strong text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-default)] focus-visible:shadow-[var(--ring-focus)]"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -427,7 +427,7 @@ export function AssetBuilderPage() {
                     type="number"
                     value={editWidth}
                     onChange={(e) => setEditWidth(Number(e.target.value))}
-                    className="w-full rounded-lg bg-[var(--bg-app)] border border-[var(--border-subtle)] px-3 py-2 text-strong text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-default)] focus-visible:shadow-[var(--ring-focus)]"
+                    className="w-full rounded-lg bg-[var(--bg-field)] border border-[var(--border-subtle)] px-3 py-2 text-strong text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-default)] focus-visible:shadow-[var(--ring-focus)]"
                   />
                 </div>
                 <div>
@@ -437,7 +437,7 @@ export function AssetBuilderPage() {
                     type="number"
                     value={editHeight}
                     onChange={(e) => setEditHeight(Number(e.target.value))}
-                    className="w-full rounded-lg bg-[var(--bg-app)] border border-[var(--border-subtle)] px-3 py-2 text-strong text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-default)] focus-visible:shadow-[var(--ring-focus)]"
+                    className="w-full rounded-lg bg-[var(--bg-field)] border border-[var(--border-subtle)] px-3 py-2 text-strong text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-default)] focus-visible:shadow-[var(--ring-focus)]"
                   />
                 </div>
               </div>
@@ -456,7 +456,7 @@ export function AssetBuilderPage() {
                     type="text"
                     value={editBg}
                     onChange={(e) => setEditBg(e.target.value)}
-                    className="flex-1 rounded-lg bg-[var(--bg-app)] border border-[var(--border-subtle)] px-3 py-2 text-strong text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-default)] focus-visible:shadow-[var(--ring-focus)]"
+                    className="flex-1 rounded-lg bg-[var(--bg-field)] border border-[var(--border-subtle)] px-3 py-2 text-strong text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-default)] focus-visible:shadow-[var(--ring-focus)]"
                   />
                 </div>
               </div>

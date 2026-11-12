@@ -39,6 +39,10 @@
     --bg-active: #E5E5E0;
     --bg-muted: #FAFAF8;
     --bg-inset: #F1F1ED;
+    /* What you type into. White on paper: a field filled with the page's
+       own grey read as switched off, most of all inside a white dialog.
+       After dark it stays a well, a step below the surface around it. */
+    --bg-field: #FFFFFF;
 
     --border-subtle: #E7E6E1;
     --border-default: #DBDAD4;
@@ -119,12 +123,14 @@
 
     /* Hairline material - depth from 1px rules and contact shadows.
        Popovers alone get real elevation. */
-    --shadow-sm: 0 1px 1px rgba(24, 25, 29, 0.03);
+    --shadow-sm: 0 1px 2px rgba(24, 25, 29, 0.05);
     --shadow-md: 0 1px 2px rgba(24, 25, 29, 0.04), 0 4px 10px -4px rgba(24, 25, 29, 0.06);
     --shadow-lg: 0 1px 2px rgba(24, 25, 29, 0.04), 0 10px 24px -8px rgba(24, 25, 29, 0.10);
     --shadow-xl: 0 0 0 1px rgba(24, 25, 29, 0.04), 0 2px 4px -1px rgba(24, 25, 29, 0.05), 0 18px 40px -12px rgba(24, 25, 29, 0.18);
-    --shadow-card: 0 1px 1px rgba(24, 25, 29, 0.03);
-    --shadow-card-hover: 0 1px 2px rgba(24, 25, 29, 0.04), 0 6px 16px -8px rgba(24, 25, 29, 0.08);
+    /* A sheet resting on a sheet. At 3% it was not there at all, and a white
+       card on the white page was held up by its hairline alone. */
+    --shadow-card: 0 1px 2px rgba(24, 25, 29, 0.05), 0 3px 8px -4px rgba(24, 25, 29, 0.07);
+    --shadow-card-hover: 0 1px 2px rgba(24, 25, 29, 0.05), 0 8px 20px -8px rgba(24, 25, 29, 0.12);
     --shadow-glow: 0 0 0 1px rgba(47, 63, 156, 0.16);
     --shadow-glow-sm: 0 0 0 1px rgba(47, 63, 156, 0.12);
 
@@ -176,6 +182,7 @@
     --bg-active: #2D2E34;
     --bg-muted: #16171A;
     --bg-inset: #0F1012;
+    --bg-field: #131417;
 
     --border-subtle: #26272C;
     --border-default: #303136;
@@ -541,7 +548,7 @@
     background: var(--bg-surface);
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-sm);
+    box-shadow: var(--shadow-card);
     transition: border-color var(--dur-base) var(--ease-out),
                 box-shadow var(--dur-base) var(--ease-out),
                 transform var(--dur-base) var(--ease-out);
@@ -581,7 +588,7 @@
     background: var(--bg-surface);
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-lg);
-    box-shadow: 0 0 0 1px rgba(15,15,25,0.02), 0 1px 2px rgba(15,15,25,0.04);
+    box-shadow: var(--shadow-card);
   }
 
   /* Primary content panel — white surface with border and subtle shadow */
@@ -589,14 +596,14 @@
     background: var(--bg-surface);
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-lg);
-    box-shadow: 0 1px 0 rgba(15, 15, 25, 0.02), 0 1px 3px rgba(15, 15, 25, 0.03);
+    box-shadow: var(--shadow-card);
   }
   .panel-hover {
     transition: border-color 0.15s ease, box-shadow 0.2s ease;
   }
   .panel-hover:hover {
     border-color: var(--border-default);
-    box-shadow: 0 1px 0 rgba(15, 15, 25, 0.02), 0 2px 10px rgba(15, 15, 25, 0.06);
+    box-shadow: var(--shadow-card-hover);
   }
 
   /* Inset / muted panel — for sub-sections inside a card */
@@ -611,7 +618,7 @@
     /* background-color, not the shorthand: the shorthand also reset
        background-image, which is where a <select> keeps its arrow - so
        every dropdown given this class looked like a text field. */
-    background-color: var(--bg-surface);
+    background-color: var(--bg-field);
     color: var(--text-primary);
     /* 1.4.11: the edge of a field is what says "type here" - 3:1, not the
        1.4:1 hairline cards and dividers use. */

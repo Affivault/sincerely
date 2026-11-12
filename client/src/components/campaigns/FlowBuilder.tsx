@@ -495,7 +495,7 @@ function FlowNode({
                         rows={3}
                         maxLength={LINKEDIN_NOTE_MAX}
                         placeholder="Hi {{first_name}} — saw you're leading growth at {{company}}. Would love to connect."
-                        className="w-full resize-none rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-2.5 py-2 text-body text-[var(--text-primary)] outline-none focus:border-sky-500 focus-visible:shadow-[var(--ring-focus)]"
+                        className="w-full resize-none rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-field)] px-2.5 py-2 text-body text-[var(--text-primary)] outline-none focus:border-sky-500 focus-visible:shadow-[var(--ring-focus)]"
                       />
                       <p className="mt-1 text-micro text-[var(--text-tertiary)]">
                         Invites without a note are accepted more often — leave it empty and it's sent bare.
@@ -512,7 +512,7 @@ function FlowNode({
                         onChange={(e) => onUpdate({ body_text: e.target.value })}
                         rows={4}
                         placeholder="Thanks for connecting, {{first_name}}…"
-                        className="w-full resize-none rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-2.5 py-2 text-body text-[var(--text-primary)] outline-none focus:border-sky-500 focus-visible:shadow-[var(--ring-focus)]"
+                        className="w-full resize-none rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-field)] px-2.5 py-2 text-body text-[var(--text-primary)] outline-none focus:border-sky-500 focus-visible:shadow-[var(--ring-focus)]"
                       />
                       <p className="mt-1 text-micro text-[var(--text-tertiary)]">
                         Only reaches people you're already connected to — put an invite step before this one.

@@ -394,7 +394,7 @@ function SaveToList({ person, unlocked, contactId, saving, busy, listId, onListC
   return (
     <div className="mt-3 flex items-center gap-2 flex-wrap">
       <select value={listId} onChange={(e) => onListChange(e.target.value)} aria-label="List to save to"
-        className="h-8 min-w-0 max-w-[220px] rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2 text-body text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[var(--ring-focus)]">
+        className="h-8 min-w-0 max-w-[220px] rounded-md border border-[var(--border-default)] bg-[var(--bg-field)] px-2 text-body text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[var(--ring-focus)]">
         <option value="">Leads, no list</option>
         {(destinations || []).map((d) => (
           <option key={d.id} value={d.id}>{d.folder ? `${d.folder} / ` : ''}{d.name}{d.campaigns.length ? ' · in a campaign' : ''}</option>

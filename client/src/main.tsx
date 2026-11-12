@@ -39,8 +39,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <AuthProvider>
           <App />
           <Toaster
-            position="top-right"
-            gutter={10}
+            /* Top centre, over the tab bar. Top right is where every page
+               keeps its primary actions, and a message sat on top of them
+               for as long as it showed - six seconds for an error. */
+            position="top-center"
+            gutter={8}
             toastOptions={{
               // Theme-aware via CSS vars (resolve against the .dark class on <html>)
               duration: 3200,
@@ -52,8 +55,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                 boxShadow: 'var(--shadow-lg)',
                 fontSize: '13px',
                 fontWeight: 500,
-                padding: '10px 14px',
-                maxWidth: '400px',
+                padding: '8px 12px',
+                lineHeight: 1.4,
+                maxWidth: '440px',
               },
               success: { iconTheme: { primary: 'var(--success)', secondary: 'var(--bg-surface)' } },
               // Errors say what went wrong and what to do; 3.2s is too short to

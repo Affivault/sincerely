@@ -149,7 +149,7 @@ export function QuickCompose({
               <select
                 value={sender?.id || ''}
                 onChange={(e) => setSenderId(e.target.value)}
-                className="w-full h-7 appearance-none rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] pl-2 pr-6 text-caption text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+                className="w-full h-7 appearance-none rounded-lg border border-[var(--border-default)] bg-[var(--bg-field)] pl-2 pr-6 text-caption text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
               >
                 {senders.map((a) => (
                   <option key={a.id} value={a.id}>{a.email_address}</option>
@@ -167,7 +167,7 @@ export function QuickCompose({
             onChange={(e) => setSubject(e.target.value)}
             autoFocus
             placeholder="What's this about?"
-            className="flex-1 min-w-0 h-7 rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-2 text-caption text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+            className="flex-1 min-w-0 h-7 rounded-lg border border-[var(--border-default)] bg-[var(--bg-field)] px-2 text-caption text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
           />
         </label>
       </div>

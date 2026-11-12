@@ -27,7 +27,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? `${fid}-error` : (hint ? `${fid}-hint` : undefined)}
           className={cn(
-            'block w-full h-8 rounded-md border bg-[var(--bg-app)] px-2.5 text-strong text-[var(--text-primary)] transition-[border-color,box-shadow] duration-150 ease-out focus:outline-none cursor-pointer',
+            'block w-full h-8 rounded-md border bg-[var(--bg-field)] shadow-[var(--shadow-sm)] px-2.5 text-strong text-[var(--text-primary)] transition-[border-color,box-shadow] duration-150 ease-out focus:outline-none cursor-pointer',
             // 1.4.11: control edge at 3:1; hover darkens rather than lightens.
             error
               ? 'border-[var(--error)] hover:border-[var(--error)] focus:border-[var(--error)] focus:shadow-[var(--ring-error)]'

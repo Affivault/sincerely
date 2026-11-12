@@ -163,7 +163,7 @@ export function TagFilter({
         <div
           onClick={() => inputRef.current?.focus()}
           className={cn(
-            'flex flex-wrap items-center gap-1 min-h-8 rounded-md border bg-[var(--bg-app)] px-1.5 py-1 cursor-text transition-[border-color,box-shadow]',
+            'flex flex-wrap items-center gap-1 min-h-8 rounded-md border bg-[var(--bg-field)] px-1.5 py-1 cursor-text transition-[border-color,box-shadow]',
             'hover:border-[var(--border-strong)] focus-within:outline-none focus-within:shadow-[var(--ring-focus)]',
             excluding ? 'border-rose-500/40 focus-within:border-rose-500/60' : 'border-[var(--border-default)] focus-within:border-[var(--indigo)]',
           )}

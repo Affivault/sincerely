@@ -2556,7 +2556,7 @@ export function CampaignCreatePage() {
                         value={scheduleAt}
                         min={formatDatetimeLocalInTimezone(new Date(Date.now() + 5 * 60000), campaignForm.timezone || 'UTC')}
                         onChange={(e) => setScheduleAt(e.target.value)}
-                        className="w-full sm:w-72 h-9 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 text-strong text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[var(--ring-focus)]"
+                        className="w-full sm:w-72 h-9 rounded-md border border-[var(--border-default)] bg-[var(--bg-field)] px-2.5 text-strong text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[var(--ring-focus)]"
                       />
                     </div>
                   )}

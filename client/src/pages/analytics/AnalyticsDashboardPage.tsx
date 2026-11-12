@@ -35,7 +35,6 @@ import { Refreshing } from '../../components/ui/Refreshing';
 import { formatDateTime, formatDayMonth, campaignStatusLabel } from '@lemlist/shared';
 import { usePrefersReducedMotion } from '../../hooks/usePrefersReducedMotion';
 import {
-  LineChart, Line,
   BarChart, Bar,
   PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid,
@@ -1162,7 +1161,7 @@ export function AnalyticsDashboardPage() {
                 </div>
               </div>
               <div
-                className="h-56"
+                className="h-64"
                 role={formattedTrend.length > 0 ? 'img' : undefined}
                 aria-label={formattedTrend.length > 0
                   ? chartLabel(`Performance over the last ${days} days, totals`, (['sent', 'opened', 'clicked', 'replied'] as const).map((key) => ({
@@ -1174,15 +1173,23 @@ export function AnalyticsDashboardPage() {
                 {formattedTrend.length > 0 ? (
                   <ErrorBoundary fallback={<div className="flex items-center justify-center h-full text-strong text-[var(--text-tertiary)]">Chart unavailable</div>}>
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={formattedTrend}>
+                      <AreaChart data={formattedTrend}>
+                        <defs>
+                          {(['sent', 'opened', 'clicked', 'replied'] as const).map((key) => (
+                            <linearGradient key={key} id={`trend-${key}`} x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor={CHART_COLORS[key]} stopOpacity={key === 'sent' ? 0.16 : 0.08} />
+                              <stop offset="100%" stopColor={CHART_COLORS[key]} stopOpacity={0} />
+                            </linearGradient>
+                          ))}
+                        </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" vertical={false} />
                         <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: 'var(--text-tertiary)', fontSize: 10 }} dy={6} interval={days <= 7 ? 0 : days <= 30 ? 4 : 13} />
                         <YAxis axisLine={false} tickLine={false} tick={{ fill: 'var(--text-tertiary)', fontSize: 10 }} dx={-4} />
                         <Tooltip contentStyle={tooltipStyle} cursor={{ stroke: 'var(--border-default)', strokeDasharray: '4 4' }} />
                         {(['sent', 'opened', 'clicked', 'replied'] as const).map((key) => (
-                          <Line key={key} type="monotone" dataKey={key} stroke={CHART_COLORS[key]} strokeWidth={2} dot={false} isAnimationActive={!reducedMotion} activeDot={{ r: 4, fill: CHART_COLORS[key], stroke: 'var(--bg-surface)', strokeWidth: 2 }} name={key.charAt(0).toUpperCase() + key.slice(1)} />
+                          <Area key={key} type="monotone" dataKey={key} stroke={CHART_COLORS[key]} strokeWidth={2} fill={`url(#trend-${key})`} dot={false} isAnimationActive={!reducedMotion} activeDot={{ r: 4, fill: CHART_COLORS[key], stroke: 'var(--bg-surface)', strokeWidth: 2 }} name={key.charAt(0).toUpperCase() + key.slice(1)} />
                         ))}
-                      </LineChart>
+                      </AreaChart>
                     </ResponsiveContainer>
                   </ErrorBoundary>
                 ) : (

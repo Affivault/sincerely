@@ -112,11 +112,11 @@ export function StepWordingEditor({ campaignId, step, index, isFirstEmail = true
               <div className="flex items-center gap-1.5">
                 <input type="number" min={0} aria-label="Days" value={days}
                   onChange={(e) => setDays(Math.max(0, parseInt(e.target.value) || 0))}
-                  className="h-9 w-16 rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-2 text-center text-strong tabular focus:border-[var(--indigo)] focus:outline-none" />
+                  className="h-9 w-16 rounded-lg border border-[var(--border-default)] bg-[var(--bg-field)] px-2 text-center text-strong tabular focus:border-[var(--indigo)] focus:outline-none" />
                 <span className="text-caption text-[var(--text-secondary)]">days</span>
                 <input type="number" min={0} max={23} aria-label="Hours" value={hours}
                   onChange={(e) => setHours(Math.min(23, Math.max(0, parseInt(e.target.value) || 0)))}
-                  className="h-9 w-16 rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-2 text-center text-strong tabular focus:border-[var(--indigo)] focus:outline-none" />
+                  className="h-9 w-16 rounded-lg border border-[var(--border-default)] bg-[var(--bg-field)] px-2 text-center text-strong tabular focus:border-[var(--indigo)] focus:outline-none" />
                 <span className="text-caption text-[var(--text-secondary)]">hours</span>
               </div>
             </div>
@@ -142,7 +142,7 @@ export function StepWordingEditor({ campaignId, step, index, isFirstEmail = true
           <input
             value={variant === 'a' ? subject : subjectB}
             onChange={(e) => (variant === 'a' ? setSubject(e.target.value) : setSubjectB(e.target.value))}
-            className="h-9 w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-3 text-strong text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none"
+            className="h-9 w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-field)] px-3 text-strong text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none"
           />
         </label>
         )}

@@ -378,7 +378,7 @@ export function TeamPage() {
               <select id={`${a11yId}-f1`}
                 value={inviteRole}
                 onChange={(e) => setInviteRole(e.target.value)}
-                className="w-full h-8 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 text-strong text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[var(--ring-focus)] transition-[border-color,box-shadow]"
+                className="w-full h-8 rounded-md border border-[var(--border-default)] bg-[var(--bg-field)] px-2.5 text-strong text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[var(--ring-focus)] transition-[border-color,box-shadow]"
               >
                 <option value="member">Member — can view and run campaigns</option>
                 <option value="admin">Admin — full access except billing</option>

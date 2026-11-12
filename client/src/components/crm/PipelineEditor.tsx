@@ -508,7 +508,7 @@ export function PipelineEditor({
                   maxLength={60}
                   onChange={(e) => set(sel.key, { name: e.target.value })}
                   placeholder="Stage name"
-                  className="min-w-0 flex-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-2.5 py-1.5 text-strong font-semibold text-[var(--text-primary)] outline-none focus:border-[var(--indigo)] focus-visible:shadow-[var(--ring-focus)]"
+                  className="min-w-0 flex-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-field)] px-2.5 py-1.5 text-strong font-semibold text-[var(--text-primary)] outline-none focus:border-[var(--indigo)] focus-visible:shadow-[var(--ring-focus)]"
                 />
                 <span className="flex flex-shrink-0 items-center">
                   <button type="button" onClick={() => shift(sel.key, -1)} disabled={selIndex === 0} className="icon-btn h-8 w-7 text-[var(--text-tertiary)] disabled:opacity-30" aria-label="Move earlier" title="Move earlier"><ChevronUp className="h-4 w-4" /></button>
@@ -643,7 +643,7 @@ export function PipelineEditor({
                       rows={2}
                       onChange={(e) => set(sel.key, { description: e.target.value })}
                       placeholder="e.g. They have seen pricing and a decision maker has said yes in principle."
-                      className="w-full resize-none rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-2.5 py-2 text-body text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)] focus:border-[var(--indigo)] focus-visible:shadow-[var(--ring-focus)]"
+                      className="w-full resize-none rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-field)] px-2.5 py-2 text-body text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)] focus:border-[var(--indigo)] focus-visible:shadow-[var(--ring-focus)]"
                     />
                     <p className="mt-1 text-caption text-[var(--text-tertiary)]">Shown on the board and on every deal in this stage, so the whole team moves deals on the same rules.</p>
                   </div>
@@ -675,7 +675,7 @@ export function PipelineEditor({
                           onChange={(e) => setNewCheck(e.target.value)}
                           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCheck(); } }}
                           placeholder="e.g. Confirm the budget"
-                          className="h-8 min-w-0 flex-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-2.5 text-body text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)] focus:border-[var(--indigo)] focus-visible:shadow-[var(--ring-focus)]"
+                          className="h-8 min-w-0 flex-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-field)] px-2.5 text-body text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)] focus:border-[var(--indigo)] focus-visible:shadow-[var(--ring-focus)]"
                         />
                         <Button variant="secondary" type="button" onClick={addCheck} disabled={!newCheck.trim()}>Add</Button>
                       </div>
@@ -706,7 +706,7 @@ export function PipelineEditor({
                 <select
                   value={moves[s.id] || ''}
                   onChange={(e) => setMoves((m) => ({ ...m, [s.id]: e.target.value }))}
-                  className="h-8 w-48 cursor-pointer rounded-md border border-[var(--border-control)] bg-[var(--bg-app)] px-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+                  className="h-8 w-48 cursor-pointer rounded-md border border-[var(--border-control)] bg-[var(--bg-field)] px-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
                 >
                   <option value="">The stage before it</option>
                   {keptExisting.map((k) => <option key={k.id} value={k.id}>{k.name || 'Untitled'}</option>)}

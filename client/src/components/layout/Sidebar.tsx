@@ -54,8 +54,8 @@ function NavRow({ name, href, icon: Icon, active, collapsed, badge, hint }: {
       )}
     >
       <Icon
-        className={cn('h-[16px] w-[16px] flex-shrink-0 transition-colors', active ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-secondary)]')}
-        strokeWidth={1.75}
+        className={cn('h-[16px] w-[16px] flex-shrink-0 transition-colors', active ? 'text-[var(--indigo-text)]' : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-secondary)]')}
+        strokeWidth={active ? 2 : 1.75}
       />
       {!collapsed && (
         <span className={cn('flex-1 truncate leading-none text-strong', active ? 'font-semibold' : 'font-medium')}>{name}</span>

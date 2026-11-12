@@ -51,7 +51,7 @@ async function exportSuppressionCsv(search: string, reason: string) {
 }
 
 /* Shared select styling that matches the Input primitive */
-const SELECT_CLS = 'w-full h-8 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 text-strong text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[var(--ring-focus)] transition-[border-color,box-shadow]';
+const SELECT_CLS = 'w-full h-8 rounded-md border border-[var(--border-default)] bg-[var(--bg-field)] px-2.5 text-strong text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[var(--ring-focus)] transition-[border-color,box-shadow]';
 
 const REASON_LABELS: Record<string, { label: string; color: string; dot: string }> = {
   unsubscribed: { label: 'Unsubscribed', color: 'text-amber-700 dark:text-amber-400 bg-amber-500/10',  dot: 'bg-amber-500'  },
@@ -348,7 +348,7 @@ export function SuppressionPage() {
                 rows={8}
                 autoFocus
                 placeholder={"user1@example.com\nuser2@example.com\nuser3@example.com"}
-                className="w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-3 py-2 text-strong text-[var(--text-primary)] font-data placeholder:text-[var(--text-tertiary)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[var(--ring-focus)] transition-[border-color,box-shadow] resize-none"
+                className="w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-field)] px-3 py-2 text-strong text-[var(--text-primary)] font-data placeholder:text-[var(--text-tertiary)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[var(--ring-focus)] transition-[border-color,box-shadow] resize-none"
               />
             </div>
             <div className="space-y-1">
