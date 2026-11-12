@@ -1,4 +1,4 @@
-import { TodayPulse } from '../../components/dashboard/TodayPulse';
+import { DayBrief } from '../../components/dashboard/DayBrief';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { TodayPanel } from '../../components/dashboard/TodayPanel';
@@ -11,11 +11,11 @@ import { useAuth } from '../../context/AuthContext';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { SetupChecklist } from '../../components/setup/SetupChecklist';
-import { EmptyState } from '../../components/shared/EmptyState';
+import { InlineEmpty } from '../../components/shared/EmptyState';
 import { PipelineSnapshot } from '../../components/dashboard/PipelineSnapshot';
 import { rateReadout, averageRateReadout, rateBarWidth, type RateReadout, formatDayMonth } from '@lemlist/shared';
 import {
-  Plus, Send, MousePointerClick, MessageSquare, CalendarCheck,
+  Send, MousePointerClick, MessageSquare, CalendarCheck,
   ChevronRight, ArrowUp, ArrowDown, Download, Megaphone, Activity, Sparkles,
 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
@@ -53,12 +53,6 @@ const fmtPct = (n: number | undefined | null): string => `${(Number(n) || 0).toF
 // early - so it is read as a local date.
 const fmtDate = (d: string) => formatDayMonth(new Date(/^\d{4}-\d{2}-\d{2}$/.test(d) ? `${d}T00:00:00` : d));
 
-function greeting(): string {
-  const h = new Date().getHours();
-  if (h < 12) return 'Good morning';
-  if (h < 18) return 'Good afternoon';
-  return 'Good evening';
-}
 /* ─── Metric config ─────────────────────────────────── */
 const METRICS = {
   sent:     { label: 'Sent',             icon: Send },
@@ -220,32 +214,34 @@ function DashboardSkeleton() {
   // the queue beside the calendar, the performance module - so nothing
   // jumps when the data arrives.
   return (
-    <div className="animate-fade-in space-y-5" aria-busy="true">
-      <div className="flex items-end justify-between gap-4">
-        <div className="space-y-2"><Skeleton className="h-8 w-64" /><Skeleton className="h-4 w-96 max-w-full" /></div>
-        <Skeleton className="h-8 w-32" />
+    <div className="animate-fade-in space-y-6" aria-busy="true">
+      <div className="space-y-3 pt-1 sm:pt-3">
+        <Skeleton className="h-3.5 w-36" />
+        <Skeleton className="h-10 w-80 max-w-full" />
+        <Skeleton className="h-4 w-[34rem] max-w-full" />
+        <Skeleton className="h-4 w-96 max-w-full" />
       </div>
-      <div className="panel grid grid-cols-2 lg:grid-cols-4 gap-px overflow-hidden">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="p-4 space-y-2"><Skeleton className="h-3 w-20" /><Skeleton className="h-7 w-16" /><Skeleton className="h-3 w-24" /></div>
+      <div className="fact-strip grid-cols-2 sm:grid-cols-4 lg:grid-cols-[1fr_1fr_1fr_1fr_1.7fr]">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className={cn('px-5 py-4 space-y-2.5', i === 4 && 'col-span-2 sm:col-span-4 lg:col-span-1')}>
+            <Skeleton className="h-3 w-20" /><Skeleton className="h-7 w-14" /><Skeleton className="h-3 w-24" />
+          </div>
         ))}
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 space-y-3">
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="space-y-3">
           <Skeleton className="h-5 w-24" />
-          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-14 w-full rounded-xl" />)}
+          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}
         </div>
-        <div className="panel p-4 space-y-3"><Skeleton className="h-4 w-28" /><Skeleton className="h-12 w-full" /><Skeleton className="h-12 w-full" /></div>
-      </div>
-      <div className="panel overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3"><Skeleton className="h-4 w-28" /><Skeleton className="h-7 w-40" /></div>
-        <div className="px-4 pb-4"><Skeleton className="h-[268px] w-full rounded-lg" /></div>
+        <div className="space-y-4">
+          <div className="panel p-4 space-y-3"><Skeleton className="h-4 w-28" /><Skeleton className="h-12 w-full" /><Skeleton className="h-12 w-full" /></div>
+          <div className="panel p-4 space-y-3"><Skeleton className="h-4 w-24" /><Skeleton className="h-10 w-full" /></div>
+        </div>
       </div>
     </div>
   );
 }
 
-/* ─── Inbox health — compact score + stats ──────────── */
 function InboxHealth({ score, verified, bounced, suppressed }: {
   score: number; verified: number; bounced: number; suppressed: number;
 }) {
@@ -402,35 +398,26 @@ export function DashboardPage() {
   const everSent = campaigns.some((c) => Number(c.sent) > 0) || Number(s.total_sent) > 0;
 
   return (
-    <div className="stagger pb-8 space-y-5">
-      {/* What changed since the last visit, once per return. */}
-      <AwayCard />
-      {/* What the deliverability autopilot is doing, only when it is doing something. */}
-      {/* Something has stopped - shown only when it has. */}
-      <StatusLine />
-      {/* ── Header ── */}
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="text-hero font-semibold leading-[1.1] tracking-[-0.03em] text-[var(--text-primary)]">
-            {greeting()}, <span className="capitalize">{name}</span>
-          </h1>
-          {/* Said as a sentence, not as a strip of dot-joined stats. */}
-          <p className="mt-2 text-strong text-[var(--text-secondary)]">
-            {s.active_campaigns > 0 ? s.active_campaigns : 'No'} active {s.active_campaigns === 1 ? 'campaign' : 'campaigns'} and {fmtFull(totalContacts)} contacts
-            {/* The headline figure only claims to be one once it can be. */}
-            <span title={headlineReply.hint}>
-              {headlineReply.isRate
-                ? <>, averaging a <span className="font-medium text-[var(--text-primary)] tabular">{headlineReply.label}</span> reply rate over the last {period} days.</>
-                : <>. {fmtFull(s.total_sent)} sent in the last {period} days, too early for a reply rate.</>}
-            </span>
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button className="btn-primary" onClick={() => navigate('/campaigns/new')}>
-            <Plus className="h-3.5 w-3.5" /> New campaign
-          </button>
-        </div>
-      </header>
+    <div className="stagger pb-8 space-y-6">
+      {/* ── The day, said the way a colleague would, then set out once as
+          a ledger. Anything that has stopped, or changed while you were
+          away, is said between the two. ── */}
+      <DayBrief
+        name={name}
+        period={period}
+        activeCampaigns={Number(s.active_campaigns) || 0}
+        contacts={totalContacts}
+        sentInPeriod={Number(s.total_sent) || 0}
+        reply={headlineReply}
+        trend={trend}
+        everSent={everSent}
+        onNew={() => navigate('/campaigns/new')}
+      >
+        {/* Something has stopped, or the autopilot is doing something. */}
+        <StatusLine />
+        {/* What changed since the last visit, once per return. */}
+        <AwayCard />
+      </DayBrief>
 
       {/* Before anything else, for an account that has not sent yet: the
           five things that have to be true, in the order they depend on each
@@ -447,26 +434,93 @@ export function DashboardPage() {
         />
       )}
 
-      {/* Today at a glance - sends, replies, bounces, meetings - before the work. */}
-      {everSent && <TodayPulse />}
+      {/* ── The work, and what surrounds it. The day's list - replies,
+          meetings, moments, deals and tasks, most urgent first - takes the
+          wide column; the rail beside it is the clock, the money and the
+          campaigns that are earning it. ── */}
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_380px]">
+        <TodayQueue mode="home" />
 
-      {/* ── Row 1: the day's work, as one list - replies, meetings, moments,
-          deals and tasks, most urgent first - and the calendar beside it. ── */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <TodayQueue mode="home" />
-        </div>
-        <div className="flex flex-col gap-4">
+        <aside className="flex min-w-0 flex-col gap-4" aria-label="Schedule, pipeline and campaigns">
           <TodayPanel />
-        </div>
+          {/* The deals the outreach is for. Hidden until there is one. */}
+          {everSent && <PipelineSnapshot />}
+
+          {everSent && (
+            <section className="panel overflow-hidden" data-whats-working>
+              <Head title="What's working" desc={leaderboardDesc} action={<MoreLink to="/analytics" label="All" />} />
+              {topCampaigns.length > 0 ? (
+                <ol className="divide-y divide-[var(--border-subtle)]">
+                  {topCampaigns.map((c, i) => {
+                    /* Over the people the campaign reached, not its emails. */
+                    const reached = c.contacts_sent ?? c.sent;
+                    const reply = rateReadout(c.replied, reached, 'replies');
+                    const barWidth = rateBarWidth(reply);
+                    return (
+                      <li key={c.id}>
+                        <button onClick={() => navigate(`/campaigns/${c.id}`)}
+                          className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-[var(--bg-hover)]">
+                          {/* A rank: the list is ordered, and the number says so. */}
+                          <span className="w-3 flex-shrink-0 text-caption font-semibold tabular text-[var(--text-tertiary)]">{i + 1}</span>
+                          <span className="min-w-0 flex-1">
+                            <span className="flex items-center gap-1.5">
+                              <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full" style={{ background: STATUS_DOT[c.status] || 'var(--text-muted)' }} />
+                              <span className="truncate text-strong font-medium text-[var(--text-primary)]">{c.name}</span>
+                            </span>
+                            {/*
+                              * The bar is a claim about magnitude and cannot carry a
+                              * caveat, so below the sample there is no bar at all -
+                              * rather than a short one, which reads as "doing badly"
+                              * when it means "we do not know yet".
+                              */}
+                            {barWidth != null && (
+                              <span className="mt-2 block h-1 overflow-hidden rounded-full bg-[var(--bg-elevated)]">
+                                <span className="block h-full rounded-full" style={{ width: `${barWidth}%`, background: ACCENT }} />
+                              </span>
+                            )}
+                          </span>
+                          <span className="w-16 flex-shrink-0 text-right" title={reply.hint}>
+                            <span className={cn('block font-semibold tabular',
+                              reply.isRate ? 'text-heading text-[var(--text-primary)]' : 'text-caption text-[var(--text-tertiary)]')}>{reply.label}</span>
+                            <span className="block text-caption text-[var(--text-tertiary)]">{fmtNum(c.sent)} sent</span>
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ol>
+              ) : (
+                <InlineEmpty icon={Megaphone}>
+                  Nothing sent in the last {period} days. Campaigns show here, best reply rate first, once they send.
+                </InlineEmpty>
+              )}
+            </section>
+          )}
+
+          {everSent && listNeedsWork && (
+            <section className="panel overflow-hidden" data-list-quality>
+              {/* It scores the contacts, not a mailbox: "Inbox health 97" with
+                  nothing sent was a claim about mail that did not exist. */}
+              <Head title="List quality" desc="How safe your contacts are to email" action={<MoreLink to="/verification" label="Details" />} />
+              <InboxHealth score={listScore} verified={verified} bounced={bounced} suppressed={suppressed} />
+            </section>
+          )}
+        </aside>
       </div>
 
-      {everSent && (<>
-      {/* ── Row 2: one performance module — metric strip drives the chart,
-          and the period and export sit on it, beside what they change. ── */}
+      {/* ── How it is going: one performance module. The metric strip drives
+          the chart, and the period and export sit on it, beside what they
+          change. ── */}
+      {everSent && (
       <section className={cn('panel overflow-hidden transition-opacity duration-300', refreshing && 'opacity-60')} data-performance>
-        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-[var(--border-subtle)]">
-          <h2 className="text-strong font-semibold text-[var(--text-primary)] tracking-[-0.01em]">Performance</h2>
+        <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-3.5 border-b border-[var(--border-subtle)]">
+          <div>
+            <h2 className="text-heading font-semibold text-[var(--text-primary)] tracking-[-0.01em]">How it is going</h2>
+            <p className="text-body text-[var(--text-tertiary)]">
+              <span className="font-semibold tabular text-[var(--text-secondary)]">{fmtFull(metricTotal)}</span>
+              {' '}{METRICS[metric].label.toLowerCase()} in the last {period} days, with the change on the {period} before
+            </p>
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             <Segmented label="Period" options={PERIODS} value={period} onChange={setPeriodPersist} />
             <button onClick={exportReport} disabled={exporting} className="btn-secondary disabled:opacity-50" title="Export CSV report">
@@ -490,98 +544,18 @@ export function DashboardPage() {
             readout={averageRateReadout(s.avg_click_rate, sentTo, 'contacts')}
             active={metric === 'clicked'} onClick={() => setMetric('clicked')} />
         </div>
-        <div className="flex items-center justify-between px-4 pt-3">
-          <p className="text-body text-[var(--text-tertiary)]">
-            <span className="font-semibold tabular text-[var(--text-secondary)]">{fmtFull(metricTotal)}</span>
-            {' '}{METRICS[metric].label.toLowerCase()} · vs previous {period} days
-          </p>
-        </div>
-        <div className="px-2 pb-2">
+        <div className="px-3 pt-4 pb-2">
           <ErrorBoundary fallback={<div className="h-[240px] flex items-center justify-center text-body text-[var(--text-tertiary)]">Chart unavailable</div>}>
             <PerformanceChart data={trend} metric={metric} />
           </ErrorBoundary>
         </div>
       </section>
+      )}
 
-      {/* ── Row 3: what's working — campaigns + funnel/health rail ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <section className="panel lg:col-span-2 overflow-hidden">
-          <Head title="What's working" desc={leaderboardDesc} action={<MoreLink to="/analytics" />} />
-          {topCampaigns.length > 0 ? (
-            <div className="divide-y divide-[var(--border-subtle)]">
-              {topCampaigns.map((c, i) => {
-                /* Real counts, not the rate reconstructed from itself. */
-                /* Over the people the campaign reached, not its emails. */
-                const reached = c.contacts_sent ?? c.sent;
-                const open = rateReadout(c.opened, reached, 'opens');
-                const reply = rateReadout(c.replied, reached, 'replies');
-                const barWidth = rateBarWidth(reply);
-                return (
-                <button key={c.id} onClick={() => navigate(`/campaigns/${c.id}`)}
-                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[var(--bg-hover)] transition-colors text-left group">
-                  <span className="w-6 text-body font-semibold tabular text-[var(--text-tertiary)] flex-shrink-0">{String(i + 1).padStart(2, '0')}</span>
-                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: STATUS_DOT[c.status] || 'var(--text-muted)' }} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-strong font-medium text-[var(--text-primary)] truncate">{c.name}</p>
-                    {/*
-                      * The bar is a claim about magnitude and cannot carry a
-                      * caveat, so below the sample there is no bar at all -
-                      * rather than a short one, which reads as "doing badly"
-                      * when it means "we do not know yet".
-                      */}
-                    {barWidth != null && (
-                      <div className="mt-1.5 h-1 rounded-full bg-[var(--bg-elevated)] overflow-hidden max-w-[220px]">
-                        <div className="h-full rounded-full" style={{ width: `${barWidth}%`, background: ACCENT }} />
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-5 text-right flex-shrink-0">
-                    <div className="hidden sm:block w-12" title={open.hint}>
-                      <div className={cn('text-strong font-semibold tabular',
-                        open.isRate ? 'text-[var(--text-primary)]' : 'text-caption text-[var(--text-tertiary)]')}>{open.label}</div>
-                      <div className="text-caption text-[var(--text-tertiary)]">open</div>
-                    </div>
-                    {/* The column the list is ranked by stays on a phone. */}
-                    <div className="w-12" title={reply.hint}>
-                      <div className={cn('text-strong font-semibold tabular',
-                        reply.isRate ? 'text-[var(--text-primary)]' : 'text-caption text-[var(--text-tertiary)]')}>{reply.label}</div>
-                      <div className="text-caption text-[var(--text-tertiary)]">reply</div>
-                    </div>
-                    <div className="w-12">
-                      <div className="text-strong font-semibold tabular text-[var(--text-primary)]">{fmtNum(c.sent)}</div>
-                      <div className="text-caption text-[var(--text-tertiary)]">sent</div>
-                    </div>
-                    <ChevronRight aria-hidden="true" className="h-4 w-4 text-[var(--text-tertiary)] opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity" />
-                  </div>
-                </button>
-                );
-              })}
-            </div>
-          ) : (
-            <EmptyState
-              icon={Megaphone}
-              title={`Nothing sent in the last ${period} days`}
-              description="Campaigns show here, best reply rate first, once they send."
-              actionLabel="New campaign"
-              onAction={() => navigate('/campaigns/new')}
-            />
-          )}
-        </section>
-
-        <div className="space-y-4">
-          {/* The deals the outreach is for. Hidden until there is one. */}
-          <PipelineSnapshot />
-          {listNeedsWork && (
-            <section className="panel overflow-hidden" data-list-quality>
-              {/* It scores the contacts, not a mailbox: "Inbox health 97" with
-                  nothing sent was a claim about mail that did not exist. */}
-              <Head title="List quality" desc="How safe your contacts are to email" action={<MoreLink to="/verification" label="Details" />} />
-              <InboxHealth score={listScore} verified={verified} bounced={bounced} suppressed={suppressed} />
-            </section>
-          )}
-        </div>
-      </div>
-      </>)}
+      {/* The page opened with a salutation; it closes the way a letter does. */}
+      <p className="salutation pt-4" style={{ fontSize: 22, color: 'var(--text-tertiary)' }} aria-hidden data-valediction>
+        Sincerely,
+      </p>
     </div>
   );
 }

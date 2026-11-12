@@ -1253,3 +1253,17 @@
   from { transform: translateX(16px); opacity: 0; }
   to   { transform: translateX(0);    opacity: 1; }
 }
+
+/* The opening line of Home. A letter starts with a salutation, and this is
+   the one place the app sets one: the landing page's serif, in italic, the
+   way a line written by hand leans. */
+.salutation {
+  font-family: 'Newsreader', 'Iowan Old Style', Georgia, serif;
+  font-style: italic;
+  font-weight: 500;
+  font-size: clamp(30px, 3.4vw, 42px);
+  line-height: 1.08;
+  letter-spacing: -0.022em;
+  color: var(--text-primary);
+  text-wrap: balance;
+}
