@@ -182,7 +182,7 @@ export const INTEGRATION_CATALOG: IntegrationProviderMeta[] = [
     name: 'Zapier',
     kind: 'automation',
     description:
-      'Pipe Sincerely events into 6,000+ apps — Google Sheets, Salesforce, Airtable, anything Zapier connects to.',
+      'The official Sincerely app for Zapier: start Zaps on interested replies, new replies, contacts and unsubscribes, and add contacts or enrol them in campaigns from 6,000+ apps.',
     setupSteps: [
       'In Zapier, create a new Zap and choose “Webhooks by Zapier” as the trigger.',
       'Pick the “Catch Hook” trigger event and continue.',
@@ -206,7 +206,7 @@ export const INTEGRATION_CATALOG: IntegrationProviderMeta[] = [
     name: 'Make',
     kind: 'automation',
     description:
-      'Trigger Make (formerly Integromat) scenarios from Sincerely events and automate anything downstream.',
+      'The official Sincerely app for Make: instant triggers for replies, interested leads and contacts, and modules that add contacts, enrol them in campaigns and unsubscribe them.',
     setupSteps: [
       'In Make, create a new scenario and add the “Webhooks → Custom webhook” module.',
       'Click “Add” to create a new webhook and copy its URL.',
@@ -229,7 +229,7 @@ export const INTEGRATION_CATALOG: IntegrationProviderMeta[] = [
     name: 'n8n',
     kind: 'automation',
     description:
-      'Trigger self-hosted or cloud n8n workflows with the full event payload — build any automation you can imagine.',
+      'The official Sincerely node for n8n: a trigger for replies, interested leads and contacts, and actions for contacts, campaigns and unsubscribes.',
     setupSteps: [
       'In n8n, add a “Webhook” trigger node to your workflow (method: POST).',
       'Copy the production webhook URL (switch off test mode first).',
@@ -316,7 +316,7 @@ export const INTEGRATION_CATALOG: IntegrationProviderMeta[] = [
   {
     id: 'notion',
     name: 'Notion',
-    kind: 'crm',
+    kind: 'database',
     description:
       'Logs every reply and interested lead as a new page in a Notion database — your lightweight CRM inside Notion.',
     setupSteps: [
@@ -349,7 +349,7 @@ export const INTEGRATION_CATALOG: IntegrationProviderMeta[] = [
   {
     id: 'airtable',
     name: 'Airtable',
-    kind: 'crm',
+    kind: 'database',
     description:
       'Appends a record to an Airtable table whenever a lead replies or is flagged interested — with contact details filled in.',
     setupSteps: [

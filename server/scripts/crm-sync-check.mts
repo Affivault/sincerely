@@ -577,6 +577,7 @@ overrideCrmHost('api.cal.com', urlOf(calcom));
 const { dispatchEvent, connectIntegration, deleteIntegration } = await import('../src/services/integrations.service.js');
 const { handleSchedulingHook, checkScheduling } = await import('../src/services/scheduling.service.js');
 const { stopSequencesForMeeting } = await import('../src/services/meeting-stop.service.js');
+const { runCrmSyncSweep } = await import('../src/jobs/schedulers/crm-sync.scheduler.js');
 const { runCrmSync, crmSyncService, reconcile } = await import('../src/services/crm-sync.service.js');
 const { contactsService } = await import('../src/services/contacts.service.js');
 const shared = await import('@lemlist/shared');
@@ -1225,6 +1226,15 @@ console.log('\nCalendly and Cal.com (listen-only)');
   cly.events.find((e) => e.uri.endsWith('EV4'))!.status = 'canceled';
   await checkScheduling(row2());
   check('a check finds a cancellation', db.crm_events.find((e) => e.external_id === 'EV4:cy@gamma5.test')?.status === 'cancelled');
+  // A token revoked in Calendly: the card says so, in words that say what to do, until it works again.
+  row2().config.access_token = 'revoked';
+  row2().next_sync_at = ago(60_000);
+  await runCrmSyncSweep();
+  check('a check that fails shows on the card with what to do', /Calendly rejected the token\. Create a new one/.test(row2().last_error || ''), row2().last_error);
+  row2().config.access_token = 'cly-test';
+  row2().next_sync_at = ago(60_000);
+  await runCrmSyncSweep();
+  check('...and clears once checks work again', row2().last_error === null && !!row2().last_success_at, row2().last_error);
   await deleteIntegration(U5, CL2);
 
   // Cal.com.

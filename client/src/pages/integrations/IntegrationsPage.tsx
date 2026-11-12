@@ -69,6 +69,7 @@ const KIND_LABELS: Record<string, string> = {
   automation: 'Automation',
   crm: 'CRM sync',
   scheduling: 'Scheduling',
+  database: 'Log to a database',
 };
 
 const EVENT_LABELS: Record<string, string> = {
@@ -128,8 +129,15 @@ function connectionMeta(row: UserIntegration): string | null {
   return parts.length ? `Connected to ${parts.join(' · ')}` : null;
 }
 
+/* Until a Zapier or Make app link is published (Admin > Settings > Sincerely apps), those cards describe the webhook they fall back to. */
+const WEBHOOK_DESCRIPTION: Record<string, string> = {
+  zapier: 'Send Sincerely events to a Zapier webhook and on into 6,000+ apps.',
+  make: 'Send Sincerely events to a Make webhook and automate anything downstream.',
+};
+
 export function IntegrationsPage() {
   const queryClient = useQueryClient();
+  const { data: platform } = useQuery(platformQuery);
   const navigateTo = useNavigate();
   const [openProviderId, setOpenProviderId] = useState<string | null>(null);
 
@@ -201,6 +209,7 @@ export function IntegrationsPage() {
     { kind: 'automation', providers: INTEGRATION_CATALOG.filter((p) => p.kind === 'automation') },
     { kind: 'crm', providers: INTEGRATION_CATALOG.filter((p) => p.kind === 'crm') },
     { kind: 'scheduling', providers: INTEGRATION_CATALOG.filter((p) => p.kind === 'scheduling') },
+    { kind: 'database', providers: INTEGRATION_CATALOG.filter((p) => p.kind === 'database') },
   ];
 
   return (
@@ -229,6 +238,8 @@ export function IntegrationsPage() {
               const oneClick = !!(meta.oauth && oauthAvailable?.[meta.id]);
               const cMeta = connected ? connectionMeta(connected) : null;
               const recommended = !connected && RECOMMENDED.has(meta.id);
+              const hasApp = meta.id === 'n8n' || ((meta.id === 'zapier' || meta.id === 'make') && !!platform?.app_links?.[meta.id as AppLinkId]);
+              const description = (meta.id === 'zapier' || meta.id === 'make') && !hasApp ? WEBHOOK_DESCRIPTION[meta.id] : meta.description;
               return (
                 <div
                   key={meta.id}
@@ -273,18 +284,22 @@ export function IntegrationsPage() {
                         )}
                       </div>
                       <p className="mt-1 text-body leading-relaxed text-[var(--text-secondary)] line-clamp-2">
-                        {cMeta || meta.description}
+                        {cMeta || description}
                       </p>
                     </div>
                   </div>
 
                   {connected?.last_error && (
                     <p className="text-caption text-[var(--error)] bg-[rgba(220,38,38,0.06)] rounded-md px-2.5 py-1.5 line-clamp-2">
-                      {connected.last_error.startsWith('Choose') ? connected.last_error : `Last delivery failed: ${connected.last_error}`}
+                      {connected.last_error.startsWith('Choose')
+                        ? connected.last_error
+                        : meta.kind === 'scheduling'
+                          ? `Bookings are not coming through: ${connected.last_error}`
+                          : `Last delivery failed: ${connected.last_error}`}
                     </p>
                   )}
 
-                  <div className="mt-auto flex items-center gap-2">
+                  <div className="mt-auto flex flex-wrap items-center gap-2">
                     {!connected && oneClick ? (
                       <>
                         <button
@@ -314,13 +329,13 @@ export function IntegrationsPage() {
                             : recommended ? SOLID_BTN : OUTLINE_BTN
                         )}
                       >
-                        {connected ? 'Manage' : 'Connect'}
+                        {connected ? 'Manage' : hasApp ? 'Use the Sincerely app' : 'Connect'}
                       </button>
                     )}
                     {connected && (meta.id === 'hubspot' || meta.id === 'pipedrive') && (
                       <Link
                         to={`/integrations/${connected.id}/sync`}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-body font-semibold bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-primary)] hover:border-[var(--border-default)]"
+                        className="inline-flex items-center gap-1.5 whitespace-nowrap px-3 py-1.5 rounded-lg text-body font-semibold bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-primary)] hover:border-[var(--border-default)]"
                       >
                         <RefreshCw className="h-3.5 w-3.5" />
                         Two-way sync
@@ -390,6 +405,12 @@ function ProviderModal({
   // Sincerely's own app on Zapier, Make or n8n, once the owners have published its link.
   const { data: platform } = useQuery(platformQuery);
   const appLink = (['zapier', 'make', 'n8n'] as string[]).includes(meta.id) ? platform?.app_links?.[meta.id as AppLinkId] : undefined;
+  // n8n's node installs by its package name, published or not; Zapier and Make need their invite link.
+  const appPath = !!appLink || meta.id === 'n8n';
+  // HubSpot and Pipedrive keep their settings on the sync page; this window is only the key.
+  const isCrmSync = meta.id === 'hubspot' || meta.id === 'pipedrive';
+  // With an app to use, the one-webhook setup is the fallback, folded away (unless that is what is connected).
+  const [showWebhook, setShowWebhook] = useState(!appPath || !!existing);
   const [config, setConfig] = useState<Record<string, string>>(() => {
     // Toggles start from the stored value (default on).
     const initial: Record<string, string> = {};
@@ -527,28 +548,58 @@ function ProviderModal({
           )}
 
           {/* The real app: triggers and actions, rather than one webhook for everything. */}
-          {appLink && (
+          {appPath && (
             <div className="rounded-lg border border-[var(--indigo)] bg-[rgba(47,63,156,0.05)] p-3.5 space-y-2">
               <p className="text-body text-[var(--text-primary)] font-medium">Use the Sincerely app in {meta.name}</p>
               <p className="text-caption text-[var(--text-secondary)]">
                 Instant triggers for interested replies, new replies, contacts and unsubscribes, and actions that add contacts, put people into campaigns and unsubscribe them. It connects with an API key.
               </p>
+              {meta.id === 'n8n' && (
+                <ol className="list-decimal pl-5 space-y-0.5 text-caption text-[var(--text-secondary)]">
+                  <li>In n8n open <span className="font-medium">Settings, then Community nodes</span>, and click <span className="font-medium">Install</span>.</li>
+                  <li>Enter <code className="rounded bg-[var(--bg-elevated)] px-1 font-mono">n8n-nodes-sincerely</code>, tick the box and install.</li>
+                  <li>Search the nodes for <span className="font-medium">Sincerely</span> (an action, or its trigger) and connect it with an API key.</li>
+                </ol>
+              )}
+              {meta.id === 'n8n' && (
+                <p className="text-caption text-[var(--text-tertiary)]">On n8n Cloud the node appears once n8n has approved it; self-hosted n8n can install it today.</p>
+              )}
               <div className="flex flex-wrap items-center gap-2">
-                <a href={appLink} target="_blank" rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3.5 h-8 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold hover:opacity-90 transition-all shadow-[var(--glow-indigo)]">
-                  Open in {meta.name} <ExternalLink className="h-3.5 w-3.5" />
-                </a>
+                {appLink && (
+                  <a href={appLink} target="_blank" rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3.5 h-8 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold hover:opacity-90 transition-all shadow-[var(--glow-indigo)]">
+                    Open in {meta.name} <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                )}
                 <Link to="/developer?tab=api-keys" onClick={onClose}
                   className="inline-flex items-center gap-1.5 px-3 h-8 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-body font-medium text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]">
                   <Key className="h-3.5 w-3.5" /> Create an API key
                 </Link>
               </div>
-              <p className="text-caption text-[var(--text-tertiary)]">Or send every event to one {meta.name} webhook, below.</p>
+              {!showWebhook && (
+                <button type="button" onClick={() => setShowWebhook(true)} className="text-caption font-medium text-[var(--indigo-text)] hover:underline">
+                  Or send every event to one {meta.name} webhook instead
+                </button>
+              )}
+            </div>
+          )}
+
+          {isCrmSync && (
+            <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3.5 text-body text-[var(--text-secondary)]">
+              {existing ? (
+                <>
+                  What goes on the {meta.name} timeline, deals, owners and the field mapping are all on the{' '}
+                  <Link to={`/integrations/${existing.id}/sync`} onClick={onClose} className="font-medium text-[var(--indigo-text)] hover:underline">two-way sync page</Link>.
+                  Here you only change the {isOAuthConnected ? 'connection' : 'key'}.
+                </>
+              ) : (
+                <>After connecting you choose what to sync on the {meta.name} sync page: who to copy across, deals, owners and fields.</>
+              )}
             </div>
           )}
 
           {/* Setup guide (hidden for OAuth-connected rows — no credentials to fetch) */}
-          {!isOAuthConnected && (
+          {showWebhook && !isOAuthConnected && (
             <div className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] p-3.5">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-body font-semibold text-[var(--text-primary)]">How to get your credentials</h3>
@@ -575,8 +626,11 @@ function ProviderModal({
           )}
 
           {/* Credential + option fields */}
+          {showWebhook && (
           <div className="space-y-3">
             {meta.fields.map((field) => {
+              // HubSpot / Pipedrive: the deal switch lives on the sync page.
+              if (isCrmSync && field.toggle) return null;
               // OAuth-connected: hide secret credential inputs (managed by OAuth),
               // keep pickers and toggles editable.
               if (isOAuthConnected && field.secret && !field.toggle && !field.picker) return null;
@@ -670,13 +724,14 @@ function ProviderModal({
               </button>
             )}
           </div>
+          )}
 
           {/* Event picker with presets (Calendly / Cal.com are listen-only: no events to pick) */}
-          {meta.supportedEvents.length > 0 && (
+          {showWebhook && !isCrmSync && meta.supportedEvents.length > 0 && (
           <div>
             <div className="flex items-center justify-between mb-2">
               <span id="integration-events-label" className="text-body text-[var(--text-tertiary)]">
-                {meta.kind === 'crm' ? 'Sync when' : 'Send on these events'}
+                {meta.kind === 'crm' || meta.kind === 'database' ? 'Log when' : 'Send on these events'}
               </span>
               {meta.kind !== 'crm' && (
                 <div className="flex gap-1.5">
@@ -749,14 +804,14 @@ function ProviderModal({
 
         {/* Footer actions */}
         <div className="flex items-center gap-2 p-5 pt-0">
-          <button
+          {showWebhook && <button
             onClick={() => connectMutation.mutate()}
             disabled={!canSubmit || (meta.supportedEvents.length > 0 && events.length === 0) || connectMutation.isPending}
             className="inline-flex items-center gap-1.5 px-3.5 h-8 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold hover:opacity-90 transition-all disabled:opacity-50 shadow-[var(--glow-indigo)]"
           >
             {connectMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             {existing ? 'Save & test' : 'Connect & test'}
-          </button>
+          </button>}
           {existing && (
             <>
               <button
