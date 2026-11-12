@@ -34,15 +34,15 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     const gate = blockedProps(blockedBy, onClick);
     const variants = {
       primary:
-        'bg-[var(--indigo)] text-white shadow-[var(--glow-indigo)] hover:bg-[var(--indigo-hover)] active:translate-y-[0.5px]',
+        'bg-[var(--indigo)] text-white shadow-[var(--glow-indigo)] hover:bg-[var(--indigo-hover)] active:scale-[0.98]',
       brand:
-        'bg-[var(--indigo)] text-white shadow-[var(--glow-indigo)] hover:bg-[var(--indigo-hover)] active:translate-y-[0.5px]',
+        'bg-[var(--indigo)] text-white shadow-[var(--glow-indigo)] hover:bg-[var(--indigo-hover)] active:scale-[0.98]',
       secondary:
-        'bg-[var(--bg-surface)] border border-[var(--border-default)] text-[var(--text-primary)] shadow-[var(--shadow-sm)] hover:bg-[var(--bg-hover)] hover:border-[var(--border-strong)] active:bg-[var(--bg-active)]',
+        'bg-[var(--bg-surface)] border border-[var(--border-default)] text-[var(--text-primary)] shadow-[var(--shadow-sm)] hover:bg-[var(--bg-hover)] hover:border-[var(--border-strong)] active:bg-[var(--bg-active)] active:scale-[0.98]',
       ghost:
         'bg-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] active:bg-[var(--bg-active)]',
       danger:
-        'bg-[var(--error)] text-white shadow-[var(--glow-indigo)] hover:brightness-95 active:translate-y-[0.5px]',
+        'bg-[var(--error)] text-white shadow-[var(--glow-indigo)] hover:brightness-95 active:scale-[0.98]',
     };
 
     const sizes = {

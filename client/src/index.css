@@ -253,6 +253,23 @@
 
   html {
     scroll-behavior: smooth;
+    /* Native checkboxes, radios, ranges and progress bars in the ink rather
+       than the browser's own blue. */
+    accent-color: var(--indigo);
+    /* The grey flash a phone paints over anything tapped. Every control
+       here already has a pressed state of its own. */
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Firefox draws its own scrollbars and ignores ::-webkit-scrollbar, so it
+     showed wide system bars inside panels drawn with hairlines. Only where
+     the rules below are not understood - setting these in a browser that
+     does understand them would switch its thumb back to the system one. */
+  @supports not selector(::-webkit-scrollbar) {
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: var(--border-default) transparent;
+    }
   }
 
   body {
@@ -269,6 +286,17 @@
   }
 
   h1, h2, h3 { letter-spacing: -0.012em; }
+
+  /* A heading that wraps breaks into even lines instead of leaving one
+     word alone on the last; a paragraph does not end on an orphan. */
+  h1, h2, h3, h4 { text-wrap: balance; }
+  p { text-wrap: pretty; }
+
+  /* The cursor you type with is the ink. */
+  input, textarea, [contenteditable='true'] { caret-color: var(--indigo); }
+
+  /* Figures in a table line up down the column. */
+  table { font-variant-numeric: tabular-nums; }
 
   /* Every dropdown in the app, styled once. Some sixty of them were bare
      <select>s that the browser drew in its own grey (the Unibox intent
@@ -464,7 +492,7 @@
   .btn-primary:active,
   .btn-brand:active {
     background: var(--indigo-hover);
-    transform: translateY(0.5px);
+    transform: scale(0.98);
   }
 
   .btn-secondary {
@@ -479,6 +507,7 @@
   }
   .btn-secondary:active {
     background: var(--bg-active);
+    transform: scale(0.98);
   }
 
   .btn-ghost {
@@ -500,6 +529,9 @@
   }
   .btn-danger:hover {
     background: color-mix(in srgb, var(--error) 88%, black);
+  }
+  .btn-danger:active {
+    transform: scale(0.98);
   }
 
   /* ── Card primitives ──
@@ -576,7 +608,10 @@
 
   .input-field {
     @apply w-full px-2.5 h-8 text-[13px] transition-[border-color,box-shadow] duration-150 ease-out;
-    background: var(--bg-surface);
+    /* background-color, not the shorthand: the shorthand also reset
+       background-image, which is where a <select> keeps its arrow - so
+       every dropdown given this class looked like a text field. */
+    background-color: var(--bg-surface);
     color: var(--text-primary);
     /* 1.4.11: the edge of a field is what says "type here" - 3:1, not the
        1.4:1 hairline cards and dividers use. */
@@ -958,11 +993,13 @@
   position: absolute;
   inset: 0;
   transform: translateX(-100%);
+  /* On paper the sheen has to be near-white to show at all: at 12% it was
+     a white wash over an off-white block, and the placeholder sat still. */
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(255, 255, 255, 0.06) 20%,
-    rgba(255, 255, 255, 0.12) 60%,
+    rgba(255, 255, 255, 0.35) 20%,
+    rgba(255, 255, 255, 0.7) 60%,
     transparent
   );
   animation: skeletonSheen 1.4s var(--ease-in-out) infinite;
@@ -1017,21 +1054,21 @@
   /* `to` omits transform so children settle to transform:none — a lingering
      transform would make each child a containing block for position:fixed
      descendants (trapping menus/popovers). */
-  from { opacity: 0; transform: translateY(10px); }
+  from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; }
 }
 .stagger > * {
-  animation: staggerIn 0.5s var(--ease-out) both;
+  animation: staggerIn 0.36s var(--ease-out) both;
 }
 .stagger > *:nth-child(1)  { animation-delay: 0ms; }
-.stagger > *:nth-child(2)  { animation-delay: 40ms; }
-.stagger > *:nth-child(3)  { animation-delay: 80ms; }
-.stagger > *:nth-child(4)  { animation-delay: 120ms; }
-.stagger > *:nth-child(5)  { animation-delay: 160ms; }
-.stagger > *:nth-child(6)  { animation-delay: 200ms; }
-.stagger > *:nth-child(7)  { animation-delay: 240ms; }
-.stagger > *:nth-child(8)  { animation-delay: 280ms; }
-.stagger > *:nth-child(n+9) { animation-delay: 320ms; }
+.stagger > *:nth-child(2)  { animation-delay: 30ms; }
+.stagger > *:nth-child(3)  { animation-delay: 60ms; }
+.stagger > *:nth-child(4)  { animation-delay: 90ms; }
+.stagger > *:nth-child(5)  { animation-delay: 120ms; }
+.stagger > *:nth-child(6)  { animation-delay: 150ms; }
+.stagger > *:nth-child(7)  { animation-delay: 180ms; }
+.stagger > *:nth-child(8)  { animation-delay: 210ms; }
+.stagger > *:nth-child(n+9) { animation-delay: 240ms; }
 
 /* ── Dark-mode top sheen — a hairline of light along the top edge of every
    raised surface, the classic "machined" depth cue. */
@@ -1044,7 +1081,7 @@
 /* ── Route transition — content fades up as you move between pages.
    Keyed on the pathname so it replays on every navigation. */
 @keyframes routeIn {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(4px); }
   to   { opacity: 1; }
 }
 
@@ -1069,7 +1106,7 @@
  * land — so it looks identical and stops trapping overlays.
  */
 .route-fade {
-  animation: routeIn 0.34s var(--ease-out) backwards;
+  animation: routeIn 0.22s var(--ease-out) backwards;
 }
 
 /* ── Cursor spotlight — a soft indigo glow follows the pointer across a
