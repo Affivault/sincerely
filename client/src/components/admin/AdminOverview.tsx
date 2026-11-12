@@ -120,7 +120,7 @@ export function AdminOverview() {
                 onChange={(e) => setGrantEmail(e.target.value)}
                 aria-label="Email of the account to grant lifetime access"
                 placeholder="user@example.com"
-                className="flex-1 min-w-0 h-9 rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-3 text-body text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[var(--ring-focus)]"
+                className="flex-1 min-w-0 h-9 rounded-lg border border-[var(--border-default)] bg-[var(--bg-field)] px-3 text-body text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[var(--ring-focus)]"
                 required
               />
               <Button type="submit" size="sm" disabled={grantMutation.isPending || !grantEmail.trim()}>

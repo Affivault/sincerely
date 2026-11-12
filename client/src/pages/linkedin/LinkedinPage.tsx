@@ -69,7 +69,7 @@ function NumberField({ label, value, onChange, min, max, suffix, hint }: {
           min={min}
           max={max}
           onChange={(e) => onChange(Number(e.target.value))}
-          className="w-24 h-8 rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-2 text-body tabular text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+          className="w-24 h-8 rounded-lg border border-[var(--border-default)] bg-[var(--bg-field)] px-2 text-body tabular text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
         />
         {suffix && <span className="text-caption text-[var(--text-tertiary)]">{suffix}</span>}
       </span>
@@ -571,13 +571,13 @@ export function LinkedinPage() {
               <input
                 type="time" value={s.work_start}
                 onChange={(e) => set({ work_start: e.target.value })}
-                className="h-8 rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+                className="h-8 rounded-lg border border-[var(--border-default)] bg-[var(--bg-field)] px-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
               />
               <span className="text-caption text-[var(--text-tertiary)]">to</span>
               <input
                 type="time" value={s.work_end}
                 onChange={(e) => set({ work_end: e.target.value })}
-                className="h-8 rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+                className="h-8 rounded-lg border border-[var(--border-default)] bg-[var(--bg-field)] px-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
               />
             </span>
           </label>
@@ -587,7 +587,7 @@ export function LinkedinPage() {
             <select
               value={s.timezone || 'UTC'}
               onChange={(e) => set({ timezone: e.target.value })}
-              className="h-8 w-full max-w-xs rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+              className="h-8 w-full max-w-xs rounded-lg border border-[var(--border-default)] bg-[var(--bg-field)] px-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
             >
               {zones.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
             </select>

@@ -146,7 +146,7 @@ export function AdminAccounts() {
             aria-label="Sort accounts by"
             value={sort}
             onChange={(e) => setSort(e.target.value as Sort)}
-            className="h-8 rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-2 text-body text-[var(--text-primary)]"
+            className="h-8 rounded-lg border border-[var(--border-default)] bg-[var(--bg-field)] px-2 text-body text-[var(--text-primary)]"
           >
             {SORTS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
           </select>
@@ -155,7 +155,7 @@ export function AdminAccounts() {
           aria-label="Month"
           value={month}
           onChange={(e) => setMonth(e.target.value)}
-          className="h-8 rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-2 text-body text-[var(--text-primary)]"
+          className="h-8 rounded-lg border border-[var(--border-default)] bg-[var(--bg-field)] px-2 text-body text-[var(--text-primary)]"
         >
           {months.map((m) => <option key={m} value={m}>{monthLabel(m)}</option>)}
         </select>

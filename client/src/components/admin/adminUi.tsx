@@ -7,7 +7,7 @@ import { cn } from '../../lib/utils';
    way to run an admin action (toast, then refresh everything admin). */
 
 /** A field sized by its caller; `inputCls` is the same at full width. */
-export const inputBase = 'h-9 min-w-0 rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-3 text-body text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] hover:border-[var(--border-strong)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[var(--ring-focus)] transition-[border-color,box-shadow] disabled:opacity-60';
+export const inputBase = 'h-9 min-w-0 rounded-lg border border-[var(--border-default)] bg-[var(--bg-field)] px-3 text-body text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] hover:border-[var(--border-strong)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[var(--ring-focus)] transition-[border-color,box-shadow] disabled:opacity-60';
 export const inputCls = `${inputBase} w-full`;
 
 export const errMsg = (e: any, fallback: string) => e?.response?.data?.error || fallback;

@@ -2245,7 +2245,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                           value={columnSearch}
                           onChange={(e) => setColumnSearch(e.target.value)}
                           placeholder="Search columns…"
-                          className="w-full h-8 pl-8 pr-3 text-body rounded-md bg-[var(--bg-app)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--indigo)]"
+                          className="w-full h-8 pl-8 pr-3 text-body rounded-md bg-[var(--bg-field)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--indigo)]"
                         />
                       </div>
                     </div>

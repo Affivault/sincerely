@@ -309,7 +309,7 @@ function WatchSettings({ data }: { data: MomentsResponse }) {
                 onChange={(e) => setAdding(e.target.value)}
                 maxLength={80}
                 placeholder="Add your own, e.g. Opening a new warehouse"
-                className="h-8 min-w-0 flex-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-3 text-body text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)]"
+                className="h-8 min-w-0 flex-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-field)] px-3 text-body text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)]"
               />
               <Button size="sm" variant="secondary" type="submit" disabled={adding.trim().length < 3}><Plus className="h-3.5 w-3.5" /> Add</Button>
             </form>

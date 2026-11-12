@@ -54,7 +54,7 @@ const SPANS: { value: ProspectGrowthFilter['timespan']; label: string }[] = [
 const industrySuggest = (q: string) => rankSuggestions(PROSPECT_INDUSTRIES, q, 500, INDUSTRY_ALIASES);
 const languageSuggest = (q: string) => rankSuggestions(PROSPECT_LANGUAGES, q, 40);
 
-const inputClass = 'block w-full h-8 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2 text-body text-[var(--text-primary)] tabular placeholder:text-[var(--text-tertiary)] hover:border-[var(--border-strong)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[var(--ring-focus)] transition-[border-color,box-shadow]';
+const inputClass = 'block w-full h-8 rounded-md border border-[var(--border-default)] bg-[var(--bg-field)] px-2 text-body text-[var(--text-primary)] tabular placeholder:text-[var(--text-tertiary)] hover:border-[var(--border-strong)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[var(--ring-focus)] transition-[border-color,box-shadow]';
 const chipClass = (on: boolean) => cn(
   'inline-flex items-center h-7 px-2.5 rounded-md text-caption font-medium border transition-colors tabular',
   on ? 'bg-[var(--indigo-subtle)] border-[var(--indigo)]/30 text-[var(--indigo-text)]' : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-default)] hover:text-[var(--text-primary)]',

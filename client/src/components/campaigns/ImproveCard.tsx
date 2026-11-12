@@ -188,7 +188,7 @@ function Proposal({ e, busy, onApprove, onSkip }: {
               onChange={(ev) => setSubject(ev.target.value)}
               maxLength={80}
               aria-label="New subject line"
-              className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-3 py-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+              className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-field)] px-3 py-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
             />
             <p className="mt-1 text-right text-micro tabular-nums text-[var(--text-tertiary)]" data-improve-count>{subject.length}/80</p>
           </div>

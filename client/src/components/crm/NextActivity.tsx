@@ -256,7 +256,7 @@ function QuickPlanner({ deal, panelProps, pos, onDone }: {
         onChange={(e) => setTitle(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); save.mutate(); } }}
         placeholder={placeholder}
-        className="mb-2 h-8 w-full rounded-md border border-[var(--border-control)] bg-[var(--bg-app)] px-2.5 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)] focus-visible:shadow-[var(--ring-focus)]"
+        className="mb-2 h-8 w-full rounded-md border border-[var(--border-control)] bg-[var(--bg-field)] px-2.5 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)] focus-visible:shadow-[var(--ring-focus)]"
       />
       <button
         type="button"

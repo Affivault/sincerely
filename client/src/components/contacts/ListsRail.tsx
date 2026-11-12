@@ -313,7 +313,7 @@ export function ListsRail({
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Escape') setQuery(''); }}
             placeholder="Find a list"
-            className="w-full h-8 pl-8 pr-7 text-body rounded-lg bg-[var(--bg-app)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)]"
+            className="w-full h-8 pl-8 pr-7 text-body rounded-lg bg-[var(--bg-field)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)]"
           />
           {query && (
             <button type="button" aria-label="Clear" onClick={() => setQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 icon-btn h-5 w-5">

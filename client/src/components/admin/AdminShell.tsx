@@ -215,7 +215,7 @@ function QuickFind({ open, onClose }: { open: boolean; onClose: () => void }) {
         }}
         placeholder="Email or account id"
         aria-label="Email or account id"
-        className="h-10 w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-3 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[var(--ring-focus)]"
+        className="h-10 w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-field)] px-3 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[var(--ring-focus)]"
       />
       <ul className="mt-2 -mx-1" role="listbox" aria-label="Accounts">
         {!data && <li className="px-2 py-3 text-body text-[var(--text-tertiary)]">Loading accounts…</li>}

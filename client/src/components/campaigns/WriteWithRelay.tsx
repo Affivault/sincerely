@@ -102,7 +102,7 @@ export function WriteWithRelay({
             <select aria-label="List to write for"
               value={listId}
               onChange={(e) => setListId(e.target.value)}
-              className="h-9 flex-1 min-w-0 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-2.5 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+              className="h-9 flex-1 min-w-0 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-field)] px-2.5 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
             >
               <option value="">No list - write for the leads I pick</option>
               {lists.map((l) => (
@@ -114,7 +114,7 @@ export function WriteWithRelay({
               onChange={(e) => setAudience(e.target.value)}
               maxLength={300}
               placeholder="Describe them (optional), e.g. operations leads at UK logistics firms"
-              className="h-9 flex-[1.4] min-w-0 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-3 text-body text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)]"
+              className="h-9 flex-[1.4] min-w-0 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-field)] px-3 text-body text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)]"
             />
           </div>
           {chosen && (
@@ -131,7 +131,7 @@ export function WriteWithRelay({
             rows={4}
             maxLength={2000}
             placeholder="e.g. We help logistics firms cut failed deliveries with route checks before dispatch. Customers typically see 20% fewer failed drops in the first month."
-            className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-3 py-2 text-body text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)] focus:ring-2 focus:ring-[var(--indigo)]/15"
+            className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-field)] px-3 py-2 text-body text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)] focus:ring-2 focus:ring-[var(--indigo)]/15"
           />
           {!ready && offer.length > 0 && <p className="mt-1 text-caption text-[var(--text-tertiary)]">A sentence or two more helps Relay write something specific ({Math.max(0, 20 - offer.trim().length)} more characters to start).</p>}
         </Field>
@@ -142,7 +142,7 @@ export function WriteWithRelay({
             onChange={(e) => setGoal(e.target.value)}
             maxLength={200}
             placeholder="e.g. a 15-minute call with whoever runs partnerships"
-            className="h-9 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-3 text-body text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)]"
+            className="h-9 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-field)] px-3 text-body text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)]"
           />
         </Field>
 

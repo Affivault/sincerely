@@ -1373,7 +1373,7 @@ function StartCampaignModal({ onClose }: { onClose: () => void }) {
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search templates…"
                 aria-label="Search templates"
-                className="h-7 w-44 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] pr-2 text-body text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--indigo)] focus:outline-none focus-visible:shadow-[var(--ring-focus)]"
+                className="h-7 w-44 rounded-md border border-[var(--border-default)] bg-[var(--bg-field)] pr-2 text-body text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--indigo)] focus:outline-none focus-visible:shadow-[var(--ring-focus)]"
                 style={{ paddingLeft: '1.6rem' }}
               />
             </div>

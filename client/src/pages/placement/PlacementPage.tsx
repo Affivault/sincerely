@@ -349,7 +349,7 @@ function StartTestModal({ open, onClose, seeds }: {
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
                 placeholder="The subject you would actually send"
-                className="block h-8 w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--indigo)] focus:outline-none"
+                className="block h-8 w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-field)] px-2.5 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--indigo)] focus:outline-none"
               />
             </div>
           )}

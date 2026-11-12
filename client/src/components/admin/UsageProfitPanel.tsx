@@ -48,7 +48,7 @@ export function UsageProfitPanel() {
           aria-label="Month"
           value={month}
           onChange={(e) => setMonth(e.target.value)}
-          className="h-8 rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-2 text-body text-[var(--text-primary)]"
+          className="h-8 rounded-lg border border-[var(--border-default)] bg-[var(--bg-field)] px-2 text-body text-[var(--text-primary)]"
         >
           {months.map((m) => <option key={m} value={m}>{monthLabel(m)}</option>)}
         </select>
