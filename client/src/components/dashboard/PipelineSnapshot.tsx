@@ -9,8 +9,8 @@ import { crmApi } from '../../api/crm.api';
 
    Home said everything about sending and nothing about what the sending
    was for. This is the deals board in three lines: what is open, what was
-   won in the last 30 days, and the next deal due to close. It hides itself
-   for an account that has never had a deal, rather than showing noughts.
+   won in the last 30 days, and the next deal due to close. With no deals it
+   stays and says so, rather than disappearing.
    ═══════════════════════════════════════════════════════════════════════ */
 
 function money(v: number): string {
@@ -39,14 +39,41 @@ function closeLabel(date: string): string {
 }
 
 export function PipelineSnapshot() {
-  const { data } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['crm', 'deals'],
     queryFn: () => crmApi.listDeals(),
     staleTime: 60_000,
     meta: { silentError: true },
   });
   const deals = Array.isArray(data) ? data : [];
-  if (deals.length === 0) return null;
+  if (isLoading) return null;
+
+  /* No deals, or the list did not arrive: the section stays, and says which. */
+  if (deals.length === 0) {
+    return (
+      <section className="panel overflow-hidden" data-pipeline-snapshot="empty">
+        <div className="flex items-center justify-between gap-3 px-4 py-3.5 border-b border-[var(--border-subtle)]">
+          <h2 className="text-strong font-semibold text-[var(--text-primary)] tracking-[-0.01em] leading-tight">Pipeline</h2>
+          <Link to="/deals" className="text-body font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] inline-flex min-h-6 items-center gap-0.5 transition-colors">
+            Deals <ChevronRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
+        <div className="px-4 py-4">
+          {isError ? (
+            <>
+              <p className="text-body text-[var(--text-secondary)]">Your deals could not be loaded.</p>
+              <button type="button" onClick={() => refetch()} className="mt-1.5 text-body font-medium text-[var(--indigo-text)] hover:underline">Try again</button>
+            </>
+          ) : (
+            <>
+              <p className="text-body text-[var(--text-secondary)]">No deals yet. When a reply turns into an opportunity, add it as a deal and its value shows here.</p>
+              <Link to="/deals" className="mt-1.5 inline-flex text-body font-medium text-[var(--indigo-text)] hover:underline">Add a deal</Link>
+            </>
+          )}
+        </div>
+      </section>
+    );
+  }
 
   const s = summarisePipeline(deals);
   const next = nextToClose(deals);

@@ -442,9 +442,11 @@ export function DashboardPage() {
         <TodayQueue mode="home" />
 
         <aside className="flex min-w-0 flex-col gap-4" aria-label="Schedule, pipeline and campaigns">
+          {/* The deals the outreach is for. Always here: deals do not wait
+              for a campaign, and a section that hid itself when it had
+              nothing to show read as a section that had gone missing. */}
+          <PipelineSnapshot />
           <TodayPanel />
-          {/* The deals the outreach is for. Hidden until there is one. */}
-          {everSent && <PipelineSnapshot />}
 
           {everSent && (
             <section className="panel overflow-hidden" data-whats-working>
@@ -551,11 +553,6 @@ export function DashboardPage() {
         </div>
       </section>
       )}
-
-      {/* The page opened with a salutation; it closes the way a letter does. */}
-      <p className="salutation pt-4" style={{ fontSize: 22, color: 'var(--text-tertiary)' }} aria-hidden data-valediction>
-        Sincerely,
-      </p>
     </div>
   );
 }

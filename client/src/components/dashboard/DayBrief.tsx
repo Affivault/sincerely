@@ -8,17 +8,14 @@ import { analyticsApi, type TrendDataPoint } from '../../api/analytics.api';
 import { cn } from '../../lib/utils';
 
 /* ═══════════════════════════════════════════════════════════════════════
-   The top of Home, written as the opening of a letter.
+   The top of Home: the day, said in a sentence.
 
-   Sincerely writes letters to strangers, and the first screen of the day
-   read like every other dashboard: a greeting, then four identical tiles
-   with an icon each. This says the same things the way a colleague would
-   - "42 emails have gone out today and 3 people have written back" - with
-   each figure a link to where you would act on it, and then sets the same
-   figures out once, as a ledger, for anyone who wants the columns.
-
-   The salutation is the one place in the app set in the serif the landing
-   page uses. Everything under it stays in the working face.
+   The first screen of the day read like every other dashboard: a
+   greeting, then four identical tiles with an icon each. This says the
+   same things the way a colleague would - "42 emails have gone out today
+   and 3 people have written back" - with each figure a link to where you
+   would act on it, and then sets the same figures out once, as a ledger,
+   for anyone who wants the columns.
    ═══════════════════════════════════════════════════════════════════════ */
 
 function greeting(): string {
@@ -131,8 +128,8 @@ export function DayBrief({ name, period, activeCampaigns, contacts, sentInPeriod
         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
           <div className="min-w-0">
             <p className="text-body text-[var(--text-tertiary)]">{formatLongWeekdayDate(new Date())}</p>
-            <h1 className="salutation mt-1.5">
-              {greeting()}, <span className="capitalize">{name}</span>.
+            <h1 className="mt-1.5 text-[30px] font-semibold leading-[1.1] tracking-[-0.03em] text-[var(--text-primary)] sm:text-[32px]">
+              {greeting()}, <span className="capitalize">{name}</span>
             </h1>
           </div>
           {/* A phone has the create button in its top bar already. */}
