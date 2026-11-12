@@ -155,8 +155,23 @@ export async function checkScheduling(row: Row): Promise<{ recorded: number }> {
     last_sync_at: new Date().toISOString(),
     next_sync_at: new Date(Date.now() + every).toISOString(),
     last_sync_error: null,
+    // Working again: the card stops showing the old problem.
+    last_error: null,
+    last_success_at: new Date().toISOString(),
   }).eq('id', row.id).then(() => undefined, () => undefined);
   return { recorded };
+}
+
+/**
+ * Something stopped bookings coming through: shown in red on the connection's
+ * card (last_error), in words that say what to do. Cleared by the next
+ * booking or check that works.
+ */
+export async function markProblem(integrationId: string, message: string): Promise<void> {
+  await supabaseAdmin.from('user_integrations')
+    .update({ last_error: message.slice(0, 500), last_sync_error: message.slice(0, 500) })
+    .eq('id', integrationId)
+    .then(() => undefined, () => undefined);
 }
 
 /** For the scheduler: Calendly / Cal.com connections due a check. Cross-tenant. */
@@ -262,6 +277,7 @@ export async function recordBooking(row: Row, label: string, b: ExternalBooking)
     // Seen at the same moment by a notification and a check: the other one recorded it.
     if (/duplicate key|23505/.test(`${error.message} ${(error as any).code}`)) return 'known';
     await logActivity(row.id, `Could not record the ${label} meeting with ${b.email}`, false, error.message);
+    await markProblem(row.id, `the meeting with ${b.email} could not be saved (${error.message})`);
     throw error;
   }
   const eventId = (ev as any).id as string;
@@ -275,5 +291,6 @@ export async function recordBooking(row: Row, label: string, b: ExternalBooking)
     contactId ? notifyCrmsOfMeeting(userId, { contact_id: contactId, title: b.title, starts_at: b.start, via: label, campaign_id: campaignId }) : Promise.resolve(),
   ]);
   await logActivity(row.id, `Meeting booked in ${label}: ${b.title} with ${b.name} (${b.email})${stopped ? `, ${stopped} sequence${stopped === 1 ? '' : 's'} stopped` : ''}`);
+  await supabaseAdmin.from('user_integrations').update({ last_error: null, last_success_at: new Date().toISOString() }).eq('id', row.id).then(() => undefined, () => undefined);
   return 'created';
 }

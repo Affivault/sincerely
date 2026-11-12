@@ -1,7 +1,7 @@
 import { supabaseAdmin } from '../../config/supabase.js';
 import { runCrmSync, dueCrmSyncs, driveBackfill, runningBackfills, CRM_SYNC_EVERY_MS } from '../../services/crm-sync.service.js';
 import { beat } from '../../utils/heartbeat.js';
-import { dueSchedulingChecks, checkScheduling } from '../../services/scheduling.service.js';
+import { dueSchedulingChecks, checkScheduling, markProblem } from '../../services/scheduling.service.js';
 
 /**
  * Runs two-way HubSpot and Pipedrive syncs that are due (migration 118).
@@ -50,7 +50,7 @@ export async function runCrmSyncSweep(): Promise<number> {
       await checkScheduling(row);
       ran++;
     } catch (err: any) {
-      await supabaseAdmin.from('user_integrations').update({ last_sync_error: String(err?.message || err).slice(0, 500) }).eq('id', row.id);
+      await markProblem(row.id, String(err?.message || err));
       console.warn(`[Scheduling] ${row.id} check failed: ${err?.message || err}`);
     }
   }

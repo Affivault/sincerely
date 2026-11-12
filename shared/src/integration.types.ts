@@ -19,7 +19,7 @@ export type IntegrationProviderId =
   | 'calendly'
   | 'calcom';
 
-export type IntegrationKind = 'notification' | 'automation' | 'crm' | 'scheduling';
+export type IntegrationKind = 'notification' | 'automation' | 'crm' | 'scheduling' | 'database';
 
 /** One field the user must fill in to connect a provider. */
 export interface IntegrationConfigField {
