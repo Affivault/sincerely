@@ -48,7 +48,7 @@ export function Toggle({
         'focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--indigo)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-surface)]',
         'shadow-[inset_0_1px_2px_rgba(15,15,25,0.18)]',
         // Off track is a control boundary: 3:1 (1.4.11), not the 1.8:1 divider grey.
-        checked ? 'bg-[var(--indigo)]' : 'bg-[var(--border-control)]',
+        checked ? 'bg-[var(--indigo)]' : 'bg-[var(--border-control-hover)]',
         disabled && 'opacity-45 cursor-not-allowed',
         dims.track,
         className

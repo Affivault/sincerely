@@ -54,7 +54,7 @@ const errorOf = (err: any, fallback: string) => err?.response?.data?.error || er
 
 const CARD = 'rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] p-4 space-y-3';
 const SELECT =
-  'h-8 rounded-md border border-[var(--border-control)] bg-[var(--bg-field)] px-2 text-body text-[var(--text-primary)] hover:border-[var(--text-tertiary)] focus:border-[var(--indigo)] focus:outline-none min-w-0';
+  'h-8 rounded-md border border-[var(--border-control)] bg-[var(--bg-field)] px-2 text-body text-[var(--text-primary)] hover:border-[var(--border-control-hover)] focus:border-[var(--indigo)] focus:outline-none min-w-0';
 
 const DIRECTION_LABEL: Record<CrmFieldDirection, string> = {
   both: 'Both ways',

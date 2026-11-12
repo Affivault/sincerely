@@ -49,7 +49,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             // (--border-strong is lighter than the control edge).
             error
               ? 'border-[var(--error)] hover:border-[var(--error)] focus:border-[var(--error)] focus:shadow-[var(--ring-error)]'
-              : 'border-[var(--border-control)] hover:border-[var(--text-tertiary)] focus:border-[var(--indigo)] focus:shadow-[var(--ring-focus)]',
+              : 'border-[var(--border-control)] hover:border-[var(--border-control-hover)] focus:border-[var(--indigo)] focus:shadow-[var(--ring-focus)]',
             className
           )}
           {...props}
