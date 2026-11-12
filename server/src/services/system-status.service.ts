@@ -228,9 +228,23 @@ function configIssues(): StatusIssue[] {
   }));
 }
 
-function headlineFor(level: SystemStatus['level'], issues: StatusIssue[]): string {
+function headlineFor(level: SystemStatus['level'], issues: StatusIssue[], list: StatusJob[] = []): string {
   if (level === 'ok') return 'Everything is running.';
   const first = issues[0];
+  /*
+   * The level can be raised by a job alone - one that is late, or a
+   * non-core one that has stopped - with no issue behind it. Counting the
+   * issues then said "0 things need a look", a warning about nothing.
+   * Name the job instead.
+   */
+  if (issues.length === 0) {
+    const off = list.filter((j) => j.health === 'late' || j.health === 'stalled' || j.health === 'failing');
+    if (off.length === 1) {
+      const j = off[0];
+      return `${j.label} ${j.health === 'late' ? 'is running late' : j.health === 'stalled' ? 'has stopped' : 'keeps failing'}.`;
+    }
+    return off.length > 1 ? `${off.length} background jobs are behind.` : 'Something needs a look.';
+  }
   if (issues.length === 1 && first) return first.title + '.';
   return `${issues.length} things need a look${first ? ` - starting with: ${first.title.toLowerCase()}` : ''}.`;
 }
@@ -242,7 +256,7 @@ export const systemStatusService = {
     const issues = [...configIssues(), ...jobIssues(list), ...mine]
       .sort((a, b) => (a.level === b.level ? 0 : a.level === 'down' ? -1 : 1));
     const level = overallLevel(list, issues);
-    return { persisted, level, headline: headlineFor(level, issues), jobs: list, issues, checked_at: new Date(now).toISOString(), reply_check: replyCheck };
+    return { persisted, level, headline: headlineFor(level, issues, list), jobs: list, issues, checked_at: new Date(now).toISOString(), reply_check: replyCheck };
   },
 
   /**
