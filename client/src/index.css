@@ -76,16 +76,16 @@
      */
     /* One fill for both themes: buttons, toggles and bars are the same blue
        in light and dark, and only the paper behind them changes. */
-    --indigo: #4758CC;
-    --indigo-hover: #3B4BB8;
+    --indigo: #5A6BD4;
+    --indigo-hover: #4B5BC2;
     /* The ink when it is the colour of words. The fill is a little light for
        small text on white, so words on paper keep the deeper blue; in dark
        they get a lighter one. */
     --indigo-text: #3F50B8;
-    --indigo-subtle: rgba(71, 88, 204, 0.08);
+    --indigo-subtle: rgba(90, 107, 212, 0.08);
     /* Flat. A sheen on a button is what a stock button looks like. */
-    --indigo-grad: #4758CC;
-    --indigo-grad-hover: #3B4BB8;
+    --indigo-grad: #5A6BD4;
+    --indigo-grad-hover: #4B5BC2;
 
     /*
      * The focus ring, and the lift under a primary button.
@@ -96,7 +96,7 @@
      * thing it was focusing. Tokens, so there is one of each and it
      * follows the theme like everything else.
      */
-    --ring-focus: 0 0 0 3px rgba(71, 88, 204, 0.18);
+    --ring-focus: 0 0 0 3px rgba(90, 107, 212, 0.18);
     /* The same ring around a field that is wrong. It was inline too, and
        in one colour for both themes. */
     --ring-error: 0 0 0 3px rgba(178, 58, 48, 0.12);
@@ -209,12 +209,12 @@
     --accent-muted: #A4A5AC;
     --accent-subtle: #17181B;
 
-    --indigo: #4758CC;
-    --indigo-hover: #3B4BB8;
+    --indigo: #5A6BD4;
+    --indigo-hover: #4B5BC2;
     --indigo-text: #8A98EA;
     --indigo-subtle: rgba(110, 126, 220, 0.13);
-    --indigo-grad: #4758CC;
-    --indigo-grad-hover: #3B4BB8;
+    --indigo-grad: #5A6BD4;
+    --indigo-grad-hover: #4B5BC2;
 
     --ring-focus: 0 0 0 3px rgba(110, 126, 220, 0.22);
     --ring-error: 0 0 0 3px rgba(210, 107, 92, 0.2);
@@ -251,7 +251,7 @@
     --shadow-glow: 0 0 0 1px rgba(110, 126, 220, 0.2);
     --shadow-glow-sm: 0 0 0 1px rgba(110, 126, 220, 0.14);
 
-    --gradient-brand: #4758CC;
+    --gradient-brand: #5A6BD4;
     --gradient-brand-soft: rgba(110, 126, 220, 0.10);
     --gradient-success: #5FA17E;
     --gradient-warning: #CD9A3F;
@@ -1252,18 +1252,4 @@
 @keyframes slideInRight {
   from { transform: translateX(16px); opacity: 0; }
   to   { transform: translateX(0);    opacity: 1; }
-}
-
-/* The opening line of Home. A letter starts with a salutation, and this is
-   the one place the app sets one: the landing page's serif, in italic, the
-   way a line written by hand leans. */
-.salutation {
-  font-family: 'Newsreader', 'Iowan Old Style', Georgia, serif;
-  font-style: italic;
-  font-weight: 500;
-  font-size: clamp(30px, 3.4vw, 42px);
-  line-height: 1.08;
-  letter-spacing: -0.022em;
-  color: var(--text-primary);
-  text-wrap: balance;
 }
