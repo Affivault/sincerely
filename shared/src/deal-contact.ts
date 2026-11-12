@@ -88,7 +88,12 @@ export interface DealContactActivity {
   total: number;
   /** Headline: "Sarah Lee replied 3 days ago". */
   sentence: string;
+  /** Every touch in the last RHYTHM_DAYS, newest first, for the rhythm strip. */
+  rhythm: Array<{ days_ago: number; kind: 'in' | 'out' | 'met' }>;
 }
+
+/** How far back the rhythm strip on the deal page looks. */
+export const RHYTHM_DAYS = 28;
 
 const DAY = 86_400_000;
 
@@ -220,6 +225,12 @@ export function dealContactActivity(input: {
     engaged: people.filter((p) => p.last_in || p.last_met).length,
     total: people.length,
     sentence: '',
+    rhythm: input.touches
+      .filter((t) => t.at && Number.isFinite(Date.parse(t.at)) && Date.parse(t.at) <= now + 60_000)
+      .map((t) => ({ days_ago: daysSince(t.at, now) ?? 0, kind: (t.kind === 'email_in' ? 'in' : t.kind === 'email_out' ? 'out' : 'met') as 'in' | 'out' | 'met' }))
+      .filter((t) => t.days_ago < RHYTHM_DAYS)
+      .sort((a, b) => a.days_ago - b.days_ago)
+      .slice(0, 60),
   };
   result.sentence = dealContactSentence(result, input.windowDays);
   return result;

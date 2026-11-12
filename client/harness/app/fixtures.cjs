@@ -120,7 +120,7 @@ const dealActivity = (d, i) => {
     last_heard: at ? { at: ago(by === 'them' ? days : days + 6), email: d.contact_email, name } : null,
     days_since: days, days_since_heard: days === null ? null : by === 'them' ? days : days + 6, pace,
     ball: by === 'them' ? 'you' : by === 'you' ? 'them' : null,
-    people: [], engaged: days === null ? 0 : 1, total: 1, sentence,
+    people: [], engaged: days === null ? 0 : 1, total: 1, sentence, rhythm: [],
   };
 };
 
@@ -582,7 +582,7 @@ function more(P, q, seg) {
   }
   if (/^\/crm\/deals\/d\d+\/detail$/.test(P)) {
     const d = deals.find((x) => x.id === seg[3]) || deals[0]; const ct = contacts.find((x) => x.id === d.contact_id);
-    return { deal: { ...d, contact: { id: ct.id, email: ct.email, first_name: ct.first_name, last_name: ct.last_name, company: ct.company, job_title: ct.job_title } }, participants: [{ id: 'dp1', deal_id: d.id, contact_id: 'c7', role: 'Economic buyer', note: null, created_at: ago(5), contact: { id: 'c7', email: contacts[6].email, first_name: 'Sofia', last_name: 'Marin', company: contacts[6].company, job_title: contacts[6].job_title } }], tasks: tasks.filter((t) => t.deal_id === d.id), events: events.filter((e) => e.deal_id === d.id), notes, history: history(d.id), emails: [...inbox.slice(0, 2).map((m) => ({ ...m, from_email: ct.email })), { ...inbox[2], from_email: 'me@affivault.com', to_email: contacts[6].email, received_at: ago(16), direction: 'outbound' }].map((m) => ({ id: m.id, subject: m.subject, from_email: m.from_email, to_email: m.to_email, direction: m.direction || 'inbound', received_at: m.received_at, body_text: m.body_text, is_read: true, contact_id: m.contact_id })) };
+    return { deal: { ...d, contact: { id: ct.id, email: ct.email, first_name: ct.first_name, last_name: ct.last_name, company: ct.company, job_title: ct.job_title } }, participants: [{ id: 'dp1', deal_id: d.id, contact_id: 'c7', role: 'Economic buyer', note: null, created_at: ago(5), contact: { id: 'c7', email: contacts[6].email, first_name: 'Sofia', last_name: 'Marin', company: contacts[6].company, job_title: contacts[6].job_title } }], tasks: tasks.filter((t) => t.deal_id === d.id), events: events.filter((e) => e.deal_id === d.id), notes, history: history(d.id), emails: [...inbox.slice(0, 2).map((m) => ({ ...m, from_email: ct.email })), { ...inbox[2], from_email: 'me@affivault.com', to_email: contacts[6].email, received_at: ago(16), direction: 'outbound' }, ...[[1, 'out'], [3, 'in'], [5, 'out'], [9, 'out'], [10, 'in'], [13, 'out'], [20, 'out'], [21, 'in'], [24, 'out']].map(([d, dir], k) => ({ ...inbox[k % 3], id: `dm${k}`, from_email: dir === 'in' ? ct.email : 'me@affivault.com', to_email: dir === 'in' ? 'me@affivault.com' : ct.email, received_at: ago(d + 0.2), direction: dir === 'in' ? 'inbound' : 'outbound' }))].map((m) => ({ id: m.id, subject: m.subject, from_email: m.from_email, to_email: m.to_email, direction: m.direction || 'inbound', received_at: m.received_at, body_text: m.body_text, is_read: true, contact_id: m.contact_id })) };
   }
   if (/^\/placement\/pl\d+$/.test(P)) {
     const probes = ['gmail', 'gmail', 'gmail', 'outlook', 'outlook', 'outlook', 'yahoo', 'yahoo', 'yahoo', 'other'].map((provider, i) => ({ id: `pb${i}`, seed_account_id: `seed${i % 3}`, seed_email: `seed${i}@${provider}.com`, provider, placement: i === 4 ? 'spam' : 'inbox', folder: i === 4 ? 'Junk' : 'INBOX', send_error: null, found_at: ago(2) }));
