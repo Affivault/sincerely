@@ -137,6 +137,10 @@ const { contactOut } = await import('../src/public-api/serialize.js');
 
 const server = app.listen(0, '127.0.0.1');
 await new Promise((r) => server.once('listening', r));
+// fetch keeps idle connections for about as long as Node's server keeps them
+// (5s): a request sent on one the server is closing fails with "fetch
+// failed" now and then. Outlive the client so that never happens.
+for (const s of [server, fake]) { s.keepAliveTimeout = 60_000; s.headersTimeout = 61_000; }
 const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 
 let passed = 0;

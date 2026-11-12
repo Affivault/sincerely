@@ -558,7 +558,7 @@ function ProviderModal({
                 <ol className="list-decimal pl-5 space-y-0.5 text-caption text-[var(--text-secondary)]">
                   <li>In n8n open <span className="font-medium">Settings, then Community nodes</span>, and click <span className="font-medium">Install</span>.</li>
                   <li>Enter <code className="rounded bg-[var(--bg-elevated)] px-1 font-mono">n8n-nodes-sincerely</code>, tick the box and install.</li>
-                  <li>Add a <span className="font-medium">Sincerely</span> or <span className="font-medium">Sincerely Trigger</span> node and connect it with an API key.</li>
+                  <li>Search the nodes for <span className="font-medium">Sincerely</span> (an action, or its trigger) and connect it with an API key.</li>
                 </ol>
               )}
               {meta.id === 'n8n' && (
