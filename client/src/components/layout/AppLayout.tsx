@@ -332,7 +332,9 @@ function AppContent() {
           ['--chrome-h' as string]: `${(narrow ? HEADER_H : FRAME_GAP * 2) + (showBar ? SECTION_BAR_H : 0)}px`,
         }}
       >
-      <div className="min-h-[calc(100vh-16px)] bg-[var(--bg-surface)]">
+      {/* The Unibox owns its own surfaces; everywhere else the sheet is the
+          canvas the cards lie on. */}
+      <div className={cn('min-h-[calc(100vh-16px)]', fullBleed ? 'bg-[var(--bg-surface)]' : 'bg-[var(--bg-canvas)]')}>
         <ViewAsBanner />
         <AnnouncementBanner />
         {showBar && here.section && <SectionBar section={here.section} active={here.tab} />}

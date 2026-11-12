@@ -31,7 +31,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
             // 1.4.11: control edge at 3:1; hover darkens rather than lightens.
             error
               ? 'border-[var(--error)] hover:border-[var(--error)] focus:border-[var(--error)] focus:shadow-[var(--ring-error)]'
-              : 'border-[var(--border-control)] hover:border-[var(--text-tertiary)] focus:border-[var(--indigo)] focus:shadow-[var(--ring-focus)]',
+              : 'border-[var(--border-control)] hover:border-[var(--border-control-hover)] focus:border-[var(--indigo)] focus:shadow-[var(--ring-focus)]',
             className
           )}
           {...props}

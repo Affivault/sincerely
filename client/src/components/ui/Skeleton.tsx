@@ -33,7 +33,7 @@ export function PageSkeleton({ variant = 'list', bleed = true }: { variant?: 'li
     <div aria-busy="true" aria-label="Loading">
       <div className={cn(
         'mb-5 border-b border-[var(--border-subtle)]',
-        bleed ? '-mx-4 -mt-5 sm:-mx-6 lg:-mx-8 lg:-mt-7 bg-[var(--bg-surface)] px-4 sm:px-6 lg:px-8 pt-5 pb-4' : 'pb-4',
+        bleed ? '-mx-4 -mt-5 sm:-mx-6 lg:-mx-8 lg:-mt-7 px-4 sm:px-6 lg:px-8 pt-5 pb-4' : 'pb-4',
       )}>
         <div className="flex items-start gap-4">
           <Skeleton className="h-9 w-9 rounded-xl flex-shrink-0" />

@@ -32,6 +32,10 @@
      */
     --bg-app: #F6F6F3;
     --bg-surface: #FFFFFF;
+    /* The sheet the work sits on, behind the cards. A breath of paper in
+       it, so a white card is a thing lying on the page rather than an
+       outline drawn on more white. */
+    --bg-canvas: #F9F9F7;
     /* Floating action bars (the selection bar): dark in both themes. */
     --bg-floating: #17181C;
     --bg-elevated: #F1F1ED;
@@ -57,7 +61,9 @@
     --text-tertiary: #6B6C74;
     --text-muted: #898A92;
     /* What a form control's edge is drawn in: 3:1 against the page (1.4.11). */
-    --border-control: #898A92;
+    --border-control: #C2C1BB;
+    /* A field under the pointer: one step firmer, not a jump to ink. */
+    --border-control-hover: #A3A29C;
 
     --accent: #18191D;
     --accent-hover: #2A2B30;
@@ -70,16 +76,16 @@
      */
     /* One fill for both themes: buttons, toggles and bars are the same blue
        in light and dark, and only the paper behind them changes. */
-    --indigo: #5A6BD4;
-    --indigo-hover: #4B5BC2;
+    --indigo: #4758CC;
+    --indigo-hover: #3B4BB8;
     /* The ink when it is the colour of words. The fill is a little light for
        small text on white, so words on paper keep the deeper blue; in dark
        they get a lighter one. */
     --indigo-text: #3F50B8;
-    --indigo-subtle: rgba(90, 107, 212, 0.08);
+    --indigo-subtle: rgba(71, 88, 204, 0.08);
     /* Flat. A sheen on a button is what a stock button looks like. */
-    --indigo-grad: #5A6BD4;
-    --indigo-grad-hover: #4B5BC2;
+    --indigo-grad: #4758CC;
+    --indigo-grad-hover: #3B4BB8;
 
     /*
      * The focus ring, and the lift under a primary button.
@@ -90,11 +96,13 @@
      * thing it was focusing. Tokens, so there is one of each and it
      * follows the theme like everything else.
      */
-    --ring-focus: 0 0 0 3px rgba(90, 107, 212, 0.18);
+    --ring-focus: 0 0 0 3px rgba(71, 88, 204, 0.18);
     /* The same ring around a field that is wrong. It was inline too, and
        in one colour for both themes. */
     --ring-error: 0 0 0 3px rgba(178, 58, 48, 0.12);
-    --glow-indigo: 0 1px 2px rgba(24, 25, 29, 0.12);
+    /* What a filled button stands on: a lit top edge and a tight shadow
+       in its own colour, so it reads as something to press. */
+    --glow-indigo: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 1px 2px rgba(36, 44, 91, 0.32);
 
     /* Category hues - pigments, for the few places a thing needs a colour
        of its own (a stage, a channel). Never decoration. */
@@ -176,6 +184,7 @@
     /* The same desk after dark: graphite with a trace of the ink in it. */
     --bg-app: #131417;
     --bg-surface: #1A1B1F;
+    --bg-canvas: #16171A;
     --bg-floating: #2A2B31;
     --bg-elevated: #212226;
     --bg-hover: #25262B;
@@ -192,23 +201,24 @@
     --text-secondary: #A4A5AC;
     --text-tertiary: #8E8F97;
     --text-muted: #75767E;
-    --border-control: #75767E;
+    --border-control: #45464D;
+    --border-control-hover: #5C5D65;
 
     --accent: #EDEDEA;
     --accent-hover: #DADAD6;
     --accent-muted: #A4A5AC;
     --accent-subtle: #17181B;
 
-    --indigo: #5A6BD4;
-    --indigo-hover: #4B5BC2;
+    --indigo: #4758CC;
+    --indigo-hover: #3B4BB8;
     --indigo-text: #8A98EA;
     --indigo-subtle: rgba(110, 126, 220, 0.13);
-    --indigo-grad: #5A6BD4;
-    --indigo-grad-hover: #4B5BC2;
+    --indigo-grad: #4758CC;
+    --indigo-grad-hover: #3B4BB8;
 
     --ring-focus: 0 0 0 3px rgba(110, 126, 220, 0.22);
     --ring-error: 0 0 0 3px rgba(210, 107, 92, 0.2);
-    --glow-indigo: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --glow-indigo: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 1px 2px rgba(0, 0, 0, 0.5);
 
     --c-indigo: #8F9BE0;
     --c-violet: #B39AD0;
@@ -241,7 +251,7 @@
     --shadow-glow: 0 0 0 1px rgba(110, 126, 220, 0.2);
     --shadow-glow-sm: 0 0 0 1px rgba(110, 126, 220, 0.14);
 
-    --gradient-brand: #5A6BD4;
+    --gradient-brand: #4758CC;
     --gradient-brand-soft: rgba(110, 126, 220, 0.10);
     --gradient-success: #5FA17E;
     --gradient-warning: #CD9A3F;
@@ -330,7 +340,7 @@
     background-size: 12px 12px;
     transition: border-color 150ms ease-out, box-shadow 150ms ease-out;
   }
-  select:hover:not(:disabled):not(:focus) { border-color: var(--text-tertiary); }
+  select:hover:not(:disabled):not(:focus) { border-color: var(--border-control-hover); }
   select:disabled { opacity: 0.55; cursor: not-allowed; }
   select[multiple] { background-image: none; padding-right: 0.625rem !important; }
 
@@ -629,8 +639,7 @@
     color: var(--text-tertiary);
   }
   .input-field:hover:not(:focus) {
-    /* --border-strong is lighter than --border-control; darken instead */
-    border-color: var(--text-tertiary);
+    border-color: var(--border-control-hover);
   }
   .input-field:focus {
     outline: none;

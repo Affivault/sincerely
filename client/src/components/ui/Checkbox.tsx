@@ -44,7 +44,7 @@ export function Checkbox({
         'focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--indigo)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-surface)]',
         on
           ? 'border-[var(--indigo)] bg-[var(--indigo)] shadow-[0_1px_2px_rgba(24,25,29,0.35)]'
-          : 'border-[var(--border-control)] bg-[var(--bg-surface)] hover:border-[var(--indigo)] hover:bg-[var(--indigo-subtle)]',
+          : 'border-[var(--border-control-hover)] bg-[var(--bg-surface)] hover:border-[var(--indigo)] hover:bg-[var(--indigo-subtle)]',
         disabled && 'opacity-40 cursor-not-allowed',
         className
       )}
